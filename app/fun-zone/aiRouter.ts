@@ -22,6 +22,8 @@ type ProviderError = Error & {
   status?: number;
 };
 
+const PROVIDER_TIMEOUT_MS = 90_000;
+
 function getErrorMessage(
   error: unknown
 ): string {
@@ -71,6 +73,7 @@ function isRetryableProviderError(
   }
 
   if (
+    status === 408 ||
     status === 429 ||
     status === 500 ||
     status === 502 ||
@@ -81,11 +84,54 @@ function isRetryableProviderError(
   }
 
   return (
+    message.includes("timeout") ||
+    message.includes("timed out") ||
     message.includes("rate limit") ||
     message.includes("quota") ||
     message.includes("too many requests") ||
-    message.includes("temporarily unavailable")
+    message.includes("temporarily unavailable") ||
+    message.includes("network") ||
+    message.includes("fetch failed")
   );
+}
+
+async function generateWithTimeout(
+  providerName: string,
+  providerGenerate: () =>
+    Promise<AIGenerateResponse>
+): Promise<AIGenerateResponse> {
+  let timeoutId:
+    ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise =
+    new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        const error =
+          new Error(
+            `${providerName} timeout setelah ${
+              PROVIDER_TIMEOUT_MS / 1000
+            } detik.`
+          ) as ProviderError;
+
+        error.provider =
+          providerName;
+
+        error.status = 408;
+
+        reject(error);
+      }, PROVIDER_TIMEOUT_MS);
+    });
+
+  try {
+    return await Promise.race([
+      providerGenerate(),
+      timeoutPromise,
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 export async function generateWithAIRouter(
@@ -121,13 +167,23 @@ export async function generateWithAIRouter(
         `AI Router mencoba provider: ${provider.name}`
       );
 
+      const startedAt =
+        Date.now();
+
       const result =
-        await provider.generate(
-          request
+        await generateWithTimeout(
+          provider.name,
+          () =>
+            provider.generate(
+              request
+            )
         );
 
+      const elapsed =
+        Date.now() - startedAt;
+
       console.log(
-        `AI Router berhasil menggunakan: ${provider.name}`
+        `AI Router berhasil menggunakan: ${provider.name} (${elapsed}ms)`
       );
 
       return {
@@ -163,16 +219,27 @@ export async function generateWithAIRouter(
       );
 
       /*
-       * Untuk error quota/rate-limit/server,
-       * langsung lanjut ke provider berikutnya.
+       * Semua provider dicoba secara berurutan.
        *
-       * Untuk error authentication seperti
-       * API key invalid, provider tersebut
-       * tidak akan berhasil dengan retry.
+       * Contoh:
+       * Gemini quota habis
+       *   ↓
+       * OpenRouter dicoba
+       *   ↓
+       * OpenRouter timeout/error
+       *   ↓
+       * Groq dicoba
+       *
+       * Jadi kegagalan satu provider tidak
+       * menghentikan AI Game Lab.
        */
       if (!retryable) {
         console.warn(
-          `Provider ${provider.name} mengalami error yang tidak retryable. Lanjut ke provider berikutnya.`
+          `Provider ${provider.name} mengalami error yang tidak retryable. Tetap lanjut ke provider berikutnya.`
+        );
+      } else {
+        console.warn(
+          `Provider ${provider.name} mengalami error retryable. Lanjut ke provider berikutnya.`
         );
       }
     }

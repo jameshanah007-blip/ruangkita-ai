@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateWithAIRouter } from "../../../fun-zone/aiRouter";
-import {
-  GameBlueprintSchema,
-  type GameBlueprint,
-} from "../../../fun-zone/engine/gameBlueprint";
+import type { GameBlueprint } from "../../../fun-zone/laboratory/types";
 
 function extractJson(text: string): unknown {
   const cleaned = text
@@ -17,220 +14,583 @@ function extractJson(text: string): unknown {
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");
 
-    if (start === -1 || end === -1 || end <= start) {
-      throw new Error("AI tidak menghasilkan JSON game yang valid.");
+    if (
+      start === -1 ||
+      end === -1 ||
+      end <= start
+    ) {
+      throw new Error(
+        "AI Director tidak menghasilkan JSON yang valid."
+      );
     }
 
-    return JSON.parse(cleaned.slice(start, end + 1));
+    return JSON.parse(
+      cleaned.slice(start, end + 1)
+    );
   }
 }
 
+function stringValue(
+  value: unknown,
+  fallback: string
+): string {
+  return (
+    typeof value === "string" &&
+    value.trim()
+  )
+    ? value.trim()
+    : fallback;
+}
+
+function stringArray(
+  value: unknown,
+  fallback: string[]
+): string[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const result = value
+    .filter(
+      (item): item is string =>
+        typeof item === "string"
+    )
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return result.length > 0
+    ? result
+    : fallback;
+}
+
+function normalizeBlueprint(
+  input: unknown,
+  userPrompt: string
+): GameBlueprint {
+  const source =
+    input &&
+    typeof input === "object"
+      ? (input as Record<string, unknown>)
+      : {};
+
+  const blueprint: GameBlueprint = {
+    title: stringValue(
+      source.title,
+      "AI Generated Game"
+    ),
+
+    concept: stringValue(
+      source.concept,
+      userPrompt ||
+        "An original interactive browser game"
+    ),
+
+    genre: stringValue(
+      source.genre,
+      "original game"
+    ),
+
+    mood: stringValue(
+      source.mood,
+      "engaging"
+    ),
+
+    difficulty: stringValue(
+      source.difficulty,
+      "normal"
+    ),
+
+    theme: stringValue(
+      source.theme,
+      userPrompt ||
+        "original interactive world"
+    ),
+
+    world: stringValue(
+      source.world,
+      "an original game world"
+    ),
+
+    coreLoop: stringValue(
+      source.coreLoop,
+      "explore, interact, overcome challenges, and progress"
+    ),
+
+    objective: stringValue(
+      source.objective,
+      "Complete the main objective"
+    ),
+
+    mechanics: stringArray(
+      source.mechanics,
+      [
+        "movement",
+        "interaction",
+        "progression",
+      ]
+    ),
+
+    playerActions: stringArray(
+      source.playerActions,
+      [
+        "move",
+        "interact",
+        "restart",
+      ]
+    ),
+
+    controls: stringArray(
+      source.controls,
+      [
+        "WASD",
+        "Arrow keys",
+        "Space",
+        "Mouse click",
+        "Touch tap",
+        "Touch swipe",
+      ]
+    ),
+
+    progression: stringValue(
+      source.progression,
+      "Progress through increasingly difficult challenges"
+    ),
+
+    replayability: stringValue(
+      source.replayability,
+      "Replay to explore different strategies and improve the result"
+    ),
+
+    winCondition: stringValue(
+      source.winCondition,
+      "Complete the main objective"
+    ),
+
+    loseCondition: stringValue(
+      source.loseCondition,
+      "Fail the main game challenge"
+    ),
+
+    visualStyle: stringValue(
+      source.visualStyle,
+      "modern 2D browser game"
+    ),
+
+    mobileNotes: stringArray(
+      source.mobileNotes,
+      [
+        "Responsive layout",
+        "Touch-friendly controls",
+        "Mobile browser support",
+        "Portrait and landscape support",
+      ]
+    ),
+
+    testRequirements: stringArray(
+      source.testRequirements,
+      [
+        "Game must render visibly",
+        "Game loop must start",
+        "Game animation must advance",
+        "Player input must work",
+        "Gameplay state must change",
+        "Game must have a clear objective",
+        "Game must provide win and lose conditions",
+        "Game must be playable on mobile",
+      ]
+    ),
+  };
+
+  return blueprint;
+}
+
 const SYSTEM_INSTRUCTION = `
-Kamu adalah AI Game Brain untuk RuangKita AI.
+Kamu adalah AI GAME DIRECTOR untuk
+RuangKita AI.
 
-Buat blueprint game original yang dapat dimainkan.
+Tugasmu adalah mengubah deskripsi bebas dari
+user menjadi GAME BLUEPRINT yang lengkap.
 
-Game bukan quiz.
+==================================================
+KONSEP UTAMA
+==================================================
 
-Genre yang tersedia:
-adventure
-action
-combat
-survival
-strategy
-mystery
-runner
-puzzle
-rpg
-simulation
+User TIDAK harus memilih genre dari daftar tetap.
 
-Aturan:
-1. Output hanya JSON valid.
-2. Jangan gunakan markdown.
-3. Jangan gunakan code fence.
-4. Jangan memberikan penjelasan di luar JSON.
-5. Jangan membuat JavaScript.
-6. Jangan membuat executable code.
-7. Harus ada tepat satu player entity.
-8. Harus ada minimal tiga entity.
-9. Harus ada minimal dua entity interaktif selain player.
-10. Harus ada minimal empat possibleEvents.
-11. dynamicEventsEnabled harus true.
-12. x dan y entity harus berada antara 0 dan 100.
+User cukup menjelaskan game yang dia inginkan.
 
-Gunakan schema GameBlueprint yang diberikan oleh sistem.
+Kamu harus memahami sendiri:
 
-Pastikan JSON valid.
-`;
+- genre
+- mood
+- difficulty
+- theme
+- world
+- mechanics
+- objective
+- player actions
+- progression
+- controls
+- win condition
+- lose condition
+- visual style
+- mobile requirements
+- testing requirements
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
+Genre boleh berupa genre umum,
+subgenre, hybrid genre,
+atau genre original.
 
-    const genre =
-      typeof body?.genre === "string" && body.genre.trim()
-        ? body.genre.trim()
-        : "adventure";
+Contoh:
 
-    const mood =
-      typeof body?.mood === "string" && body.mood.trim()
-        ? body.mood.trim()
-        : "seru";
+"game horor di rumah sakit tua"
 
-    const theme =
-      typeof body?.theme === "string" && body.theme.trim()
-        ? body.theme.trim()
-        : "petualangan misterius";
+dapat menjadi:
 
-    const prompt = `
-Buat satu game baru.
+genre:
+survival horror
 
-Genre: ${genre}
-Mood: ${mood}
-Tema: ${theme}
+mood:
+tegang
+
+difficulty:
+brutal
+
+theme:
+rumah sakit tua
+
+mechanics:
+exploration,
+collecting,
+enemy avoidance,
+resource management
+
+Contoh lain:
+
+"pesawat luar angkasa bertahan dari
+serangan asteroid"
+
+dapat menjadi:
+
+genre:
+space survival
+
+mechanics:
+movement,
+dodging,
+shooting,
+resource management
+
+Jangan membatasi kreativitas pada
+daftar genre tertentu.
+
+==================================================
+TUGAS
+==================================================
+
+Analisis prompt user.
+
+Kemudian buat Game Blueprint lengkap.
+
+Blueprint harus memiliki:
+
+title
+concept
+genre
+mood
+difficulty
+theme
+world
+coreLoop
+objective
+mechanics
+playerActions
+controls
+progression
+replayability
+winCondition
+loseCondition
+visualStyle
+mobileNotes
+testRequirements
+
+==================================================
+GAMEPLAY
+==================================================
+
+Game harus benar-benar merupakan game.
+
+Jangan membuat:
+
+- quiz
+- dashboard
+- form
+- website informasi
+- landing page
 
 Game harus memiliki:
-- satu player
-- NPC, enemy, item atau portal
-- dunia yang dapat dieksplorasi
-- pergerakan
-- interaksi
-- event dinamis
-- kondisi kemenangan
-- kondisi kekalahan
 
-Jangan membuat quiz.
+- player
+- objective
+- gameplay loop
+- interaction
+- progression
+- challenge
+- win condition
+- lose condition
 
-Minimal:
-- 3 entity
-- tepat 1 player
-- 2 entity interaktif selain player
-- 4 possibleEvents
+==================================================
+CONTROLS
+==================================================
 
-dynamicEventsEnabled harus true.
+controls harus berupa ARRAY STRING.
 
-Output hanya JSON.
+Contoh:
+
+[
+  "WASD movement",
+  "Arrow keys movement",
+  "Space interaction",
+  "Mouse click",
+  "Touch tap",
+  "Touch swipe"
+]
+
+Jangan membuat object keyboard/mouse/touch.
+
+==================================================
+MOBILE
+==================================================
+
+mobileNotes harus berupa ARRAY STRING.
+
+Contoh:
+
+[
+  "Responsive layout",
+  "Touch controls",
+  "Mobile browser support"
+]
+
+Game harus dapat dimainkan di:
+
+- desktop
+- Android
+- mobile browser
+
+==================================================
+TEST REQUIREMENTS
+==================================================
+
+testRequirements harus berupa ARRAY STRING.
+
+Minimal mencakup:
+
+- rendering
+- game loop
+- animation
+- input
+- gameplay state
+- objective
+- win condition
+- lose condition
+- mobile usability
+
+Test requirements akan digunakan oleh
+AI Tester untuk mengevaluasi Game Artifact.
+
+==================================================
+OUTPUT
+==================================================
+
+Output HANYA JSON.
+
+Jangan gunakan markdown.
+
+Jangan gunakan code fence.
+
+Jangan membuat JavaScript.
+
+Jangan membuat HTML.
+
+Jangan memberikan penjelasan tambahan.
+
+JSON harus valid.
 `;
 
-    const result = await generateWithAIRouter({
-      systemInstruction: SYSTEM_INSTRUCTION,
-      prompt,
-      temperature: 0.7,
-      maxOutputTokens: 6000,
-    });
+export async function POST(
+  request: Request
+) {
+  try {
+    const body =
+      await request.json();
 
-    const parsed = extractJson(result.text);
+    /*
+     * Prompt bebas adalah input utama
+     * Laboratory AI.
+     *
+     * genre/mood/theme tetap diterima
+     * untuk backward compatibility
+     * dengan UI lama.
+     */
 
-    const validation = GameBlueprintSchema.safeParse(parsed);
+    const userPrompt =
+      typeof body?.prompt === "string" &&
+      body.prompt.trim()
+        ? body.prompt.trim()
+        : "";
 
-    if (!validation.success) {
+    const legacyGenre =
+      typeof body?.genre === "string"
+        ? body.genre.trim()
+        : "";
+
+    const legacyMood =
+      typeof body?.mood === "string"
+        ? body.mood.trim()
+        : "";
+
+    const legacyTheme =
+      typeof body?.theme === "string"
+        ? body.theme.trim()
+        : "";
+
+    const combinedPrompt =
+      userPrompt ||
+      [
+        legacyGenre
+          ? `Genre: ${legacyGenre}`
+          : "",
+
+        legacyMood
+          ? `Mood: ${legacyMood}`
+          : "",
+
+        legacyTheme
+          ? `Theme: ${legacyTheme}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+    if (!combinedPrompt) {
       return NextResponse.json(
         {
           success: false,
-          error: "Blueprint AI tidak sesuai schema.",
-          details: validation.error.flatten(),
-          provider: result.provider,
-          model: result.model,
-        },
-        { status: 502 }
-      );
-    }
-
-    const game: GameBlueprint = validation.data;
-
-    const playerEntities = game.entities.filter(
-      (entity) => entity.type === "player"
-    );
-
-    const interactiveEntities = game.entities.filter(
-      (entity) =>
-        entity.type === "npc" ||
-        entity.type === "enemy" ||
-        entity.type === "item" ||
-        entity.type === "portal"
-    );
-
-    if (playerEntities.length !== 1) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Game harus memiliki tepat satu player.",
-          provider: result.provider,
-          model: result.model,
-        },
-        { status: 502 }
-      );
-    }
-
-    if (game.entities.length < 3) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Game harus memiliki minimal tiga entity.",
-          provider: result.provider,
-          model: result.model,
-        },
-        { status: 502 }
-      );
-    }
-
-    if (interactiveEntities.length < 2) {
-      return NextResponse.json(
-        {
-          success: false,
+          stage: "director",
           error:
-            "Game harus memiliki minimal dua entity interaktif.",
-          provider: result.provider,
-          model: result.model,
+            "Deskripsi game belum diberikan.",
         },
-        { status: 502 }
+        {
+          status: 400,
+        }
       );
     }
 
-    if (game.possibleEvents.length < 4) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Game harus memiliki minimal empat event.",
-          provider: result.provider,
-          model: result.model,
-        },
-        { status: 502 }
-      );
-    }
+    const prompt = `
+USER GAME REQUEST:
 
-    if (game.rules.dynamicEventsEnabled !== true) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Dynamic events harus aktif.",
-          provider: result.provider,
-          model: result.model,
-        },
-        { status: 502 }
+${combinedPrompt}
+
+==================================================
+
+Bertindak sebagai AI Game Director.
+
+Jangan sekadar mengulang prompt.
+
+Ekstrak dan rancang sendiri:
+
+- genre
+- mood
+- difficulty
+- theme
+- world
+- mechanics
+- objective
+- player actions
+- progression
+- controls
+- win condition
+- lose condition
+- visual style
+- mobile requirements
+- testing requirements
+
+Buat konsep yang konkret,
+original,
+dan benar-benar dapat dimainkan.
+
+Genre tidak dibatasi.
+
+Pastikan controls adalah array string.
+
+Pastikan mobileNotes adalah array string.
+
+Pastikan testRequirements adalah array string.
+
+Output JSON saja.
+`;
+
+    const result =
+      await generateWithAIRouter({
+        systemInstruction:
+          SYSTEM_INSTRUCTION,
+
+        prompt,
+
+        temperature: 0.8,
+
+        maxOutputTokens: 7000,
+      });
+
+    const parsed =
+      extractJson(result.text);
+
+    const game =
+      normalizeBlueprint(
+        parsed,
+        combinedPrompt
       );
-    }
 
     return NextResponse.json({
       success: true,
+
       source: "ai",
-      provider: result.provider,
-      model: result.model,
-      game,
+
+      stage: "director",
+
+      provider:
+        result.provider,
+
+      model:
+        result.model,
+
+      prompt:
+        combinedPrompt,
+
+      blueprint:
+        game,
     });
   } catch (error) {
-    console.error("AI Game Brain error:", error);
+    console.error(
+      "AI Game Director error:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
+
+        stage: "director",
+
         error:
           error instanceof Error
             ? error.message
-            : "AI Game Brain gagal.",
+            : "AI Game Director gagal.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }

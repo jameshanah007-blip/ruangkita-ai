@@ -233,6 +233,17 @@ export default function FunZoneTestPage() {
     }
   }
 
+  function resetGame() {
+    setGameHtml("");
+    setError("");
+    setProvider("");
+    setModel("");
+    setGenre("");
+    setMechanic("");
+    setWorld("");
+    setVisualStyle("");
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-white">
       <div className="mx-auto max-w-6xl">
@@ -356,7 +367,7 @@ export default function FunZoneTestPage() {
                   className="rounded-xl bg-emerald-500 px-6 py-3 font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {loading
-                    ? "🧠 AI sedang membuat game..."
+                    ? "🧪 AI sedang membuat game..."
                     : "🚀 Ciptakan Game dengan AI"}
                 </button>
               </div>
@@ -367,7 +378,7 @@ export default function FunZoneTestPage() {
         {loading && (
           <div className="rounded-2xl border border-slate-700 bg-slate-900 p-10 text-center">
             <div className="text-5xl">
-              🧠
+              🧪
             </div>
 
             <h2 className="mt-4 text-xl font-semibold">
@@ -442,10 +453,7 @@ export default function FunZoneTestPage() {
 
               <button
                 type="button"
-                onClick={() => {
-                  setGameHtml("");
-                  setError("");
-                }}
+                onClick={resetGame}
                 className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-medium transition hover:bg-slate-800"
               >
                 🎮 Pilih Game Lain
@@ -474,7 +482,22 @@ export default function FunZoneTestPage() {
             <AIGameSandbox
               gameHtml={gameHtml}
               title="AI Generated Game"
- genre={genre}
+              genre={genre}
+              onReady={() => {
+                console.log(
+                  "[AI TEST] Generated game berhasil lolos AI Test Lab."
+                );
+              }}
+              onError={(message) => {
+                console.error(
+                  "[AI TEST] Generated game gagal:",
+                  message
+                );
+
+                setError(
+                  `AI Test Lab: ${message}`
+                );
+              }}
             />
           </section>
         )}

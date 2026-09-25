@@ -2,120 +2,107 @@
 
 import AIGameSandbox from "../engine/AIGameSandbox";
 
-const brokenGame = `<!DOCTYPE html>
+const brokenGame = `
+<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Debug Test</title>
-
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #020617;
-    }
-
-    canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-      background: #020617;
-    }
-  </style>
+  <meta charset="UTF-8" />
+  <title>Self Debug Test</title>
 </head>
 
-<body>
+<body style="
+  margin:0;
+  background:#020617;
+  color:white;
+  font-family:Arial,sans-serif;
+  overflow:hidden;
+">
 
-<canvas id="gameCanvas"></canvas>
+<canvas
+  id="game"
+  width="800"
+  height="500"
+  style="
+    display:block;
+    width:100%;
+    height:100%;
+    background:#020617;
+  "
+></canvas>
 
 <script>
-const canvas =
-  document.getElementById("gameCanvas");
+(function () {
 
-const ctx =
-  canvas.getContext("2d");
+  const canvas =
+    document.getElementById("game");
 
-canvas.width = 600;
-canvas.height = 500;
+  const ctx =
+    canvas.getContext("2d");
 
-const player = {
-  x: 100,
-  y: 200,
-  size: 40,
-  speed: 4
-};
+  function render() {
 
-window.__RK_GAME_READY__ = true;
+    ctx.fillStyle =
+      "#020617";
 
-function render() {
+    ctx.fillRect(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
 
-  ctx.fillStyle = "#020617";
+    ctx.fillStyle =
+      "#22c55e";
 
-  ctx.fillRect(
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
+    ctx.font =
+      "bold 32px Arial";
 
-  ctx.fillStyle = "#22c55e";
+    ctx.textAlign =
+      "center";
 
-  // BUG SENGAJA
-  // player.position tidak ada.
-  ctx.fillRect(
-    player.position.x,
-    player.y,
-    player.size,
-    player.size
-  );
+    ctx.fillText(
+      "SELF DEBUGGER TEST",
+      canvas.width / 2,
+      180
+    );
 
-  ctx.fillStyle = "#ffffff";
+    ctx.font =
+      "18px Arial";
 
-  ctx.font = "20px Arial";
+    ctx.fillStyle =
+      "#94a3b8";
 
-  ctx.fillText(
-    "AI Debug Test",
-    20,
-    35
-  );
-}
+    ctx.fillText(
+      "Game sengaja dibuat error...",
+      canvas.width / 2,
+      230
+    );
 
-window.__RK_GAME_RENDERED__ = true;
+    /*
+     * ERROR YANG DISENGAJA
+     */
 
-render();
-
-window.__RK_GAME_LOOP_STARTED__ = true;
-
-function gameLoop() {
+    throw new Error(
+      "SELF_DEBUG_TEST_ERROR"
+    );
+  }
 
   render();
 
-  requestAnimationFrame(
-    gameLoop
-  );
-}
-
-requestAnimationFrame(
-  gameLoop
-);
+})();
 </script>
 
 </body>
-</html>`;
+</html>
+`;
 
 export default function DebuggerTestPage() {
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-white">
-
       <div className="mx-auto max-w-5xl">
 
         <div className="mb-6">
-
-          <p className="text-sm font-medium text-blue-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">
             RUANGKITA AI · SELF DEBUGGER
           </p>
 
@@ -123,22 +110,33 @@ export default function DebuggerTestPage() {
             AI Game Self-Debugging Test
           </h1>
 
-          <p className="mt-3 max-w-2xl text-sm text-slate-400">
-            Game di bawah sengaja memiliki JavaScript
-            error. Sandbox akan mendeteksi error tersebut
-            dan meminta AI memperbaiki kode secara otomatis.
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+            Game di bawah sengaja memiliki
+            JavaScript error. Sandbox harus
+            mendeteksi error tersebut dan
+            meminta AI memperbaiki kode
+            secara otomatis.
           </p>
-
         </div>
 
         <AIGameSandbox
           gameHtml={brokenGame}
           title="Self Debugging Test"
           genre="combat"
+          onReady={() => {
+            console.log(
+              "[SELF DEBUG TEST] Game berhasil lolos sandbox."
+            );
+          }}
+          onError={(message) => {
+            console.error(
+              "[SELF DEBUG TEST] Sandbox error:",
+              message
+            );
+          }}
         />
 
       </div>
-
     </main>
   );
 }
