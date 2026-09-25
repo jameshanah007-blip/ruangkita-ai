@@ -706,49 +706,6 @@ const handleSandboxError =
     <main className="min-h-screen bg-slate-950 text-white">
       <SiteNav />
 
-      <nav className="border-b border-white/10">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-
-          <a
-            href="/"
-            className="text-lg font-bold"
-          >
-            RuangKita AI
-          </a>
-
-          <div className="flex gap-5 text-sm text-slate-400">
-
-            <a
-              href="/"
-              className="transition hover:text-white"
-            >
-              Home
-            </a>
-
-            <a
-              href="/ai"
-              className="transition hover:text-white"
-            >
-              AI Executor
-            </a>
-
-            <a
-              href="/forum"
-              className="transition hover:text-white"
-            >
-              Forum
-            </a>
-
-            <a
-              href="/fun-zone"
-              className="text-cyan-400"
-            >
-              Fun Zone
-            </a>
-
-          </div>
-        </div>
-      </nav>
 
       <section className="mx-auto max-w-7xl px-6 py-10 md:py-16">
 
