@@ -1,23 +1,18 @@
+import SiteNav from "./components/SiteNav";
+
 const features = [
   {
     icon: "🤖",
-    title: "AI Executor",
+    title: "Tanya Saya",
     description:
-      "Sampaikan kebutuhanmu. AI akan memahami tugas, memilih alat yang sesuai, lalu membantu menyelesaikannya.",
+      "Sampaikan apa pun yang kamu butuhkan. AI akan memahami permintaanmu dan membantu menyelesaikannya.",
     href: "/ai",
-  },
-  {
-    icon: "🗣️",
-    title: "Forum",
-    description:
-      "Tempat anggota berbagi pertanyaan, pengalaman, ide, dan berdiskusi bersama.",
-    href: "/forum",
   },
   {
     icon: "🎮",
     title: "Fun Zone",
     description:
-      "Istirahat sejenak dengan kuis, permainan, dan aktivitas ringan yang menyenangkan.",
+      "Ceritakan game yang kamu inginkan dan biarkan AI Game Laboratory membangunnya, mengujinya, dan menyiapkannya untuk dimainkan.",
     href: "/fun-zone",
   },
 ];
@@ -31,31 +26,7 @@ const examples = [
 export default function Home() {
   return (
     <main className="min-h-screen bg-slate-950 text-white">
-      {/* Navigation */}
-      <nav className="border-b border-white/10 bg-slate-950/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <a href="/" className="text-xl font-bold tracking-tight">
-            RuangKita <span className="text-cyan-400">AI</span>
-          </a>
-
-          <div className="hidden items-center gap-8 text-sm text-slate-300 md:flex">
-            <a href="/" className="transition hover:text-white">
-              Home
-            </a>
-            <a href="/ai" className="transition hover:text-white">
-              AI Executor
-            </a>
-            <a href="/forum" className="transition hover:text-white">
-              Forum
-            </a>
-            <a href="/fun-zone" className="transition hover:text-white">
-              Fun Zone
-            </a>
-          </div>
-        </div>
-      </nav>
-
-      {/* Hero */}
+{/* Hero */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.15),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.12),transparent_35%)]" />
 
@@ -111,12 +82,11 @@ export default function Home() {
             </h2>
 
             <p className="mt-4 leading-7 text-slate-400">
-              Gunakan AI untuk menyelesaikan tugas, bergabung dalam diskusi,
-              atau bersantai di Fun Zone.
+              Gunakan Tanya Saya untuk kebutuhan sehari-hari, atau masuk ke Fun Zone untuk membuat game bersama AI.
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2">
             {features.map((feature) => (
               <a
                 key={feature.title}
@@ -148,7 +118,7 @@ export default function Home() {
           <div className="grid gap-12 md:grid-cols-2 md:items-center">
             <div>
               <p className="text-sm font-semibold uppercase tracking-widest text-cyan-400">
-                AI Executor
+                Tanya Saya
               </p>
 
               <h2 className="mt-3 text-3xl font-bold md:text-4xl">
@@ -165,7 +135,7 @@ export default function Home() {
                 href="/ai"
                 className="mt-8 inline-block rounded-xl bg-white px-6 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"
               >
-                Coba AI Executor
+                Coba Tanya Saya
               </a>
             </div>
 
