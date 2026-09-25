@@ -1626,8 +1626,14 @@ var beforeLost =
       }
     }
            
-  function diagnosticFrame() {    
-
+  /*
+   * Diagnostic heartbeat.
+   *
+   * Jangan memakai requestAnimationFrame untuk heartbeat
+   * karena rAF dapat ditahan/throttled pada iframe tertentu.
+   * Game RAF tetap dihitung oleh wrapper __RK_ORIGINAL_RAF__.
+   */
+  function diagnosticFrame() {
     try {
       window.__RK_TEST_DIAGNOSTIC_RAF__ =
         (
@@ -1643,34 +1649,12 @@ var beforeLost =
           ) <
         ${GAME_TEST_TIMEOUT_MS}
       ) {
-        var raf =
-          window.__RK_ORIGINAL_RAF__ ||
-          function (callback) {
-            return window.setTimeout(
-              callback,
-              16
-            );
-          };
-
-        /*
-         * Diagnostic RAF is intentionally
-         * excluded from game RAF counter.
-         */
-        window.__RK_TEST_INTERNAL_RAF__ =
-          true;
-
-        raf.call(
-          window,
-          diagnosticFrame
+        window.setTimeout(
+          diagnosticFrame,
+          100
         );
-
-        window.__RK_TEST_INTERNAL_RAF__ =
-          false;
       }
-    } catch (_) {
-      window.__RK_TEST_INTERNAL_RAF__ =
-        false;
-    }
+    } catch (_) {}
   }
 
   try {
