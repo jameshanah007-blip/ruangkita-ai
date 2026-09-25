@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { calculate } from "../tools/calculator";
 import { webSearch } from "../tools/webSearch";
 import { logActivity } from "../tools/logActivity";
+import { getJamesMemory, saveJamesTurn } from "../tools/memory";
+import {
+  buildJamesMemoryContext,
+  buildJamesSystemInstruction,
+} from "../../ai/persona";
 
 type Intent =
   | "chat"
@@ -16,7 +21,6 @@ type Citation = {
 };
 
 const MODEL = "gemini-3.6-flash";
-
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/interactions";
 
@@ -36,19 +40,9 @@ function detectIntent(request: string): Intent {
   }
 
   const webSearchPatterns = [
-    "carikan",
-    "cari",
-    "pencarian",
-    "berita terbaru",
-    "informasi terbaru",
-    "terbaru",
-    "hari ini",
-    "sekarang",
-    "lomba",
-    "beasiswa",
-    "lowongan",
-    "website",
-    "sumber",
+    "carikan", "cari", "pencarian", "berita terbaru",
+    "informasi terbaru", "terbaru", "hari ini", "sekarang",
+    "lomba", "beasiswa", "lowongan", "website", "sumber",
   ];
 
   if (webSearchPatterns.some((keyword) => text.includes(keyword))) {
@@ -56,14 +50,8 @@ function detectIntent(request: string): Intent {
   }
 
   const documentPatterns = [
-    "buatkan surat",
-    "buat surat",
-    "surat resmi",
-    "surat izin",
-    "surat undangan",
-    "proposal",
-    "laporan",
-    "dokumen",
+    "buatkan surat", "buat surat", "surat resmi", "surat izin",
+    "surat undangan", "proposal", "laporan", "dokumen",
     "buatkan dokumen",
   ];
 
@@ -72,13 +60,8 @@ function detectIntent(request: string): Intent {
   }
 
   const plannerPatterns = [
-    "buat rencana",
-    "rencana belajar",
-    "jadwal belajar",
-    "buat jadwal",
-    "planning",
-    "rencanakan",
-    "strategi belajar",
+    "buat rencana", "rencana belajar", "jadwal belajar",
+    "buat jadwal", "planning", "rencanakan", "strategi belajar",
   ];
 
   if (plannerPatterns.some((keyword) => text.includes(keyword))) {
@@ -120,27 +103,19 @@ async function callGemini(
 
   if (!response.ok) {
     console.error("Gemini API error:", data);
-
-    throw new Error(
-      data?.error?.message ||
-        "Gagal menghubungi Gemini."
-    );
+    throw new Error(data?.error?.message || "Gagal menghubungi Gemini.");
   }
 
   return extractText(data);
 }
 
 function extractText(data: any): string {
-  if (!Array.isArray(data?.steps)) {
-    return "";
-  }
+  if (!Array.isArray(data?.steps)) return "";
 
   const texts: string[] = [];
 
   for (const step of data.steps) {
-    if (step?.type !== "model_output") {
-      continue;
-    }
+    if (step?.type !== "model_output") continue;
 
     const content = step?.content;
 
@@ -151,10 +126,7 @@ function extractText(data: any): string {
 
     if (Array.isArray(content)) {
       for (const item of content) {
-        if (typeof item === "string") {
-          texts.push(item);
-        }
-
+        if (typeof item === "string") texts.push(item);
         if (
           item &&
           typeof item === "object" &&
@@ -170,7 +142,7 @@ function extractText(data: any): string {
 }
 
 function extractMathExpression(request: string): string {
-  let expression = request
+  const expression = request
     .replace(/berapakah/gi, "")
     .replace(/berapa/gi, "")
     .replace(/hasilnya/gi, "")
@@ -183,14 +155,10 @@ function extractMathExpression(request: string): string {
     .replace(/x/gi, "*")
     .replace(/÷/g, "/");
 
-  const match = expression.match(
-    /[\d\s+\-*/().%]+/
-  );
+  const match = expression.match(/[\d\s+\-*/().%]+/);
 
   if (!match) {
-    throw new Error(
-      "Ekspresi matematika tidak ditemukan."
-    );
+    throw new Error("Ekspresi matematika tidak ditemukan.");
   }
 
   return match[0].trim();
@@ -210,11 +178,35 @@ async function saveActivity(
       resultPreview: result,
     });
   } catch (error) {
-    console.error(
-      "Gagal menyimpan aktivitas AI:",
-      error
-    );
+    console.error("Gagal menyimpan aktivitas AI:", error);
   }
+}
+
+async function saveJames(
+  userId: string,
+  conversationId: string,
+  userRequest: string,
+  result: string,
+  intent: Intent,
+  tool: string
+) {
+  try {
+    await saveJamesTurn({
+      userId,
+      conversationId,
+      userMessage: userRequest,
+      assistantMessage: result,
+      intent,
+      tool,
+    });
+  } catch (error) {
+    console.error("Gagal menyimpan memori James:", error);
+  }
+}
+
+function validUuid(value: unknown): value is string {
+  return typeof value === "string" &&
+    /^[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}$/.test(value);
 }
 
 export async function POST(request: Request) {
@@ -222,87 +214,85 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const userRequest =
-      typeof body?.request === "string"
-        ? body.request.trim()
-        : "";
+      typeof body?.request === "string" ? body.request.trim() : "";
 
     if (!userRequest) {
       return NextResponse.json(
-        {
-          error: "Permintaan tidak boleh kosong.",
-        },
+        { error: "Permintaan tidak boleh kosong." },
         { status: 400 }
       );
     }
 
+    const userId = validUuid(body?.userId)
+      ? body.userId
+      : crypto.randomUUID();
+
+    const conversationId = validUuid(body?.conversationId)
+      ? body.conversationId
+      : crypto.randomUUID();
+
+    const memory = await getJamesMemory(userId, conversationId);
+    const memoryContext = buildJamesMemoryContext(memory);
     const intent = detectIntent(userRequest);
 
-    // =========================
-    // CALCULATOR
-    // =========================
+    const rememberInstruction = buildJamesSystemInstruction(`
+KONTEKS MEMORI:
+${memoryContext}
+
+Gunakan konteks memori hanya jika relevan. Jangan menyebut detail memori secara dipaksakan.
+Jika pengguna merujuk pada percakapan lama, gunakan riwayat yang tersedia untuk menyambung pembicaraan.
+Jangan mengarang fakta tentang pengguna yang tidak ada dalam memori.
+`);
 
     if (intent === "calculator") {
-      const expression =
-        extractMathExpression(userRequest);
-
-      const result = calculate(expression);
-
-      const resultText = String(result);
-
-      await saveActivity(
-        userRequest,
-        intent,
-        "calculator",
-        resultText
+      const resultText = String(
+        calculate(extractMathExpression(userRequest))
       );
+
+      await saveActivity(userRequest, intent, "calculator", resultText);
+      await saveJames(userId, conversationId, userRequest, resultText, intent, "calculator");
 
       return NextResponse.json({
         result: resultText,
         intent,
         tool: "calculator",
         citations: [],
+        userId,
+        conversationId,
+        memoryAvailable: memory.available,
       });
     }
 
-    // =========================
-    // WEB SEARCH - EXA
-    // =========================
-
     if (intent === "web_search") {
-      const searchResults =
-        await webSearch(userRequest);
+      const searchResults = await webSearch(userRequest);
 
-      const citations: Citation[] =
-        searchResults.map((item) => ({
-          title: item.title || "Tanpa judul",
-          url: item.url,
-        }));
+      const citations: Citation[] = searchResults.map((item) => ({
+        title: item.title || "Tanpa judul",
+        url: item.url,
+      }));
 
       if (searchResults.length === 0) {
-        const resultText =
-          "Saya tidak menemukan hasil pencarian yang relevan.";
+        const resultText = "Aku tidak menemukan hasil pencarian yang relevan.";
 
-        await saveActivity(
-          userRequest,
-          intent,
-          "exa",
-          resultText
-        );
+        await saveActivity(userRequest, intent, "exa", resultText);
+        await saveJames(userId, conversationId, userRequest, resultText, intent, "exa");
 
         return NextResponse.json({
           result: resultText,
           intent,
           tool: "exa",
           citations: [],
+          userId,
+          conversationId,
+          memoryAvailable: memory.available,
         });
       }
 
       const sourcesText = searchResults
         .map((item, index) => {
-          const highlights =
-            Array.isArray(item.highlights)
-              ? item.highlights.join(" ")
-              : "";
+          const highlights = Array.isArray(item.highlights)
+            ? item.highlights.join(" ")
+            : "";
 
           return [
             `SUMBER ${index + 1}`,
@@ -314,7 +304,7 @@ export async function POST(request: Request) {
         .join("\n\n");
 
       const prompt = `
-Kamu adalah RuangKita AI, asisten AI untuk pelajar dan komunitas.
+${memoryContext}
 
 Pengguna meminta:
 "${userRequest}"
@@ -323,161 +313,138 @@ Berikut hasil pencarian dari mesin pencari Exa:
 
 ${sourcesText}
 
-Tugas:
-1. Jawab pertanyaan pengguna berdasarkan hasil pencarian di atas.
-2. Jangan mengarang informasi yang tidak didukung sumber.
-3. Jika informasi tidak cukup, katakan dengan jujur.
-4. Gunakan bahasa Indonesia yang jelas.
-5. Jika hasil berupa lomba, beasiswa, acara, atau kesempatan lain, jelaskan informasi penting seperti nama, penyelenggara, batas pendaftaran jika tersedia, dan tautan sumber.
-6. Jangan membuat URL baru. Gunakan hanya URL yang tersedia dari hasil pencarian.
+Jawab sebagai James.
+Gunakan hasil pencarian sebagai sumber fakta.
+Jangan mengarang informasi yang tidak didukung sumber.
+Jika informasi tidak cukup, katakan dengan jujur.
+Gunakan bahasa Indonesia yang jelas dan natural.
+Jika percakapan membutuhkan konteks dari pengguna, boleh bertanya balik.
+Jangan membuat URL baru. Gunakan hanya URL yang tersedia dari hasil pencarian.
 `;
 
       const resultText = await callGemini(
         prompt,
-        "Berikan jawaban faktual, jelas, dan berguna berdasarkan sumber yang diberikan."
+        buildJamesSystemInstruction(
+          "Berikan jawaban faktual, jelas, berguna, dan tetap berbicara sebagai James."
+        )
       );
 
-      await saveActivity(
-        userRequest,
-        intent,
-        "exa",
-        resultText
-      );
+      await saveActivity(userRequest, intent, "exa", resultText);
+      await saveJames(userId, conversationId, userRequest, resultText, intent, "exa");
 
       return NextResponse.json({
         result:
           resultText ||
-          "Saya menemukan beberapa sumber, tetapi belum dapat menyusun jawabannya.",
+          "Aku menemukan beberapa sumber, tetapi belum dapat menyusun jawabannya.",
         intent,
         tool: "exa",
         citations,
+        userId,
+        conversationId,
+        memoryAvailable: memory.available,
       });
     }
 
-    // =========================
-    // DOCUMENT
-    // =========================
-
     if (intent === "document") {
       const prompt = `
-Kamu adalah RuangKita AI.
+${memoryContext}
 
 Pengguna meminta:
 "${userRequest}"
 
 Buatkan dokumen yang sesuai dengan permintaan tersebut.
-
-Aturan:
-- Gunakan bahasa Indonesia yang baik dan formal jika diperlukan.
-- Susun dengan rapi.
-- Gunakan placeholder seperti [Nama], [Tanggal], [Tempat], atau [Nama Sekolah] jika informasi belum diberikan.
-- Jangan mengarang data pribadi pengguna.
-- Berikan hasil yang siap disalin dan diedit.
+Gunakan bahasa Indonesia yang baik dan formal jika diperlukan.
+Gunakan placeholder jika informasi belum diberikan.
+Jangan mengarang data pribadi pengguna.
+Berikan hasil yang siap disalin dan diedit.
 `;
 
       const resultText = await callGemini(
         prompt,
-        "Kamu adalah asisten penulisan dokumen yang rapi, jelas, dan praktis."
+        buildJamesSystemInstruction(
+          "Kamu sedang membantu pengguna membuat dokumen. Tetaplah sebagai James."
+        )
       );
 
-      await saveActivity(
-        userRequest,
-        intent,
-        "gemini",
-        resultText
-      );
+      await saveActivity(userRequest, intent, "gemini", resultText);
+      await saveJames(userId, conversationId, userRequest, resultText, intent, "gemini");
 
       return NextResponse.json({
         result: resultText,
         intent,
         tool: "gemini",
         citations: [],
+        userId,
+        conversationId,
+        memoryAvailable: memory.available,
       });
     }
 
-    // =========================
-    // PLANNER
-    // =========================
-
     if (intent === "planner") {
       const prompt = `
-Kamu adalah RuangKita AI.
+${memoryContext}
 
 Pengguna meminta:
 "${userRequest}"
 
 Buatkan rencana yang praktis dan mudah dijalankan.
-
-Jika berkaitan dengan belajar:
-- buat tujuan
-- buat jadwal
-- bagi materi menjadi beberapa bagian
-- berikan prioritas
-- tambahkan waktu istirahat
-- berikan tips evaluasi
-
+Jika berkaitan dengan belajar, buat tujuan, jadwal, pembagian materi,
+prioritas, waktu istirahat, dan evaluasi.
 Gunakan format yang mudah dibaca.
 `;
 
       const resultText = await callGemini(
         prompt,
-        "Kamu adalah asisten perencanaan yang membantu pengguna membuat rencana realistis dan terstruktur."
+        buildJamesSystemInstruction(
+          "Kamu sedang membantu pengguna membuat rencana realistis dan terstruktur. Tetaplah sebagai James."
+        )
       );
 
-      await saveActivity(
-        userRequest,
-        intent,
-        "gemini",
-        resultText
-      );
+      await saveActivity(userRequest, intent, "gemini", resultText);
+      await saveJames(userId, conversationId, userRequest, resultText, intent, "gemini");
 
       return NextResponse.json({
         result: resultText,
         intent,
         tool: "gemini",
         citations: [],
+        userId,
+        conversationId,
+        memoryAvailable: memory.available,
       });
     }
 
-    // =========================
-    // GENERAL CHAT
-    // =========================
-
     const chatPrompt = `
-Kamu adalah RuangKita AI, asisten digital untuk pelajar dan komunitas.
+${memoryContext}
 
-Pengguna berkata:
+Percakapan terbaru dari pengguna:
 "${userRequest}"
 
-Jawab dalam bahasa Indonesia.
-
-Buat jawaban:
-- jelas
-- ramah
-- praktis
-- tidak bertele-tele
-- mudah dipahami pelajar
-
-Jika pengguna meminta bantuan mengerjakan sesuatu, berikan hasil yang dapat langsung digunakan jika memungkinkan.
+Jawab sebagai James.
+Gunakan bahasa Indonesia yang natural, ramah, hangat, jelas, dan praktis.
+Jangan bertele-tele jika pertanyaannya sederhana.
+Jika pengguna membutuhkan bantuan mengerjakan sesuatu, berikan hasil yang dapat langsung digunakan.
+Jika konteksnya cocok, tanyakan satu pertanyaan balik yang membantu percakapan berkembang.
 `;
 
     const resultText = await callGemini(
       chatPrompt,
-      "Kamu adalah RuangKita AI yang membantu pengguna bertanya, meminta, dan menyelesaikan sesuatu."
+      buildJamesSystemInstruction(
+        "Kamu sedang melakukan percakapan langsung dengan seorang pengguna RuangKita."
+      )
     );
 
-    await saveActivity(
-      userRequest,
-      intent,
-      "gemini",
-      resultText
-    );
+    await saveActivity(userRequest, intent, "gemini", resultText);
+    await saveJames(userId, conversationId, userRequest, resultText, intent, "gemini");
 
     return NextResponse.json({
       result: resultText,
       intent,
       tool: "gemini",
       citations: [],
+      userId,
+      conversationId,
+      memoryAvailable: memory.available,
     });
   } catch (error) {
     console.error("AI API error:", error);
