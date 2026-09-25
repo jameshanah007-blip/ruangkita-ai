@@ -401,13 +401,34 @@ Commit tersebut terkait navigasi/public UI serta pembangunan dan peningkatan Fun
 
 ### Current blocker
 
-Menentukan penyebab kegagalan runtime/rendering pada game hasil AI berdasarkan diagnostic terbaru.
+Baseline test Catch the Star menunjukkan:
+- Canvas valid: 882 × 680
+- Runtime: PASS
+- Input: terdeteksi
+- Visible pixels: 0
+- Game RAF: 1
+- Diagnostic RAF: 1 pada implementasi lama
+- Tester menyatakan rendering dan game loop belum terbukti.
+- Debugger mencapai 5 attempts tanpa menghasilkan PASS.
+
+Analisis kode menunjukkan diagnostic heartbeat sebelumnya juga menggunakan requestAnimationFrame di iframe. Itu membuat evidence diagnostic dapat terpengaruh throttling/behavior iframe.
+
+### Latest change
+
+Pada commit `8f43403edccf7ec7e87c937bac855c255e2c2ec3`, diagnostic heartbeat Sandbox diubah dari requestAnimationFrame menjadi `setTimeout` 100 ms. Tujuannya agar **Diagnostic RAF/evidence heartbeat tidak bergantung pada rAF iframe**.
+
+Catatan: **Game RAF tetap menggunakan wrapper requestAnimationFrame** untuk mengukur aktivitas game. Perubahan ini belum dianggap PASS; harus diuji ulang.
 
 ### Next action
 
-Jalankan test **Catch the Star**, kumpulkan diagnostic, lalu perbaiki stage yang terbukti gagal.
+1. Jalankan ulang Catch the Star.
+2. Periksa apakah diagnostic heartbeat meningkat.
+3. Periksa Game RAF.
+4. Periksa Visible pixels.
+5. Jika Game RAF tetap 1 dan Visible pixels 0, lanjut audit artifact/runtime execution.
+6. Setelah test ulang, update status ini lagi.
 
-## 14. Cara Melanjutkan dari Komputer Lain
+## 14. Cara Melanjutkan dari Komputer Lain/
 
 1. Login ke akun GitHub yang sama.
 2. Clone repository jika belum ada.
@@ -465,9 +486,9 @@ Gunakan environment variables / Vercel Environment Variables.
 
 ## 17. Next Action
 
-**Jalankan Fun Zone menggunakan prompt Catch the Star.**
+**Jalankan ulang Fun Zone menggunakan prompt Catch the Star setelah commit Sandbox diagnostic terbaru.**
 
-Setelah test selesai, kumpulkan:
+Catat:
 
 ```
 Tester Result:
@@ -476,7 +497,7 @@ Hard Failures:
 Soft Warnings:
 Visible pixels:
 Game RAF:
-Diagnostic RAF:
+Diagnostic heartbeat:
 Input events:
 Input listeners:
 Runtime:
@@ -486,7 +507,7 @@ Gameplay:
 Debugger:
 ```
 
-Kemudian perbaiki berdasarkan data aktual.
+Kemudian lanjutkan debugging berdasarkan data aktual.
 
 ---
 
