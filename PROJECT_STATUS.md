@@ -1,7 +1,10 @@
 # PROJECT STATUS — RuangKita AI
 
-> Dokumen ini adalah **source of truth untuk konteks proyek** agar pekerjaan dapat dilanjutkan dari komputer atau percakapan ChatGPT mana pun.  
-> **Jangan simpan API key, password, service-role key, atau secret apa pun di file ini.**
+> **Living project document.** ChatGPT wajib menggunakan file ini sebagai konteks kerja proyek dan memperbaruinya setelah pekerjaan proyek yang signifikan selesai.
+>
+> **Source of truth:** kode = GitHub repository, status proyek = file ini, diskusi = percakapan ChatGPT.
+>
+> **Jangan simpan API key, password, token, service-role key, atau secret apa pun di file ini.**
 
 ## 1. Identitas Proyek
 
@@ -15,7 +18,65 @@
 - **Deployment target:** Vercel
 - **Public URL:** https://ruangkita-ai.vercel.app/
 
-## 2. Tujuan Utama Saat Ini
+## 2. Aturan Kerja Otomatis — WAJIB
+
+Mulai sekarang, setiap pekerjaan yang kita lakukan pada RuangKita AI mengikuti workflow ini:
+
+```
+1. READ
+   ↓
+   Baca PROJECT_STATUS.md sebelum memulai pekerjaan signifikan.
+
+2. PLAN
+   ↓
+   Tentukan pekerjaan dan file yang relevan.
+
+3. CHANGE
+   ↓
+   Ubah kode/configuration yang diperlukan.
+
+4. TEST
+   ↓
+   Jalankan test/validation yang relevan.
+
+5. RECORD
+   ↓
+   Catat perubahan, hasil test, masalah baru, dan next action.
+
+6. UPDATE STATUS
+   ↓
+   Perbarui PROJECT_STATUS.md.
+
+7. COMMIT
+   ↓
+   Commit perubahan dengan pesan yang jelas.
+
+8. PUSH
+   ↓
+   Push ke branch main jika perubahan memang siap disimpan di GitHub.
+
+9. REPORT
+   ↓
+   Berikan ringkasan kepada user:
+   - apa yang berubah
+   - hasil test
+   - commit
+   - status sekarang
+   - next action
+```
+
+### Aturan tambahan
+
+- User **tidak perlu mengisi PROJECT_STATUS.md secara manual** untuk pekerjaan yang dilakukan bersama ChatGPT.
+- Jangan mengubah PROJECT_STATUS.md hanya untuk perubahan yang tidak berhubungan dengan proyek.
+- Perubahan kecil yang tidak mengubah status proyek boleh digabung dengan update berikutnya.
+- Setelah debugging, selalu catat hasil diagnostic terbaru jika hasil tersebut memengaruhi arah pekerjaan.
+- Jangan menulis klaim PASS/READY jika belum benar-benar diuji.
+- Jangan menghapus informasi penting dari status lama tanpa alasan.
+- Jika status lama sudah tidak relevan, tandai sebagai **superseded/outdated** atau ganti dengan status terbaru secara jelas.
+- Jangan memasukkan secret atau credential.
+
+## 3. Tujuan Utama Saat Ini
 
 Fokus utama proyek adalah membuat **Fun Zone — AI Game Laboratory** benar-benar berjalan end-to-end.
 
@@ -49,9 +110,9 @@ USER PLAY
 
 AI bertindak sebagai director, builder, tester, debugger, dan repair agent. User cukup menjelaskan game yang ingin dibuat.
 
-## 3. Public Website
+## 4. Public Website
 
-Navigasi publik saat ini:
+Navigasi publik:
 
 ```
 RuangKita AI
@@ -70,25 +131,25 @@ Catatan:
 - Route/API/admin/test tetap boleh ada sebagai internal project.
 - Mobile navigation menggunakan hamburger menu.
 
-## 4. AI Providers
+## 5. AI Providers
 
-Provider yang digunakan:
+Provider:
 
 1. Gemini
 2. OpenRouter
 3. Groq
 
 Strategi:
-- Gunakan provider utama.
-- Jika provider gagal / quota habis / timeout / error tertentu, gunakan fallback provider.
-- Jangan menaruh API key di source code atau PROJECT_STATUS.md.
+- Provider utama digunakan terlebih dahulu.
+- Jika provider gagal, quota habis, timeout, atau mengalami error yang dapat di-fallback, gunakan provider berikutnya.
+- API key hanya melalui environment variables / platform secrets.
 
 Provider issues yang pernah ditemukan:
 - Gemini: HTTP 429 / free-tier limit.
 - OpenRouter: HTTP 408 / timeout.
 - Groq: HTTP 413 karena request terlalu besar untuk model tertentu.
 
-## 5. Fun Zone — Status Implementasi
+## 6. Fun Zone — Status Implementasi
 
 ### Sudah tersedia
 
@@ -104,11 +165,11 @@ Provider issues yang pernah ditemukan:
 - Public Fun Zone page
 - Mobile-friendly public UI
 
-### Masih perlu diperbaiki
+### Fokus perbaikan saat ini
 
 **Reliability Sandbox → Tester → Debugger.**
 
-Masalah terakhir yang ditemukan pada runtime diagnostic:
+Diagnostic terakhir yang diketahui:
 
 - Visible pixels: 0
 - Game RAF: 1
@@ -117,15 +178,15 @@ Masalah terakhir yang ditemukan pada runtime diagnostic:
 - Input events: 7
 - Input listeners: 32
 
-Interpretasi awal:
+Interpretasi kerja:
 - Game HTML berhasil masuk ke sandbox, tetapi rendering/game loop belum dapat dianggap sehat.
 - Jangan langsung mengubah banyak file.
-- Pertama lakukan reproduksi dengan game yang sangat sederhana.
-- Setelah hasil test terbaru diketahui, tentukan apakah masalah utama berada di Sandbox, Tester, atau Debugger.
+- Reproduksi dengan game sederhana terlebih dahulu.
+- Setelah hasil test terbaru diketahui, tentukan stage yang gagal berdasarkan data.
 
-## 6. Test Prompt Berikutnya
+## 7. Test Prompt Berikutnya
 
-Gunakan prompt sederhana ini untuk end-to-end test:
+Gunakan prompt sederhana:
 
 ```
 Buat game sederhana bernama Catch the Star.
@@ -154,12 +215,12 @@ Saat testing, catat:
 - Canvas width / height
 - Runtime errors
 - Error source / line / column
-- Apakah game dapat dimainkan
-- Apakah debugger berhasil memperbaiki game
+- Gameplay result
+- Debugger result
 
 **Jangan mengubah kode sebelum melihat hasil test terbaru**, kecuali ada error compile/type yang sudah jelas.
 
-## 7. File Penting
+## 8. File Penting
 
 ### Public UI
 
@@ -207,11 +268,18 @@ Saat testing, catat:
 - `app/fun-zone/groqProvider.ts`
 - `app/fun-zone/openRouterProvider.ts`
 
-## 8. Debugger Payload
+## 9. Debugger Payload
 
-Debugger saat ini sengaja menerima informasi terstruktur agar request tidak terlalu besar.
+Debugger saat ini menggunakan payload terstruktur untuk mengurangi ukuran request.
 
-Payload penting:
+Hal penting:
+
+- `gameHtml: currentHtml` tetap full karena debugger membutuhkan source game untuk repair.
+- Metadata test dan blueprint dipangkas.
+- Runtime errors dibatasi.
+- Hard failures dan soft warnings dibatasi.
+
+Struktur utama:
 
 ```ts
 {
@@ -221,58 +289,14 @@ Payload penting:
   errorLine: diagnostic?.runtimeErrors?.[0]?.line ?? null,
   errorColumn: diagnostic?.runtimeErrors?.[0]?.column ?? null,
   runtimeErrors: (diagnostic?.runtimeErrors || []).slice(0, 3),
-  testReport: diagnostic.testReport
-    ? {
-        passed: diagnostic.testReport.passed,
-        attempt: diagnostic.testReport.attempt,
-        runtimeOk: diagnostic.testReport.runtimeOk,
-        rendered: diagnostic.testReport.rendered,
-        loopStarted: diagnostic.testReport.loopStarted,
-        frameAdvanced: diagnostic.testReport.frameAdvanced,
-        canvasValid: diagnostic.testReport.canvasValid,
-        inputTest: diagnostic.testReport.inputTest,
-        gameplayTest: diagnostic.testReport.gameplayTest,
-        performanceTest: diagnostic.testReport.performanceTest,
-        frameCount: diagnostic.testReport.frameCount,
-        gameAnimationFrames: diagnostic.testReport.gameAnimationFrames,
-        inputEvents: diagnostic.testReport.inputEvents,
-        inputListeners: diagnostic.testReport.inputListeners,
-        canvasWidth: diagnostic.testReport.canvasWidth,
-        canvasHeight: diagnostic.testReport.canvasHeight,
-        nonBlankPixels: diagnostic.testReport.nonBlankPixels,
-        renderChanged: diagnostic.testReport.renderChanged,
-        elapsedMs: diagnostic.testReport.elapsedMs,
-        hardFailures: diagnostic.testReport.hardFailures.slice(0, 8),
-        softWarnings: diagnostic.testReport.softWarnings.slice(0, 8),
-        runtimeErrors: diagnostic.testReport.runtimeErrors.slice(0, 3),
-      }
-    : null,
-  blueprint: blueprint
-    ? {
-        title: blueprint.title,
-        concept: blueprint.concept,
-        genre: blueprint.genre,
-        mood: blueprint.mood,
-        difficulty: blueprint.difficulty,
-        theme: blueprint.theme,
-        coreLoop: blueprint.coreLoop,
-        objective: blueprint.objective,
-        mechanics: blueprint.mechanics,
-        controls: blueprint.controls,
-        winCondition: blueprint.winCondition,
-        loseCondition: blueprint.loseCondition,
-      }
-    : null,
+  testReport: /* compact diagnostic fields */,
+  blueprint: /* compact blueprint fields */,
   genre,
   attempt: nextAttempt,
 }
 ```
 
-Catatan penting:
-- `gameHtml: currentHtml` tetap full karena debugger membutuhkan source game untuk melakukan repair.
-- Metadata test/blueprint dipangkas agar request lebih kecil.
-
-## 9. Build / Validation
+## 10. Build / Validation
 
 Validasi terakhir yang diketahui:
 
@@ -280,9 +304,9 @@ Validasi terakhir yang diketahui:
 npx tsc --noEmit
 ```
 
-Tidak ada TypeScript error.
+Hasil: **PASS / tidak ada TypeScript error.**
 
-Build production terakhir berhasil:
+Production build terakhir yang diketahui:
 
 ```
 ✓ Compiled successfully
@@ -292,26 +316,28 @@ Build production terakhir berhasil:
 ✓ Finalizing page optimization
 ```
 
+Hasil: **PASS.**
+
 Route utama yang diketahui:
 
 ```
 /
- /admin
- /ai
- /fun-zone
- /fun-zone/debugger-test
- /fun-zone/test
+/admin
+/ai
+/fun-zone
+/fun-zone/debugger-test
+/fun-zone/test
 ```
 
-API Fun Zone tersedia di bawah:
+API tersedia di bawah:
 
 ```
 /api/fun-zone/*
 ```
 
-## 10. Git / Commit Terakhir yang Diketahui
+## 11. Git / Commit Terakhir yang Diketahui
 
-Commit terakhir yang diketahui:
+Commit sebelum pembuatan status file:
 
 ```
 1fdda6ee15ee1c984b161cb12c923463737e5877
@@ -323,12 +349,15 @@ Message:
 Polish RuangKita AI public pages
 ```
 
-Perubahan penting:
-- Public Home dipoles.
-- Metadata/layout dipoles.
-- Navigasi publik menggunakan Home / Tanya Saya / Fun Zone.
-- Duplicate navbar pada Fun Zone sudah dihapus.
-- Forum tidak ditampilkan pada public navigation.
+PROJECT_STATUS.md kemudian dibuat melalui commit:
+
+```
+3936f34bff7265358c44d1014f82b3f665d6dece
+```
+
+Setelah perubahan status workflow ini, commit berikutnya akan menjadi commit terbaru.
+
+## 12. Riwayat Penting
 
 Sebelumnya ada commit:
 
@@ -342,89 +371,86 @@ dan:
 fcaadad13416f797cb32d1d7fc0c2f358ece4541
 ```
 
-## 11. Aturan Kerja Proyek
+Commit tersebut terkait navigasi/public UI serta pembangunan dan peningkatan Fun Zone laboratory/debugger.
 
-Saat melanjutkan development:
+## 13. Status Saat Ini
 
-1. **Jangan mengubah banyak bagian sekaligus.**
-2. Reproduksi bug terlebih dahulu.
-3. Catat hasil diagnostic.
-4. Identifikasi stage yang gagal:
-   - Director
-   - Builder
-   - Sandbox
-   - Tester
-   - Debugger
-   - Retest
-5. Perbaiki stage yang gagal.
-6. Jalankan `npx tsc --noEmit`.
-7. Jalankan production build bila diperlukan.
-8. Test ulang dengan prompt sederhana.
-9. Commit perubahan yang jelas.
-10. Push ke `main`.
-11. Update file PROJECT_STATUS.md jika status proyek berubah secara signifikan.
+### Project
 
-## 12. Prioritas Pekerjaan
+**ACTIVE DEVELOPMENT**
 
-### PRIORITY 1 — Fun Zone Reliability
+### Public UI
 
-Pastikan game sederhana dapat melewati:
+**Stable berdasarkan build terakhir yang diketahui.**
 
-```
-Generate
-→ Build
-→ Sandbox
-→ Render
-→ Game Loop
-→ Input
-→ Gameplay
-→ Tester PASS
-→ Debugger tidak diperlukan jika game sudah sehat
-→ Ready
-→ Play
-```
+### Fun Zone
 
-### PRIORITY 2 — Debugger Reliability
+**ACTIVE DEBUGGING**
 
-Jika game gagal:
-- kirim diagnostic yang ringkas,
-- gunakan provider fallback,
-- hindari request terlalu besar,
-- AI memperbaiki game HTML,
-- lakukan retest,
-- berhenti jika sudah PASS.
+### Sandbox / Tester / Debugger
 
-### PRIORITY 3 — Mobile
+**Belum dinyatakan PASS end-to-end.**
 
-Pastikan game:
-- responsive,
-- touch input berfungsi,
-- tidak bergantung pada mouse saja,
-- dapat dimainkan di Android browser.
+### TypeScript
 
-### PRIORITY 4 — Public UX
+**PASS pada validasi terakhir yang diketahui.**
 
-Pertahankan navigasi publik sederhana:
+### Production Build
 
-```
-Home | Tanya Saya | Fun Zone
-```
+**PASS pada build terakhir yang diketahui.**
 
-## 13. Cara Melanjutkan dari Komputer Lain
+### Current blocker
+
+Menentukan penyebab kegagalan runtime/rendering pada game hasil AI berdasarkan diagnostic terbaru.
+
+### Next action
+
+Jalankan test **Catch the Star**, kumpulkan diagnostic, lalu perbaiki stage yang terbukti gagal.
+
+## 14. Cara Melanjutkan dari Komputer Lain
 
 1. Login ke akun GitHub yang sama.
 2. Clone repository jika belum ada.
 3. Login ke akun ChatGPT yang sama untuk membuka percakapan proyek.
-4. Buka `PROJECT_STATUS.md` untuk mengetahui status terakhir.
-5. Jika percakapan ChatGPT berbeda, berikan instruksi:
-   - "Baca PROJECT_STATUS.md"
-   - "Lanjutkan dari status terakhir."
+4. Buka `PROJECT_STATUS.md`.
+5. Jika menggunakan percakapan ChatGPT baru, instruksikan:
+   - **"Baca PROJECT_STATUS.md dari repository RuangKita AI."**
+   - **"Lanjutkan dari status terakhir."**
 6. Gunakan GitHub sebagai source of truth untuk kode.
-7. Gunakan percakapan ChatGPT sebagai workspace diskusi dan debugging.
+7. Gunakan PROJECT_STATUS.md sebagai source of truth untuk status proyek.
+8. Gunakan percakapan ChatGPT sebagai workspace diskusi/debugging.
 
-## 14. Jangan Simpan Secret
+## 15. Format Update Status
 
-Jangan pernah memasukkan ke file ini:
+Setiap pekerjaan signifikan sebaiknya memperbarui minimal:
+
+```
+## Status Saat Ini
+- Project:
+- Public UI:
+- Fun Zone:
+- Sandbox:
+- Tester:
+- Debugger:
+- TypeScript:
+- Build:
+- Current blocker:
+- Next action:
+
+## Last Work
+- Date:
+- What changed:
+- Files changed:
+- Test performed:
+- Test result:
+- Commit:
+```
+
+Jika perubahan belum selesai, status harus mengatakan **IN PROGRESS**, bukan PASS.
+
+## 16. Jangan Simpan Secret
+
+Jangan pernah memasukkan:
 
 - GEMINI_API_KEY
 - OPENROUTER_API_KEY
@@ -435,15 +461,13 @@ Jangan pernah memasukkan ke file ini:
 - private key
 - credential lainnya
 
-Gunakan environment variables / Vercel Environment Variables untuk secret.
+Gunakan environment variables / Vercel Environment Variables.
 
-## 15. Next Action
+## 17. Next Action
 
-**Langkah berikutnya:**
+**Jalankan Fun Zone menggunakan prompt Catch the Star.**
 
-Jalankan Fun Zone menggunakan prompt **Catch the Star** pada bagian 6.
-
-Setelah test selesai, kumpulkan hasil:
+Setelah test selesai, kumpulkan:
 
 ```
 Tester Result:
@@ -458,9 +482,11 @@ Input listeners:
 Runtime:
 Canvas:
 Runtime Errors:
+Gameplay:
+Debugger:
 ```
 
-Kemudian tentukan perbaikan berdasarkan data tersebut, bukan berdasarkan asumsi.
+Kemudian perbaiki berdasarkan data aktual.
 
 ---
 
