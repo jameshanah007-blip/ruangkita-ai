@@ -1,5 +1,7 @@
 "use client";
 
+import SiteNav from "../components/SiteNav";
+
 import { useState } from "react";
 
 type Citation = {
@@ -90,60 +92,15 @@ export default function AIExecutor() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
-      {/* Navigation */}
-
-      <nav className="border-b border-white/10 bg-slate-950/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <a
-            href="/"
-            className="text-xl font-bold tracking-tight"
-          >
-            RuangKita{" "}
-            <span className="text-cyan-400">
-              AI
-            </span>
-          </a>
-
-          <div className="hidden items-center gap-8 text-sm text-slate-300 md:flex">
-            <a
-              href="/"
-              className="transition hover:text-white"
-            >
-              Home
-            </a>
-
-            <a
-              href="/ai"
-              className="font-semibold text-cyan-400"
-            >
-              AI Executor
-            </a>
-
-            <a
-              href="/forum"
-              className="transition hover:text-white"
-            >
-              Forum
-            </a>
-
-            <a
-              href="/fun-zone"
-              className="transition hover:text-white"
-            >
-              Fun Zone
-            </a>
-          </div>
-        </div>
-      </nav>
-
-      {/* Main */}
+      <SiteNav />
+{/* Main */}
 
       <section className="mx-auto max-w-5xl px-6 py-16">
         {/* Header */}
 
         <div className="mx-auto max-w-3xl text-center">
           <div className="mb-5 inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-300">
-            🤖 AI Executor
+            🤖 Tanya Saya
           </div>
 
           <h1 className="text-4xl font-bold tracking-tight md:text-6xl">
@@ -251,7 +208,7 @@ export default function AIExecutor() {
                   </p>
 
                   <p className="text-xs text-slate-500">
-                    AI Executor
+                    Tanya Saya
                   </p>
                 </div>
               </div>
@@ -301,7 +258,7 @@ export default function AIExecutor() {
                     </p>
 
                     <p className="text-xs text-slate-500">
-                      AI Executor
+                      Tanya Saya
                     </p>
                   </div>
                 </div>
