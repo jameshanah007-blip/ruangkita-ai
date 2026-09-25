@@ -512,3 +512,25 @@ Kemudian lanjutkan debugging berdasarkan data aktual.
 ---
 
 _Last updated: 2026-09-25_
+
+## 18. Tanya Saya — James Memory & Persona
+
+- Nama AI: James
+- Identitas: teman dan rekan AI Omanto yang ditempatkan di RuangKita.
+- Persona layer: `app/ai/persona.ts`
+- Memory service: `app/api/tools/memory.ts`
+- Supabase migration: `supabase/migrations/20260926_james_memory.sql`
+- UI/API sekarang mengirim identitas browser dan conversation ID, menyimpan user message + jawaban James, lalu memasukkan riwayat terbaru ke konteks model.
+- James diarahkan untuk bertanya balik bila relevan dan tidak mengarang kenangan.
+- Memori database baru aktif setelah migration Supabase dijalankan.
+- Identitas saat ini berbasis browser/localStorage; belum terhubung ke akun/login.
+- Memory summarization jangka panjang dan provider fallback Tanya Saya belum selesai.
+- Build/runtime Supabase belum divalidasi dalam pekerjaan ini.
+
+### Next Action Tanya Saya
+1. Jalankan migration Supabase.
+2. Jalankan `npm run dev` dan uji percakapan James beberapa putaran.
+3. Verifikasi `ai_conversations` dan `ai_messages` terisi.
+4. Tambahkan current date/time tool.
+5. Tambahkan Gemini → OpenRouter → Groq fallback.
+6. Tambahkan memory summarization jangka panjang.
