@@ -1,5 +1,7 @@
 "use client";
 
+import SiteNav from "../components/SiteNav";
+
 import {
   useCallback,
   useEffect,
@@ -702,6 +704,7 @@ const handleSandboxError =
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
+      <SiteNav />
 
       <nav className="border-b border-white/10">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
