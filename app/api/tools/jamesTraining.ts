@@ -1,4 +1,4 @@
-import { generateWithAIRouter } from "../../fun-zone/aiRouter";
+import { generateWithAIRouter, generateWithAllAIProviders } from "../../fun-zone/aiRouter";
 import type { JamesEvolutionProposal } from "./jamesEvolution";
 
 function normalizeTrainingText(value: string) {
@@ -72,57 +72,90 @@ export async function interpretJamesTrainingInstruction(request: string): Promis
     "Jangan menyimpan password, token, API key, kode verifikasi, atau data sensitif.",
     "source_excerpt harus merupakan kutipan yang benar-benar muncul pada instruksi.",
     "Confidence minimal 0.80 untuk instruksi yang jelas.",
+    "Jika bahasa informal, singkatan, typo, atau kalimat tidak lengkap tetapi maksudnya jelas, pahami maksudnya dari konteks.",
     "INSTRUKSI OMANTO:",
     request
   ].join("\n");
 
-  const result = await generateWithAIRouter({
+  const providerResults = await generateWithAllAIProviders({
     prompt,
     systemInstruction: "Keluarkan JSON valid saja. Jangan mengarang isi instruksi Omanto.",
     temperature: 0.1,
     maxOutputTokens: 1800,
   });
 
-  const parsed = extractJson(result.text);
-  if (!parsed || typeof parsed !== "object") return [];
+  const proposals: JamesEvolutionProposal[] = [];
 
-  const rawProposals = (parsed as Record<string, unknown>).proposals;
-  const items: unknown[] = Array.isArray(rawProposals) ? rawProposals : [];
+  for (const result of providerResults) {
+    const parsed = extractJson(result.text);
+    if (!parsed || typeof parsed !== "object") continue;
 
-  const accepted: JamesEvolutionProposal[] = [];
+    const rawProposals = (parsed as Record<string, unknown>).proposals;
+    const items: unknown[] = Array.isArray(rawProposals) ? rawProposals : [];
 
-  for (const item of items) {
-    if (!item || typeof item !== "object") continue;
-    const value = item as Record<string, unknown>;
-    const category = value.category;
+    for (const item of items) {
+      if (!item || typeof item !== "object") continue;
+      const value = item as Record<string, unknown>;
+      const category = value.category;
 
-    if (
-      category !== "communication_style" &&
-      category !== "interest" &&
-      category !== "learned_topic" &&
-      category !== "lesson" &&
-      category !== "preference"
-    ) continue;
+      if (
+        category !== "communication_style" &&
+        category !== "interest" &&
+        category !== "learned_topic" &&
+        category !== "lesson" &&
+        category !== "preference"
+      ) continue;
 
-    const proposal: JamesEvolutionProposal = {
-      category,
-      key: clean(value.key, 60),
-      value: clean(value.value, 240),
-      reason: clean(value.reason, 240),
-      confidence: confidence(value.confidence),
-      source_excerpt: clean(value.source_excerpt, 320),
-    };
+      const proposal: JamesEvolutionProposal = {
+        category,
+        key: clean(value.key, 60),
+        value: clean(value.value, 240),
+        reason: clean(value.reason, 240),
+        confidence: confidence(value.confidence),
+        source_excerpt: clean(value.source_excerpt, 320),
+      };
 
-    if (
-      proposal.key &&
-      proposal.value &&
-      proposal.source_excerpt &&
-      proposal.confidence >= 0.80 &&
-      containsSourceExcerpt(request, proposal.source_excerpt)
-    ) {
-      accepted.push(proposal);
+      if (
+        proposal.key &&
+        proposal.value &&
+        proposal.source_excerpt &&
+        proposal.confidence >= 0.80 &&
+        containsSourceExcerpt(request, proposal.source_excerpt)
+      ) {
+        proposals.push(proposal);
+      }
     }
   }
 
-  return accepted.slice(0, 3);
+  // Prefer an interpretation supported by at least two provider outputs.
+  // If only one provider is available, keep its validated proposal so a
+  // temporary provider outage does not disable Omanto's learning command.
+  const groups = new Map<string, JamesEvolutionProposal[]>();
+
+  for (const proposal of proposals) {
+    const key = [
+      proposal.category,
+      proposal.key.toLowerCase(),
+      proposal.value.toLowerCase(),
+    ].join("::");
+    const group = groups.get(key) || [];
+    group.push(proposal);
+    groups.set(key, group);
+  }
+
+  const ranked = [...groups.values()].sort((a, b) => {
+    const support = b.length - a.length;
+    if (support !== 0) return support;
+    return Math.max(...b.map((item) => item.confidence)) -
+      Math.max(...a.map((item) => item.confidence));
+  });
+
+  return ranked
+    .filter((group) => providerResults.length < 2 || group.length >= 2)
+    .map((group) =>
+      group.reduce((best, item) =>
+        item.confidence > best.confidence ? item : best
+      )
+    )
+    .slice(0, 3);
 }
