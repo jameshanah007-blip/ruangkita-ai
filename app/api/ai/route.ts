@@ -29,7 +29,7 @@ import { addGlobalCandidate, getGlobalGrowth } from "../tools/jamesGlobalLearnin
 import { buildJamesContext } from "../tools/jamesContext";
 import { planJamesIntelligence, planJamesIntelligenceWithAI } from "../tools/jamesIntelligence";
 import { runJamesAgentLoop } from "../tools/jamesAgentLoop";
-import { formatJamesExperienceContext, learnJamesExperience, retrieveJamesExperiences } from "../tools/jamesExperience";
+import { formatJamesExperienceContext, learnJamesExperience, recordJamesExperienceOutcome, retrieveJamesExperiences } from "../tools/jamesExperience";
 import { getJamesAgentTask } from "../tools/jamesAgentState";
 import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
@@ -1294,6 +1294,17 @@ Jangan menyebut reasoning internal.`
         intent,
         agentResult.recovered ? "james-agent-recovery" : "james-agent-loop"
       );
+
+      if (experiences.length) {
+        void recordJamesExperienceOutcome({
+          experienceIds: experiences
+            .map((experience) => experience.id)
+            .filter((id): id is string => typeof id === "string"),
+          verified: agentResult.verified,
+        }).catch((error) => {
+          console.error("James experience feedback error:", error);
+        });
+      }
 
       if (agentResult.verified && agentResult.taskId) {
         void (async () => {
