@@ -50,18 +50,34 @@ export async function addGlobalCandidate(input: {
   const supabase = db();
   if (!supabase) return null;
 
+  const category = clean(input.category, 60);
+  const key = clean(input.key, 80);
+  const value = clean(input.value, 240);
+
+  const { data: existing } = await supabase
+    .from("james_global_growth")
+    .select("id, evidence_count, status")
+    .eq("category", category)
+    .eq("key", key)
+    .eq("value", value)
+    .maybeSingle();
+
+  const nextEvidence = Math.max(
+    1,
+    Math.min((existing?.evidence_count || 0) + Math.max(1, input.evidenceCount), 1000000)
+  );
+
   const row = {
-    category: clean(input.category, 60),
-    key: clean(input.key, 80),
-    value: clean(input.value, 240),
+    category,
+    key,
+    value,
     rationale: clean(input.rationale),
-    evidence_count: Math.max(1, Math.min(input.evidenceCount, 1000000)),
-    status: "candidate",
+    evidence_count: nextEvidence,
+    status: existing?.status === "active" ? "active" : "candidate",
     updated_at: new Date().toISOString(),
   };
 
   const { data, error } = await supabase
-    .from("james_global_growth")
     .upsert(row, { onConflict: "category,key,value" })
     .select("id, category, key, value, rationale, evidence_count, status")
     .maybeSingle();
