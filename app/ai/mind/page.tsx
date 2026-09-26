@@ -44,8 +44,8 @@ export default function JamesMindPage() {
           <small>{data.core.mission}</small>
         </Card>
         <Card title="Evolution">
-          <strong>v{data.growth?.evolution_version ?? 1}</strong>
-          <p>Per-user adaptive growth</p>
+          <strong>Dynamic</strong>
+          <p>Core identity + global learning</p>
         </Card>
         <Card title="Global Growth">
           <strong>{data.globalGrowth.length}</strong>
