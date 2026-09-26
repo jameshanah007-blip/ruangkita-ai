@@ -117,69 +117,82 @@ export async function executeJamesCapabilities(
     const upstreamContext = accumulatedContext
       ? `\n\nHASIL LANGKAH SEBELUMNYA:\n${accumulatedContext}`
       : "";
+
     if (capability === "calculator" && options?.enableCalculator !== false) {
+      const text = String(calculate(extractMathExpression(request)));
       results.push({
         capability,
         status: "executed",
-        text: String(calculate(extractMathExpression(request))),
+        text,
       });
-      accumulatedContext += `\n[calculator]\n${results[results.length - 1].text}`;
-      continue;
-    }
-
-    if (capability === "web_search" && options?.enableResearch !== false) {
-      });
-      accumulatedContext += `\n[calculator]\n${results[results.length - 1].text}`;
+      accumulatedContext += `\n[calculator]\n${text}`;
       continue;
     }
 
     if (capability === "web_search" && options?.enableResearch !== false) {
       const found = await webSearch(request);
+      const text = found.length
+        ? found.map((item, index) =>
+            `SUMBER ${index + 1}: ${item.title}\nURL: ${item.url}\n${item.highlights.join(" ")}`
+          ).join("\n\n")
+        : "Tidak ada sumber eksternal yang lolos verifikasi relevansi.";
+
       results.push({
         capability,
         status: "executed",
-        text: found.length
-          ? found.map((item, index) =>
-              `SUMBER ${index + 1}: ${item.title}\nURL: ${item.url}\n${item.highlights.join(" ")}`
-            ).join("\n\n")
-          : "Tidak ada sumber eksternal yang lolos verifikasi relevansi.",
+        text,
         citations: found.map((item) => ({ title: item.title, url: item.url })),
       });
+      accumulatedContext += `\n[web_search]\n${text}`;
+      continue;
     }
 
     if (capability === "planner") {
+      const text = [
+        "Planner execution context:",
+        "Susun hasil menjadi rencana yang memiliki tujuan, langkah, prioritas, urutan kerja, dan hasil yang diharapkan.",
+        `Permintaan pengguna: ${request}`,
+        upstreamContext,
+      ].join("\n");
+
       results.push({
         capability,
         status: "executed",
-        text: [
-          "Planner execution context:",
-          "Susun hasil menjadi rencana yang memiliki tujuan, langkah, prioritas, urutan kerja, dan hasil yang diharapkan.",
-          `Permintaan pengguna: ${request}`,
-          upstreamContext,
-        ].join("\n"),
+        text,
       });
+      accumulatedContext += `\n[planner]\n${text}`;
       continue;
     }
 
     if (capability === "document") {
+      const text = [
+        "Document execution context:",
+        "Siapkan dokumen siap pakai berdasarkan permintaan pengguna. Gunakan struktur yang sesuai, bahasa natural, placeholder untuk data yang belum tersedia, dan jangan mengarang data pribadi.",
+        `Permintaan pengguna: ${request}`,
+        upstreamContext,
+      ].join("\n");
+
       results.push({
         capability,
         status: "executed",
-        text: [
-          "Document execution context:",
-          "Siapkan dokumen siap pakai berdasarkan permintaan pengguna. Gunakan struktur yang sesuai, bahasa natural, placeholder untuk data yang belum tersedia, dan jangan mengarang data pribadi.",
-          `Permintaan pengguna: ${request}`,
-        ].join("\n"),
+        text,
       });
+      accumulatedContext += `\n[document]\n${text}`;
       continue;
     }
 
     if (capability === "chat") {
+      const text = [
+        "Final conversational response should be produced by James using the available context.",
+        upstreamContext,
+      ].join("\n");
+
       results.push({
         capability,
         status: "executed",
-        text: "Final conversational response should be produced by James using the available context.",
+        text,
       });
+      accumulatedContext += `\n[chat]\n${text}`;
     }
   }
 
