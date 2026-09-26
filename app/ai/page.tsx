@@ -45,9 +45,46 @@ export default function AIExecutor() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    setUserId(getOrCreateId("ruangkita-james-user-id"));
-    setConversationId(getOrCreateId("ruangkita-james-conversation-id"));
-    setMemoryReady(true);
+    const nextUserId = getOrCreateId("ruangkita-james-user-id");
+    const nextConversationId = getOrCreateId("ruangkita-james-conversation-id");
+
+    setUserId(nextUserId);
+    setConversationId(nextConversationId);
+
+    void fetch(
+      `/api/ai/history?userId=${encodeURIComponent(nextUserId)}&conversationId=${encodeURIComponent(nextConversationId)}`
+    )
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "History James gagal dimuat.");
+
+        if (Array.isArray(data.messages)) {
+          setMessages(
+            data.messages
+              .filter(
+                (item: { role?: string; content?: string }) =>
+                  (item.role === "user" || item.role === "assistant") &&
+                  typeof item.content === "string"
+              )
+              .map(
+                (item: { role: "user" | "assistant"; content: string }, index: number) => ({
+                  id: `history-${index}-${item.role}`,
+                  role: item.role,
+                  content: item.content,
+                  feedback: null,
+                  feedbackNote: "",
+                  feedbackNoteSubmitted: false,
+                })
+              )
+          );
+        }
+      })
+      .catch((error) => {
+        console.error("James history load error:", error);
+      })
+      .finally(() => {
+        setMemoryReady(true);
+      });
   }, []);
 
   useEffect(() => {
