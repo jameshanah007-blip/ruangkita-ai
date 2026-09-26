@@ -58,24 +58,29 @@ function detectIntent(request: string): Intent {
     return "calculator";
   }
 
-  const webSearchPatterns = [
-    "carikan", "cari", "pencarian",
-    "berita terbaru", "informasi terbaru",
-    "berita hari ini", "hari ini",
-    "lomba", "beasiswa", "lowongan",
-    "cari di internet", "cari di web",
-    "sumber terbaru", "referensi terbaru",
+  const explicitResearchPatterns = [
+    /\bcarikan\b/,
+    /\bcari(?:kan)?\b.*\b(internet|web|online|sumber|referensi|informasi|berita|lomba|beasiswa|lowongan)\b/,
+    /\btolong\b.*\bcari\b/,
+    /\bcek\b.*\b(terbaru|sekarang|hari ini|online|internet|web)\b/,
+    /\bsearch\b.*\b(web|internet|online)\b/,
   ];
 
-  const researchPatterns = [
-    /\bterbaru\b.*\b(teknologi|ai|software|aplikasi|berita|fitur|versi)\b/,
-    /\b(teknologi|ai|software|aplikasi|berita|fitur|versi)\b.*\bterbaru\b/,
-    /\bsekarang\b.*\b(versi|fitur|rilis|berita)\b/,
+  const freshnessPatterns = [
+    /\b(terbaru|terkini|hari ini|sekarang|saat ini|minggu ini|bulan ini)\b/,
+    /\b(versi|rilis|harga|jadwal|berita|event|lomba|beasiswa|lowongan)\b.*\b(terbaru|terkini|sekarang|hari ini)\b/,
+    /\b(terbaru|terkini|sekarang|hari ini)\b.*\b(versi|rilis|harga|jadwal|berita|event|lomba|beasiswa|lowongan)\b/,
+  ];
+
+  const sourceRequestPatterns = [
+    /\b(sumber|referensi|link|tautan)\b.*\b(cari|berikan|kirim|tampilkan)\b/,
+    /\b(cari|berikan|kirim|tampilkan)\b.*\b(sumber|referensi|link|tautan)\b/,
   ];
 
   if (
-    webSearchPatterns.some((keyword) => text.includes(keyword)) ||
-    researchPatterns.some((pattern) => pattern.test(text))
+    explicitResearchPatterns.some((pattern) => pattern.test(text)) ||
+    freshnessPatterns.some((pattern) => pattern.test(text)) ||
+    sourceRequestPatterns.some((pattern) => pattern.test(text))
   ) {
     return "web_search";
   }
