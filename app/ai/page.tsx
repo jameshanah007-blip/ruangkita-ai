@@ -40,6 +40,10 @@ export default function AIExecutor() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [verificationOpen, setVerificationOpen] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verificationLoading, setVerificationLoading] = useState(false);
+  const [omantoVerified, setOmantoVerified] = useState(false);
   const [memoryReady, setMemoryReady] = useState(false);
   const [userId, setUserId] = useState("");
   const [conversationId, setConversationId] = useState("");
@@ -112,6 +116,11 @@ export default function AIExecutor() {
         throw new Error(data.error || "Terjadi kesalahan.");
       }
 
+      if (data.identityVerificationRequired) {
+        setVerificationOpen(true);
+        setVerificationCode("");
+      }
+
       if (data.userId && data.userId !== userId) {
         setUserId(data.userId);
         window.localStorage.setItem("ruangkita-james-user-id", data.userId);
@@ -145,6 +154,48 @@ export default function AIExecutor() {
       );
     } finally {
       setLoading(false);
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    }
+  }
+
+  async function verifyOmanto() {
+    const code = verificationCode.trim();
+    if (!code || verificationLoading) return;
+
+    setVerificationLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/ai/verify-identity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.verified) {
+        throw new Error(data.error || "Kode verifikasi tidak valid.");
+      }
+
+      setOmantoVerified(true);
+      setVerificationOpen(false);
+      setVerificationCode("");
+      setMessages((current) => [
+        ...current,
+        {
+          id: makeId(),
+          role: "assistant",
+          content:
+            "Identitas Omanto berhasil diverifikasi. Mulai sekarang aku mengenali kamu sebagai Omanto di sesi ini.",
+          feedback: null,
+          feedbackNote: "",
+          feedbackNoteSubmitted: false,
+        },
+      ]);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Verifikasi gagal.");
+    } finally {
+      setVerificationLoading(false);
       requestAnimationFrame(() => textareaRef.current?.focus());
     }
   }
@@ -228,6 +279,38 @@ export default function AIExecutor() {
   return (
     <main className="min-h-screen bg-[#0b0f14] text-white">
       <SiteNav />
+
+      {verificationOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-cyan-400/20 bg-[#151a21] p-6 shadow-2xl">
+            <h2 className="text-xl font-semibold">Verifikasi Omanto</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              James perlu memastikan bahwa kamu benar-benar Omanto. Masukkan kode verifikasi.
+            </p>
+            <input
+              value={verificationCode}
+              onChange={(e) => setVerificationCode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void verifyOmanto();
+                }
+              }}
+              type="password"
+              autoFocus
+              placeholder="Masukkan kode verifikasi"
+              className="mt-5 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-cyan-400/40"
+            />
+            {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
+            <div className="mt-5 flex gap-2">
+              <button type="button" onClick={() => { setVerificationOpen(false); setVerificationCode(""); }} className="flex-1 rounded-2xl border border-white/10 px-4 py-3 text-sm text-slate-300 hover:bg-white/5">Batal</button>
+              <button type="button" onClick={() => void verifyOmanto()} disabled={!verificationCode.trim() || verificationLoading} className="flex-1 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 disabled:opacity-40">
+                {verificationLoading ? "Memverifikasi..." : "Verifikasi"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="mx-auto flex min-h-[calc(100vh-64px)] w-full max-w-5xl flex-col px-3 pb-4 pt-4 sm:px-6 sm:pt-6">
         <header className="mx-auto w-full max-w-3xl px-2 pb-5 text-center sm:pb-7">
@@ -422,7 +505,7 @@ export default function AIExecutor() {
                     setError("");
                   }}
                   onKeyDown={handleComposerKeyDown}
-                  placeholder="Pesan untuk James..."
+                  placeholder={omantoVerified ? "Pesan untuk James sebagai Omanto..." : "Pesan untuk James..."}
                   rows={1}
                   disabled={!memoryReady || loading}
                   className="max-h-40 min-h-12 w-full resize-none bg-transparent px-3 py-2.5 text-[15px] leading-6 text-white outline-none placeholder:text-slate-600 disabled:opacity-60 sm:min-h-14 sm:px-4"
