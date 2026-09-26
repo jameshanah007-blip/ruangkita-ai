@@ -203,7 +203,7 @@ Aturan:
       const decisions = await getGlobalDecisions(candidate.id);
       const strongSupport = decisions.filter((item: any) => item.decision === "support" && item.confidence >= 0.75).length;
       const strongReject = decisions.filter((item: any) => item.decision === "reject" && item.confidence >= 0.75).length;
-      if (strongSupport >= 2 && strongReject === 0) {
+      if (candidate.evidence_count >= 3 && strongSupport >= 2 && strongReject === 0) {
         await activateGlobalCandidate(candidate.id, strongSupport / Math.max(decisions.length, 1), "Validated by multiple AI providers.");
       }
     }
