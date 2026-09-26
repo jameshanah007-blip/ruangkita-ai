@@ -30,6 +30,7 @@ import { buildJamesContext } from "../tools/jamesContext";
 import { executeJamesCapabilities, planJamesIntelligence } from "../tools/jamesIntelligence";
 import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
+import { understandJamesInput } from "../tools/jamesInputUnderstanding";
 
 type Intent =
   | "chat"
@@ -872,6 +873,9 @@ export async function POST(request: Request) {
     const userRequest =
       typeof body?.request === "string" ? body.request.trim() : "";
 
+    const inputUnderstanding = understandJamesInput(userRequest);
+    const understoodRequest = inputUnderstanding.normalized || userRequest;
+
     const claimsOmanto = /\b(?:saya|aku)\s+(?:adalah\s+)?omanto\b/i.test(userRequest);
     const omantoVerified = isOmantoVerified(request);
 
@@ -952,7 +956,7 @@ export async function POST(request: Request) {
       getGlobalGrowth(20),
     ]);
     const contextResult = buildJamesContext({
-      userRequest,
+      userRequest: understoodRequest,
       ...memory,
       longTermMemories,
       growth,
@@ -976,9 +980,9 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
     const jamesKnowledgeContext = `${memoryContext}
 
 ${activeKnowledgeContext}`;
-    const intelligencePlan = planJamesIntelligence(userRequest);
+    const intelligencePlan = planJamesIntelligence(understoodRequest);
     const intent = intelligencePlan.primary;
-    if (requestsMultiProviderKnowledge(userRequest)) {
+    if (requestsMultiProviderKnowledge(understoodRequest)) {
       const providerResults = await generateWithAllAIProviders({
         prompt: `Pengguna meminta James mendapatkan pengetahuan dari beberapa provider AI.
 
@@ -998,7 +1002,7 @@ Jangan mengarang akses provider. Fokus pada pengetahuan yang dapat digunakan Jam
         .map((item) => `PROVIDER: ${item.provider}\nMODEL: ${item.model}\nINSIGHT:\n${item.text}`)
         .join("\n\n---\n\n");
 
-      const wantsPermanentLearning = requestsPermanentKnowledgeLearning(userRequest) && omantoVerified;
+      const wantsPermanentLearning = requestsPermanentKnowledgeLearning(understoodRequest) && omantoVerified;
       let learnedKnowledgeCandidate: { category: string; key: string; value: string; rationale: string; evidenceCount: number } | null = null;
 
       if (wantsPermanentLearning && providerResults.length >= 2) {
@@ -1128,7 +1132,7 @@ Jangan menyebut reasoning internal.`
     if (intelligencePlan.capabilities.length > 1) {
       const capabilityResults = await executeJamesCapabilities(
         intelligencePlan,
-        userRequest
+        understoodRequest
       );
 
       const toolContext = capabilityResults.length
@@ -1240,7 +1244,7 @@ Jangan mengarang fakta tentang pengguna yang tidak ada dalam memori.
     }
 
     if (intent === "web_search") {
-      const research = await webSearch(intelligencePlan.researchQuery || userRequest);
+      const research = await webSearch(intelligencePlan.researchQuery || understoodRequest);
       const searchResults = research.results;
 
       const citations: Citation[] = searchResults.map((item) => ({
