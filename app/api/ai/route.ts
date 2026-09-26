@@ -58,6 +58,57 @@ function requestsPermanentKnowledgeLearning(request: string) {
     /\b(?:kamu|mu|james|pengetahuan|belajar)\b/i.test(request);
 }
 
+function requestsConversationRecall(request: string) {
+  const text = request
+    .toLowerCase()
+    .replace(/[!?.,]/g, " ")
+    .replace(/\\s+/g, " ")
+    .trim();
+
+  return [
+    /\\btadi kita (sedang )?(membicarakan|ngobrol|bahas)/,
+    /\\bkita tadi (sedang )?(membicarakan|ngobrol|bahas)/,
+    /\\byang tadi (apa|gimana|tentang apa)/,
+    /\\bkamu ingat( apa)?( yang)? tadi/,
+    /\\bkamu masih ingat/,
+    /\\bapa yang kita (bahas|bicarakan|obrolkan)/,
+    /\\btopik (kita )?(tadi|sebelumnya)/,
+    /\\bpercakapan (tadi|sebelumnya)/
+  ].some((pattern) => pattern.test(text));
+}
+
+function buildConversationRecallResponse(
+  messages: Array<{ role: "user" | "assistant"; content: string }>
+) {
+  const previous = messages.filter((message) => message.content.trim());
+
+  if (!previous.length) {
+    return "Belum ada percakapan sebelumnya yang tersimpan di sesi ini.";
+  }
+
+  const recentUserMessages = previous
+    .filter((message) => message.role === "user")
+    .slice(-4);
+
+  if (!recentUserMessages.length) {
+    return "Tadi belum ada pesan pengguna yang bisa aku jadikan acuan.";
+  }
+
+  const topics = recentUserMessages.map((message) => {
+    const content = message.content.trim().replace(/\\s+/g, " ");
+    return content.length > 240 ? `“${content.slice(0, 237)}...”` : `“${content}”`;
+  });
+
+  if (topics.length === 1) {
+    return `Tadi kita sedang membicarakan: ${topics[0]}`;
+  }
+
+  return [
+    "Tadi kita sedang membicarakan beberapa hal berikut:",
+    ...topics.map((topic, index) => `${index + 1}. ${topic}`),
+  ].join("\\n");
+}
+
 function detectIntent(request: string): Intent {
   const text = request.toLowerCase();
 
@@ -978,6 +1029,28 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
 ${activeKnowledgeContext}`;
     const intelligencePlan = planJamesIntelligence(userRequest);
     const intent = intelligencePlan.primary;
+
+    // Pertanyaan recall percakapan tidak membutuhkan model eksternal.
+    // Gunakan history yang sudah tersimpan agar fungsi memori tetap bekerja
+    // walaupun semua provider sedang terkena quota/rate limit.
+    if (requestsConversationRecall(userRequest)) {
+      const resultText = buildConversationRecallResponse(memory.messages);
+
+      await saveActivity(userRequest, "chat", "conversation-memory", resultText);
+      await saveJames(userId, conversationId, userRequest, resultText, "chat", "conversation-memory");
+
+      return NextResponse.json({
+        result: resultText,
+        intent: "chat",
+        tool: "conversation-memory",
+        citations: [],
+        userId,
+        conversationId,
+        memoryAvailable: memory.available,
+        evolutionVersion: growth.evolution_version,
+      });
+    }
+
     if (requestsMultiProviderKnowledge(userRequest)) {
       const providerResults = await generateWithAllAIProviders({
         prompt: `Pengguna meminta James mendapatkan pengetahuan dari beberapa provider AI.
