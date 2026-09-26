@@ -91,6 +91,41 @@ export function buildJamesContext(input: ContextInput) {
     .slice(0, 12)
     .map(({ memory }) => memory);
 
+  const growth = input.growth;
+  const selectedGrowth = growth
+    ? {
+        communication_style: Object.fromEntries(
+          Object.entries(growth.communication_style || {})
+            .map(([key, value]) => ({ key, value, relevance: score(query, `${key} ${value}`) }))
+            .sort((a, b) => b.relevance - a.relevance)
+            .slice(0, 5)
+            .map(({ key, value }) => [key, value])
+        ),
+        interests: [...(growth.interests || [])]
+          .map((value, index) => ({ value, index, relevance: score(query, value) }))
+          .sort((a, b) => b.relevance - a.relevance || b.index - a.index)
+          .slice(0, 5)
+          .map(({ value }) => value),
+        learned_topics: [...(growth.learned_topics || [])]
+          .map((value, index) => ({ value, index, relevance: score(query, value) }))
+          .sort((a, b) => b.relevance - a.relevance || b.index - a.index)
+          .slice(0, 8)
+          .map(({ value }) => value),
+        lessons: [...(growth.lessons || [])]
+          .map((value, index) => ({ value, index, relevance: score(query, value) }))
+          .sort((a, b) => b.relevance - a.relevance || b.index - a.index)
+          .slice(0, 5)
+          .map(({ value }) => value),
+        preferences: Object.fromEntries(
+          Object.entries(growth.preferences || {})
+            .map(([key, value]) => ({ key, value, relevance: score(query, `${key} ${value}`) }))
+            .sort((a, b) => b.relevance - a.relevance)
+            .slice(0, 5)
+            .map(({ key, value }) => [key, value])
+        ),
+      }
+    : undefined;
+
   const selectedGlobalGrowth = [...(input.globalGrowth || [])]
     .map((item, index) => ({
       item,
@@ -108,7 +143,7 @@ export function buildJamesContext(input: ContextInput) {
     summary: input.summary,
     messages: selectedMessages,
     longTermMemories: selectedMemories,
-    growth: input.growth,
+    growth: selectedGrowth,
     globalGrowth: selectedGlobalGrowth,
   });
 
@@ -117,5 +152,10 @@ export function buildJamesContext(input: ContextInput) {
     selectedMessageCount: selectedMessages.length,
     selectedMemoryCount: selectedMemories.length,
     selectedGlobalGrowthCount: selectedGlobalGrowth.length,
+    selectedExperienceCount:
+      Object.values(selectedGrowth || {}).reduce(
+        (total, value) => total + (Array.isArray(value) ? value.length : Object.keys(value || {}).length),
+        0
+      ),
   };
 }
