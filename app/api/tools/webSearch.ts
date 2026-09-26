@@ -113,23 +113,29 @@ export async function webSearch(query: string): Promise<WebSearchResponse> {
   ];
 
   let hadResponse = false;
+  const collected = new Map<string, WebSearchResult>();
 
   for (const candidateQuery of attemptedQueries) {
     try {
       const results = await runSearch(exaClient, candidateQuery);
       hadResponse = true;
 
-      if (results.length > 0) {
-        return {
-          status: "verified",
-          query: normalizedQuery,
-          attemptedQueries,
-          results,
-        };
+      for (const result of results) {
+        if (!result.url) continue;
+        const existing = collected.get(result.url);
+        if (!existing || result.score > existing.score) {
+          collected.set(result.url, result);
+        }
       }
     } catch (error) {
       console.error("Exa research error:", error);
     }
+  }
+
+  const results = [...collected.values()].sort((a, b) => b.score - a.score).slice(0, 8);
+
+  if (results.length > 0) {
+    return { status: "verified", query: normalizedQuery, attemptedQueries, results };
   }
 
   return {
