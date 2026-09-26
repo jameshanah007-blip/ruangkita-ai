@@ -27,7 +27,7 @@ import {
 } from "../../fun-zone/aiRouter";
 import { addGlobalCandidate, getGlobalGrowth } from "../tools/jamesGlobalLearning";
 import { buildJamesContext } from "../tools/jamesContext";
-import { executeJamesCapabilities, planJamesIntelligence } from "../tools/jamesIntelligence";
+import { executeJamesCapabilities, planJamesIntelligence, planJamesIntelligenceWithAI } from "../tools/jamesIntelligence";
 import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
 
@@ -1027,8 +1027,8 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
     const jamesKnowledgeContext = `${memoryContext}
 
 ${activeKnowledgeContext}`;
-    const intelligencePlan = planJamesIntelligence(userRequest);
-    const intent = intelligencePlan.primary;
+    const deterministicIntelligencePlan = planJamesIntelligence(userRequest);
+    const intent = deterministicIntelligencePlan.primary;
 
     // Pertanyaan recall percakapan tidak membutuhkan model eksternal.
     // Gunakan history yang sudah tersimpan agar fungsi memori tetap bekerja
@@ -1195,6 +1195,7 @@ Jangan menyebut reasoning internal.`
     }
 
 
+    const intelligencePlan = await planJamesIntelligenceWithAI(userRequest, jamesKnowledgeContext);
     const verifiedIdentityContext = omantoVerified
       ? "\\nIDENTITAS TERVERIFIKASI: Pengguna telah melewati verifikasi server sebagai Omanto. Kamu boleh memperlakukan identitas Omanto sebagai terverifikasi untuk percakapan ini.\\n"
       : "";
