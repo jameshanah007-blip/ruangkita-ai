@@ -104,6 +104,27 @@ function recordSuccess(provider: AIProviderName) {
   current.cooldownUntil = null;
 }
 
+async function generateWithTimeout(
+  provider: AIProvider,
+  request: AIGenerateRequest,
+  timeoutMs = 20_000
+) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      provider.generate(request),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(provider.name + " timeout.")),
+          timeoutMs
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 function taskOrder(task: JamesResourceTask): AIProviderName[] {
   switch (task) {
     case "planning":
@@ -167,15 +188,7 @@ export async function generateWithJamesResourceManager(
     const startedAt = Date.now();
 
     try {
-      const result = await Promise.race([
-        provider.generate(request),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error(`${provider.name} timeout.`)),
-            20_000
-          )
-        ),
-      ]);
+      const result = await generateWithTimeout(provider, request);
 
       recordSuccess(provider.name);
 
