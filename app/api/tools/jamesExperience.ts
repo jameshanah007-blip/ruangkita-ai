@@ -9,6 +9,7 @@ export type JamesExperience = {
   strategy: string;
   capabilities: string[];
   successCount: number;
+  failureCount: number;
   confidence: number;
   status: "active" | "candidate" | "retired";
   relevance?: number;
@@ -77,7 +78,7 @@ export async function retrieveJamesExperiences(input: {
 
   const { data, error } = await supabase
     .from("james_experiences")
-    .select("id, pattern, strategy, capabilities, success_count, confidence, status")
+    .select("id, pattern, strategy, capabilities, success_count, failure_count, confidence, status")
     .eq("user_id", input.userId)
     .eq("status", "active")
     .order("updated_at", { ascending: false })
@@ -95,6 +96,7 @@ export async function retrieveJamesExperiences(input: {
         strategy: item.strategy,
         capabilities: Array.isArray(item.capabilities) ? item.capabilities : [],
         successCount: Number(item.success_count || 0),
+        failureCount: Number(item.failure_count || 0),
         confidence: clamp(item.confidence),
         status: item.status,
       };
@@ -124,6 +126,7 @@ export function formatJamesExperienceContext(experiences: JamesExperience[]) {
       "Strategy: " + item.strategy,
       "Capabilities: " + item.capabilities.join(", "),
       "Success count: " + item.successCount,
+      "Failure count: " + item.failureCount,
       "Confidence: " + item.confidence.toFixed(2),
       "Relevance: " + (item.relevance || 0).toFixed(2),
     ].join("\n")),
