@@ -77,8 +77,26 @@ export async function addGlobalCandidate(input: {
     updated_at: new Date().toISOString(),
   };
 
+  if (existing) {
+    const { data, error } = await supabase
+      .from("james_global_growth")
+      .update({
+        rationale: row.rationale,
+        evidence_count: row.evidence_count,
+        status: row.status,
+        updated_at: row.updated_at,
+      })
+      .eq("id", existing.id)
+      .select("id, category, key, value, rationale, evidence_count, status")
+      .maybeSingle();
+
+    if (error) return null;
+    return data;
+  }
+
   const { data, error } = await supabase
-    .upsert(row, { onConflict: "category,key,value" })
+    .from("james_global_growth")
+    .insert(row)
     .select("id, category, key, value, rationale, evidence_count, status")
     .maybeSingle();
 
