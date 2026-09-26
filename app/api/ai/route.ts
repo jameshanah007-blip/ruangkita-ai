@@ -923,7 +923,7 @@ ${activeKnowledgeContext}`;
         prompt: `Pengguna meminta James mendapatkan pengetahuan dari beberapa provider AI.
 
 PERMINTAAN PENGGUNA:
-"${userRequest}"
+"${understoodRequest}"
 
 Berikan jawaban/insight yang faktual dan berguna untuk permintaan tersebut.
 Jangan mengarang akses provider. Fokus pada pengetahuan yang dapat digunakan James.`,
@@ -945,7 +945,7 @@ Jangan mengarang akses provider. Fokus pada pengetahuan yang dapat digunakan Jam
         const learningResults = await generateWithAllAIProviders({
           prompt: `Ekstrak satu pengetahuan umum yang benar-benar didukung oleh hasil konsultasi berikut untuk disimpan sebagai kandidat pengetahuan James.
 PERMINTAAN:
-"${userRequest}"
+"${understoodRequest}"
 
 HASIL PROVIDER:
 ${providerContext}
@@ -999,7 +999,7 @@ Jangan menyimpan rahasia, kredensial, data pribadi, atau klaim sensitif.`,
         `${memoryContext}
 
 PENTING: Server RuangKita BARU SAJA melakukan konsultasi provider AI untuk permintaan pengguna berikut:
-"${userRequest}"
+"${understoodRequest}"
 
 Provider yang BENAR-BENAR berhasil memberikan hasil pada request ini:
 ${providerResults.map((item) => item.provider).join(", ")}
@@ -1091,7 +1091,7 @@ ATURAN RESEARCH:
 
 
 PERMINTAAN:
-"${userRequest}"
+"${understoodRequest}"
 
 HASIL CAPABILITY YANG SUDAH DIJALANKAN:
 ${toolContext}
@@ -1307,7 +1307,7 @@ Jangan membuat URL baru. Gunakan hanya URL yang tersedia dari hasil pencarian.
 ${memoryContext}
 
 Pengguna meminta:
-"${userRequest}"
+"${understoodRequest}"
 
 Buatkan dokumen yang sesuai dengan permintaan tersebut.
 Gunakan bahasa Indonesia yang baik dan formal jika diperlukan.
@@ -1342,7 +1342,7 @@ Berikan hasil yang siap disalin dan diedit.
 ${memoryContext}
 
 Pengguna meminta:
-"${userRequest}"
+"${understoodRequest}"
 
 Buatkan rencana yang praktis dan mudah dijalankan.
 Jika berkaitan dengan belajar, buat tujuan, jadwal, pembagian materi,
