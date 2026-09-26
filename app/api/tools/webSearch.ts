@@ -53,7 +53,7 @@ async function runSearch(exaClient: Exa, query: string) {
       const highlights = item.highlights || [];
       const relevance = relevanceScore(query, title, highlights);
       const hostname = item.url ? new URL(item.url).hostname.toLowerCase() : "";
-      const official = /(^|\\.)nextjs\\.org$|(^|\\.)vercel\\.com$|(^|\\.)react\\.dev$|(^|\\.)nodejs\\.org$|(^|\\.)typescriptlang\\.org$|(^|\\.)github\\.com$|(^|\\.)supabase\\.com$|(^|\\.)openai\\.com$|(^|\\.)ai\\.google\\.dev$/.test(hostname.replace(/^www\\./, ""));
+      const official = ["nextjs.org", "vercel.com", "react.dev", "nodejs.org", "typescriptlang.org", "github.com", "supabase.com", "openai.com", "ai.google.dev"].some((domain) => hostname === domain || hostname.endsWith("." + domain));
       const score = relevance * 0.7 + (official ? 0.3 : 0);
 
       return {
