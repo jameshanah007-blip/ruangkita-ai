@@ -18,7 +18,7 @@ function normalizeTrainingText(value: string) {
 export function isJamesTrainingInstruction(request: string) {
   const text = normalizeTrainingText(request);
   return /(?:saya ingin mengajarkan|saya mau mengajarkan|ajarkan|ajari|mulai sekarang|mulai saat ini|mulai besok|ke depan|ubah cara kamu|ubah cara james|saya ingin kamu belajar|jadikan ini aturan|jadikan kebiasaan|biasakan kamu|ingat ini|catat ini|setiap kali|kalau saya)/i.test(text) &&
-    /(?:james|kamu|cara bicara|cara menjawab|jawab|belajar|ingat|aturan|kebiasaan|jangan|harus|gunakan|pakai|respon|menjawab)/i.test(text);
+    /(?:james|kamu|cara bicara|cara menjawab|jawab|belajar|ingat|aturan|kebiasaan|jangan|harus|gunakan|pakai|respon|menjawab|singkat|ringkas|santai|natural|formal|fleksibel|kaku|panjang)/i.test(text);
 }
 
 function containsSourceExcerpt(request: string, excerpt: string) {
