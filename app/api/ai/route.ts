@@ -12,6 +12,7 @@ import {
   buildJamesMemoryContext,
   buildJamesSystemInstruction,
 } from "../../ai/persona";
+import { saveJamesCuriosity, type JamesCuriosityProposal } from "../tools/jamesCuriosity";
 
 type Intent =
   | "chat"
@@ -185,6 +186,14 @@ Keluarkan JSON SAJA:
   "lesson": "pelajaran yang sebaiknya James gunakan ke depan",
   "confidence": 0.0,
   "evidence": "bukti singkat dari interaksi",
+  "curiosity": [
+    {
+      "topic": "topik singkat",
+      "question": "pertanyaan yang masih perlu dipahami",
+      "importance": 0.0,
+      "evidence": "bukti singkat"
+    }
+  ],
   "proposals": [
     {
       "category": "communication_style | interest | learned_topic | lesson | preference",
@@ -199,7 +208,9 @@ Keluarkan JSON SAJA:
 
 Aturan:
 - Maksimal 3 proposal.
-- Jika tidak ada perubahan bermakna, proposals harus [].
+- Maksimal 2 curiosity.
+- Curiosity hanya jika ada pertanyaan/topik yang benar-benar belum jelas dan relevan untuk membantu pengguna.
+- Jika tidak ada hal bermakna untuk dipelajari, proposals dan curiosity harus [].
 - Confidence >= 0.70 hanya jika buktinya jelas.
 - Jangan menyimpan password, token, credential, nomor identitas, nomor telepon, alamat, lokasi presisi, data kesehatan, agama, politik, orientasi seksual, atau data sensitif lain.
 - Jangan mendiagnosis atau menebak sifat sensitif pengguna.
@@ -231,12 +242,23 @@ Aturan:
     const proposals = Array.isArray(parsed.proposals)
       ? parsed.proposals as JamesEvolutionProposal[]
       : [];
+    const curiosity = Array.isArray(parsed.curiosity)
+      ? parsed.curiosity as JamesCuriosityProposal[]
+      : [];
 
     if (reflectionSaved && proposals.length) {
       await applyJamesEvolution(
         input.userId,
         input.conversationId,
         proposals
+      );
+    }
+
+    if (reflectionSaved && curiosity.length) {
+      await saveJamesCuriosity(
+        input.userId,
+        input.conversationId,
+        curiosity
       );
     }
   } catch (error) {
