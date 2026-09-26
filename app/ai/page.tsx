@@ -54,6 +54,14 @@ export default function AIExecutor() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, loading]);
 
+  useEffect(() => {
+    if (!textareaRef.current) return;
+    const textarea = textareaRef.current;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
+    textarea.style.overflowY = textarea.scrollHeight > 160 ? "auto" : "hidden";
+  }, [request]);
+
   function resetFeedback(messageId: string) {
     setMessages((current) =>
       current.map((message) =>
@@ -445,9 +453,9 @@ export default function AIExecutor() {
             </div>
           </div>
 
-          <div className="sticky bottom-0 bg-[#0b0f14]/95 pb-1 pt-3 backdrop-blur sm:pt-4">
+          <div className="sticky bottom-0 bg-[#0b0f14]/95 px-0 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur sm:pt-4">
             <form onSubmit={handleSubmit}>
-              <div className="mx-auto max-w-3xl rounded-2xl border border-white/10 bg-[#151a21] p-1.5 shadow-xl shadow-black/20 focus-within:border-cyan-400/30">
+              <div className="mx-auto w-full max-w-3xl rounded-[1.25rem] border border-white/10 bg-[#151a21] p-1.5 shadow-xl shadow-black/20 focus-within:border-cyan-400/30 sm:p-2">
                 <textarea
                   ref={textareaRef}
                   value={request}
@@ -459,7 +467,7 @@ export default function AIExecutor() {
                   placeholder={omantoVerified ? "Pesan untuk James sebagai Omanto..." : "Pesan untuk James..."}
                   rows={1}
                   disabled={!memoryReady || loading}
-                  className="max-h-32 min-h-10 w-full resize-none bg-transparent px-3 py-2 text-[15px] leading-5 text-white outline-none placeholder:text-slate-600 disabled:opacity-60 sm:px-3"
+                  className="block w-full resize-none overflow-hidden bg-transparent px-3 py-1.5 text-[15px] leading-6 text-white outline-none placeholder:text-slate-600 disabled:opacity-60 sm:px-3 sm:py-2"
                   aria-label="Pesan untuk James"
                 />
 
