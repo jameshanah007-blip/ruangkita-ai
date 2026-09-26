@@ -123,6 +123,47 @@ export async function updateJamesAgentTask(
   return true;
 }
 
+export async function getLatestJamesAgentTask(userId: string, conversationId: string) {
+  const db = getDb();
+  if (!db || !safeId(userId) || !safeId(conversationId)) return null;
+
+  const { data, error } = await db
+    .from("james_agent_tasks")
+    .select("id, user_id, conversation_id, request, status, current_step, max_steps, state, updated_at")
+    .eq("user_id", userId)
+    .eq("conversation_id", conversationId)
+    .in("status", ["running", "paused"])
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const state = data.state && typeof data.state === "object"
+    ? data.state as Record<string, unknown>
+    : {};
+  const rawActions = Array.isArray(state.actions) ? state.actions : [];
+  const actions = rawActions.filter((item): item is JamesTaskAction =>
+    Boolean(item && typeof item === "object" && typeof (item as JamesTaskAction).id === "string")
+  );
+  const outputs = state.outputs && typeof state.outputs === "object"
+    ? state.outputs as Record<string, string>
+    : {};
+
+  return {
+    id: data.id,
+    userId: data.user_id,
+    conversationId: data.conversation_id,
+    request: data.request,
+    status: data.status,
+    currentStep: data.current_step,
+    maxSteps: data.max_steps,
+    actions,
+    outputs,
+    updatedAt: data.updated_at,
+  } satisfies JamesAgentTaskState;
+}
+
 export async function getJamesAgentTask(taskId: string) {
   const db = getDb();
   if (!db || !safeId(taskId)) return null;
