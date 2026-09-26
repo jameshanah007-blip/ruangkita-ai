@@ -1,4 +1,4 @@
-import { generateWithAIRouter, generateWithAllAIProviders } from "../../fun-zone/aiRouter";
+import { generateWithAllAIProviders } from "../../fun-zone/aiRouter";
 import type { JamesEvolutionProposal } from "./jamesEvolution";
 
 function normalizeTrainingText(value: string) {
