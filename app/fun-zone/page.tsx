@@ -676,6 +676,8 @@ const handleSandboxReady =
 const handleSandboxError =
   useCallback((message: string) => {
     setError(message);
+    setStage("error");
+    setIsGenerating(false);
   }, []);
 
   const showLaboratory =
