@@ -106,7 +106,18 @@ export async function retrieveJamesExperiences(input: {
         ? experience.capabilities.some((capability) => requestedCapabilities.has(capability)) ? 1 : 0
         : 0;
       const successScore = Math.min(1, Math.log10(experience.successCount + 1) / 3);
-      const score = lexical * 0.55 + capabilityMatch * 0.20 + experience.confidence * 0.15 + successScore * 0.10;
+      const failurePenalty = Math.min(
+        0.35,
+        experience.failureCount / Math.max(6, experience.successCount + experience.failureCount) * 0.5
+      );
+      const score = Math.max(
+        0,
+        lexical * 0.55 +
+        capabilityMatch * 0.20 +
+        experience.confidence * 0.15 +
+        successScore * 0.10 -
+        failurePenalty
+      );
 
       return { ...experience, relevance: score };
     })
