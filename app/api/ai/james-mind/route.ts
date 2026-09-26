@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getGlobalGrowth } from "../../tools/jamesGlobalLearning";
 import { getJamesGoals } from "../../tools/jamesGoals";
+import { getJamesFeedbackStats } from "../../tools/jamesEvolution";
 import { createClient } from "@supabase/supabase-js";
 
 function db() {
@@ -12,9 +13,10 @@ function db() {
 export async function GET() {
   try {
     const supabase = db();
-    const [globalGrowth, goals] = await Promise.all([
+    const [globalGrowth, goals, feedbackStats] = await Promise.all([
       getGlobalGrowth(30),
       getJamesGoals(undefined, 20),
+      getJamesFeedbackStats(),
     ]);
 
     let reflections: any[] = [];
@@ -40,6 +42,7 @@ export async function GET() {
       curiosity: [],
       reflections,
       providerRuns,
+      feedbackStats,
     });
   } catch (error) {
     console.error("James Mind error:", error);
