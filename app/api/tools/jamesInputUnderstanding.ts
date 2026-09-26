@@ -7,11 +7,9 @@ export type JamesInputUnderstanding = {
 
 const ABBREVIATIONS: Record<string, string> = {
   yg: "yang",
-  y: "yang",
   dgn: "dengan",
   dg: "dengan",
   utk: "untuk",
-  u: "untuk",
   krn: "karena",
   krna: "karena",
   krena: "karena",
@@ -51,7 +49,6 @@ const ABBREVIATIONS: Record<string, string> = {
   sm: "sama",
   ama: "sama",
   dr: "dari",
-  d: "di",
   td: "tadi",
   skrg: "sekarang",
   skrng: "sekarang",
@@ -133,12 +130,12 @@ function editDistance(a: string, b: string): number {
   return previous[b.length];
 }
 
-function typoCandidate(token: string): string | null {
+function collapseExpressiveRepeats(token: string): string {\n  return token.replace(/(.)\\1{2,}/gi, "$1$1");\n}\n\nfunction typoCandidate(token: string): string | null {
   if (token.length < 4 || token.length > 18) return null;
   if (/^[@#]/.test(token)) return null;
   if (/\d/.test(token)) return null;
 
-  let best: { word: string; distance: number } | null = null;
+  const compact = collapseExpressiveRepeats(token);\n  if (compact !== token && COMMON_WORDS.includes(compact)) return compact;\n\n  let best: { word: string; distance: number } | null = null;
 
   for (const word of COMMON_WORDS) {
     if (word === token) continue;
