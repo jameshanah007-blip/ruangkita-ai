@@ -136,11 +136,37 @@ export async function executeJamesCapabilities(
       });
     }
 
-    if (capability === "planner" || capability === "document" || capability === "chat") {
+    if (capability === "planner") {
       results.push({
         capability,
-        status: "delegated",
-        text: "Capability akan dikerjakan oleh James pada tahap final orchestration berdasarkan hasil capability sebelumnya.",
+        status: "executed",
+        text: [
+          "Planner execution context:",
+          "Susun hasil menjadi rencana yang memiliki tujuan, langkah, prioritas, urutan kerja, dan hasil yang diharapkan.",
+          `Permintaan pengguna: ${request}`,
+        ].join("\n"),
+      });
+      continue;
+    }
+
+    if (capability === "document") {
+      results.push({
+        capability,
+        status: "executed",
+        text: [
+          "Document execution context:",
+          "Siapkan dokumen siap pakai berdasarkan permintaan pengguna. Gunakan struktur yang sesuai, bahasa natural, placeholder untuk data yang belum tersedia, dan jangan mengarang data pribadi.",
+          `Permintaan pengguna: ${request}`,
+        ].join("\n"),
+      });
+      continue;
+    }
+
+    if (capability === "chat") {
+      results.push({
+        capability,
+        status: "executed",
+        text: "Final conversational response should be produced by James using the available context.",
       });
     }
   }
