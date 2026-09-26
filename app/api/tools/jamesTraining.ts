@@ -1,8 +1,43 @@
 import { generateWithAIRouter } from "../../fun-zone/aiRouter";
 import type { JamesEvolutionProposal } from "./jamesEvolution";
 
+function normalizeTrainingText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[“”"']/g, "")
+    .replace(/\\s+/g, " ")
+    .replace(/\\b(gk|ga|gak|nggak|ngga)\\b/g, "tidak")
+    .replace(/\\b(yg)\\b/g, "yang")
+    .replace(/\\b(dgn)\\b/g, "dengan")
+    .replace(/\\b(utk)\\b/g, "untuk")
+    .replace(/\\b(klo|kl)\\b/g, "kalau")
+    .replace(/\\b(bgt)\\b/g, "banget")
+    .trim();
+}
+
 export function isJamesTrainingInstruction(request: string) {
-  return /(?:saya ingin mengajarkan|saya mau mengajarkan|ajarkan|ajari|mulai sekarang|mulai saat ini|ubah cara kamu|ubah cara james|saya ingin kamu belajar|jadikan ini aturan)/i.test(request.trim());
+  const text = normalizeTrainingText(request);
+  return /(?:saya ingin mengajarkan|saya mau mengajarkan|ajarkan|ajari|mulai sekarang|mulai saat ini|mulai besok|ke depan|ubah cara kamu|ubah cara james|saya ingin kamu belajar|jadikan ini aturan|jadikan kebiasaan|biasakan kamu|ingat ini|catat ini|setiap kali|kalau saya)/i.test(text) &&
+    /(?:james|kamu|cara bicara|cara menjawab|jawab|belajar|ingat|aturan|kebiasaan|jangan|harus|gunakan|pakai|respon|menjawab)/i.test(text);
+}
+
+function containsSourceExcerpt(request: string, excerpt: string) {
+  const source = normalizeTrainingText(request);
+  const candidate = normalizeTrainingText(excerpt);
+  if (!candidate) return false;
+  if (source.includes(candidate)) return true;
+
+  // Provider may normalize punctuation/spacing while preserving the user's words.
+  const sourceWords = source.split(/\\s+/).filter(Boolean);
+  const candidateWords = candidate.split(/\\s+/).filter(Boolean);
+  if (candidateWords.length < 2 || candidateWords.length > sourceWords.length) return false;
+
+  for (let i = 0; i <= sourceWords.length - candidateWords.length; i++) {
+    const window = sourceWords.slice(i, i + candidateWords.length).join(" ");
+    if (window === candidate) return true;
+  }
+
+  return false;
 }
 
 function extractJson(text: string): unknown {
@@ -83,7 +118,7 @@ export async function interpretJamesTrainingInstruction(request: string): Promis
       proposal.value &&
       proposal.source_excerpt &&
       proposal.confidence >= 0.80 &&
-      request.toLowerCase().includes(proposal.source_excerpt.toLowerCase())
+      containsSourceExcerpt(request, proposal.source_excerpt)
     ) {
       accepted.push(proposal);
     }
