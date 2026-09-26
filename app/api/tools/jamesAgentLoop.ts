@@ -18,6 +18,7 @@ import {
   updateJamesAgentTask,
   completeJamesAgentTask,
   failJamesAgentTask,
+  getLatestJamesAgentTask,
 } from "./jamesAgentState";
 
 export type JamesAgentStage =
@@ -128,6 +129,7 @@ export async function runJamesAgentLoop(input: {
   conversationContext?: string;
   userId?: string;
   conversationId?: string;
+  resume?: boolean;
 }): Promise<JamesAgentResult> {
   const steps: JamesAgentStep[] = [];
   let plan = input.initialPlan;
@@ -136,6 +138,29 @@ export async function runJamesAgentLoop(input: {
   let lastAnswer = "";
   let recovered = false;
 
+  let actions: JamesTaskAction[] = [];
+  let outputs: Record<string, string> = {};
+  let taskId: string | null = null;
+
+  if (input.resume && input.userId && input.conversationId) {
+    const existing = await getLatestJamesAgentTask(
+      input.userId,
+      input.conversationId
+    );
+
+    if (existing) {
+      taskId = existing.id || null;
+      actions = existing.actions;
+      outputs = existing.outputs;
+      steps.push({
+        iteration: 1,
+        stage: "understand",
+        status: "completed",
+        detail: "Melanjutkan task aktif " + (existing.id || "") + " dari state terakhir.",
+      });
+    }
+  }
+
   steps.push({
     iteration: 1,
     stage: "understand",
@@ -143,34 +168,33 @@ export async function runJamesAgentLoop(input: {
     detail: "Permintaan dan percakapan tersedia sebagai konteks agent.",
   });
 
-  let actions = await planJamesTaskActions({
-    request: input.request,
-    intelligencePlan: plan,
-    conversationContext: input.conversationContext,
-  });
-
   if (!actions.length) {
-    actions = plan.capabilities.map((capability, index) => ({
-      id: "step-" + (index + 1),
-      goal: "Menjalankan capability " + capability,
-      capability,
-      input: input.request,
-      dependsOn: index > 0 ? ["step-" + index] : [],
-      status: "pending" as const,
-    }));
+    actions = await planJamesTaskActions({
+      request: input.request,
+      intelligencePlan: plan,
+      conversationContext: input.conversationContext,
+    });
+
+    if (!actions.length) {
+      actions = plan.capabilities.map((capability, index) => ({
+        id: "step-" + (index + 1),
+        goal: "Menjalankan capability " + capability,
+        capability,
+        input: input.request,
+        dependsOn: index > 0 ? ["step-" + index] : [],
+        status: "pending" as const,
+      }));
+    }
   }
 
-  const taskId =
-    input.userId && input.conversationId
-      ? await createJamesAgentTask({
-          userId: input.userId,
-          conversationId: input.conversationId,
-          request: input.request,
-          actions,
-        })
-      : null;
-
-  const outputs: Record<string, string> = {};
+  if (!taskId && input.userId && input.conversationId) {
+    taskId = await createJamesAgentTask({
+      userId: input.userId,
+      conversationId: input.conversationId,
+      request: input.request,
+      actions,
+    });
+  }
 
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration += 1) {
     steps.push({
