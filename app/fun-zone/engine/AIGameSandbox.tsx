@@ -209,7 +209,32 @@ function buildDiagnosticHtml(
   testActions: string[]
 ) {
   const serializedTestActions =
-    JSON.stringify(safeTestActions);
+    JSON.stringify(
+      Array.from(
+        new Set(
+          [
+            ...testActions,
+            "move",
+            "interact",
+            "jump",
+            "attack",
+            "collect",
+          ]
+            .filter(
+              (action) =>
+                typeof action === "string" &&
+                action.trim()
+            )
+            .map((action) => action.trim())
+        )
+      ).slice(0, 12)
+    );
+
+  const renderedDiagnostic =
+    diagnostic.replace(
+      "__RK_TEST_ACTIONS__",
+      serializedTestActions
+    );
   const diagnostic = `
 <script>
 (function () {
@@ -926,25 +951,6 @@ try {
       );
     } catch (_) {}
   }
-
-function serializedTestActionsForRuntime(actions: string[]): string {
-  return JSON.stringify(
-    Array.from(
-      new Set(
-        [
-          ...actions,
-          "move",
-          "interact",
-          "jump",
-          "attack",
-          "collect",
-        ]
-          .filter((action) => typeof action === "string" && action.trim())
-          .map((action) => action.trim())
-      )
-    ).slice(0, 12)
-  );
-}
 
 function readGameTestSnapshot() {
   try {
@@ -1694,7 +1700,7 @@ var beforeLost =
   ) {
     return gameHtml.replace(
       /(<html[^>]*>)/i,
-      "$1" + diagnostic
+      "$1" + renderedDiagnostic
     );
   }
 
@@ -1705,7 +1711,7 @@ var beforeLost =
   ) {
     return gameHtml.replace(
       /(<head[^>]*>)/i,
-      "$1" + diagnostic
+      "$1" + renderedDiagnostic
     );
   }
 
@@ -1721,7 +1727,7 @@ var beforeLost =
   }
 
   return (
-    diagnostic +
+    renderedDiagnostic +
     gameHtml
   );
 }
@@ -1940,9 +1946,6 @@ export default function AIGameSandbox({
         buildDiagnosticHtml(
           currentHtml,
           sandboxTestActions
-        ).replace(
-          "__RK_TEST_ACTIONS__",
-          serializedTestActionsForRuntime(sandboxTestActions)
         ),
       [currentHtml, sandboxTestActions]
     );
