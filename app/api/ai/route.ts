@@ -27,6 +27,7 @@ import {
 import { getGlobalGrowth } from "../tools/jamesGlobalLearning";
 import { buildJamesContext } from "../tools/jamesContext";
 import { executeJamesCapabilities, planJamesIntelligence } from "../tools/jamesIntelligence";
+import { isOmantoVerified } from "../ai/verify-identity/route";
 
 type Intent =
   | "chat"
@@ -858,6 +859,18 @@ export async function POST(request: Request) {
     const userRequest =
       typeof body?.request === "string" ? body.request.trim() : "";
 
+    const claimsOmanto = /\\bsaya\\s+adalah\\s+omanto\\b/i.test(userRequest);
+    const omantoVerified = isOmantoVerified(request);
+
+    if (claimsOmanto && !omantoVerified) {
+      return NextResponse.json({
+        result: "Kalau kamu Omanto, aku perlu memastikan identitasmu terlebih dahulu. Masukkan kode verifikasi Omanto.",
+        identityVerificationRequired: true,
+        identity: "omanto",
+        citations: [],
+      });
+    }
+
     if (!userRequest) {
       return NextResponse.json(
         { error: "Permintaan tidak boleh kosong." },
@@ -887,6 +900,9 @@ export async function POST(request: Request) {
       globalGrowth,
     });
     const memoryContext = contextResult.context;
+    const verifiedIdentityContext = omantoVerified
+      ? "\\nIDENTITAS TERVERIFIKASI: Pengguna telah melewati verifikasi server sebagai Omanto. Kamu boleh memperlakukan identitas Omanto sebagai terverifikasi untuk percakapan ini.\\n"
+      : "";
     const intelligencePlan = planJamesIntelligence(userRequest);
     const intent = intelligencePlan.primary;
 
