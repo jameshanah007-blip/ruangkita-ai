@@ -11,6 +11,7 @@ import {
 } from "../tools/memory";
 import {
   applyJamesEvolution,
+  applyVerifiedJamesGlobalEvolution,
   getJamesGrowth,
   getRecentJamesFeedback,
   type JamesEvolutionProposal,
@@ -893,11 +894,12 @@ export async function POST(request: Request) {
     if (trainingRequest && omantoVerified) {
       const proposals = await interpretJamesTrainingInstruction(userRequest);
       if (proposals.length) {
-        await applyJamesEvolution(
+        await applyVerifiedJamesGlobalEvolution(
           userId,
           conversationId,
           userRequest,
-          proposals
+          proposals,
+          omantoVerified
         );
 
         return NextResponse.json({
