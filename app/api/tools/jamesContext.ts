@@ -112,8 +112,17 @@ export function buildJamesContext(input: ContextInput) {
           .slice(0, 8)
           .map(({ value }) => value),
         lessons: [...(growth.lessons || [])]
-          .map((value, index) => ({ value, index, relevance: score(query, value) }))
-          .sort((a, b) => b.relevance - a.relevance || b.index - a.index)
+          .map((value, index) => ({
+            value,
+            index,
+            relevance: score(query, value),
+            isCommunicationLesson: /singkat|ringkas|panjang|jelas|bahasa|gaya|jawaban|menjelaskan/i.test(value),
+          }))
+          .sort((a, b) =>
+            Number(b.isCommunicationLesson) - Number(a.isCommunicationLesson) ||
+            b.relevance - a.relevance ||
+            b.index - a.index
+          )
           .slice(0, 5)
           .map(({ value }) => value),
         preferences: Object.fromEntries(
