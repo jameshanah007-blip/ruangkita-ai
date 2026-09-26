@@ -20,6 +20,7 @@ export type JamesIntelligencePlan = {
 export type JamesCapabilityResult = {
   capability: JamesCapability;
   text: string;
+  status: "executed" | "delegated";
   citations?: Array<{ title: string; url: string }>;
 };
 
@@ -115,6 +116,7 @@ export async function executeJamesCapabilities(
     if (capability === "calculator" && options?.enableCalculator !== false) {
       results.push({
         capability,
+        status: "executed",
         text: String(calculate(extractMathExpression(request))),
       });
       continue;
@@ -124,12 +126,21 @@ export async function executeJamesCapabilities(
       const found = await webSearch(request);
       results.push({
         capability,
+        status: "executed",
         text: found.length
           ? found.map((item, index) =>
               `SUMBER ${index + 1}: ${item.title}\nURL: ${item.url}\n${item.highlights.join(" ")}`
             ).join("\n\n")
           : "Tidak ada sumber eksternal yang lolos verifikasi relevansi.",
         citations: found.map((item) => ({ title: item.title, url: item.url })),
+      });
+    }
+
+    if (capability === "planner" || capability === "document" || capability === "chat") {
+      results.push({
+        capability,
+        status: "delegated",
+        text: "Capability akan dikerjakan oleh James pada tahap final orchestration berdasarkan hasil capability sebelumnya.",
       });
     }
   }
