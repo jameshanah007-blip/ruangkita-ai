@@ -30,18 +30,18 @@ export type JamesCapabilityResult = {
 
 function normalize(text: string) {
   const aliases: Array<[RegExp, string]> = [
-    [/\\b(yg)\\b/gi, "yang"],
-    [/\\b(dgn)\\b/gi, "dengan"],
-    [/\\b(utk)\\b/gi, "untuk"],
-    [/\\b(krn)\\b/gi, "karena"],
-    [/\\b(klo|kl)\\b/gi, "kalau"],
-    [/\\b(gk|ga|gak|ngga|nggak)\\b/gi, "tidak"],
-    [/\\b(bgt)\\b/gi, "banget"],
-    [/\\b(blm)\\b/gi, "belum"],
-    [/\\b(udh|udah)\\b/gi, "sudah"],
-    [/\\b(kmu)\\b/gi, "kamu"],
-    [/\\b(bsa)\\b/gi, "bisa"],
-    [/\\b(bkin)\\b/gi, "bikin"],
+    [/\b(yg)\b/gi, "yang"],
+    [/\b(dgn)\b/gi, "dengan"],
+    [/\b(utk)\b/gi, "untuk"],
+    [/\b(krn)\b/gi, "karena"],
+    [/\b(klo|kl)\b/gi, "kalau"],
+    [/\b(gk|ga|gak|ngga|nggak)\b/gi, "tidak"],
+    [/\b(bgt)\b/gi, "banget"],
+    [/\b(blm)\b/gi, "belum"],
+    [/\b(udh|udah)\b/gi, "sudah"],
+    [/\b(kmu)\b/gi, "kamu"],
+    [/\b(bsa)\b/gi, "bisa"],
+    [/\b(bkin)\b/gi, "bikin"],
   ];
 
   return aliases.reduce(
