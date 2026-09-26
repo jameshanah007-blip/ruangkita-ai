@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { calculate } from "../tools/calculator";
 import { webSearch } from "../tools/webSearch";
 import { logActivity } from "../tools/logActivity";
-import { getJamesMemory, saveJamesTurn } from "../tools/memory";
+import {
+  getJamesMemory,
+  getJamesLongTermMemory,
+  saveJamesMemoryProposals,
+  saveJamesTurn,
+  type JamesMemoryProposal,
+} from "../tools/memory";
 import {
   applyJamesEvolution,
   getJamesGrowth,
@@ -167,6 +173,16 @@ Keluarkan JSON SAJA:
   "lesson": "pelajaran untuk James",
   "confidence": 0.0,
   "evidence": "bukti singkat",
+  "memories": [
+    {
+      "memory_type": "identity | preference | interest | project | goal | context | relationship",
+      "memory_key": "kunci stabil",
+      "memory_value": "fakta yang dapat dipakai lagi",
+      "confidence": 0.0,
+      "source_excerpt": "kutipan singkat dari pengguna",
+      "expires_in_days": null
+    }
+  ],
   "curiosity": [
     {
       "topic": "topik",
@@ -188,7 +204,12 @@ Keluarkan JSON SAJA:
 }
 
 Aturan:
-- Maksimal 3 proposals dan 2 curiosity.
+- Maksimal 3 proposals, 3 memories, dan 2 curiosity.
+- Memory hanya untuk fakta eksplisit atau preferensi/tujuan yang sangat jelas dari pengguna.
+- Jangan membuat memory dari dugaan, inferensi sensitif, atau isi jawaban James.
+- Nama/panggilan yang secara eksplisit diberikan pengguna boleh menjadi memory identity.
+- Memory confidence >= 0.80 hanya jika bukti jelas.
+- expires_in_days: null untuk identity/relationship; gunakan 30-180 untuk konteks/preferensi yang dapat berubah.
 - Jika tidak ada pembelajaran bermakna, gunakan array kosong.
 - Confidence >= 0.70 hanya jika bukti jelas.
 - Jangan menyimpan password, token, credential, nomor identitas, nomor telepon, alamat, lokasi presisi, data kesehatan, agama, politik, orientasi seksual, atau data sensitif lain.
@@ -241,7 +262,16 @@ Aturan:
     });
 
     const proposals = mergeLearningProposals(parsedResults);
+    const memories = mergeMemoryProposals(parsedResults);
     const curiosity = mergeCuriosity(parsedResults);
+
+    if (reflectionSaved && memories.length) {
+      await saveJamesMemoryProposals(
+        input.userId,
+        input.conversationId,
+        memories
+      );
+    }
 
     if (reflectionSaved && proposals.length) {
       await applyJamesEvolution(
@@ -306,6 +336,59 @@ function mergeLearningProposals(
   }
 
   return [...merged.values()].slice(0, 5);
+}
+
+function mergeMemoryProposals(
+  results: Array<{ provider: string; data: Record<string, unknown> }>
+): JamesMemoryProposal[] {
+  const merged = new Map<string, JamesMemoryProposal>();
+
+  for (const result of results) {
+    const items = Array.isArray(result.data.memories)
+      ? result.data.memories
+      : [];
+
+    for (const raw of items) {
+      if (!raw || typeof raw !== "object") continue;
+      const item = raw as Record<string, unknown>;
+      const memoryType = item.memory_type;
+      if (
+        memoryType !== "identity" &&
+        memoryType !== "preference" &&
+        memoryType !== "interest" &&
+        memoryType !== "project" &&
+        memoryType !== "goal" &&
+        memoryType !== "context" &&
+        memoryType !== "relationship"
+      ) continue;
+
+      const proposal: JamesMemoryProposal = {
+        memory_type: memoryType,
+        memory_key: cleanReflectionText(item.memory_key, 80).toLowerCase(),
+        memory_value: cleanReflectionText(item.memory_value, 500),
+        confidence: clampReflectionConfidence(item.confidence),
+        source_excerpt: cleanReflectionText(item.source_excerpt, 400),
+        expires_in_days:
+          item.expires_in_days === null || item.expires_in_days === undefined
+            ? null
+            : Number(item.expires_in_days),
+      };
+
+      if (
+        !proposal.memory_key ||
+        !proposal.memory_value ||
+        proposal.confidence < 0.80
+      ) continue;
+
+      const identity = `${proposal.memory_type}:${proposal.memory_key}`;
+      const existing = merged.get(identity);
+      if (!existing || proposal.confidence > existing.confidence) {
+        merged.set(identity, proposal);
+      }
+    }
+  }
+
+  return [...merged.values()].slice(0, 3);
 }
 
 function mergeCuriosity(
@@ -525,12 +608,18 @@ export async function POST(request: Request) {
       ? body.conversationId
       : crypto.randomUUID();
 
-    const [memory, growth, globalGrowth] = await Promise.all([
+    const [memory, longTermMemories, growth, globalGrowth] = await Promise.all([
       getJamesMemory(userId, conversationId),
+      getJamesLongTermMemory(userId, 30),
       getJamesGrowth(userId),
       getGlobalGrowth(20),
     ]);
-    const memoryContext = buildJamesMemoryContext({ ...memory, growth, globalGrowth });
+    const memoryContext = buildJamesMemoryContext({
+      ...memory,
+      longTermMemories,
+      growth,
+      globalGrowth,
+    });
     const intent = detectIntent(userRequest);
 
     const rememberInstruction = buildJamesSystemInstruction(`
