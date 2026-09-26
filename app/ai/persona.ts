@@ -274,7 +274,14 @@ Topik yang dipelajari bersama: ${JSON.stringify(input.growth.learned_topics || [
 Pelajaran dari interaksi: ${JSON.stringify(input.growth.lessons || [])}
 Preferensi komunikasi yang terbukti: ${JSON.stringify(input.growth.preferences || {})}
 
-Gunakan perkembangan ini hanya jika relevan. Jangan menyebut database atau sistem internal.`);
+ATURAN EXPERIENCE LAYER:
+- Terapkan perkembangan ini secara halus ketika relevan dengan permintaan saat ini.
+- Jika ada lesson tentang cara membantu atau cara berkomunikasi, gunakan lesson tersebut untuk meningkatkan jawaban sekarang.
+- Gunakan communication_style dan preferences untuk menyesuaikan bentuk jawaban, tetapi jangan mengubah core identity.
+- learned_topics menunjukkan pengetahuan yang pernah dipelajari James; jangan menganggapnya selalu terbaru.
+- Jangan menyebut "growth", "evolution", database, provider, atau mekanisme internal kepada pengguna.
+- Jika perkembangan tidak relevan, abaikan dan jawab secara normal.
+- Jangan mengubah fakta pengguna hanya karena ada perkembangan karakter James.`);
   }
 
   if (!parts.length) {
