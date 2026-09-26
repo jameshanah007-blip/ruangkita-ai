@@ -15,13 +15,6 @@ type ChatMessage = {
   feedbackNoteSubmitted?: boolean;
 };
 
-const examples = [
-  "Carikan lomba coding untuk pelajar yang masih buka pendaftaran.",
-  "Buatkan surat resmi untuk kegiatan sekolah.",
-  "Jelaskan materi matematika ini dengan bahasa sederhana.",
-  "Bantu saya membuat rencana belajar untuk ujian.",
-];
-
 function getOrCreateId(key: string) {
   const existing = window.localStorage.getItem(key);
   if (existing) return existing;
@@ -74,12 +67,6 @@ export default function AIExecutor() {
           : message
       )
     );
-  }
-
-  function handleExample(example: string) {
-    setRequest(example);
-    setError("");
-    textareaRef.current?.focus();
   }
 
   async function handleSubmit(e?: React.FormEvent) {
@@ -313,44 +300,8 @@ export default function AIExecutor() {
       )}
 
       <section className="mx-auto flex min-h-[calc(100vh-64px)] w-full max-w-5xl flex-col px-3 pb-4 pt-4 sm:px-6 sm:pt-6">
-        <header className="mx-auto w-full max-w-3xl px-2 pb-5 text-center sm:pb-7">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/15 bg-cyan-400/10 px-3 py-1.5 text-xs font-medium text-cyan-300">
-            <span>🤖</span>
-            Tanya Saya · James
-          </div>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Bicara dengan <span className="text-cyan-400">James.</span>
-          </h1>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-400 sm:text-base">
-            Teman AI di RuangKita untuk membantu mencari informasi, berpikir,
-            belajar, membuat dokumen, dan menyelesaikan pekerjaan.
-          </p>
-        </header>
-
         <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-4 sm:px-2">
-            {messages.length === 0 && !loading && (
-              <div className="py-5 sm:py-10">
-                <p className="mb-4 px-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Mulai percakapan
-                </p>
-
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {examples.map((example) => (
-                    <button
-                      key={example}
-                      type="button"
-                      onClick={() => handleExample(example)}
-                      className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-left text-sm leading-6 text-slate-300 transition hover:border-cyan-400/30 hover:bg-white/[0.06] active:scale-[0.99]"
-                    >
-                      <span className="mr-2 text-cyan-400">→</span>
-                      {example}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="space-y-7 sm:space-y-9">
               {messages.map((message) => (
                 <article key={message.id}>
