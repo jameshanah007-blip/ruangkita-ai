@@ -106,7 +106,7 @@ function buildConversationRecallResponse(
   return [
     "Tadi kita sedang membicarakan beberapa hal berikut:",
     ...topics.map((topic, index) => `${index + 1}. ${topic}`),
-  ].join("\\n");
+  ].join("\n");
 }
 
 function detectIntent(request: string): Intent {
