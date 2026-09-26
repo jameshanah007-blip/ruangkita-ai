@@ -1206,6 +1206,8 @@ Jangan menyebut reasoning internal.`
         request: userRequest,
         initialPlan: intelligencePlan,
         conversationContext: memoryContext,
+        userId,
+        conversationId,
       });
 
       const researchVerified = agentResult.capabilityResults.some(
