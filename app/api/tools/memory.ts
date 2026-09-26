@@ -124,6 +124,20 @@ function isSensitiveMemory(text: string) {
   return blocked.some((item) => value.includes(item));
 }
 
+function memoryPriority(memoryType: JamesLongTermMemory["memory_type"]) {
+  const priorities: Record<JamesLongTermMemory["memory_type"], number> = {
+    identity: 5,
+    relationship: 5,
+    project: 4,
+    goal: 4,
+    preference: 3,
+    interest: 2,
+    context: 1,
+  };
+
+  return priorities[memoryType] ?? 0;
+}
+
 function memoryExpiry(memoryType: JamesLongTermMemory["memory_type"], days?: number | null) {
   if (memoryType === "identity" || memoryType === "relationship") return null;
   const requested = typeof days === "number" && Number.isFinite(days) ? Math.round(days) : undefined;
@@ -170,7 +184,19 @@ export async function getJamesLongTermMemory(userId: string, limit = 30): Promis
     return [];
   }
 
-  return (data || []) as JamesLongTermMemory[];
+  return [...(data || [])]
+    .map((memory) => memory as JamesLongTermMemory)
+    .sort((a, b) => {
+      const priorityDiff = memoryPriority(b.memory_type) - memoryPriority(a.memory_type);
+      if (priorityDiff !== 0) return priorityDiff;
+
+      const confidenceDiff = (Number(b.confidence) || 0) - (Number(a.confidence) || 0);
+      if (confidenceDiff !== 0) return confidenceDiff;
+
+      return String(b.last_confirmed_at || "").localeCompare(
+        String(a.last_confirmed_at || "")
+      );
+    });
 }
 
 export async function saveJamesMemoryProposals(
@@ -233,7 +259,28 @@ export async function saveJamesMemoryProposals(
           })
           .eq("id", existing.id);
 
-        if (error) console.error("James memory supersede error:", error.message);
+        if (error) {
+          console.error("James memory supersede error:", error.message);
+          continue;
+        }
+      }
+
+      const { error } = await supabase.from("james_memories").insert({
+        user_id: userId,
+        conversation_id: conversationId,
+        memory_type: proposal.memory_type,
+        memory_key: proposal.memory_key,
+        memory_value: proposal.memory_value,
+        confidence: proposal.confidence,
+        status: "active",
+        source_excerpt: proposal.source_excerpt,
+        last_confirmed_at: now,
+        expires_at: expiresAt,
+        updated_at: now,
+      });
+
+      if (error) {
+        console.error("James replacement memory insert error:", error.message);
       }
       continue;
     }
