@@ -135,8 +135,8 @@ function editDistance(a: string, b: string): number {
 
 function typoCandidate(token: string): string | null {
   if (token.length < 4 || token.length > 18) return null;
-  if (/^https?:\\/\\//i.test(token) || /^[@#]/.test(token)) return null;
-  if (/\\d/.test(token)) return null;
+  if (/^[@#]/.test(token)) return null;
+  if (/\d/.test(token)) return null;
 
   let best: { word: string; distance: number } | null = null;
 
@@ -159,9 +159,9 @@ export function understandJamesInput(rawInput: string): JamesInputUnderstanding 
   const replacements: Array<{ from: string; to: string }> = [];
 
   const normalized = raw
-    .split(/(\\s+)/)
+     .split(/(\s+)/)
     .map((part) => {
-      if (/^\\s+$/.test(part)) return part;
+      if (/^\s+$/.test(part)) return part;
 
       const match = part.match(/^([^A-Za-zÀ-ÿ0-9]*)([A-Za-zÀ-ÿ0-9À-ÿ'_-]+)([^A-Za-zÀ-ÿ0-9]*)$/);
       if (!match) return part;
@@ -184,7 +184,7 @@ export function understandJamesInput(rawInput: string): JamesInputUnderstanding 
       return part;
     })
     .join("")
-    .replace(/\\s+/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
   return {
