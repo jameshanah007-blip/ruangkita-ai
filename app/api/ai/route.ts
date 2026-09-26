@@ -811,6 +811,17 @@ function sanitizeResearchFallback(text: string, researchAvailable: boolean): str
     .trim();
 }
 
+function sanitizeUnavailableResearchResponse(text: string, researchVerified: boolean): string {
+  if (researchVerified) return text.trim();
+
+  return text
+    .replace(/\b(?:Next\.js|React|Node\.js|Angular|Vue|Svelte|TypeScript)\s*(?:versi|version)\s*(?:terbaru|terkini)?\s*(?:adalah|:)?\s*[^.\n]*/gi, "")
+    .replace(/\b(?:versi|version)\s+(?:terbaru|terkini)\s*(?:adalah|:)?\s*[^.\n]*/gi, "")
+    .replace(/\b(?:hingga|sampai)\s+(?:awal|akhir)?\s*(?:20\d{2}|Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)[^\.\n]*/gi, "")
+    .replace(/\b(?:rilis|release)\s+(?:awal|akhir)?\s*20\d{2}[^.\n]*/gi, "")
+    .trim();
+}
+
 function sanitizeJamesFinalResponse(text: string): string {
   const cleaned = text
     .replace(/^\s*(User Safety|Safety|Safety Check)\s*:\s*(safe|unsafe|allowed|blocked)\s*$/gim, "")
@@ -910,7 +921,15 @@ Berikan hasil akhir yang siap digunakan pengguna.
           "Kamu sedang menjalankan tugas multi-capability. Gabungkan hasil tools menjadi jawaban akhir yang koheren. Output hanya jawaban untuk pengguna; jangan keluarkan label safety, metadata internal, reasoning, atau status tool."
         )
       );
-      const resultText = sanitizeJamesFinalResponse(rawResultText);
+      const researchVerified = capabilityResults.some(
+        (item) =>
+          item.capability === "web_search" &&
+          item.text.includes("RESEARCH_STATUS: VERIFIED")
+      );
+      const resultText = sanitizeUnavailableResearchResponse(
+        sanitizeJamesFinalResponse(rawResultText),
+        researchVerified
+      );
 
       const citations = capabilityResults.flatMap((item) => item.citations || []);
 
