@@ -565,3 +565,25 @@ James tidak melakukan self-modifying source code. Evolusi dilakukan melalui stat
 4. Jalankan `npx tsc --noEmit` dan `npm run build`.
 5. Uji chat berulang: nyatakan preferensi komunikasi, lanjutkan beberapa percakapan, lalu verifikasi `james_growth_state` dan `james_evolution_events`.
 6. Setelah tervalidasi, lanjutkan User Profile + Consent dan provider fallback Tanya Saya.
+
+## 20. James Self-Reflection Engine — 2026-09-26
+
+### Implemented
+- Migration baru: `supabase/migrations/20260926_james_reflection.sql`.
+- Tabel `james_reflections` memisahkan catatan refleksi internal dari durable growth state.
+- Refleksi menyimpan observation, what worked, what failed, lesson, confidence, evidence, dan status penerapan.
+- `app/api/ai/route.ts` sekarang meminta reflection engine membuat refleksi terstruktur setelah chat biasa.
+- Proposal growth tetap dibatasi confidence >= 0.70 dan aturan data sensitif/core identity tetap berlaku.
+- Reflection menjadi lapisan terpisah: **Conversation → Reflection → Evidence/Lesson → Growth**.
+
+### Validation
+- Perubahan source telah dibaca ulang melalui GitHub.
+- `npx tsc --noEmit`, production build, runtime Gemini, dan runtime Supabase **belum dijalankan** setelah perubahan ini.
+- Migration reflection belum dinyatakan aktif sampai dijalankan pada Supabase.
+
+### Next Action Tanya Saya
+1. Jalankan migration memory, evolution, dan reflection di Supabase.
+2. Pull latest `main`.
+3. Jalankan `npx tsc --noEmit` dan `npm run build`.
+4. Uji beberapa percakapan James dan cek `james_reflections`, `james_growth_state`, serta `james_evolution_events`.
+5. Setelah reflection tervalidasi, lanjutkan **James Curiosity Engine**.
