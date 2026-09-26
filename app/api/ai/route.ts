@@ -28,6 +28,7 @@ import {
 import { addGlobalCandidate, getGlobalGrowth } from "../tools/jamesGlobalLearning";
 import { buildJamesContext } from "../tools/jamesContext";
 import { executeJamesCapabilities, planJamesIntelligence, planJamesIntelligenceWithAI } from "../tools/jamesIntelligence";
+import { runJamesCognitiveRecovery, runJamesCognitiveVerification } from "../tools/jamesCognitiveLoop";
 import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
 
@@ -1252,10 +1253,44 @@ Berikan hasil akhir yang siap digunakan pengguna.
           item.capability === "web_search" &&
           item.text.includes("RESEARCH_STATUS: VERIFIED")
       );
-      const resultText = sanitizeUnavailableResearchResponse(
+      let resultText = sanitizeUnavailableResearchResponse(
         sanitizeJamesFinalResponse(rawResultText),
         researchVerified
       );
+
+      const cognitiveVerification = await runJamesCognitiveVerification({
+        request: userRequest,
+        plan: intelligencePlan,
+        executionContext: `${toolContext}
+
+DRAFT JAMES RESPONSE:
+${resultText}`,
+        conversationContext: memoryContext,
+      });
+
+      if (cognitiveVerification.verified && cognitiveVerification.answer) {
+        resultText = sanitizeUnavailableResearchResponse(
+          sanitizeJamesFinalResponse(cognitiveVerification.answer),
+          researchVerified
+        );
+      } else {
+        const recovery = await runJamesCognitiveRecovery({
+          request: userRequest,
+          plan: intelligencePlan,
+          failedContext: `${toolContext}
+
+DRAFT JAMES RESPONSE:
+${resultText}`,
+          conversationContext: memoryContext,
+        });
+
+        if (recovery.verified && recovery.answer) {
+          resultText = sanitizeUnavailableResearchResponse(
+            sanitizeJamesFinalResponse(recovery.answer),
+            researchVerified
+          );
+        }
+      }
 
       const citations = capabilityResults.flatMap((item) => item.citations || []);
 
