@@ -6,7 +6,7 @@ function getExaClient() {
   const apiKey = process.env.EXA_API_KEY;
 
   if (!apiKey) {
-    throw new Error("EXA_API_KEY belum dikonfigurasi.");
+    return null;
   }
 
   if (!exa) {
@@ -22,6 +22,10 @@ export async function webSearch(query: string) {
   }
 
   const exaClient = getExaClient();
+
+  if (!exaClient) {
+    return [];
+  }
 
   const result = await exaClient.search(query.trim(), {
     type: "auto",
