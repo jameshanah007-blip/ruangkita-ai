@@ -62,7 +62,7 @@ export async function addGlobalCandidate(input: {
 
   const { data, error } = await supabase
     .from("james_global_growth")
-    .insert(row)
+    .upsert(row, { onConflict: "category,key,value" })
     .select("id, category, key, value, rationale, evidence_count, status")
     .maybeSingle();
 
