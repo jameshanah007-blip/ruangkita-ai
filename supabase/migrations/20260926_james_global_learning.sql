@@ -15,6 +15,9 @@ create table if not exists public.james_global_growth (
   updated_at timestamptz not null default now()
 );
 
+create unique index if not exists james_global_growth_identity_idx
+  on public.james_global_growth(category, key, value);
+
 create index if not exists james_global_growth_status_idx
   on public.james_global_growth(status, updated_at desc);
 
