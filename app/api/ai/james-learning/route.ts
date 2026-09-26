@@ -7,9 +7,12 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 function authorized(request: Request) {
-  const configured = process.env.JAMES_LEARNING_SECRET;
-  if (!configured) return false;
-  return request.headers.get("authorization") === `Bearer ${configured}`;
+  const provided = request.headers.get("authorization");
+  const secrets = [
+    process.env.JAMES_LEARNING_SECRET,
+    process.env.CRON_SECRET,
+  ].filter(Boolean).map((value) => `Bearer ${value}`);
+  return Boolean(provided && secrets.includes(provided));
 }
 
 function extractJson(text: string) {
@@ -131,4 +134,9 @@ Aturan:
       { status: 500 }
     );
   }
+}
+
+
+export async function GET(request: Request) {
+  return POST(request);
 }
