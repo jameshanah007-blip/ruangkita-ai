@@ -29,6 +29,8 @@ import { addGlobalCandidate, getGlobalGrowth } from "../tools/jamesGlobalLearnin
 import { buildJamesContext } from "../tools/jamesContext";
 import { planJamesIntelligence, planJamesIntelligenceWithAI } from "../tools/jamesIntelligence";
 import { runJamesAgentLoop } from "../tools/jamesAgentLoop";
+import { getJamesExperiences, learnJamesExperience } from "../tools/jamesExperience";
+import { getJamesAgentTask } from "../tools/jamesAgentState";
 import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
 
@@ -1012,11 +1014,12 @@ export async function POST(request: Request) {
       });
     }
 
-    const [memory, longTermMemories, growth, globalGrowth] = await Promise.all([
+    const [memory, longTermMemories, growth, globalGrowth, experiences] = await Promise.all([
       getJamesMemory(userId, conversationId),
       getJamesLongTermMemory(userId, 30),
       getJamesGrowth(userId),
       getGlobalGrowth(20),
+      getJamesExperiences(userId, 6),
     ]);
     const contextResult = buildJamesContext({
       userRequest,
