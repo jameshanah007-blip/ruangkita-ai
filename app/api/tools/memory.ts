@@ -87,6 +87,7 @@ export type JamesMemoryProposal = {
   memory_type: JamesLongTermMemory["memory_type"];
   memory_key: string;
   memory_value: string;
+  memory_action: "upsert" | "supersede";
   confidence: number;
   source_excerpt: string;
   expires_in_days?: number | null;
