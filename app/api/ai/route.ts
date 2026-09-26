@@ -14,6 +14,7 @@ import {
 } from "../../ai/persona";
 import { saveJamesCuriosity, type JamesCuriosityProposal } from "../tools/jamesCuriosity";
 import { generateWithAllAIProviders } from "../../fun-zone/aiRouter";
+import { getGlobalGrowth } from "../tools/jamesGlobalLearning";
 
 type Intent =
   | "chat"
@@ -545,11 +546,12 @@ export async function POST(request: Request) {
       ? body.conversationId
       : crypto.randomUUID();
 
-    const [memory, growth] = await Promise.all([
+    const [memory, growth, globalGrowth] = await Promise.all([
       getJamesMemory(userId, conversationId),
       getJamesGrowth(userId),
+      getGlobalGrowth(20),
     ]);
-    const memoryContext = buildJamesMemoryContext({ ...memory, growth });
+    const memoryContext = buildJamesMemoryContext({ ...memory, growth, globalGrowth });
     const intent = detectIntent(userRequest);
 
     const rememberInstruction = buildJamesSystemInstruction(`
