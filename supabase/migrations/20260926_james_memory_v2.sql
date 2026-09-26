@@ -11,6 +11,9 @@ create table if not exists public.james_memories (
   ),
   memory_key text not null,
   memory_value text not null,
+  memory_action text not null default 'upsert' check (
+    memory_action in ('upsert','supersede')
+  ),
   confidence numeric(3,2) not null default 0.70 check (confidence >= 0 and confidence <= 1),
   status text not null default 'active' check (
     status in ('active','superseded','expired','rejected')
