@@ -27,7 +27,7 @@ import {
 import { getGlobalGrowth } from "../tools/jamesGlobalLearning";
 import { buildJamesContext } from "../tools/jamesContext";
 import { executeJamesCapabilities, planJamesIntelligence } from "../tools/jamesIntelligence";
-import { isOmantoVerified } from "../ai/verify-identity/route";
+import { isOmantoVerified } from "./verify-identity/route";
 
 type Intent =
   | "chat"
