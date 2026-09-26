@@ -100,6 +100,7 @@ export async function getJamesGrowth(userId: string): Promise<JamesGrowth> {
 export async function applyJamesEvolution(
   userId: string,
   conversationId: string,
+  userRequest: string,
   proposals: JamesEvolutionProposal[]
 ) {
   const supabase = getSupabase();
@@ -114,7 +115,13 @@ export async function applyJamesEvolution(
       confidence: clampConfidence(proposal.confidence),
       source_excerpt: cleanText(proposal.source_excerpt, 320),
     }))
-    .filter((proposal) => proposal.key && proposal.value && proposal.confidence >= 0.70)
+    .filter((proposal) =>
+      proposal.key &&
+      proposal.value &&
+      proposal.confidence >= 0.70 &&
+      proposal.source_excerpt.length >= 3 &&
+      userRequest.toLowerCase().includes(proposal.source_excerpt.toLowerCase())
+    )
     .slice(0, 5);
 
   if (!safe.length) return;
