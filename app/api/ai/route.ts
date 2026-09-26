@@ -58,7 +58,7 @@ function detectIntent(request: string): Intent {
 
   const webSearchPatterns = [
     "carikan", "cari", "pencarian", "berita terbaru",
-    "informasi terbaru", "terbaru", "hari ini", "sekarang",
+    "informasi terbaru", "terbaru", "hari ini",
     "lomba", "beasiswa", "lowongan", "website", "sumber",
   ];
 
