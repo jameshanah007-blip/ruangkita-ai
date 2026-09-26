@@ -359,7 +359,7 @@ function mergeLearningProposals(
 function mergeMemoryProposals(
   results: Array<{ provider: string; data: Record<string, unknown> }>
 ): JamesMemoryProposal[] {
-  const merged = new Map<string, JamesMemoryProposal>();
+  const candidates = new Map<string, JamesMemoryProposal[]>();
 
   for (const result of results) {
     const items = Array.isArray(result.data.memories)
@@ -370,6 +370,7 @@ function mergeMemoryProposals(
       if (!raw || typeof raw !== "object") continue;
       const item = raw as Record<string, unknown>;
       const memoryType = item.memory_type;
+
       if (
         memoryType !== "identity" &&
         memoryType !== "preference" &&
@@ -401,14 +402,62 @@ function mergeMemoryProposals(
       ) continue;
 
       const identity = `${proposal.memory_type}:${proposal.memory_key}`;
-      const existing = merged.get(identity);
-      if (!existing || proposal.confidence > existing.confidence) {
-        merged.set(identity, proposal);
-      }
+      const list = candidates.get(identity) || [];
+      list.push(proposal);
+      candidates.set(identity, list);
     }
   }
 
-  return [...merged.values()].slice(0, 3);
+  const resolved: JamesMemoryProposal[] = [];
+
+  for (const proposals of candidates.values()) {
+    const supersede = proposals
+      .filter((proposal) => proposal.memory_action === "supersede")
+      .sort((a, b) => b.confidence - a.confidence)[0];
+
+    if (supersede) {
+      resolved.push(supersede);
+      continue;
+    }
+
+    const valueGroups = new Map<string, JamesMemoryProposal[]>();
+
+    for (const proposal of proposals) {
+      const key = proposal.memory_value.trim().toLowerCase();
+      const group = valueGroups.get(key) || [];
+      group.push(proposal);
+      valueGroups.set(key, group);
+    }
+
+    const groups = [...valueGroups.values()].sort((a, b) => {
+      const supportDiff = b.length - a.length;
+      if (supportDiff !== 0) return supportDiff;
+      return b.reduce((sum, item) => sum + item.confidence, 0) -
+        a.reduce((sum, item) => sum + item.confidence, 0);
+    });
+
+    const winner = groups[0];
+    const hasConflict = groups.length > 1;
+
+    // Jika learning engines berbeda pendapat tentang fakta yang sama,
+    // jangan memilih secara diam-diam. Simpan hanya jika ada dukungan
+    // dari minimal dua provider untuk nilai yang sama.
+    if (hasConflict && winner.length < 2) {
+      continue;
+    }
+
+    if (winner?.length) {
+      resolved.push(
+        winner.reduce((best, item) =>
+          item.confidence > best.confidence ? item : best
+        )
+      );
+    }
+  }
+
+  return resolved
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 3);
 }
 
 function mergeCuriosity(
