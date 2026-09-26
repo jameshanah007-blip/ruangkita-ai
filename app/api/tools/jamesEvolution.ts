@@ -245,3 +245,38 @@ export async function getRecentJamesFeedback(
     createdAt: item.created_at,
   }));
 }
+
+export async function getJamesFeedbackStats() {
+  const supabase = getSupabase();
+  const empty = {
+    total: 0,
+    helpful: 0,
+    notHelpful: 0,
+    helpfulRate: 0,
+    recent: [] as Array<{ rating: string; created_at: string }>,
+  };
+  if (!supabase) return empty;
+
+  const { data, error } = await supabase
+    .from("james_feedback")
+    .select("rating, created_at")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error("James feedback stats error:", error.message);
+    return empty;
+  }
+
+  const rows = data || [];
+  const helpful = rows.filter((item) => item.rating === "helpful").length;
+  const notHelpful = rows.filter((item) => item.rating === "not_helpful").length;
+
+  return {
+    total: rows.length,
+    helpful,
+    notHelpful,
+    helpfulRate: rows.length ? helpful / rows.length : 0,
+    recent: rows.slice(0, 10),
+  };
+}
