@@ -269,6 +269,7 @@ Aturan:
       await saveJamesMemoryProposals(
         input.userId,
         input.conversationId,
+        input.userRequest,
         memories
       );
     }
