@@ -1054,21 +1054,48 @@ Jangan menyimpan rahasia, kredensial, data pribadi, atau klaim sensitif.`,
       }
 
       const synthesis = await callJamesAI(
-        `${memoryContext}\n\nBeberapa provider AI telah dikonsultasikan untuk permintaan pengguna berikut:
+        `${memoryContext}
+
+PENTING: Server RuangKita BARU SAJA melakukan konsultasi provider AI untuk permintaan pengguna berikut:
 "${userRequest}"
 
-HASIL KONSULTASI:
+Provider yang BENAR-BENAR berhasil memberikan hasil pada request ini:
+${providerResults.map((item) => item.provider).join(", ")}
+
+HASIL KONSULTASI ASLI:
 ${providerContext}
 
-Sintesis hasil tersebut menjadi satu jawaban James yang natural, jujur, dan berguna.
-Jika provider berbeda pendapat, jelaskan perbedaannya daripada mengarang kepastian.
-Jangan menyebut mekanisme internal kecuali pengguna memang bertanya bagaimana sistem bekerja.`,
+Tugasmu adalah menyusun jawaban berdasarkan HASIL KONSULTASI ASLI di atas.
+JANGAN mengatakan bahwa James tidak dapat mengakses Gemini, OpenAI, Groq, atau provider lain jika provider tersebut tercantum di daftar provider berhasil.
+JANGAN mengganti hasil konsultasi dengan pengetahuan umum bawaanmu.
+Jika pengguna meminta apa yang didapatkan dari provider, jelaskan secara eksplisit hasil dari masing-masing provider yang tersedia.
+Jika provider berbeda pendapat, jelaskan perbedaannya.
+Jangan mengklaim provider berhasil jika provider tersebut tidak ada di daftar.
+Jangan menyebut reasoning internal.`
+        ,
         buildJamesSystemInstruction(
-          "Sintesis pengetahuan dari hasil beberapa provider AI. Jangan mengklaim akses provider yang tidak muncul dalam konteks."
+          "Kamu adalah synthesizer hasil konsultasi provider yang SUDAH DILAKUKAN server. Perlakukan daftar provider dan hasil konsultasi sebagai fakta input. Jangan menyangkal akses yang sudah dibuktikan oleh konteks."
         )
       );
 
-      const resultText = sanitizeJamesFinalResponse(synthesis);
+      const rawSynthesis = sanitizeJamesFinalResponse(synthesis);
+      const denialPattern =
+        /(?:tidak|tidak bisa|tidak dapat|belum dapat)\s+(?:langsung\s+)?(?:mengakses|akses|menggunakan)|(?:can't|cannot|unable to)\s+(?:directly\s+)?(?:access|use)/i;
+
+      const resultText = denialPattern.test(rawSynthesis)
+        ? [
+            "Ya. Pada permintaan ini server RuangKita berhasil berkonsultasi dengan provider berikut:",
+            "",
+            providerResults
+              .map(
+                (item) =>
+                  `### ${item.provider} (${item.model})\n${item.text}`
+              )
+              .join("\n\n---\n\n"),
+            "",
+            "Ringkasan di atas berasal dari hasil provider yang benar-benar berhasil merespons request ini.",
+          ].join("\n")
+        : rawSynthesis;
       await saveActivity(userRequest, intent, "multi-provider-ai", resultText);
       await saveJames(userId, conversationId, userRequest, resultText, intent, "multi-provider-ai");
 
