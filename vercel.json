@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/ai/james-learning",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}
