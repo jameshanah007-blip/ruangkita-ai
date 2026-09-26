@@ -4,6 +4,11 @@ import { webSearch } from "../tools/webSearch";
 import { logActivity } from "../tools/logActivity";
 import { getJamesMemory, saveJamesTurn } from "../tools/memory";
 import {
+  applyJamesEvolution,
+  getJamesGrowth,
+  type JamesEvolutionProposal,
+} from "../tools/jamesEvolution";
+import {
   buildJamesMemoryContext,
   buildJamesSystemInstruction,
 } from "../../ai/persona";
@@ -141,6 +146,75 @@ function extractText(data: any): string {
   return texts.join("\n").trim();
 }
 
+function extractJsonObject(text: string) {
+  const fenced = text.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/i);
+  const candidate = fenced?.[1] || text;
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+
+  try {
+    return JSON.parse(candidate.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
+async function evolveJames(input: {
+  userId: string;
+  conversationId: string;
+  userRequest: string;
+  assistantResult: string;
+}) {
+  try {
+    const reflection = await callGemini(`
+Analisis satu interaksi James berikut sebagai mesin refleksi karakter.
+
+USER:
+${input.userRequest}
+
+JAMES:
+${input.assistantResult}
+
+Keluarkan JSON SAJA dengan bentuk:
+{
+  "proposals": [
+    {
+      "category": "communication_style | interest | learned_topic | lesson | preference",
+      "key": "kunci singkat",
+      "value": "nilai singkat",
+      "reason": "alasan berbasis interaksi",
+      "confidence": 0.0,
+      "source_excerpt": "kutipan singkat dari interaksi"
+    }
+  ]
+}
+
+Aturan:
+- Maksimal 3 proposal.
+- Jika tidak ada hal bermakna untuk dipelajari, gunakan {"proposals":[]}.
+- Confidence >= 0.70 hanya untuk bukti yang jelas.
+- Jangan menyimpan password, token, credential, nomor identitas, nomor telepon, alamat, lokasi presisi, data kesehatan, agama, politik, orientasi seksual, atau data sensitif lain.
+- Jangan mendiagnosis atau menebak sifat sensitif pengguna.
+- Jangan mengubah nama James, Omanto, RuangKita, atau core identity.
+- "lesson" adalah pelajaran tentang cara James sebaiknya membantu/berkomunikasi, bukan fakta pribadi sensitif pengguna.
+`, "Kamu adalah reflection engine internal James. Output wajib JSON valid tanpa markdown.");
+
+    const parsed = extractJsonObject(reflection);
+    const proposals = Array.isArray(parsed?.proposals)
+      ? parsed.proposals as JamesEvolutionProposal[]
+      : [];
+
+    await applyJamesEvolution(
+      input.userId,
+      input.conversationId,
+      proposals
+    );
+  } catch (error) {
+    console.error("James evolution reflection error:", error);
+  }
+}
+
 function extractMathExpression(request: string): string {
   const expression = request
     .replace(/berapakah/gi, "")
@@ -231,8 +305,11 @@ export async function POST(request: Request) {
       ? body.conversationId
       : crypto.randomUUID();
 
-    const memory = await getJamesMemory(userId, conversationId);
-    const memoryContext = buildJamesMemoryContext(memory);
+    const [memory, growth] = await Promise.all([
+      getJamesMemory(userId, conversationId),
+      getJamesGrowth(userId),
+    ]);
+    const memoryContext = buildJamesMemoryContext({ ...memory, growth });
     const intent = detectIntent(userRequest);
 
     const rememberInstruction = buildJamesSystemInstruction(`
@@ -436,6 +513,12 @@ Jika konteksnya cocok, tanyakan satu pertanyaan balik yang membantu percakapan b
 
     await saveActivity(userRequest, intent, "gemini", resultText);
     await saveJames(userId, conversationId, userRequest, resultText, intent, "gemini");
+    await evolveJames({
+      userId,
+      conversationId,
+      userRequest,
+      assistantResult: resultText,
+    });
 
     return NextResponse.json({
       result: resultText,
@@ -445,6 +528,7 @@ Jika konteksnya cocok, tanyakan satu pertanyaan balik yang membantu percakapan b
       userId,
       conversationId,
       memoryAvailable: memory.available,
+      evolutionVersion: growth.evolution_version,
     });
   } catch (error) {
     console.error("AI API error:", error);
