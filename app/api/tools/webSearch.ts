@@ -36,17 +36,7 @@ function getExaClient() {
   return exa;
 }
 
-export async function webSearch(query: string) {
-  if (!query.trim()) {
-    throw new Error("Query pencarian kosong.");
-  }
-
-  const exaClient = getExaClient();
-
-  if (!exaClient) {
-    return [];
-  }
-
+async function runSearch(exaClient: Exa, query: string) {
   const result = await exaClient.search(query.trim(), {
     type: "auto",
     numResults: 5,
@@ -57,7 +47,7 @@ export async function webSearch(query: string) {
     },
   });
 
-  const candidates = result.results
+  return result.results
     .map((item) => {
       const title = item.title || "Tanpa judul";
       const highlights = item.highlights || [];
@@ -73,6 +63,30 @@ export async function webSearch(query: string) {
     .filter((item) => item.url && item.relevance >= 0.10)
     .sort((a, b) => b.relevance - a.relevance)
     .slice(0, 5);
+}
 
-  return candidates;
+export async function webSearch(query: string) {
+  if (!query.trim()) {
+    throw new Error("Query pencarian kosong.");
+  }
+
+  const exaClient = getExaClient();
+
+  if (!exaClient) {
+    return [];
+  }
+
+  const queries = [
+    query.trim(),
+    `${query.trim()} official`,
+  ];
+
+  for (const candidateQuery of queries) {
+    const results = await runSearch(exaClient, candidateQuery);
+    if (results.length > 0) {
+      return results;
+    }
+  }
+
+  return [];
 }
