@@ -24,6 +24,7 @@ import {
   generateWithAllAIProviders,
 } from "../../fun-zone/aiRouter";
 import { getGlobalGrowth } from "../tools/jamesGlobalLearning";
+import { buildJamesContext } from "../tools/jamesContext";
 
 type Intent =
   | "chat"
@@ -621,12 +622,14 @@ export async function POST(request: Request) {
       getJamesGrowth(userId),
       getGlobalGrowth(20),
     ]);
-    const memoryContext = buildJamesMemoryContext({
+    const contextResult = buildJamesContext({
+      userRequest,
       ...memory,
       longTermMemories,
       growth,
       globalGrowth,
     });
+    const memoryContext = contextResult.context;
     const intent = detectIntent(userRequest);
 
     const rememberInstruction = buildJamesSystemInstruction(`
