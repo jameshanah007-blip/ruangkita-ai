@@ -187,7 +187,7 @@ Aturan:
     // Re-validate candidates with the provider ensemble. A learning proposal
     // never becomes active merely because the first generation agreed on it.
     const validationResults = [];
-    const candidatesToValidate = await getGlobalCandidates(20);
+    const candidatesToValidate = (await getGlobalCandidates(20)).filter((candidate) => candidate.status === "candidate");
     for (const candidate of candidatesToValidate) {
       const validationPrompt = `Validasi kandidat pengetahuan global James berikut.
 
