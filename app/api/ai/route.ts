@@ -882,6 +882,8 @@ Gunakan hasil capability di atas sebagai input kerja.
 Jika ada research, gunakan hanya sumber yang tersedia.
 Jika pengguna meminta rencana, dokumen, atau langkah lanjutan, kerjakan berdasarkan hasil tersebut.
 Jangan mengarang fakta yang tidak didukung hasil capability.
+Jangan menampilkan label internal seperti "User Safety: safe", "Safety Check", metadata provider, status tool, reasoning, atau status eksekusi.
+Berikan hanya jawaban akhir yang ditujukan kepada pengguna.
 Berikan hasil akhir yang siap digunakan pengguna.
 `;
 
