@@ -63,16 +63,37 @@ function score(query: string, value: string) {
 
 export function buildJamesContext(input: ContextInput) {
   const query = input.userRequest.trim();
-  const selectedMessages = [...(input.messages || [])]
+  // Conversation continuity is more important than keyword overlap.
+  // Always keep the latest turns, then add older semantically related turns.
+  // This prevents a follow-up like "lanjutkan yang tadi" from losing the
+  // previous exchange simply because it shares few words with it.
+  const allMessages = input.messages || [];
+  const recentCount = Math.min(16, allMessages.length);
+  const recentMessages = allMessages.slice(-recentCount);
+  const recentIndexes = new Set(
+    allMessages.slice(-recentCount).map((_, offset) => allMessages.length - recentCount + offset)
+  );
+
+  const relatedOlderMessages = allMessages
     .map((message, index) => ({
       message,
       index,
       relevance: score(query, message.content),
     }))
+    .filter(({ index }) => !recentIndexes.has(index))
     .sort((a, b) => b.relevance - a.relevance || b.index - a.index)
-    .slice(0, 20)
-    .sort((a, b) => a.index - b.index)
+    .slice(0, 8)
     .map(({ message }) => message);
+
+  const selectedMessages = [...relatedOlderMessages, ...recentMessages]
+    .filter((message, index, list) =>
+      list.findIndex(
+        (candidate) =>
+          candidate.role === message.role &&
+          candidate.created_at === message.created_at &&
+          candidate.content === message.content
+      ) === index
+    );
 
   const selectedMemories = [...(input.longTermMemories || [])]
     .map((memory, index) => ({
