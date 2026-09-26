@@ -681,15 +681,34 @@ Jangan mengarang fakta tentang pengguna yang tidak ada dalam memori.
       }));
 
       if (searchResults.length === 0) {
-        const resultText = "Aku tidak menemukan hasil pencarian yang relevan.";
+        const fallbackPrompt = `
+${memoryContext}
 
-        await saveActivity(userRequest, intent, "exa", resultText);
-        await saveJames(userId, conversationId, userRequest, resultText, intent, "exa");
+Pengguna meminta informasi yang mungkin membutuhkan penelitian eksternal:
+"${userRequest}"
+
+Mesin penelitian eksternal James tidak mengembalikan sumber yang dapat diverifikasi.
+Bantu pengguna semaksimal mungkin berdasarkan pengetahuan yang tersedia.
+JANGAN mengklaim bahwa informasi terbaru sudah diverifikasi.
+Jika pertanyaan membutuhkan data yang berubah cepat, jelaskan secara singkat bahwa kamu tidak dapat memverifikasinya saat ini.
+Jika kamu memberikan pengetahuan umum, bedakan dengan jelas dari informasi terkini.
+Jawab sebagai James dalam bahasa Indonesia yang natural dan praktis.
+`;
+
+        const resultText = await callJamesAI(
+          fallbackPrompt,
+          buildJamesSystemInstruction(
+            "Research eksternal tidak tersedia pada permintaan ini. Utamakan kejujuran, jangan mengarang sumber atau mengklaim verifikasi web."
+          )
+        );
+
+        await saveActivity(userRequest, intent, "ai-fallback", resultText);
+        await saveJames(userId, conversationId, userRequest, resultText, intent, "ai-fallback");
 
         return NextResponse.json({
           result: resultText,
           intent,
-          tool: "exa",
+          tool: "ai-fallback",
           citations: [],
           userId,
           conversationId,
