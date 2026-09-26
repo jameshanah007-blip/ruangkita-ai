@@ -26,7 +26,25 @@ export type JamesCapabilityResult = {
 };
 
 function normalize(text: string) {
-  return text.toLowerCase().trim();
+  const aliases: Array<[RegExp, string]> = [
+    [/\\b(yg)\\b/gi, "yang"],
+    [/\\b(dgn)\\b/gi, "dengan"],
+    [/\\b(utk)\\b/gi, "untuk"],
+    [/\\b(krn)\\b/gi, "karena"],
+    [/\\b(klo|kl)\\b/gi, "kalau"],
+    [/\\b(gk|ga|gak|ngga|nggak)\\b/gi, "tidak"],
+    [/\\b(bgt)\\b/gi, "banget"],
+    [/\\b(blm)\\b/gi, "belum"],
+    [/\\b(udh|udah)\\b/gi, "sudah"],
+    [/\\b(kmu)\\b/gi, "kamu"],
+    [/\\b(bsa)\\b/gi, "bisa"],
+    [/\\b(bkin)\\b/gi, "bikin"],
+  ];
+
+  return aliases.reduce(
+    (value, [pattern, replacement]) => value.replace(pattern, replacement),
+    text.toLowerCase().trim()
+  );
 }
 
 
@@ -64,7 +82,8 @@ export function planJamesIntelligence(request: string): JamesIntelligencePlan {
 
   if (
     /\bcarikan\b/.test(text) ||
-    /\bcari(?:kan)?\b.*\b(internet|web|online|sumber|referensi|informasi|berita|lomba|beasiswa|lowongan)\b/.test(text) ||
+    /\bcari(?:kan)?\b.*\b(internet|web|online|sumber|referensi|informasi|berita|lomba|beasiswa|lowongan|harga|jadwal)\b/.test(text) ||
+    /\b(?:cari|carikan|cek|info)\b.*\b(lomba|beasiswa|lowongan|harga|jadwal|berita|event)\b/.test(text) ||
     /\btolong\b.*\bcari\b/.test(text) ||
     /\bcek\b.*\b(terbaru|sekarang|hari ini|online|internet|web)\b/.test(text) ||
     (/\b(terbaru|terkini|hari ini|sekarang|saat ini|minggu ini|bulan ini)\b/.test(text) &&
