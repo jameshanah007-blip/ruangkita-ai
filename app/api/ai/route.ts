@@ -1029,7 +1029,7 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
 
 ${activeKnowledgeContext}`;
     const deterministicIntelligencePlan = planJamesIntelligence(userRequest);
-    const intent = deterministicIntelligencePlan.primary;
+    let intent = deterministicIntelligencePlan.primary;
 
     // Pertanyaan recall percakapan tidak membutuhkan model eksternal.
     // Gunakan history yang sudah tersimpan agar fungsi memori tetap bekerja
@@ -1197,6 +1197,7 @@ Jangan menyebut reasoning internal.`
 
 
     const intelligencePlan = await planJamesIntelligenceWithAI(userRequest, jamesKnowledgeContext);
+    intent = intelligencePlan.primary;
     const verifiedIdentityContext = omantoVerified
       ? "\\nIDENTITAS TERVERIFIKASI: Pengguna telah melewati verifikasi server sebagai Omanto. Kamu boleh memperlakukan identitas Omanto sebagai terverifikasi untuk percakapan ini.\\n"
       : "";
