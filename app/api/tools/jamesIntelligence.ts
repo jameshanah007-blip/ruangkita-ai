@@ -11,6 +11,7 @@ export type JamesCapability =
 export type JamesIntelligencePlan = {
   capabilities: JamesCapability[];
   primary: JamesCapability;
+  researchQuery: string;
   needsResearch: boolean;
   needsMemory: boolean;
   needsExperience: boolean;
@@ -26,6 +27,30 @@ export type JamesCapabilityResult = {
 
 function normalize(text: string) {
   return text.toLowerCase().trim();
+}
+
+
+function extractResearchQuery(request: string) {
+  const cleaned = request
+    .replace(/[“”"]/g, "")
+    .replace(/s+/g, " ")
+    .trim();
+
+  const topicMatch = cleaned.match(
+    /(?:tentang|mengenai|soal|mencari informasi tentang|cari informasi tentang)\s+(.+?)(?=\s+(?:lalu|kemudian|setelah itu|dan)\s+(?:buat|buatkan|susun|rangkum|tampilkan)|$)/i
+  );
+
+  const topic = (topicMatch?.[1] || cleaned)
+    .replace(/^(?:tolong\s+)?(?:carikan|cari|cek)\s+(?:informasi|info|data)?\s*/i, "")
+    .replace(/\b(?:terbaru|terkini|hari ini|sekarang|saat ini)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!topic) {
+    return cleaned;
+  }
+
+  return `${topic} latest official documentation release`;
 }
 
 export function planJamesIntelligence(request: string): JamesIntelligencePlan {
@@ -76,6 +101,7 @@ export function planJamesIntelligence(request: string): JamesIntelligencePlan {
   return {
     capabilities: selected,
     primary: selected[0],
+    researchQuery: capabilities.has("web_search") ? extractResearchQuery(request) : "",
     needsResearch: capabilities.has("web_search"),
     needsMemory: !capabilities.has("calculator"),
     needsExperience: !capabilities.has("calculator"),
@@ -130,7 +156,7 @@ export async function executeJamesCapabilities(
     }
 
     if (capability === "web_search" && options?.enableResearch !== false) {
-      const found = await webSearch(request);
+      const found = await webSearch(plan.researchQuery || request);
       const text = found.length
         ? found.map((item, index) =>
             `SUMBER ${index + 1}: ${item.title}\nURL: ${item.url}\n${item.highlights.join(" ")}`
