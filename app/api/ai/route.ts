@@ -295,6 +295,7 @@ Aturan:
       await applyJamesEvolution(
         input.userId,
         input.conversationId,
+        input.userRequest,
         proposals
       );
     }
