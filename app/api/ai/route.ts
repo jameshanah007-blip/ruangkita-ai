@@ -801,6 +801,15 @@ async function saveJames(
   }
 }
 
+function sanitizeJamesFinalResponse(text: string): string {
+  const cleaned = text
+    .replace(/^\s*(User Safety|Safety|Safety Check)\s*:\s*(safe|unsafe|allowed|blocked)\s*$/gim, "")
+    .replace(/^\s*(User Safety|Safety|Safety Check)\s*:\s*(safe|unsafe|allowed|blocked)\s*\n/gim, "")
+    .trim();
+
+  return cleaned || text.trim();
+}
+
 function validUuid(value: unknown): value is string {
   return typeof value === "string" &&
     /^[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}$/.test(value);
