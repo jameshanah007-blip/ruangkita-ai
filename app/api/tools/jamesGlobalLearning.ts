@@ -62,9 +62,14 @@ export async function addGlobalCandidate(input: {
     .eq("value", value)
     .maybeSingle();
 
+  // Evidence represents distinct provider support, not repeated cron executions.
+  // Never inflate the count merely because the same candidate is seen again.
   const nextEvidence = Math.max(
     1,
-    Math.min((existing?.evidence_count || 0) + Math.max(1, input.evidenceCount), 1000000)
+    Math.min(
+      Math.max(existing?.evidence_count || 0, Math.max(1, input.evidenceCount)),
+      1000000
+    )
   );
 
   const row = {
@@ -113,13 +118,40 @@ export async function recordGlobalDecision(input: {
 }) {
   const supabase = db();
   if (!supabase) return;
-  await supabase.from("james_global_learning_runs").insert({
+
+  const decision = {
     candidate_id: input.candidateId,
     provider: input.provider,
     decision: input.decision,
     confidence: Math.max(0, Math.min(1, input.confidence)),
     rationale: clean(input.rationale),
-  });
+  };
+
+  // One current validation decision per candidate/provider keeps the
+  // autonomous learning loop idempotent across repeated cron runs.
+  const { data: existing } = await supabase
+    .from("james_global_learning_runs")
+    .select("id")
+    .eq("candidate_id", input.candidateId)
+    .eq("provider", input.provider)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.id) {
+    await supabase
+      .from("james_global_learning_runs")
+      .update({
+        decision: decision.decision,
+        confidence: decision.confidence,
+        rationale: decision.rationale,
+        created_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id);
+    return;
+  }
+
+  await supabase.from("james_global_learning_runs").insert(decision);
 }
 
 export async function activateGlobalCandidate(
