@@ -13,6 +13,7 @@ import {
   buildJamesSystemInstruction,
 } from "../../ai/persona";
 import { saveJamesCuriosity, type JamesCuriosityProposal } from "../tools/jamesCuriosity";
+import { generateWithAllAIProviders } from "../../fun-zone/aiRouter";
 
 type Intent =
   | "chat"
@@ -168,9 +169,9 @@ async function evolveJames(input: {
   assistantResult: string;
 }) {
   try {
-    const reflection = await callGemini(`
-Refleksikan satu interaksi James berikut. Fokus pada kualitas bantuan James,
-bukan pada penilaian pribadi atau data sensitif pengguna.
+    const reflectionPrompt = `
+Refleksikan interaksi James berikut sebagai learning engine.
+Jangan menilai pengguna. Fokus pada cara James dapat menjadi lebih membantu.
 
 USER:
 ${input.userRequest}
@@ -180,15 +181,15 @@ ${input.assistantResult}
 
 Keluarkan JSON SAJA:
 {
-  "observation": "apa yang terjadi dalam interaksi",
+  "observation": "apa yang terjadi",
   "what_worked": "apa yang berjalan baik",
-  "what_failed": "apa yang kurang atau gagal; kosong jika tidak ada",
-  "lesson": "pelajaran yang sebaiknya James gunakan ke depan",
+  "what_failed": "apa yang kurang",
+  "lesson": "pelajaran untuk James",
   "confidence": 0.0,
-  "evidence": "bukti singkat dari interaksi",
+  "evidence": "bukti singkat",
   "curiosity": [
     {
-      "topic": "topik singkat",
+      "topic": "topik",
       "question": "pertanyaan yang masih perlu dipahami",
       "importance": 0.0,
       "evidence": "bukti singkat"
@@ -197,9 +198,9 @@ Keluarkan JSON SAJA:
   "proposals": [
     {
       "category": "communication_style | interest | learned_topic | lesson | preference",
-      "key": "kunci singkat",
-      "value": "nilai singkat",
-      "reason": "alasan berbasis interaksi",
+      "key": "kunci",
+      "value": "nilai",
+      "reason": "alasan",
       "confidence": 0.0,
       "source_excerpt": "kutipan singkat"
     }
@@ -207,26 +208,39 @@ Keluarkan JSON SAJA:
 }
 
 Aturan:
-- Maksimal 3 proposal.
-- Maksimal 2 curiosity.
-- Curiosity hanya jika ada pertanyaan/topik yang benar-benar belum jelas dan relevan untuk membantu pengguna.
-- Jika tidak ada hal bermakna untuk dipelajari, proposals dan curiosity harus [].
-- Confidence >= 0.70 hanya jika buktinya jelas.
+- Maksimal 3 proposals dan 2 curiosity.
+- Jika tidak ada pembelajaran bermakna, gunakan array kosong.
+- Confidence >= 0.70 hanya jika bukti jelas.
 - Jangan menyimpan password, token, credential, nomor identitas, nomor telepon, alamat, lokasi presisi, data kesehatan, agama, politik, orientasi seksual, atau data sensitif lain.
 - Jangan mendiagnosis atau menebak sifat sensitif pengguna.
-- Jangan mengubah nama James, Omanto, RuangKita, atau core identity.
-- Lesson harus tentang cara James meningkatkan bantuan atau komunikasinya.
-`, "Kamu adalah reflection engine internal James. Output wajib JSON valid tanpa markdown.");
+- Jangan mengubah core identity James, Omanto, atau RuangKita.
+- Lesson harus tentang peningkatan bantuan/komunikasi James.
+`;
 
-    const parsed = extractJsonObject(reflection);
-    if (!parsed || typeof parsed !== "object") return;
+    const providerResults = await generateWithAllAIProviders({
+      prompt: reflectionPrompt,
+      systemInstruction:
+        "Kamu adalah salah satu dari beberapa learning engines James. Berikan refleksi yang jujur, ringkas, berbasis bukti, dan JSON valid tanpa markdown.",
+      temperature: 0.2,
+      maxOutputTokens: 2500,
+    });
 
-    const confidence = clampReflectionConfidence(parsed.confidence);
-    const observation = cleanReflectionText(parsed.observation, 500);
-    const whatWorked = cleanReflectionText(parsed.what_worked, 500);
-    const whatFailed = cleanReflectionText(parsed.what_failed, 500);
-    const lesson = cleanReflectionText(parsed.lesson, 500);
-    const evidence = cleanReflectionText(parsed.evidence, 500);
+    const parsedResults = providerResults
+      .map((result) => ({
+        provider: result.provider,
+        data: extractJsonObject(result.text),
+      }))
+      .filter((item) => item.data && typeof item.data === "object");
+
+    if (!parsedResults.length) return;
+
+    const primary = parsedResults[0].data as Record<string, unknown>;
+    const observation = cleanReflectionText(primary.observation, 500);
+    const whatWorked = cleanReflectionText(primary.what_worked, 500);
+    const whatFailed = cleanReflectionText(primary.what_failed, 500);
+    const lesson = cleanReflectionText(primary.lesson, 500);
+    const evidence = cleanReflectionText(primary.evidence, 500);
+    const confidence = clampReflectionConfidence(primary.confidence);
 
     const reflectionSaved = await saveJamesReflection({
       userId: input.userId,
@@ -239,12 +253,8 @@ Aturan:
       evidence,
     });
 
-    const proposals = Array.isArray(parsed.proposals)
-      ? parsed.proposals as JamesEvolutionProposal[]
-      : [];
-    const curiosity = Array.isArray(parsed.curiosity)
-      ? parsed.curiosity as JamesCuriosityProposal[]
-      : [];
+    const proposals = mergeLearningProposals(parsedResults);
+    const curiosity = mergeCuriosity(parsedResults);
 
     if (reflectionSaved && proposals.length) {
       await applyJamesEvolution(
@@ -262,8 +272,87 @@ Aturan:
       );
     }
   } catch (error) {
-    console.error("James self-reflection error:", error);
+    console.error("James multi-provider learning error:", error);
   }
+}
+
+function mergeLearningProposals(
+  results: Array<{ provider: string; data: Record<string, unknown> }>
+): JamesEvolutionProposal[] {
+  const merged = new Map<string, JamesEvolutionProposal>();
+
+  for (const result of results) {
+    const items = Array.isArray(result.data.proposals)
+      ? result.data.proposals
+      : [];
+
+    for (const raw of items) {
+      if (!raw || typeof raw !== "object") continue;
+      const item = raw as Record<string, unknown>;
+      const category = item.category;
+      if (
+        category !== "communication_style" &&
+        category !== "interest" &&
+        category !== "learned_topic" &&
+        category !== "lesson" &&
+        category !== "preference"
+      ) continue;
+
+      const proposal: JamesEvolutionProposal = {
+        category,
+        key: cleanReflectionText(item.key, 60),
+        value: cleanReflectionText(item.value, 240),
+        reason: cleanReflectionText(item.reason, 240),
+        confidence: clampReflectionConfidence(item.confidence),
+        source_excerpt: cleanReflectionText(item.source_excerpt, 320),
+      };
+
+      if (!proposal.key || !proposal.value || proposal.confidence < 0.70) continue;
+
+      const identity = `${proposal.category}:${proposal.key}:${proposal.value.toLowerCase()}`;
+      const existing = merged.get(identity);
+
+      if (!existing || proposal.confidence > existing.confidence) {
+        merged.set(identity, proposal);
+      }
+    }
+  }
+
+  return [...merged.values()].slice(0, 5);
+}
+
+function mergeCuriosity(
+  results: Array<{ provider: string; data: Record<string, unknown> }>
+): JamesCuriosityProposal[] {
+  const merged = new Map<string, JamesCuriosityProposal>();
+
+  for (const result of results) {
+    const items = Array.isArray(result.data.curiosity)
+      ? result.data.curiosity
+      : [];
+
+    for (const raw of items) {
+      if (!raw || typeof raw !== "object") continue;
+      const item = raw as Record<string, unknown>;
+      const proposal: JamesCuriosityProposal = {
+        topic: cleanReflectionText(item.topic, 160),
+        question: cleanReflectionText(item.question, 400),
+        importance: clampReflectionConfidence(item.importance),
+        evidence: cleanReflectionText(item.evidence, 400),
+      };
+
+      if (!proposal.topic || !proposal.question || proposal.importance < 0.60) continue;
+
+      const identity = `${proposal.topic.toLowerCase()}:${proposal.question.toLowerCase()}`;
+      const existing = merged.get(identity);
+
+      if (!existing || proposal.importance > existing.importance) {
+        merged.set(identity, proposal);
+      }
+    }
+  }
+
+  return [...merged.values()].sort((a, b) => b.importance - a.importance).slice(0, 3);
 }
 
 function clampReflectionConfidence(value: unknown) {
