@@ -42,6 +42,7 @@ export async function getJamesMemory(userId: string, conversationId: string) {
     .from("ai_messages")
     .select("role, content, created_at")
     .eq("user_id", userId)
+    .eq("conversation_id", conversationId)
     .order("created_at", { ascending: false })
     .limit(40);
 
@@ -173,6 +174,7 @@ export async function getJamesLongTermMemory(userId: string, limit = 30): Promis
 export async function saveJamesMemoryProposals(
   userId: string,
   conversationId: string,
+  userRequest: string,
   proposals: JamesMemoryProposal[],
 ) {
   const supabase = getSupabase();
@@ -192,6 +194,8 @@ export async function saveJamesMemoryProposals(
       proposal.memory_key &&
       proposal.memory_value &&
       proposal.confidence >= 0.80 &&
+      proposal.source_excerpt.length >= 3 &&
+      userRequest.toLowerCase().includes(proposal.source_excerpt.toLowerCase()) &&
       !isSensitiveMemory(
         `${proposal.memory_key} ${proposal.memory_value} ${proposal.source_excerpt}`
       )
