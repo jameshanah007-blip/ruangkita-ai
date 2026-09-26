@@ -127,7 +127,7 @@ async function callJamesAI(
 ): Promise<string> {
   const result = await generateWithAIRouter({
     prompt: userInput,
-    systemInstruction: systemInstruction || buildJamesSystemInstruction(),
+    systemInstruction: systemInstruction || buildJamesSystemInstruction(jamesKnowledgeContext),
     temperature: 0.7,
     maxOutputTokens: 4000,
   });
@@ -1072,6 +1072,23 @@ Jangan menyebut mekanisme internal kecuali pengguna memang bertanya bagaimana si
       globalGrowth,
     });
     const memoryContext = contextResult.context;
+
+    const activeKnowledgeContext = globalGrowth.length
+      ? `ACTIVE JAMES KNOWLEDGE:
+${globalGrowth
+  .map((item, index) =>
+    `KNOWLEDGE ${index + 1}: [${item.category}] ${item.key} — ${item.value}
+Rationale: ${item.rationale}
+Consensus: ${item.consensus_score}`
+  )
+  .join("\n\n")}
+
+Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate, consensus, atau mekanisme internal kepada pengguna. Active knowledge bukan pengganti research untuk informasi yang dapat berubah cepat.`
+      : "ACTIVE JAMES KNOWLEDGE: belum ada pengetahuan global aktif.";
+
+    const jamesKnowledgeContext = `${memoryContext}
+
+${activeKnowledgeContext}`;
     const verifiedIdentityContext = omantoVerified
       ? "\\nIDENTITAS TERVERIFIKASI: Pengguna telah melewati verifikasi server sebagai Omanto. Kamu boleh memperlakukan identitas Omanto sebagai terverifikasi untuk percakapan ini.\\n"
       : "";
