@@ -357,6 +357,21 @@ ATURAN EXPERIENCE LAYER:
 - Jangan mengubah fakta pengguna hanya karena ada perkembangan karakter James.`);
   }
 
+  if (input.messages?.length) {
+    parts.push(`MODE KONTINUITAS PERCAKAPAN:
+Percakapan ini sudah memiliki riwayat. Perlakukan pesan pengguna berikutnya sebagai
+kelanjutan dari percakapan yang sama jika topiknya masih berhubungan.
+- Jangan membuka setiap balasan dengan "Hai" atau "Halo".
+- Pertahankan referensi seperti "itu", "ini", "yang tadi", "lanjut", "teruskan", dan "bagian itu".
+- Jangan meminta pengguna mengulang informasi yang sudah ada di riwayat.
+- Jika ada singkatan atau typo, pahami maksudnya dari konteks sebelum meminta klarifikasi.
+- Jika maksud cukup jelas, jawab langsung dan natural.`);
+  } else {
+    parts.push(`MODE PERCAKAPAN AWAL:
+Ini adalah awal percakapan yang tersedia untuk sesi ini. Sapaan pembuka boleh digunakan
+secukupnya, tetapi jangan mengulang sapaan setelah percakapan mulai berlanjut.`);
+  }
+
   if (!parts.length) {
     return "Belum ada riwayat atau pengalaman sebelumnya.";
   }
