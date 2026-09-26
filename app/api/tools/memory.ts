@@ -75,6 +75,7 @@ export type JamesLongTermMemory = {
   memory_type: "identity" | "preference" | "interest" | "project" | "goal" | "context" | "relationship";
   memory_key: string;
   memory_value: string;
+  memory_action: "upsert" | "supersede";
   confidence: number;
   status: "active" | "superseded" | "expired" | "rejected";
   source_excerpt: string;
@@ -185,6 +186,7 @@ export async function saveJamesMemoryProposals(
       memory_type: proposal.memory_type,
       memory_key: cleanMemoryText(proposal.memory_key, 80).toLowerCase(),
       memory_value: cleanMemoryText(proposal.memory_value, 500),
+      memory_action: proposal.memory_action,
       confidence: clampMemoryConfidence(proposal.confidence),
       source_excerpt: cleanMemoryText(proposal.source_excerpt, 400),
       expires_in_days: proposal.expires_in_days,
@@ -193,6 +195,7 @@ export async function saveJamesMemoryProposals(
       MEMORY_TYPES.has(proposal.memory_type) &&
       proposal.memory_key &&
       proposal.memory_value &&
+      (proposal.memory_action === "upsert" || proposal.memory_action === "supersede") &&
       proposal.confidence >= 0.80 &&
       proposal.source_excerpt.length >= 3 &&
       userRequest.toLowerCase().includes(proposal.source_excerpt.toLowerCase()) &&
@@ -217,6 +220,22 @@ export async function saveJamesMemoryProposals(
 
     const expiresAt = memoryExpiry(proposal.memory_type, proposal.expires_in_days);
     const now = new Date().toISOString();
+
+    if (proposal.memory_action === "supersede") {
+      if (existing) {
+        const { error } = await supabase
+          .from("james_memories")
+          .update({
+            status: "superseded",
+            updated_at: now,
+            last_confirmed_at: now,
+          })
+          .eq("id", existing.id);
+
+        if (error) console.error("James memory supersede error:", error.message);
+      }
+      continue;
+    }
 
     if (existing) {
       const sameValue = existing.memory_value === proposal.memory_value;
