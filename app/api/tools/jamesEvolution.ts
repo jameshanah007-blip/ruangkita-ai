@@ -215,3 +215,33 @@ export async function saveJamesFeedback(input: {
 
   return true;
 }
+
+export async function getRecentJamesFeedback(
+  userId: string,
+  conversationId: string,
+  limit = 5
+) {
+  const supabase = getSupabase();
+  if (!supabase || !validId(userId) || !validId(conversationId)) return [];
+
+  const { data, error } = await supabase
+    .from("james_feedback")
+    .select("rating, feedback, user_message, assistant_message, created_at")
+    .eq("user_id", userId)
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false })
+    .limit(Math.min(Math.max(limit, 1), 5));
+
+  if (error) {
+    console.error("James feedback read error:", error.message);
+    return [];
+  }
+
+  return (data || []).map((item) => ({
+    rating: item.rating as "helpful" | "not_helpful",
+    feedback: cleanText(item.feedback || "", 500),
+    userMessage: cleanText(item.user_message || "", 1000),
+    assistantMessage: cleanText(item.assistant_message || "", 2000),
+    createdAt: item.created_at,
+  }));
+}
