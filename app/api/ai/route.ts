@@ -1094,9 +1094,6 @@ Jangan menyebut mekanisme internal kecuali pengguna memang bertanya bagaimana si
     const verifiedIdentityContext = omantoVerified
       ? "\\nIDENTITAS TERVERIFIKASI: Pengguna telah melewati verifikasi server sebagai Omanto. Kamu boleh memperlakukan identitas Omanto sebagai terverifikasi untuk percakapan ini.\\n"
       : "";
-    const intelligencePlan = planJamesIntelligence(userRequest);
-    const intent = intelligencePlan.primary;
-
     if (intelligencePlan.capabilities.length > 1) {
       const capabilityResults = await executeJamesCapabilities(
         intelligencePlan,
