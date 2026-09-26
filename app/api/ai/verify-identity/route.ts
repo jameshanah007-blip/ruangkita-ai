@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 
 const COOKIE_NAME = "ruangkita-omanto-verification";
 const TOKEN_VERSION = "v1";
+const TOKEN_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 function createToken() {
   const secret = process.env.OMANTO_VERIFICATION_CODE;
@@ -33,6 +34,9 @@ export function isOmantoVerified(request: Request) {
 
   const [version, identity, timestamp, signature] = parts;
   if (version !== TOKEN_VERSION || identity !== "omanto") return false;
+
+  const issuedAt = Number(timestamp);
+  if (!Number.isFinite(issuedAt) || Date.now() - issuedAt < 0 || Date.now() - issuedAt > TOKEN_MAX_AGE_MS) return false;
 
   const payload = `${version}:${identity}:${timestamp}`;
   const expected = crypto
