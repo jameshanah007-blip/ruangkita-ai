@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { generateWithAllAIProviders } from "../../../fun-zone/aiRouter";
-import { extractJsonObject } from "../../tools/json";
 import {
   activateGlobalCandidate,
   getGlobalCandidates,
   recordGlobalDecision,
 } from "../../tools/jamesGlobalLearning";
 import { isOmantoVerified } from "../verify-identity/route";
+
+function extractJsonObject(text: string) { const start = text.indexOf("{"); const end = text.lastIndexOf("}"); if (start < 0 || end <= start) return null; try { return JSON.parse(text.slice(start, end + 1)); } catch { return null; } }
 
 function safeText(value: unknown, max = 600) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
