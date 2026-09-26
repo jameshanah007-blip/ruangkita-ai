@@ -1087,7 +1087,9 @@ ${sourcesText}
 
 Jawab sebagai James.
 Gunakan hasil pencarian sebagai sumber fakta.
-Jangan mengarang informasi yang tidak didukung sumber.
+Utamakan sumber yang ditandai OFFICIAL jika tersedia.
+Jika menggunakan research, sertakan bagian "Sumber" di akhir dengan URL yang benar-benar tersedia pada hasil pencarian.
+Jangan mengarang informasi atau URL yang tidak didukung sumber.
 Jika informasi tidak cukup, katakan dengan jujur.
 Gunakan bahasa Indonesia yang jelas dan natural.
 Jika percakapan membutuhkan konteks dari pengguna, boleh bertanya balik.
