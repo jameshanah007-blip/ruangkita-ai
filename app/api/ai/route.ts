@@ -269,7 +269,7 @@ Aturan:
     const memories = mergeMemoryProposals(parsedResults);
     const curiosity = mergeCuriosity(parsedResults);
 
-    if (reflectionSaved && memories.length) {
+    if (memories.length) {
       await saveJamesMemoryProposals(
         input.userId,
         input.conversationId,
