@@ -476,5 +476,42 @@ export async function saveJamesTurn(input: {
 
   if (messageError) {
     console.error("James message save error:", messageError.message);
+    return;
+  }
+
+  const { data: recentMessages } = await supabase
+    .from("ai_messages")
+    .select("role, content")
+    .eq("user_id", input.userId)
+    .eq("conversation_id", input.conversationId)
+    .order("created_at", { ascending: false })
+    .limit(12);
+
+  const summary = [...(recentMessages || [])]
+    .reverse()
+    .map((message) => {
+      const role = message.role === "user" ? "Pengguna" : "James";
+      const content =
+        typeof message.content === "string"
+          ? message.content.trim().replace(/\s+/g, " ").slice(0, 500)
+          : "";
+      return content ? `${role}: ${content}` : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  if (summary) {
+    const { error: summaryError } = await supabase
+      .from("ai_conversations")
+      .update({
+        summary: summary.slice(-5000),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.conversationId)
+      .eq("user_id", input.userId);
+
+    if (summaryError) {
+      console.error("James conversation summary error:", summaryError.message);
+    }
   }
 }
