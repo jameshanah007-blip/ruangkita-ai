@@ -58,12 +58,24 @@ function detectIntent(request: string): Intent {
   }
 
   const webSearchPatterns = [
-    "carikan", "cari", "pencarian", "berita terbaru",
-    "informasi terbaru", "terbaru", "hari ini",
-    "lomba", "beasiswa", "lowongan", "website", "sumber",
+    "carikan", "cari", "pencarian",
+    "berita terbaru", "informasi terbaru",
+    "berita hari ini", "hari ini",
+    "lomba", "beasiswa", "lowongan",
+    "cari di internet", "cari di web",
+    "sumber terbaru", "referensi terbaru",
   ];
 
-  if (webSearchPatterns.some((keyword) => text.includes(keyword))) {
+  const researchPatterns = [
+    /\bterbaru\b.*\b(teknologi|ai|software|aplikasi|berita|fitur|versi)\b/,
+    /\b(teknologi|ai|software|aplikasi|berita|fitur|versi)\b.*\bterbaru\b/,
+    /\bsekarang\b.*\b(versi|fitur|rilis|berita)\b/,
+  ];
+
+  if (
+    webSearchPatterns.some((keyword) => text.includes(keyword)) ||
+    researchPatterns.some((pattern) => pattern.test(text))
+  ) {
     return "web_search";
   }
 
