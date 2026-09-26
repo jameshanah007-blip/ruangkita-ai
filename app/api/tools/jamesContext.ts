@@ -1,4 +1,5 @@
 import { buildJamesMemoryContext } from "../../ai/persona";
+import { understandJamesInput } from "./jamesInputUnderstanding";
 
 type ContextMessage = {
   role: string;
@@ -44,8 +45,10 @@ const STOP_WORDS = new Set([
 ]);
 
 function terms(text: string) {
+  const understood = understandJamesInput(text).normalized;
+
   return [...new Set(
-    text
+    understood
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, " ")
       .split(/\s+/)
@@ -56,9 +59,29 @@ function terms(text: string) {
 function score(query: string, value: string) {
   const q = new Set(terms(query));
   const v = new Set(terms(value));
+  if (!q.size || !v.size) return 0;
+
   let matches = 0;
   for (const word of q) if (v.has(word)) matches++;
-  return matches;
+
+  // Reward coverage rather than raw word count, so a short follow-up can
+  // still match a longer memory when the key concepts overlap.
+  const coverage = matches / q.size;
+  return matches + coverage;
+}
+
+function recencyBonus(createdAt: string | undefined, index: number) {
+  if (!createdAt) return Math.max(0, 0.15 - index * 0.002);
+
+  const timestamp = Date.parse(createdAt);
+  if (!Number.isFinite(timestamp)) return Math.max(0, 0.15 - index * 0.002);
+
+  const ageDays = Math.max(0, (Date.now() - timestamp) / 86_400_000);
+  return Math.max(0, 0.5 * Math.exp(-ageDays / 14));
+}
+
+function rankRelevance(query: string, value: string, index: number, createdAt?: string) {
+  return score(query, value) + recencyBonus(createdAt, index);
 }
 
 export function buildJamesContext(input: ContextInput) {
@@ -67,7 +90,7 @@ export function buildJamesContext(input: ContextInput) {
     .map((message, index) => ({
       message,
       index,
-      relevance: score(query, message.content),
+      relevance: rankRelevance(query, message.content, index, message.created_at),
     }))
     .sort((a, b) => b.relevance - a.relevance || b.index - a.index)
     .slice(0, 20)
