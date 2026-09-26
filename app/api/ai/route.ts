@@ -26,7 +26,7 @@ import {
 } from "../../fun-zone/aiRouter";
 import { getGlobalGrowth } from "../tools/jamesGlobalLearning";
 import { buildJamesContext } from "../tools/jamesContext";
-import { planJamesIntelligence } from "../tools/jamesIntelligence";
+import { executeJamesCapabilities, planJamesIntelligence } from "../tools/jamesIntelligence";
 
 type Intent =
   | "chat"
@@ -844,6 +844,70 @@ export async function POST(request: Request) {
     const memoryContext = contextResult.context;
     const intelligencePlan = planJamesIntelligence(userRequest);
     const intent = intelligencePlan.primary;
+
+    if (intelligencePlan.capabilities.length > 1) {
+      const capabilityResults = await executeJamesCapabilities(
+        intelligencePlan,
+        userRequest
+      );
+
+      const toolContext = capabilityResults.length
+        ? capabilityResults.map((item) =>
+            [
+              `CAPABILITY: ${item.capability}`,
+              item.text,
+            ].join("\n")
+          ).join("\n\n")
+        : "Tidak ada hasil capability eksternal.";
+
+      const orchestratorPrompt = `
+Kamu adalah James. Jalankan permintaan pengguna sebagai tugas multi-langkah.
+
+PERMINTAAN:
+"${userRequest}"
+
+HASIL CAPABILITY YANG SUDAH DIJALANKAN:
+${toolContext}
+
+Gunakan hasil capability di atas sebagai input kerja.
+Jika ada research, gunakan hanya sumber yang tersedia.
+Jika pengguna meminta rencana, dokumen, atau langkah lanjutan, kerjakan berdasarkan hasil tersebut.
+Jangan mengarang fakta yang tidak didukung hasil capability.
+Berikan hasil akhir yang siap digunakan pengguna.
+`;
+
+      const resultText = await callJamesAI(
+        `${memoryContext}\n\n${orchestratorPrompt}`,
+        buildJamesSystemInstruction(
+          "Kamu sedang menjalankan tugas multi-capability. Gabungkan hasil tools menjadi jawaban akhir yang koheren."
+        )
+      );
+
+      const citations = capabilityResults.flatMap((item) => item.citations || []);
+
+      await saveActivity(userRequest, intent, "intelligence-orchestrator", resultText);
+      await saveJames(userId, conversationId, userRequest, resultText, intent, "intelligence-orchestrator");
+      void evolveJames({
+        userId,
+        conversationId,
+        userRequest,
+        assistantResult: resultText,
+      }).catch((error) => {
+        console.error("James background learning error:", error);
+      });
+
+      return NextResponse.json({
+        result: resultText,
+        intent,
+        capabilities: intelligencePlan.capabilities,
+        tool: "intelligence-orchestrator",
+        citations,
+        userId,
+        conversationId,
+        memoryAvailable: memory.available,
+        evolutionVersion: growth.evolution_version,
+      });
+    }
 
     const rememberInstruction = buildJamesSystemInstruction(`
 KONTEKS MEMORI:
