@@ -28,6 +28,7 @@ import { getGlobalGrowth } from "../tools/jamesGlobalLearning";
 import { buildJamesContext } from "../tools/jamesContext";
 import { executeJamesCapabilities, planJamesIntelligence } from "../tools/jamesIntelligence";
 import { isOmantoVerified } from "./verify-identity/route";
+import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
 
 type Intent =
   | "chat"
@@ -861,6 +862,50 @@ export async function POST(request: Request) {
 
     const claimsOmanto = /\b(?:saya|aku)\s+(?:adalah\s+)?omanto\b/i.test(userRequest);
     const omantoVerified = isOmantoVerified(request);
+
+    const trainingRequest = isJamesTrainingInstruction(userRequest);
+    if (trainingRequest && omantoVerified) {
+      const proposals = await interpretJamesTrainingInstruction(userRequest);
+      if (proposals.length) {
+        await applyJamesEvolution(
+          userId,
+          conversationId,
+          userRequest,
+          proposals
+        );
+
+        return NextResponse.json({
+          result: "Baik, Omanto. Aku memahami instruksi evolusi tersebut dan akan menerapkannya sebagai bagian dari cara belajarku ke depan.",
+          intent: "chat",
+          tool: "james-training",
+          trainingApplied: true,
+          trainingProposalCount: proposals.length,
+          citations: [],
+          userId,
+          conversationId,
+          memoryAvailable: false,
+        });
+      }
+
+      return NextResponse.json({
+        result: "Aku memahami bahwa kamu sedang mengajariku, tetapi instruksinya belum cukup aman atau jelas untuk dijadikan aturan perkembangan. Coba jelaskan perubahan perilaku atau cara kerja yang kamu inginkan.",
+        intent: "chat",
+        tool: "james-training",
+        trainingApplied: false,
+        citations: [],
+        userId,
+        conversationId,
+      });
+    }
+
+    if (trainingRequest && !omantoVerified) {
+      return NextResponse.json({
+        result: "Instruksi evolusi James hanya dapat diberikan oleh Omanto yang sudah terverifikasi. Silakan verifikasi identitas Omanto terlebih dahulu.",
+        identityVerificationRequired: true,
+        identity: "omanto",
+        citations: [],
+      });
+    }
 
     if (claimsOmanto && !omantoVerified) {
       return NextResponse.json({
