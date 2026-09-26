@@ -348,6 +348,60 @@ export async function saveJamesMemoryProposals(
   }
 }
 
+export async function getJamesMemoryAudit(userId: string, limit = 100) {
+  const supabase = getSupabase();
+  if (!supabase || !validId(userId)) {
+    return {
+      counts: { active: 0, superseded: 0, expired: 0, rejected: 0 },
+      memories: [] as JamesLongTermMemory[],
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("james_memories")
+    .select(
+      "id, memory_type, memory_key, memory_value, confidence, status, source_excerpt, last_confirmed_at, expires_at, created_at, updated_at"
+    )
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false })
+    .limit(Math.min(Math.max(limit, 1), 100));
+
+  if (error) {
+    console.error("James memory audit error:", error.message);
+    return {
+      counts: { active: 0, superseded: 0, expired: 0, rejected: 0 },
+      memories: [] as JamesLongTermMemory[],
+    };
+  }
+
+  const counts = {
+    active: 0,
+    superseded: 0,
+    expired: 0,
+    rejected: 0,
+  };
+
+  for (const memory of data || []) {
+    const status = memory.status as keyof typeof counts;
+    if (status in counts) counts[status] += 1;
+  }
+
+  return {
+    counts,
+    memories: (data || []).map((memory) => ({
+      id: memory.id,
+      memory_type: memory.memory_type,
+      memory_key: memory.memory_key,
+      memory_value: memory.memory_value,
+      confidence: memory.confidence,
+      status: memory.status,
+      source_excerpt: memory.source_excerpt,
+      last_confirmed_at: memory.last_confirmed_at,
+      expires_at: memory.expires_at,
+    })) as JamesLongTermMemory[],
+  };
+}
+
 export async function saveJamesTurn(input: {
   userId: string;
   conversationId: string;
