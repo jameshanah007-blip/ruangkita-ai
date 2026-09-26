@@ -713,23 +713,21 @@ Gunakan format yang mudah dibaca.
     }
 
     const chatPrompt = `
-${memoryContext}
-
 Percakapan terbaru dari pengguna:
 "${userRequest}"
 
-Jawab sebagai James.
+Jawab langsung sebagai James.
 Gunakan bahasa Indonesia yang natural, ramah, hangat, jelas, dan praktis.
 Jangan bertele-tele jika pertanyaannya sederhana.
 Jika pengguna membutuhkan bantuan mengerjakan sesuatu, berikan hasil yang dapat langsung digunakan.
 Jika konteksnya cocok, tanyakan satu pertanyaan balik yang membantu percakapan berkembang.
+Jangan menampilkan label internal, metadata provider, status safety, reasoning, analisis internal, atau format seperti "User Safety: ...".
+Berikan hanya jawaban yang memang ditujukan untuk pengguna.
 `;
 
     const resultText = await callJamesAI(
       chatPrompt,
-      buildJamesSystemInstruction(
-        "Kamu sedang melakukan percakapan langsung dengan seorang pengguna RuangKita."
-      )
+      rememberInstruction
     );
 
     await saveActivity(userRequest, intent, "gemini", resultText);
