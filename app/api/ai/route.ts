@@ -178,6 +178,7 @@ Keluarkan JSON SAJA:
       "memory_type": "identity | preference | interest | project | goal | context | relationship",
       "memory_key": "kunci stabil",
       "memory_value": "fakta yang dapat dipakai lagi",
+      "memory_action": "upsert | supersede",
       "confidence": 0.0,
       "source_excerpt": "kutipan singkat dari pengguna",
       "expires_in_days": null
@@ -208,6 +209,9 @@ Aturan:
 - Memory hanya untuk fakta eksplisit atau preferensi/tujuan yang sangat jelas dari pengguna.
 - Jangan membuat memory dari dugaan, inferensi sensitif, atau isi jawaban James.
 - Nama/panggilan yang secara eksplisit diberikan pengguna boleh menjadi memory identity.
+- memory_action = "upsert" untuk menyimpan atau memperbarui fakta.
+- memory_action = "supersede" hanya jika pengguna secara jelas menyatakan fakta lama tidak berlaku lagi.
+- Jika pengguna hanya mengatakan sesuatu yang berbeda tanpa menunjukkan perubahan, jangan supersede.
 - Memory confidence >= 0.80 hanya jika bukti jelas.
 - expires_in_days: null untuk identity/relationship; gunakan 30-180 untuk konteks/preferensi yang dapat berubah.
 - Jika tidak ada pembelajaran bermakna, gunakan array kosong.
@@ -367,6 +371,8 @@ function mergeMemoryProposals(
         memory_type: memoryType,
         memory_key: cleanReflectionText(item.memory_key, 80).toLowerCase(),
         memory_value: cleanReflectionText(item.memory_value, 500),
+        memory_action:
+          item.memory_action === "supersede" ? "supersede" : "upsert",
         confidence: clampReflectionConfidence(item.confidence),
         source_excerpt: cleanReflectionText(item.source_excerpt, 400),
         expires_in_days:
