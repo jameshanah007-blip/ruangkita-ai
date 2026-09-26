@@ -214,6 +214,13 @@ export function buildJamesMemoryContext(input: {
     lessons?: string[];
     preferences?: Record<string, string>;
   };
+  longTermMemories?: Array<{
+    memory_type?: string;
+    memory_key?: string;
+    memory_value?: string;
+    confidence?: number;
+    expires_at?: string | null;
+  }>;
   globalGrowth?: Array<{
     category?: string;
     key?: string;
@@ -237,6 +244,19 @@ export function buildJamesMemoryContext(input: {
       .join("\n");
 
     parts.push(`RIWAYAT PERCAKAPAN TERKINI:\n${history}`);
+  }
+
+  if (input.longTermMemories?.length) {
+    const memories = input.longTermMemories.map((memory) => ({
+      type: memory.memory_type,
+      key: memory.memory_key,
+      value: memory.memory_value,
+      confidence: memory.confidence,
+    }));
+    parts.push(`MEMORI JANGKA PANJANG YANG TERVALIDASI:
+${JSON.stringify(memories)}
+
+Gunakan memori ini hanya jika relevan dengan percakapan. Memori adalah fakta yang pernah dinyatakan atau dikonfirmasi pengguna, bukan izin untuk menebak hal lain.`);
   }
 
   if (input.globalGrowth?.length) {
