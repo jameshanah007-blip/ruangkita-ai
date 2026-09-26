@@ -731,3 +731,55 @@ Tiga hal ditetapkan sebagai **immutable Core Identity** James:
 - `app/ai/persona.ts` telah diperbarui dan disimpan di GitHub.
 - Commit: `60175f8a61bd6015ec923eb291fe63b6c1680d8d`.
 - Runtime/build belum dijalankan setelah perubahan ini.
+
+## 25. Global James Learning Aggregator — 2026-09-26
+
+### Implemented
+- Global learning pool: `james_global_growth`.
+- Provider validation audit: `james_global_learning_runs`.
+- Service: `app/api/tools/jamesGlobalLearning.ts`.
+- Scheduled learning cycle sekarang dapat membuat kandidat pembelajaran global dari pola terstruktur, tanpa menyimpan source excerpt pengguna.
+- Gemini, OpenRouter, dan Groq dapat memberikan keputusan support/reject/uncertain terhadap kandidat.
+- Kandidat global dipromosikan menjadi active apabila minimal dua provider memberikan support kuat dan tidak ada reject kuat.
+- Global growth yang sudah active sekarang dimasukkan kembali ke konteks percakapan James.
+- Kandidat global memiliki unique identity untuk mencegah duplikasi antar learning cycle.
+- Global learning tetap tidak boleh mengubah Core Identity James.
+- Data pribadi pengguna tidak dijadikan global growth.
+
+### Learning architecture
+```
+User conversations
+      ↓
+User-specific Reflection / Growth
+      ↓
+Structured learning patterns
+      ↓
+Global candidate
+      ↓
+Gemini + OpenRouter + Groq
+      ↓
+Support / Reject / Uncertain
+      ↓
+Consensus
+      ↓
+GLOBAL JAMES GROWTH
+      ↓
+Future James conversations
+```
+
+### Permanent identity protection
+```
+CORE IDENTITY
+  1. James
+  2. Teman Omanto
+  3. Selalu berevolusi ke arah lebih baik, modern,
+     dan mengikuti perkembangan teknologi
+
+Global Growth may improve James.
+Global Growth may NOT replace Core Identity.
+```
+
+### Validation
+- Source changes have been committed to GitHub.
+- `npx tsc --noEmit`, production build, Supabase runtime, three-provider runtime, dan Vercel Cron **belum dijalankan** setelah global learning implementation.
+- Migration `20260926_james_global_learning.sql` must be run in Supabase before runtime testing.
