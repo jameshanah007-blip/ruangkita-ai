@@ -214,6 +214,13 @@ export function buildJamesMemoryContext(input: {
     lessons?: string[];
     preferences?: Record<string, string>;
   };
+  globalGrowth?: Array<{
+    category?: string;
+    key?: string;
+    value?: string;
+    rationale?: string;
+    consensus_score?: number;
+  }>;
 }) {
   const parts: string[] = [];
 
@@ -230,6 +237,13 @@ export function buildJamesMemoryContext(input: {
       .join("\n");
 
     parts.push(`RIWAYAT PERCAKAPAN TERKINI:\n${history}`);
+  }
+
+  if (input.globalGrowth?.length) {
+    parts.push(`VALIDATED GLOBAL JAMES GROWTH:
+${JSON.stringify(input.globalGrowth)}
+
+Gunakan pembelajaran global ini sebagai pedoman umum jika relevan. Jangan menganggapnya sebagai fakta pribadi pengguna dan jangan menyebut mekanisme internal.`);
   }
 
   if (input.growth) {
