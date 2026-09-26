@@ -950,7 +950,7 @@ Jangan mengarang fakta tentang pengguna yang tidak ada dalam memori.
     }
 
     if (intent === "web_search") {
-      const searchResults = await webSearch(userRequest);
+      const searchResults = await webSearch(intelligencePlan.researchQuery || userRequest);
 
       const citations: Citation[] = searchResults.map((item) => ({
         title: item.title || "Tanpa judul",
