@@ -184,3 +184,34 @@ export async function applyJamesEvolution(
 
   if (eventError) console.error("James evolution event save error:", eventError.message);
 }
+
+export async function saveJamesFeedback(input: {
+  userId: string;
+  conversationId: string;
+  userMessage: string;
+  assistantMessage: string;
+  rating: "helpful" | "not_helpful";
+  feedback?: string;
+}) {
+  const supabase = getSupabase();
+  if (!supabase || !validId(input.userId) || !validId(input.conversationId)) {
+    return false;
+  }
+
+  const feedback = cleanText(input.feedback || "", 500);
+  const { error } = await supabase.from("james_feedback").insert({
+    user_id: input.userId,
+    conversation_id: input.conversationId,
+    user_message: cleanText(input.userMessage, 1000),
+    assistant_message: cleanText(input.assistantMessage, 2000),
+    rating: input.rating,
+    feedback,
+  });
+
+  if (error) {
+    console.error("James feedback save error:", error.message);
+    return false;
+  }
+
+  return true;
+}
