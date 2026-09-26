@@ -1431,9 +1431,30 @@ Gunakan format yang mudah dibaca.
       });
     }
 
+    const recentConversationContext = memory.messages
+      .slice(-12)
+      .map((message) => {
+        const speaker = message.role === "assistant" ? "James" : "Pengguna";
+        return `${speaker}: ${message.content}`;
+      })
+      .join("\n");
+
     const chatPrompt = `
-Percakapan terbaru dari pengguna:
+RIWAYAT PERCAKAPAN SEBELUM PESAN SAAT INI:
+${recentConversationContext || "(belum ada riwayat percakapan)"}
+
+RINGKASAN PERCAKAPAN:
+${memory.summary || "(belum ada ringkasan)"}
+
+PESAN PENGGUNA SAAT INI:
 "${userRequest}"
+
+ATURAN KONTINUITAS WAJIB:
+- Pesan pengguna saat ini adalah kelanjutan dari riwayat di atas kecuali pengguna jelas membuka topik baru.
+- Jika pengguna bertanya "tadi kita membicarakan apa", "yang tadi apa", "kamu ingat?", "lanjut", atau rujukan serupa, jawab berdasarkan pesan-pesan sebelumnya yang benar-benar tercantum di RIWAYAT.
+- Jangan mengatakan "kita belum sempat ngobrol" jika RIWAYAT PERCAKAPAN berisi pesan sebelumnya.
+- Jangan mengarang topik yang tidak ada di RIWAYAT.
+- Untuk pertanyaan tentang percakapan sebelumnya, prioritaskan RIWAYAT PERCAKAPAN di atas pengetahuan umum model.
 
 Jawab langsung sebagai James.
 Gunakan bahasa Indonesia yang natural, ramah, hangat, jelas, dan praktis.
