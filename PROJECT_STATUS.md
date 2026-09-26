@@ -534,3 +534,34 @@ _Last updated: 2026-09-25_
 4. Tambahkan current date/time tool.
 5. Tambahkan Gemini → OpenRouter → Groq fallback.
 6. Tambahkan memory summarization jangka panjang.
+
+
+## 19. James Evolution Engine — 2026-09-26
+
+### Implemented
+- James sekarang memiliki adaptive growth layer yang terpisah dari CORE IDENTITY.
+- File baru: `app/api/tools/jamesEvolution.ts`.
+- Migration baru: `supabase/migrations/20260926_james_evolution.sql`.
+- Tabel `james_growth_state` menyimpan gaya komunikasi, interests, learned topics, lessons, preferences, dan evolution version.
+- Tabel `james_evolution_events` menyimpan jejak audit perubahan beserta reason, confidence, dan source excerpt.
+- Setelah chat biasa, reflection engine dapat mengusulkan maksimal 3 pengalaman/perubahan.
+- Hanya proposal dengan confidence >= 0.70 yang diterapkan.
+- Data sensitif/credential dilarang masuk ke evolution reflection.
+- Core identity James, Omanto, dan RuangKita tidak dapat diubah melalui evolution state.
+- Growth state dimasukkan kembali ke konteks percakapan berikutnya sehingga adaptasi dapat memengaruhi perilaku James secara nyata.
+
+### Design principle
+James tidak melakukan self-modifying source code. Evolusi dilakukan melalui state yang persisten, terbatas, dapat diaudit, dan dapat dikoreksi. Ini memberi kreativitas/adaptasi tanpa membiarkan model merusak identitas atau aturan dasar.
+
+### Validation
+- Source files telah dibaca ulang setelah perubahan untuk memeriksa integrasi.
+- Local `npx tsc --noEmit`, production build, runtime Gemini, dan runtime Supabase **belum dijalankan** dari pekerjaan GitHub connector ini.
+- Migration Supabase lama dan migration evolution baru tetap harus dijalankan pada project Supabase sebelum persistence aktif.
+
+### Next Action Tanya Saya
+1. Jalankan `20260926_james_memory.sql` di Supabase jika belum.
+2. Jalankan `20260926_james_evolution.sql` di Supabase.
+3. Pull latest `main` di komputer lokal.
+4. Jalankan `npx tsc --noEmit` dan `npm run build`.
+5. Uji chat berulang: nyatakan preferensi komunikasi, lanjutkan beberapa percakapan, lalu verifikasi `james_growth_state` dan `james_evolution_events`.
+6. Setelah tervalidasi, lanjutkan User Profile + Consent dan provider fallback Tanya Saya.
