@@ -28,7 +28,7 @@ import {
 import { addGlobalCandidate, getGlobalGrowth } from "../tools/jamesGlobalLearning";
 import { buildJamesContext } from "../tools/jamesContext";
 import { executeJamesCapabilities, planJamesIntelligence, planJamesIntelligenceWithAI } from "../tools/jamesIntelligence";
-import { runJamesCognitiveRecovery, runJamesCognitiveVerification } from "../tools/jamesCognitiveLoop";
+import { runJamesAgentLoop } from "../tools/jamesAgentLoop";
 import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
 
@@ -1202,107 +1202,44 @@ Jangan menyebut reasoning internal.`
       ? "\\nIDENTITAS TERVERIFIKASI: Pengguna telah melewati verifikasi server sebagai Omanto. Kamu boleh memperlakukan identitas Omanto sebagai terverifikasi untuk percakapan ini.\\n"
       : "";
     if (intelligencePlan.capabilities.length > 1) {
-      const capabilityResults = await executeJamesCapabilities(
-        intelligencePlan,
-        userRequest
-      );
+      const agentResult = await runJamesAgentLoop({
+        request: userRequest,
+        initialPlan: intelligencePlan,
+        conversationContext: memoryContext,
+      });
 
-      const toolContext = capabilityResults.length
-        ? capabilityResults.map((item) =>
-            [
-              `CAPABILITY: ${item.capability}`,
-              item.text,
-            ].join("\n")
-          ).join("\n\n")
-        : "Tidak ada hasil capability eksternal.";
-
-      const orchestratorPrompt = `
-Kamu adalah James. Jalankan permintaan pengguna sebagai tugas multi-langkah.
-
-ATURAN RESEARCH:
-- Jika RESEARCH_STATUS: VERIFIED, fakta terkini yang berkaitan dengan permintaan wajib berasal dari sumber research yang tersedia.
-- Jangan mengganti fakta terkini dari research dengan pengetahuan model yang lebih lama.
-- Jika RESEARCH_STATUS bukan VERIFIED, jangan mengklaim fakta terkini sudah terverifikasi.
-- Jangan menyebut suatu versi sebagai "versi terbaru" tanpa dukungan sumber research.
-
-
-PERMINTAAN:
-"${userRequest}"
-
-HASIL CAPABILITY YANG SUDAH DIJALANKAN:
-${toolContext}
-
-Gunakan hasil capability di atas sebagai input kerja.
-Jika ada research, gunakan hanya sumber yang tersedia.
-Jika research digunakan dalam jawaban, sertakan bagian "Sumber" di akhir dengan URL yang benar-benar tersedia pada hasil research. Jangan membuat URL baru.
-Jika ada beberapa sumber, utamakan sumber yang ditandai OFFICIAL dan gunakan sumber umum hanya sebagai pelengkap.
-Jika pengguna meminta rencana, dokumen, atau langkah lanjutan, kerjakan berdasarkan hasil tersebut.
-Jangan mengarang fakta yang tidak didukung hasil capability.
-Jangan menampilkan label internal seperti "User Safety: safe", "Safety Check", metadata provider, status tool, reasoning, atau status eksekusi.
-Berikan hanya jawaban akhir yang ditujukan kepada pengguna.
-Berikan hasil akhir yang siap digunakan pengguna.
-`;
-
-      const rawResultText = await callJamesAI(
-        `${memoryContext}\n\n${orchestratorPrompt}`,
-        buildJamesSystemInstruction(
-          "Kamu sedang menjalankan tugas multi-capability. Gabungkan hasil tools menjadi jawaban akhir yang koheren. Output hanya jawaban untuk pengguna; jangan keluarkan label safety, metadata internal, reasoning, atau status tool."
-        )
-      );
-      const researchVerified = capabilityResults.some(
+      const researchVerified = agentResult.capabilityResults.some(
         (item) =>
           item.capability === "web_search" &&
           item.text.includes("RESEARCH_STATUS: VERIFIED")
       );
-      let resultText = sanitizeUnavailableResearchResponse(
-        sanitizeJamesFinalResponse(rawResultText),
+
+      const resultText = sanitizeUnavailableResearchResponse(
+        sanitizeJamesFinalResponse(agentResult.answer),
         researchVerified
       );
 
-      const cognitiveVerification = await runJamesCognitiveVerification({
-        request: userRequest,
-        plan: intelligencePlan,
-        executionContext: `${toolContext}
-
-DRAFT JAMES RESPONSE:
-${resultText}`,
-        conversationContext: memoryContext,
-      });
-
-      if (cognitiveVerification.verified && cognitiveVerification.answer) {
-        resultText = sanitizeUnavailableResearchResponse(
-          sanitizeJamesFinalResponse(cognitiveVerification.answer),
-          researchVerified
-        );
-      } else {
-        const recovery = await runJamesCognitiveRecovery({
-          request: userRequest,
-          plan: intelligencePlan,
-          failedContext: `${toolContext}
-
-DRAFT JAMES RESPONSE:
-${resultText}`,
-          conversationContext: memoryContext,
-        });
-
-        if (recovery.verified && recovery.answer) {
-          resultText = sanitizeUnavailableResearchResponse(
-            sanitizeJamesFinalResponse(recovery.answer),
-            researchVerified
-          );
-        }
-      }
-
-      const citations = capabilityResults.flatMap((item) => item.citations || []);
-
-      await saveActivity(userRequest, intent, "intelligence-orchestrator", resultText);
-      await saveJames(userId, conversationId, userRequest, resultText, intent, "intelligence-orchestrator");
-      if (omantoVerified) {
-        void evolveJames({
+      await saveActivity(
+        userRequest,
+        intent,
+        agentResult.recovered ? "james-agent-recovery" : "james-agent-loop",
+        resultText
+      );
+      await saveJames(
         userId,
         conversationId,
         userRequest,
-        assistantResult: resultText,
+        resultText,
+        intent,
+        agentResult.recovered ? "james-agent-recovery" : "james-agent-loop"
+      );
+
+      if (omantoVerified) {
+        void evolveJames({
+          userId,
+          conversationId,
+          userRequest,
+          assistantResult: resultText,
         }).catch((error) => {
           console.error("James background learning error:", error);
         });
@@ -1311,9 +1248,15 @@ ${resultText}`,
       return NextResponse.json({
         result: resultText,
         intent,
-        capabilities: intelligencePlan.capabilities,
-        tool: "intelligence-orchestrator",
-        citations,
+        capabilities: agentResult.plan.capabilities,
+        tool: agentResult.recovered ? "james-agent-recovery" : "james-agent-loop",
+        agent: {
+          verified: agentResult.verified,
+          iterations: agentResult.iterations,
+          recovered: agentResult.recovered,
+          steps: agentResult.steps,
+        },
+        citations: agentResult.citations,
         userId,
         conversationId,
         memoryAvailable: memory.available,
