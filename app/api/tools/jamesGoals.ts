@@ -78,8 +78,10 @@ export async function saveJamesGoal(goal: JamesGoal) {
   return data;
 }
 
+type JamesProviderName = "gemini" | "openai" | "openrouter" | "groq";
+
 export async function saveProviderCapabilities(
-  observations: Array<{ provider: "gemini" | "openrouter" | "groq"; model: string; capability: Record<string, unknown>; source: string }>
+  observations: Array<{ provider: JamesProviderName; model: string; capability: Record<string, unknown>; source: string }>
 ) {
   const supabase = db();
   if (!supabase || !observations.length) return;
