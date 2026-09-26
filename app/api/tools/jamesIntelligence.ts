@@ -33,7 +33,7 @@ function normalize(text: string) {
 function extractResearchQuery(request: string) {
   const cleaned = request
     .replace(/[“”"]/g, "")
-    .replace(/s+/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
   const topicMatch = cleaned.match(
