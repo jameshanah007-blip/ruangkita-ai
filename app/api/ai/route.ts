@@ -859,7 +859,7 @@ export async function POST(request: Request) {
     const userRequest =
       typeof body?.request === "string" ? body.request.trim() : "";
 
-    const claimsOmanto = /\\bsaya\\s+adalah\\s+omanto\\b/i.test(userRequest);
+    const claimsOmanto = /\b(?:saya|aku)\s+(?:adalah\s+)?omanto\b/i.test(userRequest);
     const omantoVerified = isOmantoVerified(request);
 
     if (claimsOmanto && !omantoVerified) {
