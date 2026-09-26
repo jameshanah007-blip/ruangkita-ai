@@ -53,11 +53,81 @@ function terms(text: string) {
   )];
 }
 
+function editDistance(a: string, b: string) {
+  if (a === b) return 0;
+  if (!a) return b.length;
+  if (!b) return a.length;
+
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+
+    for (let j = 1; j <= b.length; j++) {
+      const insert = current[j - 1] + 1;
+      const remove = previous[j] + 1;
+      const replace = previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1);
+      current.push(Math.min(insert, remove, replace));
+    }
+
+    for (let j = 0; j < current.length; j++) previous[j] = current[j];
+  }
+
+  return previous[b.length];
+}
+
+function normalizeChatWord(word: string) {
+  const aliases: Record<string, string> = {
+    yg: "yang",
+    dgn: "dengan",
+    utk: "untuk",
+    krn: "karena",
+    klo: "kalau",
+    kl: "kalau",
+    bgt: "banget",
+    bkn: "bukan",
+    blm: "belum",
+    udh: "sudah",
+    udah: "sudah",
+    lg: "lagi",
+    jg: "juga",
+    aja: "saja",
+    gk: "tidak",
+    ga: "tidak",
+    gak: "tidak",
+    ngga: "tidak",
+    nggak: "tidak",
+    kmu: "kamu",
+    bsa: "bisa",
+    bkin: "bikin",
+  };
+
+  return aliases[word] || word;
+}
+
 function score(query: string, value: string) {
-  const q = new Set(terms(query));
-  const v = new Set(terms(value));
+  const q = [...new Set(terms(query).map(normalizeChatWord))];
+  const v = [...new Set(terms(value).map(normalizeChatWord))];
   let matches = 0;
-  for (const word of q) if (v.has(word)) matches++;
+
+  for (const word of q) {
+    if (v.includes(word)) {
+      matches++;
+      continue;
+    }
+
+    // Tolerate common one/two-character typos without making unrelated
+    // words look relevant.
+    const fuzzy = v.some((candidate) => {
+      if (word.length < 4 || candidate.length < 4) return false;
+      const threshold = word.length >= 7 ? 2 : 1;
+      return Math.abs(word.length - candidate.length) <= threshold &&
+        editDistance(word, candidate) <= threshold;
+    });
+
+    if (fuzzy) matches++;
+  }
+
   return matches;
 }
 
