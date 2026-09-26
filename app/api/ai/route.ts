@@ -26,6 +26,7 @@ import {
 } from "../../fun-zone/aiRouter";
 import { getGlobalGrowth } from "../tools/jamesGlobalLearning";
 import { buildJamesContext } from "../tools/jamesContext";
+import { planJamesIntelligence } from "../tools/jamesIntelligence";
 
 type Intent =
   | "chat"
@@ -841,7 +842,8 @@ export async function POST(request: Request) {
       globalGrowth,
     });
     const memoryContext = contextResult.context;
-    const intent = detectIntent(userRequest);
+    const intelligencePlan = planJamesIntelligence(userRequest);
+    const intent = intelligencePlan.primary;
 
     const rememberInstruction = buildJamesSystemInstruction(`
 KONTEKS MEMORI:
