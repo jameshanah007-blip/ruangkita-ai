@@ -65,28 +65,72 @@ async function runSearch(exaClient: Exa, query: string) {
     .slice(0, 5);
 }
 
-export async function webSearch(query: string) {
-  if (!query.trim()) {
+export type WebSearchResult = {
+  title: string;
+  url: string;
+  highlights: string[];
+  relevance: number;
+};
+
+export type WebSearchResponse = {
+  status: "verified" | "unavailable" | "no_relevant_results";
+  query: string;
+  attemptedQueries: string[];
+  results: WebSearchResult[];
+  reason?: string;
+};
+
+export async function webSearch(query: string): Promise<WebSearchResponse> {
+  const normalizedQuery = query.trim();
+
+  if (!normalizedQuery) {
     throw new Error("Query pencarian kosong.");
   }
 
   const exaClient = getExaClient();
 
   if (!exaClient) {
-    return [];
+    return {
+      status: "unavailable",
+      query: normalizedQuery,
+      attemptedQueries: [],
+      results: [],
+      reason: "EXA_API_KEY tidak tersedia di runtime.",
+    };
   }
 
-  const queries = [
-    query.trim(),
-    `${query.trim()} official`,
+  const attemptedQueries = [
+    normalizedQuery,
+    `${normalizedQuery} official`,
   ];
 
-  for (const candidateQuery of queries) {
-    const results = await runSearch(exaClient, candidateQuery);
-    if (results.length > 0) {
-      return results;
+  let hadResponse = false;
+
+  for (const candidateQuery of attemptedQueries) {
+    try {
+      const results = await runSearch(exaClient, candidateQuery);
+      hadResponse = true;
+
+      if (results.length > 0) {
+        return {
+          status: "verified",
+          query: normalizedQuery,
+          attemptedQueries,
+          results,
+        };
+      }
+    } catch (error) {
+      console.error("Exa research error:", error);
     }
   }
 
-  return [];
+  return {
+    status: hadResponse ? "no_relevant_results" : "unavailable",
+    query: normalizedQuery,
+    attemptedQueries,
+    results: [],
+    reason: hadResponse
+      ? "Exa mengembalikan respons tetapi tidak ada hasil yang lolos verifikasi relevansi."
+      : "Exa tidak memberikan respons yang dapat digunakan.",
+  };
 }
