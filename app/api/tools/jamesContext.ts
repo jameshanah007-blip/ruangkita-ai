@@ -165,22 +165,62 @@ export function buildJamesContext(input: ContextInput) {
       ) === index
     );
 
-  const selectedMemories = [...(input.longTermMemories || [])]
-    .map((memory, index) => ({
-      memory,
-      index,
-      relevance: score(
-        query,
-        [memory.memory_type, memory.memory_key, memory.memory_value].filter(Boolean).join(" ")
-      ),
-    }))
+  const memoryCandidates = [...(input.longTermMemories || [])].map((memory, index) => ({
+    memory,
+    index,
+    relevance: score(
+      query,
+      [memory.memory_type, memory.memory_key, memory.memory_value].filter(Boolean).join(" ")
+    ),
+    priority:
+      memory.memory_type === "identity" || memory.memory_type === "relationship"
+        ? 5
+        : memory.memory_type === "project" || memory.memory_type === "goal"
+          ? 4
+          : memory.memory_type === "preference"
+            ? 3
+            : memory.memory_type === "interest"
+              ? 2
+              : 1,
+  }));
+
+  // Stable identity/project/goal memories should not disappear just because
+  // the current message uses different words.
+  const priorityMemories = memoryCandidates
+    .filter(({ memory }) =>
+      memory.memory_type === "identity" ||
+      memory.memory_type === "relationship" ||
+      memory.memory_type === "project" ||
+      memory.memory_type === "goal"
+    )
+    .sort((a, b) =>
+      b.priority - a.priority ||
+      (Number(b.memory.confidence) || 0) - (Number(a.memory.confidence) || 0) ||
+      b.index - a.index
+    )
+    .slice(0, 6)
+    .map(({ memory }) => memory);
+
+  const relevantMemories = memoryCandidates
     .sort((a, b) =>
       b.relevance - a.relevance ||
+      b.priority - a.priority ||
       (Number(b.memory.confidence) || 0) - (Number(a.memory.confidence) || 0) ||
       b.index - a.index
     )
     .slice(0, 12)
     .map(({ memory }) => memory);
+
+  const selectedMemories = [...priorityMemories, ...relevantMemories]
+    .filter((memory, index, list) =>
+      list.findIndex(
+        (candidate) =>
+          candidate.memory_type === memory.memory_type &&
+          candidate.memory_key === memory.memory_key &&
+          candidate.memory_value === memory.memory_value
+      ) === index
+    )
+    .slice(0, 16);
 
   const growth = input.growth;
   const selectedGrowth = growth
