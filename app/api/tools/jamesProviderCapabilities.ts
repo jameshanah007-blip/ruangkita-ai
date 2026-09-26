@@ -1,6 +1,6 @@
 import { saveProviderCapabilities } from "./jamesGoals";
 
-type Provider = "gemini" | "openrouter" | "groq";
+type Provider = "gemini" | "openai" | "openrouter" | "groq";
 
 async function fetchJson(url: string, init?: RequestInit) {
   const response = await fetch(url, {
@@ -43,6 +43,27 @@ export async function refreshJamesProviderCapabilities() {
       }
     } catch (error) {
       console.error("Gemini capability probe failed:", error);
+    }
+  }
+
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const data = await fetchJson("https://api.openai.com/v1/models", {
+        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      });
+      for (const model of (data.data || []).slice(0, 50)) {
+        observations.push({
+          provider: "openai",
+          model: String(model.id || ""),
+          capability: {
+            owned_by: model.owned_by || "",
+            created: model.created ?? null,
+          },
+          source: "OpenAI models API",
+        });
+      }
+    } catch (error) {
+      console.error("OpenAI capability probe failed:", error);
     }
   }
 
