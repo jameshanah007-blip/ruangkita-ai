@@ -12,6 +12,13 @@ import {
   runJamesCognitiveRecovery,
   runJamesCognitiveVerification,
 } from "./jamesCognitiveLoop";
+import { planJamesTaskActions, type JamesTaskAction } from "./jamesTaskPlanner";
+import {
+  createJamesAgentTask,
+  updateJamesAgentTask,
+  completeJamesAgentTask,
+  failJamesAgentTask,
+} from "./jamesAgentState";
 
 export type JamesAgentStage =
   | "understand"
@@ -63,7 +70,9 @@ async function synthesize(
 ): Promise<JamesResourceResult> {
   const toolContext = buildExecutionContext(capabilityResults);
   const researchVerified = capabilityResults.some(
-    (item) => item.capability === "web_search" && item.text.includes("RESEARCH_STATUS: VERIFIED")
+    (item) =>
+      item.capability === "web_search" &&
+      item.text.includes("RESEARCH_STATUS: VERIFIED")
   );
 
   return generateWithJamesResourceManager("reasoning", {
@@ -73,10 +82,10 @@ async function synthesize(
       "PERMINTAAN PENGGUNA:",
       request,
       "",
-      "RENCANA AKTIF:",
+      "RENCANA KECERDASAN:",
       JSON.stringify(plan),
       "",
-      "HASIL CAPABILITY YANG SUDAH DIJALANKAN:",
+      "HASIL SUBTUGAS:",
       compact(toolContext),
       "",
       "KONTEKS PERCAKAPAN:",
@@ -85,30 +94,47 @@ async function synthesize(
       "RESEARCH VERIFIED: " + (researchVerified ? "YA" : "TIDAK"),
       "",
       "Aturan:",
-      "- Gunakan hasil capability sebagai sumber kerja utama.",
+      "- Gunakan hasil subtugas yang benar-benar tersedia sebagai sumber kerja utama.",
       "- Jika research tidak verified, jangan menyebut fakta terkini sebagai sudah terverifikasi.",
-      "- Jangan membuat URL atau fakta yang tidak tersedia dalam hasil capability.",
+      "- Jangan membuat URL atau fakta yang tidak tersedia dalam hasil subtugas.",
       "- Jika tugas meminta dokumen/rencana, hasilkan langsung dalam bentuk siap pakai.",
       "- Jangan tampilkan reasoning internal, metadata provider, status tool, atau label safety.",
       "- Jawab langsung kepada pengguna dalam bahasa Indonesia yang natural."
     ].join("\n"),
     systemInstruction:
-      "Kamu adalah execution synthesizer James. Selesaikan tugas berdasarkan hasil tool yang nyata. Jangan mengarang tool result atau fakta eksternal.",
+      "Kamu adalah execution synthesizer James. Selesaikan tugas berdasarkan hasil subtugas yang nyata. Jangan mengarang hasil tool atau fakta eksternal.",
     temperature: 0.35,
     maxOutputTokens: 4000,
   });
+}
+
+function planFromAction(action: JamesTaskAction): JamesIntelligencePlan {
+  return {
+    confidence: 0.9,
+    planningMode: "semantic",
+    capabilities: [action.capability],
+    primary: action.capability,
+    researchQuery: action.capability === "web_search" ? action.input : "",
+    needsResearch: action.capability === "web_search",
+    needsMemory: true,
+    needsExperience: true,
+    reason: action.goal,
+  };
 }
 
 export async function runJamesAgentLoop(input: {
   request: string;
   initialPlan: JamesIntelligencePlan;
   conversationContext?: string;
+  userId?: string;
+  conversationId?: string;
 }): Promise<JamesAgentResult> {
   const steps: JamesAgentStep[] = [];
   let plan = input.initialPlan;
   let allCapabilityResults: JamesCapabilityResult[] = [];
   let lastExecutionContext = "";
   let lastAnswer = "";
+  let recovered = false;
 
   steps.push({
     iteration: 1,
@@ -116,6 +142,35 @@ export async function runJamesAgentLoop(input: {
     status: "completed",
     detail: "Permintaan dan percakapan tersedia sebagai konteks agent.",
   });
+
+  let actions = await planJamesTaskActions({
+    request: input.request,
+    intelligencePlan: plan,
+    conversationContext: input.conversationContext,
+  });
+
+  if (!actions.length) {
+    actions = plan.capabilities.map((capability, index) => ({
+      id: "step-" + (index + 1),
+      goal: "Menjalankan capability " + capability,
+      capability,
+      input: input.request,
+      dependsOn: index > 0 ? ["step-" + index] : [],
+      status: "pending" as const,
+    }));
+  }
+
+  const taskId =
+    input.userId && input.conversationId
+      ? await createJamesAgentTask({
+          userId: input.userId,
+          conversationId: input.conversationId,
+          request: input.request,
+          actions,
+        })
+      : null;
+
+  const outputs: Record<string, string> = {};
 
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration += 1) {
     steps.push({
@@ -126,46 +181,100 @@ export async function runJamesAgentLoop(input: {
         plan.planningMode +
         " planning, confidence " +
         plan.confidence.toFixed(2) +
-        ", capabilities: " +
-        plan.capabilities.join(", ") +
+        ", subtasks: " +
+        actions.length +
         ".",
     });
 
     let capabilityResults: JamesCapabilityResult[] = [];
-    try {
-      capabilityResults = await executeJamesCapabilities(plan, input.request);
-      allCapabilityResults = allCapabilityResults.concat(capabilityResults);
-      lastExecutionContext = buildExecutionContext(capabilityResults);
-      steps.push({
-        iteration,
-        stage: "execute",
-        status: "completed",
-        detail: capabilityResults.length + " capability selesai dijalankan.",
+
+    for (let index = 0; index < actions.length; index += 1) {
+      const action = actions[index];
+      if (action.status === "completed") continue;
+
+      const dependenciesReady = action.dependsOn.every((dependency) =>
+        actions.some((item) => item.id === dependency && item.status === "completed")
+      );
+
+      if (!dependenciesReady) {
+        action.status = "failed";
+        outputs[action.id] = "Dependency belum selesai.";
+        await updateJamesAgentTask(taskId, {
+          currentStep: index,
+          actions,
+          outputs,
+        });
+        continue;
+      }
+
+      action.status = "running";
+      await updateJamesAgentTask(taskId, {
+        currentStep: index,
+        actions,
+        outputs,
       });
-    } catch (error) {
-      lastExecutionContext = error instanceof Error ? error.message : String(error);
-      steps.push({
-        iteration,
-        stage: "execute",
-        status: "failed",
-        detail: lastExecutionContext,
+
+      try {
+        const actionResults = await executeJamesCapabilities(
+          planFromAction(action),
+          action.input
+        );
+
+        capabilityResults = capabilityResults.concat(actionResults);
+        const actionContext = buildExecutionContext(actionResults);
+        outputs[action.id] = actionContext;
+        action.status = "completed";
+
+        steps.push({
+          iteration,
+          stage: "execute",
+          status: "completed",
+          detail: action.id + " selesai: " + action.goal,
+        });
+      } catch (error) {
+        action.status = "failed";
+        outputs[action.id] =
+          error instanceof Error ? error.message : String(error);
+
+        steps.push({
+          iteration,
+          stage: "execute",
+          status: "failed",
+          detail: action.id + " gagal: " + outputs[action.id],
+        });
+      }
+
+      await updateJamesAgentTask(taskId, {
+        currentStep: index,
+        actions,
+        outputs,
       });
     }
+
+    allCapabilityResults = allCapabilityResults.concat(capabilityResults);
+    lastExecutionContext = [
+      buildExecutionContext(capabilityResults),
+      "STATE SUBTASK:",
+      JSON.stringify(actions),
+      "OUTPUT SUBTASK:",
+      JSON.stringify(outputs),
+    ].join("\n\n");
 
     try {
       const synthesis = await synthesize(
         input.request,
         plan,
-        capabilityResults,
+        allCapabilityResults,
         input.conversationContext || "(tidak ada)",
       );
       lastAnswer = synthesis.text.trim();
+
       steps.push({
         iteration,
         stage: "synthesize",
         status: lastAnswer ? "completed" : "failed",
         detail: lastAnswer
-          ? "Draft jawaban berhasil dibuat."
+          ? "Draft jawaban berhasil dibuat dari hasil subtugas."
           : "Synthesis menghasilkan jawaban kosong.",
       });
     } catch (error) {
@@ -187,37 +296,37 @@ export async function runJamesAgentLoop(input: {
         conversationContext: input.conversationContext,
       });
 
-      if (verification.steps.length) {
-        for (const step of verification.steps) {
-          steps.push({
-            iteration,
-            stage:
-              step.stage === "understand" ||
-              step.stage === "plan" ||
-              step.stage === "execute" ||
-              step.stage === "verify" ||
-              step.stage === "replan"
-                ? step.stage
-                : "verify",
-            status: step.status,
-            detail: step.detail,
-          });
-        }
+      for (const step of verification.steps) {
+        steps.push({
+          iteration,
+          stage:
+            step.stage === "understand" ||
+            step.stage === "plan" ||
+            step.stage === "execute" ||
+            step.stage === "verify" ||
+            step.stage === "replan"
+              ? step.stage
+              : "verify",
+          status: step.status,
+          detail: step.detail,
+        });
       }
 
       if (verification.verified && verification.answer) {
         const citations = allCapabilityResults.flatMap((item) => item.citations || []);
+        await completeJamesAgentTask(taskId, outputs);
         steps.push({
           iteration,
           stage: "complete",
           status: "completed",
           detail: "Tugas tervalidasi pada iterasi " + iteration + ".",
         });
+
         return {
           answer: verification.answer,
           verified: true,
           iterations: iteration,
-          recovered: false,
+          recovered,
           plan,
           capabilityResults: allCapabilityResults,
           citations,
@@ -231,7 +340,7 @@ export async function runJamesAgentLoop(input: {
         iteration,
         stage: "replan",
         status: "completed",
-        detail: "Hasil belum tervalidasi; agent meminta rencana baru berdasarkan gap yang ditemukan.",
+        detail: "James akan re-plan berdasarkan hasil dan gap subtugas.",
       });
 
       try {
@@ -239,13 +348,31 @@ export async function runJamesAgentLoop(input: {
           input.request,
           [
             input.conversationContext || "",
+            "STATE SUBTASK:",
+            JSON.stringify(actions),
+            "OUTPUT SUBTASK:",
+            JSON.stringify(outputs),
             "HASIL ITERASI TERAKHIR:",
             compact(lastExecutionContext),
             "DRAFT TERAKHIR:",
             compact(lastAnswer, 3500),
-            "Rencanakan langkah berikutnya hanya jika diperlukan. Jangan mengulang capability yang sudah cukup kecuali ada alasan.",
+            "Rencanakan hanya langkah yang masih diperlukan.",
           ].join("\n\n"),
         );
+
+        const replanned = await planJamesTaskActions({
+          request: input.request,
+          intelligencePlan: plan,
+          conversationContext: input.conversationContext,
+          previousState: JSON.stringify({
+            actions,
+            outputs,
+          }),
+        });
+
+        if (replanned.length) {
+          actions = replanned;
+        }
       } catch (error) {
         steps.push({
           iteration,
@@ -260,10 +387,12 @@ export async function runJamesAgentLoop(input: {
   const recovery = await runJamesCognitiveRecovery({
     request: input.request,
     plan,
-    failedContext: lastExecutionContext + "\n\nDRAFT TERAKHIR:\n" + lastAnswer,
+    failedContext:
+      lastExecutionContext + "\n\nDRAFT TERAKHIR:\n" + lastAnswer,
     conversationContext: input.conversationContext,
   });
 
+  recovered = true;
   steps.push({
     iteration: MAX_ITERATIONS,
     stage: "recover",
@@ -274,13 +403,19 @@ export async function runJamesAgentLoop(input: {
         : "Recovery tidak menghasilkan jawaban yang dapat digunakan.",
   });
 
+  if (recovery.verified && recovery.answer) {
+    await completeJamesAgentTask(taskId, outputs);
+  } else {
+    await failJamesAgentTask(taskId, outputs);
+  }
+
   const citations = allCapabilityResults.flatMap((item) => item.citations || []);
 
   return {
     answer: recovery.answer || lastAnswer,
     verified: recovery.verified,
     iterations: MAX_ITERATIONS,
-    recovered: true,
+    recovered,
     plan,
     capabilityResults: allCapabilityResults,
     citations,
