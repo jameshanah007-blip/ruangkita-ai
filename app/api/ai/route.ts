@@ -979,9 +979,10 @@ Alasan: ${research.reason || "tidak ada"}
 Mesin penelitian eksternal James tidak menyediakan sumber yang dapat diverifikasi.
 Bantu pengguna semaksimal mungkin berdasarkan pengetahuan yang tersedia.
 JANGAN mengklaim bahwa informasi terbaru sudah diverifikasi.
-JANGAN menyebut nomor versi, tanggal rilis, fitur terbaru, harga terbaru, atau fakta time-sensitive sebagai fakta terkini jika tidak berasal dari sumber yang tersedia.
-Jika pertanyaan membutuhkan data yang berubah cepat, jelaskan secara singkat bahwa kamu tidak dapat memverifikasinya saat ini.
-Jika kamu memberikan pengetahuan umum, bedakan dengan jelas dari informasi terkini.
+JANGAN menyebut nomor versi apa pun, tanggal rilis apa pun, tahun rilis tertentu, atau fitur yang diklaim "terbaru/terkini" dalam jawaban fallback ini.
+JANGAN menggunakan frasa seperti "versi terbaru adalah", "hingga 2024", "hingga April 2024", "berdasarkan pengetahuan saya sampai", atau variasi sejenis.
+Jika pertanyaan membutuhkan data yang berubah cepat, katakan secara singkat bahwa data tersebut belum dapat diverifikasi.
+Kamu BOLEH tetap membantu dengan konsep umum yang tidak bergantung pada versi, lalu berikan rencana belajar yang tidak mengunci pengguna pada nomor versi.
 Jawab sebagai James dalam bahasa Indonesia yang natural dan praktis.
 `;
 
