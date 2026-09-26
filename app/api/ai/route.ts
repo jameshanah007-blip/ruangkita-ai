@@ -127,7 +127,7 @@ async function callJamesAI(
 ): Promise<string> {
   const result = await generateWithAIRouter({
     prompt: userInput,
-    systemInstruction: systemInstruction || buildJamesSystemInstruction(jamesKnowledgeContext),
+    systemInstruction: systemInstruction || buildJamesSystemInstruction(),
     temperature: 0.7,
     maxOutputTokens: 4000,
   });
