@@ -187,68 +187,70 @@ export async function runJamesAgentLoop(input: {
     });
 
     let capabilityResults: JamesCapabilityResult[] = [];
+    let executedThisIteration = 0;
 
-    for (let index = 0; index < actions.length; index += 1) {
-      const action = actions[index];
-      if (action.status === "completed") continue;
-
-      const dependenciesReady = action.dependsOn.every((dependency) =>
-        actions.some((item) => item.id === dependency && item.status === "completed")
+    while (actions.some((action) => action.status === "pending")) {
+      const ready = actions.filter((action) =>
+        action.status === "pending" &&
+        action.dependsOn.every((dependency) =>
+          actions.some((item) => item.id === dependency && item.status === "completed")
+        )
       );
 
-      if (!dependenciesReady) {
-        action.status = "failed";
-        outputs[action.id] = "Dependency belum selesai.";
+      if (!ready.length) {
+        for (const action of actions.filter((item) => item.status === "pending")) {
+          action.status = "failed";
+          outputs[action.id] = "Dependency cycle atau dependency yang tidak dapat diselesaikan.";
+        }
+
+        await updateJamesAgentTask(taskId, { actions, outputs });
+        break;
+      }
+
+      for (const action of ready) {
+        action.status = "running";
         await updateJamesAgentTask(taskId, {
-          currentStep: index,
+          currentStep: executedThisIteration,
           actions,
           outputs,
         });
-        continue;
-      }
 
-      action.status = "running";
-      await updateJamesAgentTask(taskId, {
-        currentStep: index,
-        actions,
-        outputs,
-      });
+        try {
+          const actionResults = await executeJamesCapabilities(
+            planFromAction(action),
+            action.input
+          );
 
-      try {
-        const actionResults = await executeJamesCapabilities(
-          planFromAction(action),
-          action.input
-        );
+          capabilityResults = capabilityResults.concat(actionResults);
+          outputs[action.id] = buildExecutionContext(actionResults);
+          action.status = "completed";
+          executedThisIteration += 1;
 
-        capabilityResults = capabilityResults.concat(actionResults);
-        const actionContext = buildExecutionContext(actionResults);
-        outputs[action.id] = actionContext;
-        action.status = "completed";
+          steps.push({
+            iteration,
+            stage: "execute",
+            status: "completed",
+            detail: action.id + " selesai: " + action.goal,
+          });
+        } catch (error) {
+          action.status = "failed";
+          outputs[action.id] =
+            error instanceof Error ? error.message : String(error);
 
-        steps.push({
-          iteration,
-          stage: "execute",
-          status: "completed",
-          detail: action.id + " selesai: " + action.goal,
-        });
-      } catch (error) {
-        action.status = "failed";
-        outputs[action.id] =
-          error instanceof Error ? error.message : String(error);
+          steps.push({
+            iteration,
+            stage: "execute",
+            status: "failed",
+            detail: action.id + " gagal: " + outputs[action.id],
+          });
+        }
 
-        steps.push({
-          iteration,
-          stage: "execute",
-          status: "failed",
-          detail: action.id + " gagal: " + outputs[action.id],
+        await updateJamesAgentTask(taskId, {
+          currentStep: executedThisIteration,
+          actions,
+          outputs,
         });
       }
-
-      await updateJamesAgentTask(taskId, {
-        currentStep: index,
-        actions,
-        outputs,
-      });
     }
 
     allCapabilityResults = allCapabilityResults.concat(capabilityResults);
