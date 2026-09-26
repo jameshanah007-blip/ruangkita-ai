@@ -447,7 +447,7 @@ export default function AIExecutor() {
 
           <div className="sticky bottom-0 bg-[#0b0f14]/95 pb-1 pt-3 backdrop-blur sm:pt-4">
             <form onSubmit={handleSubmit}>
-              <div className="rounded-3xl border border-white/10 bg-[#151a21] p-2 shadow-2xl shadow-black/30 focus-within:border-cyan-400/30">
+              <div className="mx-auto max-w-3xl rounded-2xl border border-white/10 bg-[#151a21] p-1.5 shadow-xl shadow-black/20 focus-within:border-cyan-400/30">
                 <textarea
                   ref={textareaRef}
                   value={request}
@@ -459,15 +459,15 @@ export default function AIExecutor() {
                   placeholder={omantoVerified ? "Pesan untuk James sebagai Omanto..." : "Pesan untuk James..."}
                   rows={1}
                   disabled={!memoryReady || loading}
-                  className="max-h-40 min-h-12 w-full resize-none bg-transparent px-3 py-2.5 text-[15px] leading-6 text-white outline-none placeholder:text-slate-600 disabled:opacity-60 sm:min-h-14 sm:px-4"
+                  className="max-h-32 min-h-10 w-full resize-none bg-transparent px-3 py-2 text-[15px] leading-5 text-white outline-none placeholder:text-slate-600 disabled:opacity-60 sm:px-3"
                   aria-label="Pesan untuk James"
                 />
 
-                <div className="flex items-center justify-between gap-2 px-2 pb-1">
-                  <span className="hidden text-xs text-slate-600 sm:block">
+                <div className="flex items-center justify-end gap-2 px-1 pb-0.5">
+                  <span className="hidden text-[11px] text-slate-600 sm:block">
                     Enter untuk kirim · Shift+Enter untuk baris baru
                   </span>
-                  <span className="text-[11px] text-slate-600 sm:hidden">
+                  <span className="hidden text-[10px] text-slate-600 sm:hidden">
                     Enter untuk kirim
                   </span>
 
