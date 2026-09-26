@@ -78,7 +78,7 @@ export async function saveJamesGoal(goal: JamesGoal) {
   return data;
 }
 
-type JamesProviderName = "gemini" | "openai" | "openrouter" | "groq";
+export type JamesProviderName = "gemini" | "openai" | "openrouter" | "groq";
 
 export async function saveProviderCapabilities(
   observations: Array<{ provider: JamesProviderName; model: string; capability: Record<string, unknown>; source: string }>
