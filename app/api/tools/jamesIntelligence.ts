@@ -156,18 +156,26 @@ export async function executeJamesCapabilities(
     }
 
     if (capability === "web_search" && options?.enableResearch !== false) {
-      const found = await webSearch(plan.researchQuery || request);
-      const text = found.length
-        ? found.map((item, index) =>
-            `SUMBER ${index + 1}: ${item.title}\nURL: ${item.url}\n${item.highlights.join(" ")}`
-          ).join("\n\n")
-        : "Tidak ada sumber eksternal yang lolos verifikasi relevansi.";
+      const research = await webSearch(plan.researchQuery || request);
+      const text = research.results.length
+        ? [
+            `RESEARCH_STATUS: ${research.status.toUpperCase()}`,
+            `RESEARCH_QUERY: ${research.query}`,
+            research.results.map((item, index) =>
+              `SUMBER ${index + 1}: ${item.title}\nURL: ${item.url}\n${item.highlights.join(" ")}`
+            ).join("\n\n"),
+          ].join("\n")
+        : [
+            `RESEARCH_STATUS: ${research.status.toUpperCase()}`,
+            `RESEARCH_QUERY: ${research.query}`,
+            `RESEARCH_REASON: ${research.reason || "Tidak ada sumber yang dapat digunakan."}`,
+          ].join("\n");
 
       results.push({
         capability,
         status: "executed",
         text,
-        citations: found.map((item) => ({ title: item.title, url: item.url })),
+        citations: research.results.map((item) => ({ title: item.title, url: item.url })),
       });
       accumulatedContext += `\n[web_search]\n${text}`;
       continue;
