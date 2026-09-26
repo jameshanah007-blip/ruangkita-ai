@@ -257,3 +257,57 @@ export async function generateWithAIRouter(
 
   throw error;
 }
+
+export async function generateWithAllAIProviders(
+  request: AIGenerateRequest
+): Promise<Array<AIGenerateResponse & { attempts: string[] }>> {
+  const providers = [
+    ...aiProviders,
+    openRouterProvider,
+    groqProvider,
+  ];
+
+  const availableProviders = providers.filter((provider) => provider.isAvailable());
+
+  if (!availableProviders.length) {
+    throw new Error("Tidak ada AI provider yang tersedia untuk James Learning.");
+  }
+
+  const results = await Promise.allSettled(
+    availableProviders.map(async (provider) => {
+      const attempts: string[] = [];
+      try {
+        const result = await generateWithTimeout(
+          provider.name,
+          () => provider.generate(request)
+        );
+        return { ...result, attempts };
+      } catch (error) {
+        attempts.push(
+          `${provider.name}: ${getErrorMessage(error)}`
+        );
+        throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
+          attempts,
+        });
+      }
+    })
+  );
+
+  const successful = results
+    .filter(
+      (result): result is PromiseFulfilledResult<AIGenerateResponse & { attempts: string[] }> =>
+        result.status === "fulfilled"
+    )
+    .map((result) => result.value);
+
+  if (!successful.length) {
+    const failures = results
+      .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+      .map((result) => getErrorMessage(result.reason))
+      .join(" | ");
+
+    throw new Error(`Semua AI provider gagal dalam James Learning. ${failures}`);
+  }
+
+  return successful;
+}
