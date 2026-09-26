@@ -39,7 +39,7 @@ function getExaClient() {
 async function runSearch(exaClient: Exa, query: string) {
   const result = await exaClient.search(query.trim(), {
     type: "auto",
-    numResults: 5,
+    numResults: 8,
     contents: {
       highlights: {
         maxCharacters: 1500,
@@ -52,16 +52,21 @@ async function runSearch(exaClient: Exa, query: string) {
       const title = item.title || "Tanpa judul";
       const highlights = item.highlights || [];
       const relevance = relevanceScore(query, title, highlights);
+      const hostname = item.url ? new URL(item.url).hostname.toLowerCase() : "";
+      const official = /(^|\\.)nextjs\\.org$|(^|\\.)vercel\\.com$|(^|\\.)react\\.dev$|(^|\\.)nodejs\\.org$|(^|\\.)typescriptlang\\.org$|(^|\\.)github\\.com$|(^|\\.)supabase\\.com$|(^|\\.)openai\\.com$|(^|\\.)ai\\.google\\.dev$/.test(hostname.replace(/^www\\./, ""));
+      const score = relevance * 0.7 + (official ? 0.3 : 0);
 
       return {
         title,
         url: item.url,
         highlights,
         relevance,
+        official,
+        score,
       };
     })
     .filter((item) => item.url && item.relevance >= 0.10)
-    .sort((a, b) => b.relevance - a.relevance)
+    .sort((a, b) => b.score - a.score)
     .slice(0, 5);
 }
 
@@ -70,6 +75,8 @@ export type WebSearchResult = {
   url: string;
   highlights: string[];
   relevance: number;
+  official: boolean;
+  score: number;
 };
 
 export type WebSearchResponse = {
@@ -101,7 +108,8 @@ export async function webSearch(query: string): Promise<WebSearchResponse> {
 
   const attemptedQueries = [
     normalizedQuery,
-    `${normalizedQuery} official`,
+    `${normalizedQuery} official documentation`,
+    `${normalizedQuery} official source`,
   ];
 
   let hadResponse = false;
