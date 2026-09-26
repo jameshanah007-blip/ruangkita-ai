@@ -974,6 +974,8 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
     const jamesKnowledgeContext = `${memoryContext}
 
 ${activeKnowledgeContext}`;
+    const intelligencePlan = planJamesIntelligence(userRequest);
+    const intent = intelligencePlan.primary;
     if (requestsMultiProviderKnowledge(userRequest)) {
       const providerResults = await generateWithAllAIProviders({
         prompt: `Pengguna meminta James mendapatkan pengetahuan dari beberapa provider AI.
