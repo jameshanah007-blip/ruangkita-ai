@@ -872,6 +872,13 @@ export async function POST(request: Request) {
       const orchestratorPrompt = `
 Kamu adalah James. Jalankan permintaan pengguna sebagai tugas multi-langkah.
 
+ATURAN RESEARCH:
+- Jika RESEARCH_STATUS: VERIFIED, fakta terkini yang berkaitan dengan permintaan wajib berasal dari sumber research yang tersedia.
+- Jangan mengganti fakta terkini dari research dengan pengetahuan model yang lebih lama.
+- Jika RESEARCH_STATUS bukan VERIFIED, jangan mengklaim fakta terkini sudah terverifikasi.
+- Jangan menyebut suatu versi sebagai "versi terbaru" tanpa dukungan sumber research.
+
+
 PERMINTAAN:
 "${userRequest}"
 
@@ -950,7 +957,8 @@ Jangan mengarang fakta tentang pengguna yang tidak ada dalam memori.
     }
 
     if (intent === "web_search") {
-      const searchResults = await webSearch(intelligencePlan.researchQuery || userRequest);
+      const research = await webSearch(intelligencePlan.researchQuery || userRequest);
+      const searchResults = research.results;
 
       const citations: Citation[] = searchResults.map((item) => ({
         title: item.title || "Tanpa judul",
@@ -964,9 +972,14 @@ ${memoryContext}
 Pengguna meminta informasi yang mungkin membutuhkan penelitian eksternal:
 "${userRequest}"
 
-Mesin penelitian eksternal James tidak mengembalikan sumber yang dapat diverifikasi.
+Status research: ${research.status}
+Query research: ${research.query}
+Alasan: ${research.reason || "tidak ada"}
+
+Mesin penelitian eksternal James tidak menyediakan sumber yang dapat diverifikasi.
 Bantu pengguna semaksimal mungkin berdasarkan pengetahuan yang tersedia.
 JANGAN mengklaim bahwa informasi terbaru sudah diverifikasi.
+JANGAN menyebut nomor versi, tanggal rilis, fitur terbaru, harga terbaru, atau fakta time-sensitive sebagai fakta terkini jika tidak berasal dari sumber yang tersedia.
 Jika pertanyaan membutuhkan data yang berubah cepat, jelaskan secara singkat bahwa kamu tidak dapat memverifikasinya saat ini.
 Jika kamu memberikan pengetahuan umum, bedakan dengan jelas dari informasi terkini.
 Jawab sebagai James dalam bahasa Indonesia yang natural dan praktis.
