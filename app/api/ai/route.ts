@@ -29,7 +29,7 @@ import { addGlobalCandidate, getGlobalGrowth } from "../tools/jamesGlobalLearnin
 import { buildJamesContext } from "../tools/jamesContext";
 import { planJamesIntelligence, planJamesIntelligenceWithAI } from "../tools/jamesIntelligence";
 import { runJamesAgentLoop } from "../tools/jamesAgentLoop";
-import { getJamesExperiences, learnJamesExperience } from "../tools/jamesExperience";
+import { formatJamesExperienceContext, learnJamesExperience, retrieveJamesExperiences } from "../tools/jamesExperience";
 import { getJamesAgentTask } from "../tools/jamesAgentState";
 import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
@@ -1014,12 +1014,11 @@ export async function POST(request: Request) {
       });
     }
 
-    const [memory, longTermMemories, growth, globalGrowth, experiences] = await Promise.all([
+    const [memory, longTermMemories, growth, globalGrowth] = await Promise.all([
       getJamesMemory(userId, conversationId),
       getJamesLongTermMemory(userId, 30),
       getJamesGrowth(userId),
       getGlobalGrowth(20),
-      getJamesExperiences(userId, 6),
     ]);
     const contextResult = buildJamesContext({
       userRequest,
@@ -1042,15 +1041,6 @@ Consensus: ${item.consensus_score}`
 
 Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate, consensus, atau mekanisme internal kepada pengguna. Active knowledge bukan pengganti research untuk informasi yang dapat berubah cepat.`
       : "ACTIVE JAMES KNOWLEDGE: belum ada pengetahuan global aktif.";
-
-    const experienceContext = experiences.length
-      ? "REUSABLE JAMES EXPERIENCES:\n" + experiences.map((item, index) =>
-          "EXPERIENCE " + (index + 1) + ": " + item.pattern + "\n" +
-          "Strategy: " + item.strategy + "\n" +
-          "Capabilities: " + (Array.isArray(item.capabilities) ? item.capabilities.join(", ") : "") + "\n" +
-          "Successes: " + item.success_count + "\nConfidence: " + item.confidence
-        ).join("\n\n")
-      : "REUSABLE JAMES EXPERIENCES: belum ada pengalaman tersimpan.";
 
     const jamesKnowledgeContext = `${memoryContext}\n\n${activeKnowledgeContext}\n\n${experienceContext}`;
     const deterministicIntelligencePlan = planJamesIntelligence(userRequest);
@@ -1649,3 +1639,13 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
     );
   }
 }
+    const experiences = await retrieveJamesExperiences({
+      userId,
+      request: userRequest,
+      capabilities: deterministicIntelligencePlan.capabilities,
+      limit: 4,
+    });
+    const experienceContext = formatJamesExperienceContext(experiences);
+
+
+
