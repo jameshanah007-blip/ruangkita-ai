@@ -357,6 +357,19 @@ export async function getJamesMemoryAudit(userId: string, limit = 100) {
     };
   }
 
+  const now = new Date().toISOString();
+
+  const { error: expiryError } = await supabase
+    .from("james_memories")
+    .update({ status: "expired", updated_at: now })
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .lt("expires_at", now);
+
+  if (expiryError) {
+    console.error("James memory audit expiry error:", expiryError.message);
+  }
+
   const { data, error } = await supabase
     .from("james_memories")
     .select(
