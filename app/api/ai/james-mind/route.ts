@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { getGlobalGrowth } from "../../tools/jamesGlobalLearning";
 import { getJamesGoals } from "../../tools/jamesGoals";
-import { getOpenJamesCuriosity } from "../../tools/jamesCuriosity";
-import { getJamesGrowth } from "../../tools/jamesEvolution";
 import { createClient } from "@supabase/supabase-js";
 
 function db() {
@@ -14,11 +12,9 @@ function db() {
 export async function GET() {
   try {
     const supabase = db();
-    const [globalGrowth, goals, curiosity, growth] = await Promise.all([
+    const [globalGrowth, goals] = await Promise.all([
       getGlobalGrowth(30),
       getJamesGoals(undefined, 20),
-      getOpenJamesCuriosity("mind", 20),
-      getJamesGrowth("mind"),
     ]);
 
     let reflections: any[] = [];
@@ -39,11 +35,11 @@ export async function GET() {
         friend: "Omanto",
         mission: "Selalu berevolusi menjadi lebih baik, modern, dan mengikuti perkembangan teknologi.",
       },
-      growth,
       globalGrowth,
       goals,
-      curiosity,
-      reflections,
+      curiosity: [],
+      reflections: [],
+
       providerRuns,
     });
   } catch (error) {
