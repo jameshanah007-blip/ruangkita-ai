@@ -162,7 +162,7 @@ export async function executeJamesCapabilities(
             `RESEARCH_STATUS: ${research.status.toUpperCase()}`,
             `RESEARCH_QUERY: ${research.query}`,
             research.results.map((item, index) =>
-              `SUMBER ${index + 1}: ${item.title}\nURL: ${item.url}\n${item.highlights.join(" ")}`
+              `SUMBER ${index + 1}: ${item.title}\nURL: ${item.url}\nSOURCE_TYPE: ${item.official ? "OFFICIAL" : "GENERAL"}\nRELEVANCE: ${item.relevance.toFixed(2)}\n${item.highlights.join(" ")}`
             ).join("\n\n"),
           ].join("\n")
         : [
