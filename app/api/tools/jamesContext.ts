@@ -86,14 +86,33 @@ function rankRelevance(query: string, value: string, index: number, createdAt?: 
 
 export function buildJamesContext(input: ContextInput) {
   const query = input.userRequest.trim();
-  const selectedMessages = [...(input.messages || [])]
+  const allMessages = [...(input.messages || [])];
+
+  // Preserve a recent conversational window even when the current wording
+  // shares few literal terms with the previous turns ("lanjutkan", "yang tadi",
+  // "project itu", etc.). Relevance retrieval then fills the remaining slots.
+  const recentWindow = allMessages.slice(-8);
+  const recentKeys = new Set(recentWindow.map((_, index) => allMessages.length - recentWindow.length + index));
+
+  const rankedMessages = allMessages
     .map((message, index) => ({
       message,
       index,
       relevance: rankRelevance(query, message.content, index, message.created_at),
     }))
-    .sort((a, b) => b.relevance - a.relevance || b.index - a.index)
-    .slice(0, 20)
+    .sort((a, b) => b.relevance - a.relevance || b.index - a.index);
+
+  const relevantMessages = rankedMessages
+    .filter((item) => !recentKeys.has(item.index))
+    .slice(0, 12);
+
+  const selectedMessages = [
+    ...recentWindow.map((message, offset) => ({
+      message,
+      index: allMessages.length - recentWindow.length + offset,
+    })),
+    ...relevantMessages.map(({ message, index }) => ({ message, index })),
+  ]
     .sort((a, b) => a.index - b.index)
     .map(({ message }) => message);
 
