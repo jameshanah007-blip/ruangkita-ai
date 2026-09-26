@@ -587,3 +587,39 @@ James tidak melakukan self-modifying source code. Evolusi dilakukan melalui stat
 3. Jalankan `npx tsc --noEmit` dan `npm run build`.
 4. Uji beberapa percakapan James dan cek `james_reflections`, `james_growth_state`, serta `james_evolution_events`.
 5. Setelah reflection tervalidasi, lanjutkan **James Curiosity Engine**.
+
+## 21. James Curiosity Engine — 2026-09-26
+
+### Implemented
+- Migration baru: `supabase/migrations/20260926_james_curiosity.sql`.
+- Service baru: `app/api/tools/jamesCuriosity.ts`.
+- Tabel `james_curiosity` menyimpan topic, question, importance, status, evidence, dan timestamps.
+- Reflection engine sekarang dapat menghasilkan curiosity terstruktur maksimal 2 item per interaksi.
+- Hanya curiosity dengan importance >= 0.60 yang disimpan.
+- Curiosity tetap merupakan state pembelajaran; tidak memberi James izin melakukan tindakan eksternal secara otomatis.
+- Open/exploring curiosity dapat dibaca kembali untuk tahap berikutnya.
+
+### Current architecture
+```
+Conversation
+   ↓
+Reflection
+   ├── Evidence / Lesson
+   ├── Growth
+   └── Curiosity
+          ↓
+       Future Learning
+```
+
+### Validation
+- Source dan integrasi telah dibaca ulang melalui GitHub.
+- `npx tsc --noEmit`, production build, runtime Gemini, dan runtime Supabase **belum dijalankan** setelah perubahan Curiosity.
+- Migration Curiosity belum dinyatakan aktif sampai dijalankan di Supabase.
+
+### Next Action Tanya Saya
+1. Pull latest `main`.
+2. Jalankan seluruh migration James: memory, evolution, reflection, curiosity.
+3. Jalankan `npx tsc --noEmit`.
+4. Jalankan `npm run build`.
+5. Uji beberapa percakapan dan cek tabel reflection, growth, evolution events, dan curiosity.
+6. Setelah validasi, lanjutkan **James Goals Engine**.
