@@ -734,17 +734,19 @@ Jika konteksnya cocok, tanyakan satu pertanyaan balik yang membantu percakapan b
 
     await saveActivity(userRequest, intent, "gemini", resultText);
     await saveJames(userId, conversationId, userRequest, resultText, intent, "gemini");
-    await evolveJames({
+    void evolveJames({
       userId,
       conversationId,
       userRequest,
       assistantResult: resultText,
+    }).catch((error) => {
+      console.error("James background learning error:", error);
     });
 
     return NextResponse.json({
       result: resultText,
       intent,
-      tool: "gemini",
+      tool: "ai-router",
       citations: [],
       userId,
       conversationId,
