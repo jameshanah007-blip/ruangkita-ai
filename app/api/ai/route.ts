@@ -1043,9 +1043,16 @@ Consensus: ${item.consensus_score}`
 Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate, consensus, atau mekanisme internal kepada pengguna. Active knowledge bukan pengganti research untuk informasi yang dapat berubah cepat.`
       : "ACTIVE JAMES KNOWLEDGE: belum ada pengetahuan global aktif.";
 
-    const jamesKnowledgeContext = `${memoryContext}
+    const experienceContext = experiences.length
+      ? "REUSABLE JAMES EXPERIENCES:\n" + experiences.map((item, index) =>
+          "EXPERIENCE " + (index + 1) + ": " + item.pattern + "\n" +
+          "Strategy: " + item.strategy + "\n" +
+          "Capabilities: " + (Array.isArray(item.capabilities) ? item.capabilities.join(", ") : "") + "\n" +
+          "Successes: " + item.success_count + "\nConfidence: " + item.confidence
+        ).join("\n\n")
+      : "REUSABLE JAMES EXPERIENCES: belum ada pengalaman tersimpan.";
 
-${activeKnowledgeContext}`;
+    const jamesKnowledgeContext = `${memoryContext}\n\n${activeKnowledgeContext}\n\n${experienceContext}`;
     const deterministicIntelligencePlan = planJamesIntelligence(userRequest);
     let intent = deterministicIntelligencePlan.primary;
 
@@ -1061,7 +1068,7 @@ ${activeKnowledgeContext}`;
       const agentResult = await runJamesAgentLoop({
         request: userRequest,
         initialPlan: resumePlan,
-        conversationContext: memoryContext,
+        conversationContext: jamesKnowledgeContext,
         userId,
         conversationId,
         resume: true,
@@ -1267,7 +1274,7 @@ Jangan menyebut reasoning internal.`
       const agentResult = await runJamesAgentLoop({
         request: userRequest,
         initialPlan: intelligencePlan,
-        conversationContext: memoryContext,
+        conversationContext: jamesKnowledgeContext,
         userId,
         conversationId,
       });
