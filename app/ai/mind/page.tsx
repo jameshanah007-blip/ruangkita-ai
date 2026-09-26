@@ -10,6 +10,12 @@ type MindData = {
   curiosity: any[];
   reflections: any[];
   providerRuns: any[];
+  feedbackStats: {
+    total: number;
+    helpful: number;
+    notHelpful: number;
+    helpfulRate: number;
+  };
 };
 
 export default function JamesMindPage() {
@@ -55,6 +61,16 @@ export default function JamesMindPage() {
           <strong>{data.goals.length}</strong>
           <p>active development goals</p>
         </Card>
+        <Card title="User Feedback">
+          <strong>{data.feedbackStats.total}</strong>
+          <p>feedback tersimpan</p>
+          <small>
+            👍 {data.feedbackStats.helpful} · 👎 {data.feedbackStats.notHelpful}
+            {" · "}
+            {Math.round((data.feedbackStats.helpfulRate || 0) * 100)}% helpful
+          </small>
+        </Card>
+
       </section>
 
       <section style={{ marginTop: 28 }}>
@@ -91,6 +107,10 @@ export default function JamesMindPage() {
 
       <section style={{ marginTop: 20 }}>
         <Card title="Recent Reflections">
+          <p style={{ color: "#666", marginTop: 0 }}>
+            Reflection yang tersimpan berasal dari pembelajaran terverifikasi,
+            termasuk sinyal feedback pengguna.
+          </p>
           {data.reflections.length ? data.reflections.map((item) => (
             <article key={item.id} style={{ padding: "10px 0", borderBottom: "1px solid #ddd" }}>
               <strong>{item.lesson || "Reflection"}</strong>
