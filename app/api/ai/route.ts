@@ -896,12 +896,12 @@ export async function POST(request: Request) {
 
     const trainingRequest = isJamesTrainingInstruction(userRequest);
     if (trainingRequest && omantoVerified) {
-      const proposals = await interpretJamesTrainingInstruction(userRequest);
+      const proposals = await interpretJamesTrainingInstruction(understoodRequest);
       if (proposals.length) {
         await applyVerifiedJamesGlobalEvolution(
           userId,
           conversationId,
-          userRequest,
+          understoodRequest,
           proposals,
           omantoVerified
         );
@@ -1226,7 +1226,7 @@ Jangan mengarang fakta tentang pengguna yang tidak ada dalam memori.
 
     if (intent === "calculator") {
       const resultText = String(
-        calculate(extractMathExpression(userRequest))
+        calculate(extractMathExpression(understoodRequest))
       );
 
       await saveActivity(userRequest, intent, "calculator", resultText);
@@ -1257,7 +1257,7 @@ Jangan mengarang fakta tentang pengguna yang tidak ada dalam memori.
 ${memoryContext}
 
 Pengguna meminta informasi yang mungkin membutuhkan penelitian eksternal:
-"${userRequest}"
+"${understoodRequest}"
 
 Status research: ${research.status}
 Query research: ${research.query}
@@ -1320,7 +1320,7 @@ Jawab sebagai James dalam bahasa Indonesia yang natural dan praktis.
 ${memoryContext}
 
 Pengguna meminta:
-"${userRequest}"
+"${understoodRequest}"
 
 Berikut hasil pencarian dari mesin pencari Exa:
 
@@ -1436,8 +1436,8 @@ Gunakan format yang mudah dibaca.
     }
 
     const chatPrompt = `
-Percakapan terbaru dari pengguna:
-"${userRequest}"
+Pesan pengguna yang sudah dipahami James:
+"${understoodRequest}"
 
 Jawab langsung sebagai James.
 Gunakan bahasa Indonesia yang natural, ramah, hangat, jelas, dan praktis.
