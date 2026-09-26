@@ -51,9 +51,8 @@ export async function interpretJamesTrainingInstruction(request: string): Promis
   const parsed = extractJson(result.text);
   if (!parsed || typeof parsed !== "object") return [];
 
-  const items = Array.isArray((parsed as Record<string, unknown>).proposals)
-    ? (parsed as Record<string, unknown>).proposals
-    : [];
+  const rawProposals = (parsed as Record<string, unknown>).proposals;
+  const items: unknown[] = Array.isArray(rawProposals) ? rawProposals : [];
 
   const accepted: JamesEvolutionProposal[] = [];
 
