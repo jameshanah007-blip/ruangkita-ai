@@ -1,5 +1,6 @@
 import { calculate } from "./calculator";
 import { webSearch } from "./webSearch";
+import { generateWithAIRouter } from "../../fun-zone/aiRouter";
 
 export type JamesCapability =
   | "chat"
@@ -9,6 +10,8 @@ export type JamesCapability =
   | "planner";
 
 export type JamesIntelligencePlan = {
+  confidence: number;
+  planningMode: "semantic" | "deterministic";
   capabilities: JamesCapability[];
   primary: JamesCapability;
   researchQuery: string;
@@ -71,7 +74,7 @@ function extractResearchQuery(request: string) {
   return `${topic} latest official documentation release`;
 }
 
-export function planJamesIntelligence(request: string): JamesIntelligencePlan {
+function buildDeterministicPlan(request: string): JamesIntelligencePlan {
   const text = normalize(request);
   const capabilities = new Set<JamesCapability>();
 
@@ -118,6 +121,8 @@ export function planJamesIntelligence(request: string): JamesIntelligencePlan {
   if (capabilities.has("chat")) reasons.push("percakapan");
 
   return {
+    confidence: 0.55,
+    planningMode: "deterministic",
     capabilities: selected,
     primary: selected[0],
     researchQuery: capabilities.has("web_search") ? extractResearchQuery(request) : "",
@@ -128,7 +133,141 @@ export function planJamesIntelligence(request: string): JamesIntelligencePlan {
   };
 }
 
-function extractMathExpression(request: string) {
+
+
+function extractPlannerJson(text: string): Record<string, unknown> | null {
+  const fenced = text.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/i);
+  const candidate = fenced?.[1] || text;
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+
+  try {
+    const parsed = JSON.parse(candidate.slice(start, end + 1));
+    return parsed && typeof parsed === "object"
+      ? parsed as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function validCapability(value: unknown): value is JamesCapability {
+  return value === "chat" ||
+    value === "calculator" ||
+    value === "web_search" ||
+    value === "document" ||
+    value === "planner";
+}
+
+function normalizePlannerPlan(
+  parsed: Record<string, unknown>,
+  request: string
+): JamesIntelligencePlan | null {
+  const rawCapabilities = Array.isArray(parsed.capabilities)
+    ? parsed.capabilities.filter(validCapability)
+    : [];
+
+  const capabilities = [...new Set(rawCapabilities)];
+  if (!capabilities.length) return null;
+
+  const primary = validCapability(parsed.primary)
+    ? parsed.primary
+    : capabilities[0];
+
+  if (!capabilities.includes(primary)) {
+    capabilities.unshift(primary);
+  }
+
+  const researchQuery =
+    typeof parsed.researchQuery === "string"
+      ? parsed.researchQuery.trim().slice(0, 500)
+      : "";
+
+  const confidence =
+    typeof parsed.confidence === "number" && Number.isFinite(parsed.confidence)
+      ? Math.max(0, Math.min(1, parsed.confidence))
+      : 0;
+
+  return {
+    confidence,
+    planningMode: "semantic",
+    capabilities,
+    primary,
+    researchQuery: primary === "web_search" ? (researchQuery || extractResearchQuery(request)) : "",
+    needsResearch: primary === "web_search" || parsed.needsResearch === true || capabilities.includes("web_search"),
+    needsMemory: parsed.needsMemory !== false,
+    needsExperience: parsed.needsExperience !== false,
+    reason: typeof parsed.reason === "string"
+      ? parsed.reason.trim().slice(0, 500)
+      : "Rencana dipilih berdasarkan pemahaman semantik.",
+  };
+}
+
+export async function planJamesIntelligenceWithAI(
+  request: string,
+  context?: string
+): Promise<JamesIntelligencePlan> {
+  const deterministic = buildDeterministicPlan(request);
+
+  try {
+    const result = await generateWithAIRouter({
+      prompt: `
+Tentukan rencana eksekusi untuk James berdasarkan permintaan pengguna.
+
+PERMINTAAN:
+${request}
+
+KONTEKS YANG RELEVAN:
+${context || "(tidak ada)"}
+
+Pilih hanya capability yang benar-benar diperlukan:
+- chat: percakapan/penjelasan biasa
+- calculator: perhitungan numerik yang harus akurat
+- web_search: informasi eksternal, terkini, harga, jadwal, berita, atau fakta yang perlu sumber
+- document: menghasilkan surat/dokumen siap pakai
+- planner: membuat rencana, jadwal, strategi, atau langkah kerja
+
+Boleh memilih beberapa capability jika tugas memang bertahap.
+Jangan memilih web_search hanya karena pengguna bertanya; gunakan jika informasi eksternal/terkini diperlukan.
+Jangan memilih calculator untuk hitungan yang tidak ada.
+Jika pengguna hanya bercakap-cakap, pilih chat.
+
+Keluarkan JSON SAJA:
+{
+  "capabilities": ["chat"],
+  "primary": "chat",
+  "researchQuery": "",
+  "needsResearch": false,
+  "needsMemory": true,
+  "needsExperience": true,
+  "confidence": 0.0,
+  "reason": "alasan singkat"
+}
+`,
+      systemInstruction:
+        "Kamu adalah semantic task planner untuk James. Tugasmu memilih resource yang diperlukan, bukan menjawab pengguna. Jangan membuat capability baru. Output JSON valid saja.",
+      temperature: 0.1,
+      maxOutputTokens: 900,
+    });
+
+    const parsed = extractPlannerJson(result.text);
+    const semantic = parsed ? normalizePlannerPlan(parsed, request) : null;
+
+    if (semantic && semantic.confidence >= 0.65) {
+      return semantic;
+    }
+  } catch (error) {
+    console.warn("James semantic planner unavailable; using deterministic planner.", error);
+  }
+
+  return deterministic;
+}
+
+export function planJamesIntelligence(request: string): JamesIntelligencePlan {
+  return buildDeterministicPlan(request);
+}
+\nfunction extractMathExpression(request: string) {
   const expression = request
     .replace(/berapakah/gi, "")
     .replace(/berapa/gi, "")
