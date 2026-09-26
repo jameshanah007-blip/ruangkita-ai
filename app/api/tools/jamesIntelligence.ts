@@ -60,8 +60,8 @@ export function planJamesIntelligence(request: string): JamesIntelligencePlan {
   const ordered: JamesCapability[] = [
     "calculator",
     "web_search",
-    "document",
     "planner",
+    "document",
     "chat",
   ];
   const selected = ordered.filter((item) => capabilities.has(item));
@@ -111,14 +111,25 @@ export async function executeJamesCapabilities(
   }
 ): Promise<JamesCapabilityResult[]> {
   const results: JamesCapabilityResult[] = [];
+  let accumulatedContext = "";
 
   for (const capability of plan.capabilities) {
+    const upstreamContext = accumulatedContext
+      ? `\n\nHASIL LANGKAH SEBELUMNYA:\n${accumulatedContext}`
+      : "";
     if (capability === "calculator" && options?.enableCalculator !== false) {
       results.push({
         capability,
         status: "executed",
         text: String(calculate(extractMathExpression(request))),
       });
+      accumulatedContext += `\n[calculator]\n${results[results.length - 1].text}`;
+      continue;
+    }
+
+    if (capability === "web_search" && options?.enableResearch !== false) {
+      });
+      accumulatedContext += `\n[calculator]\n${results[results.length - 1].text}`;
       continue;
     }
 
@@ -144,6 +155,7 @@ export async function executeJamesCapabilities(
           "Planner execution context:",
           "Susun hasil menjadi rencana yang memiliki tujuan, langkah, prioritas, urutan kerja, dan hasil yang diharapkan.",
           `Permintaan pengguna: ${request}`,
+          upstreamContext,
         ].join("\n"),
       });
       continue;
