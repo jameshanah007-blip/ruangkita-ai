@@ -1305,6 +1305,24 @@ Jangan menyebut reasoning internal.`
         agentResult.recovered ? "james-agent-recovery" : "james-agent-loop"
       );
 
+      if (agentResult.verified && agentResult.taskId) {
+        void (async () => {
+          const task = await getJamesAgentTask(agentResult.taskId || "");
+          if (!task) return;
+
+          await learnJamesExperience({
+            userId,
+            conversationId,
+            taskId: agentResult.taskId,
+            request: userRequest,
+            actions: task.actions,
+            verified: agentResult.verified,
+          });
+        })().catch((error) => {
+          console.error("James experience learning error:", error);
+        });
+      }
+
       if (omantoVerified) {
         void evolveJames({
           userId,
