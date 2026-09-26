@@ -168,7 +168,8 @@ async function evolveJames(input: {
 }) {
   try {
     const reflection = await callGemini(`
-Analisis satu interaksi James berikut sebagai mesin refleksi karakter.
+Refleksikan satu interaksi James berikut. Fokus pada kualitas bantuan James,
+bukan pada penilaian pribadi atau data sensitif pengguna.
 
 USER:
 ${input.userRequest}
@@ -176,8 +177,14 @@ ${input.userRequest}
 JAMES:
 ${input.assistantResult}
 
-Keluarkan JSON SAJA dengan bentuk:
+Keluarkan JSON SAJA:
 {
+  "observation": "apa yang terjadi dalam interaksi",
+  "what_worked": "apa yang berjalan baik",
+  "what_failed": "apa yang kurang atau gagal; kosong jika tidak ada",
+  "lesson": "pelajaran yang sebaiknya James gunakan ke depan",
+  "confidence": 0.0,
+  "evidence": "bukti singkat dari interaksi",
   "proposals": [
     {
       "category": "communication_style | interest | learned_topic | lesson | preference",
@@ -185,34 +192,109 @@ Keluarkan JSON SAJA dengan bentuk:
       "value": "nilai singkat",
       "reason": "alasan berbasis interaksi",
       "confidence": 0.0,
-      "source_excerpt": "kutipan singkat dari interaksi"
+      "source_excerpt": "kutipan singkat"
     }
   ]
 }
 
 Aturan:
 - Maksimal 3 proposal.
-- Jika tidak ada hal bermakna untuk dipelajari, gunakan {"proposals":[]}.
-- Confidence >= 0.70 hanya untuk bukti yang jelas.
+- Jika tidak ada perubahan bermakna, proposals harus [].
+- Confidence >= 0.70 hanya jika buktinya jelas.
 - Jangan menyimpan password, token, credential, nomor identitas, nomor telepon, alamat, lokasi presisi, data kesehatan, agama, politik, orientasi seksual, atau data sensitif lain.
 - Jangan mendiagnosis atau menebak sifat sensitif pengguna.
 - Jangan mengubah nama James, Omanto, RuangKita, atau core identity.
-- "lesson" adalah pelajaran tentang cara James sebaiknya membantu/berkomunikasi, bukan fakta pribadi sensitif pengguna.
+- Lesson harus tentang cara James meningkatkan bantuan atau komunikasinya.
 `, "Kamu adalah reflection engine internal James. Output wajib JSON valid tanpa markdown.");
 
     const parsed = extractJsonObject(reflection);
-    const proposals = Array.isArray(parsed?.proposals)
+    if (!parsed || typeof parsed !== "object") return;
+
+    const confidence = clampReflectionConfidence(parsed.confidence);
+    const observation = cleanReflectionText(parsed.observation, 500);
+    const whatWorked = cleanReflectionText(parsed.what_worked, 500);
+    const whatFailed = cleanReflectionText(parsed.what_failed, 500);
+    const lesson = cleanReflectionText(parsed.lesson, 500);
+    const evidence = cleanReflectionText(parsed.evidence, 500);
+
+    const reflectionSaved = await saveJamesReflection({
+      userId: input.userId,
+      conversationId: input.conversationId,
+      observation,
+      whatWorked,
+      whatFailed,
+      lesson,
+      confidence,
+      evidence,
+    });
+
+    const proposals = Array.isArray(parsed.proposals)
       ? parsed.proposals as JamesEvolutionProposal[]
       : [];
 
-    await applyJamesEvolution(
-      input.userId,
-      input.conversationId,
-      proposals
-    );
+    if (reflectionSaved && proposals.length) {
+      await applyJamesEvolution(
+        input.userId,
+        input.conversationId,
+        proposals
+      );
+    }
   } catch (error) {
-    console.error("James evolution reflection error:", error);
+    console.error("James self-reflection error:", error);
   }
+}
+
+function clampReflectionConfidence(value: unknown) {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(1, number)) : 0;
+}
+
+function cleanReflectionText(value: unknown, max = 500) {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+async function saveJamesReflection(input: {
+  userId: string;
+  conversationId: string;
+  observation: string;
+  whatWorked: string;
+  whatFailed: string;
+  lesson: string;
+  confidence: number;
+  evidence: string;
+}) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
+
+  if (!supabaseUrl || !supabaseSecretKey) return false;
+
+  const { createClient } = await import("@supabase/supabase-js");
+  const supabase = createClient(supabaseUrl, supabaseSecretKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
+
+  const { error } = await supabase.from("james_reflections").insert({
+    user_id: input.userId,
+    conversation_id: input.conversationId,
+    observation: input.observation,
+    what_worked: input.whatWorked,
+    what_failed: input.whatFailed,
+    lesson: input.lesson,
+    confidence: input.confidence,
+    evidence: input.evidence,
+    applied_to_growth: false,
+  });
+
+  if (error) {
+    console.error("James reflection save error:", error.message);
+    return false;
+  }
+
+  return true;
 }
 
 function extractMathExpression(request: string): string {
