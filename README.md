@@ -20,3 +20,6 @@ Learn Next.js: https://nextjs.org/learn
 Deploy this project with the Vercel Platform.
 
 <!-- Deployment trigger: refresh Production runtime environment after configuration changes. -->
+
+
+<!-- research-engine deployment sync -->
