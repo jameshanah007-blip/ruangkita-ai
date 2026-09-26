@@ -142,24 +142,3 @@ export async function activateGlobalCandidate(
 }
 
 
-export async function validateGlobalCandidate(input: {
-  candidateId: string;
-  provider: string;
-  decision: "activate" | "reject";
-  confidence: number;
-  rationale: string;
-}) {
-  const supabase = db();
-  if (!supabase) return false;
-
-  const confidence = Math.max(0, Math.min(1, input.confidence));
-  await recordGlobalDecision({
-    candidateId: input.candidateId,
-    provider: input.provider,
-    decision: input.decision,
-    confidence,
-    rationale: input.rationale,
-  });
-
-  return true;
-}
