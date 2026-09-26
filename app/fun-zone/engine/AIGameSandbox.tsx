@@ -208,25 +208,6 @@ function buildDiagnosticHtml(
   gameHtml: string,
   testActions: string[]
 ) {
-  const safeTestActions = Array.from(
-    new Set(
-      [
-        ...testActions,
-        "move",
-        "interact",
-        "jump",
-        "attack",
-        "collect"
-      ]
-        .filter(
-          (action) =>
-            typeof action === "string" &&
-            action.trim()
-        )
-        .map((action) => action.trim())
-    )
-  ).slice(0, 12);
-
   const serializedTestActions =
     JSON.stringify(safeTestActions);
   const diagnostic = `
