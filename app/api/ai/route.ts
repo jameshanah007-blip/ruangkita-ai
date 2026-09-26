@@ -13,7 +13,10 @@ import {
   buildJamesSystemInstruction,
 } from "../../ai/persona";
 import { saveJamesCuriosity, type JamesCuriosityProposal } from "../tools/jamesCuriosity";
-import { generateWithAllAIProviders } from "../../fun-zone/aiRouter";
+import {
+  generateWithAIRouter,
+  generateWithAllAIProviders,
+} from "../../fun-zone/aiRouter";
 import { getGlobalGrowth } from "../tools/jamesGlobalLearning";
 
 type Intent =
@@ -79,42 +82,18 @@ function detectIntent(request: string): Intent {
   return "chat";
 }
 
-async function callGemini(
+async function callJamesAI(
   userInput: string,
   systemInstruction?: string
 ): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY belum dikonfigurasi.");
-  }
-
-  const body: Record<string, unknown> = {
-    model: MODEL,
-    input: userInput,
-  };
-
-  if (systemInstruction) {
-    body.system_instruction = systemInstruction;
-  }
-
-  const response = await fetch(GEMINI_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey,
-    },
-    body: JSON.stringify(body),
+  const result = await generateWithAIRouter({
+    prompt: userInput,
+    systemInstruction: systemInstruction || buildJamesSystemInstruction(),
+    temperature: 0.7,
+    maxOutputTokens: 4000,
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    console.error("Gemini API error:", data);
-    throw new Error(data?.error?.message || "Gagal menghubungi Gemini.");
-  }
-
-  return extractText(data);
+  return result.text;
 }
 
 function extractText(data: any): string {
@@ -641,7 +620,7 @@ Jika percakapan membutuhkan konteks dari pengguna, boleh bertanya balik.
 Jangan membuat URL baru. Gunakan hanya URL yang tersedia dari hasil pencarian.
 `;
 
-      const resultText = await callGemini(
+      const resultText = await callJamesAI(
         prompt,
         buildJamesSystemInstruction(
           "Berikan jawaban faktual, jelas, berguna, dan tetap berbicara sebagai James."
@@ -678,7 +657,7 @@ Jangan mengarang data pribadi pengguna.
 Berikan hasil yang siap disalin dan diedit.
 `;
 
-      const resultText = await callGemini(
+      const resultText = await callJamesAI(
         prompt,
         buildJamesSystemInstruction(
           "Kamu sedang membantu pengguna membuat dokumen. Tetaplah sebagai James."
@@ -712,7 +691,7 @@ prioritas, waktu istirahat, dan evaluasi.
 Gunakan format yang mudah dibaca.
 `;
 
-      const resultText = await callGemini(
+      const resultText = await callJamesAI(
         prompt,
         buildJamesSystemInstruction(
           "Kamu sedang membantu pengguna membuat rencana realistis dan terstruktur. Tetaplah sebagai James."
@@ -746,7 +725,7 @@ Jika pengguna membutuhkan bantuan mengerjakan sesuatu, berikan hasil yang dapat 
 Jika konteksnya cocok, tanyakan satu pertanyaan balik yang membantu percakapan berkembang.
 `;
 
-    const resultText = await callGemini(
+    const resultText = await callJamesAI(
       chatPrompt,
       buildJamesSystemInstruction(
         "Kamu sedang melakukan percakapan langsung dengan seorang pengguna RuangKita."
