@@ -24,7 +24,7 @@ import {
   generateWithAIRouter,
   generateWithAllAIProviders,
 } from "../../fun-zone/aiRouter";
-import { getGlobalGrowth } from "../tools/jamesGlobalLearning";
+import { addGlobalCandidate, getGlobalGrowth } from "../tools/jamesGlobalLearning";
 import { buildJamesContext } from "../tools/jamesContext";
 import { executeJamesCapabilities, planJamesIntelligence } from "../tools/jamesIntelligence";
 import { isOmantoVerified } from "./verify-identity/route";
@@ -50,6 +50,11 @@ function requestsMultiProviderKnowledge(request: string) {
   const text = request.toLowerCase();
   return /\b(?:akses|gunakan|konsultasikan|konsultasi|tanya|bandingkan|gabungkan)\b.*\b(?:gemini|openai|groq|openrouter|provider ai|ai provider)\b/i.test(text) ||
     /\b(?:gemini|openai|groq|openrouter)\b.*\b(?:akses|gunakan|konsultasikan|konsultasi|bandingkan|gabungkan)\b/i.test(text);
+}
+
+function requestsPermanentKnowledgeLearning(request: string) {
+  return /\b(?:belajar|pelajari|tambahkan|simpan|jadikan pengetahuan|ingat|menambah pengetahuan|tambah pengetahuan)\b/i.test(request) &&
+    /\b(?:kamu|mu|james|pengetahuan|belajar)\b/i.test(request);
 }
 
 function detectIntent(request: string): Intent {
@@ -948,6 +953,63 @@ Jangan mengarang akses provider. Fokus pada pengetahuan yang dapat digunakan Jam
         .map((item) => `PROVIDER: ${item.provider}\nMODEL: ${item.model}\nINSIGHT:\n${item.text}`)
         .join("\n\n---\n\n");
 
+      const wantsPermanentLearning = requestsPermanentKnowledgeLearning(userRequest) && omantoVerified;
+      let learnedKnowledgeCandidate: { category: string; key: string; value: string; rationale: string; evidenceCount: number } | null = null;
+
+      if (wantsPermanentLearning && providerResults.length >= 2) {
+        const learningResults = await generateWithAllAIProviders({
+          prompt: `Ekstrak satu pengetahuan umum yang benar-benar didukung oleh hasil konsultasi berikut untuk disimpan sebagai kandidat pengetahuan James.
+PERMINTAAN:
+"${userRequest}"
+
+HASIL PROVIDER:
+${providerContext}
+
+Keluarkan JSON SAJA:
+{"category":"learned_topic","key":"topik stabil","value":"fakta atau prinsip yang ringkas dan dapat dipakai lagi","rationale":"mengapa pengetahuan ini layak dipertimbangkan","confidence":0.0}
+Jika tidak ada pengetahuan yang cukup jelas, keluarkan {"category":"learned_topic","key":"","value":"","rationale":"","confidence":0}.
+Jangan menyimpan rahasia, kredensial, data pribadi, atau klaim sensitif.`,
+          systemInstruction: "Kamu adalah evaluator pengetahuan James. Hanya ekstrak fakta umum yang didukung bukti provider. Jangan mengarang.",
+          temperature: 0.1,
+          maxOutputTokens: 800,
+        });
+
+        const proposals = learningResults
+          .map((item) => {
+            const parsed = extractJsonObject(item.text) as Record<string, unknown> | null;
+            return parsed && parsed.category === "learned_topic"
+              ? {
+                  category: "learned_topic",
+                  key: typeof parsed.key === "string" ? parsed.key.trim().slice(0, 80) : "",
+                  value: typeof parsed.value === "string" ? parsed.value.trim().slice(0, 240) : "",
+                  rationale: typeof parsed.rationale === "string" ? parsed.rationale.trim().slice(0, 400) : "",
+                  confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0,
+                }
+              : null;
+          })
+          .filter((item): item is NonNullable<typeof item> => Boolean(item?.key && item?.value && item.confidence >= 0.8));
+
+        if (proposals.length >= 2) {
+          const groups = new Map<string, typeof proposals>();
+          for (const proposal of proposals) {
+            const identity = proposal.key.toLowerCase().replace(/\s+/g, " ") + "::" + proposal.value.toLowerCase().replace(/\s+/g, " ");
+            const group = groups.get(identity) || [];
+            group.push(proposal);
+            groups.set(identity, group);
+          }
+          const winner = [...groups.values()].sort((a, b) => b.length - a.length)[0];
+          if (winner && winner.length >= 2) {
+            learnedKnowledgeCandidate = {
+              category: winner[0].category,
+              key: winner[0].key,
+              value: winner[0].value,
+              rationale: winner[0].rationale,
+              evidenceCount: winner.length,
+            };
+          }
+        }
+      }
+
       const synthesis = await callJamesAI(
         `${memoryContext}\n\nBeberapa provider AI telah dikonsultasikan untuk permintaan pengguna berikut:
 "${userRequest}"
@@ -966,6 +1028,10 @@ Jangan menyebut mekanisme internal kecuali pengguna memang bertanya bagaimana si
       const resultText = sanitizeJamesFinalResponse(synthesis);
       await saveActivity(userRequest, intent, "multi-provider-ai", resultText);
       await saveJames(userId, conversationId, userRequest, resultText, intent, "multi-provider-ai");
+
+      if (learnedKnowledgeCandidate) {
+        await addGlobalCandidate(learnedKnowledgeCandidate);
+      }
 
       return NextResponse.json({
         result: resultText,
