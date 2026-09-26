@@ -278,7 +278,7 @@ export async function runJamesAgentLoop(input: {
 
   return {
     answer: recovery.answer || lastAnswer,
-    verified: Boolean(recovery.answer || lastAnswer),
+    verified: recovery.verified,
     iterations: MAX_ITERATIONS,
     recovered: true,
     plan,
