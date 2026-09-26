@@ -816,3 +816,30 @@ EVOLUTION
 - UI/API telah disimpan di GitHub.
 - `npx tsc --noEmit`, production build, dan browser runtime **belum dijalankan**.
 - Sebelum Control Center dipakai sebagai admin console penuh, authentication/authorization khusus admin perlu ditambahkan. Saat ini API hanya menampilkan data agregat/non-identifying.
+
+## 27. End-to-End Static Validation & Safety Refinement — 2026-09-26
+
+### Audit findings
+- GitHub source audit completed for the latest James architecture.
+- Local clone/build could not be executed in this environment because outbound GitHub DNS/network access is unavailable; therefore TypeScript/build are **not claimed as passing**.
+- James Mind had a data wiring issue where reflection data was queried but returned as an empty array; this has been corrected.
+- Global Growth activation was tightened: a candidate now requires repeated evidence (`evidence_count >= 3`) plus at least two strong provider supports and no strong rejection.
+- Global candidate evidence now accumulates instead of resetting to 1 on every learning cycle.
+- Core identity remains immutable and is injected before dynamic growth context.
+
+### Current validation status
+- Static source review: completed.
+- TypeScript: **not executed**.
+- Production build: **not executed**.
+- Supabase migrations/runtime: **not executed**.
+- Gemini/OpenRouter/Groq runtime: **not executed**.
+- Vercel Cron runtime: **not executed**.
+
+### Next required local validation
+```powershell
+git pull origin main
+npm install
+npx tsc --noEmit
+npm run build
+```
+Then run the Supabase migrations and one protected James learning cycle before treating the system as production-ready.
