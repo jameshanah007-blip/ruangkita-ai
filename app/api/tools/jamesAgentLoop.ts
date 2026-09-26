@@ -47,6 +47,7 @@ export type JamesAgentResult = {
   capabilityResults: JamesCapabilityResult[];
   citations: Array<{ title: string; url: string }>;
   steps: JamesAgentStep[];
+  taskId: string | null;
 };
 
 const MAX_ITERATIONS = 3;
@@ -357,6 +358,7 @@ export async function runJamesAgentLoop(input: {
           capabilityResults: allCapabilityResults,
           citations,
           steps,
+          taskId,
         };
       }
     }
@@ -446,5 +448,6 @@ export async function runJamesAgentLoop(input: {
     capabilityResults: allCapabilityResults,
     citations,
     steps,
+    taskId,
   };
 }
