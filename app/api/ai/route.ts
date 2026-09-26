@@ -315,7 +315,8 @@ Aturan:
         input.userId,
         input.conversationId,
         input.userRequest,
-        proposals
+        proposals,
+        recentFeedback.map((item) => item.feedback).filter(Boolean)
       );
     }
 
