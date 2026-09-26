@@ -259,24 +259,20 @@ Aturan:
 
     if (!parsedResults.length) return;
 
-    const primary = parsedResults[0].data as Record<string, unknown>;
-    const observation = cleanReflectionText(primary.observation, 500);
-    const whatWorked = cleanReflectionText(primary.what_worked, 500);
-    const whatFailed = cleanReflectionText(primary.what_failed, 500);
-    const lesson = cleanReflectionText(primary.lesson, 500);
-    const evidence = cleanReflectionText(primary.evidence, 500);
-    const confidence = clampReflectionConfidence(primary.confidence);
+    const reflection = mergeReflectionResults(parsedResults);
 
-    const reflectionSaved = await saveJamesReflection({
-      userId: input.userId,
-      conversationId: input.conversationId,
-      observation,
-      whatWorked,
-      whatFailed,
-      lesson,
-      confidence,
-      evidence,
-    });
+    const reflectionSaved = reflection
+      ? await saveJamesReflection({
+          userId: input.userId,
+          conversationId: input.conversationId,
+          observation: reflection.observation,
+          whatWorked: reflection.whatWorked,
+          whatFailed: reflection.whatFailed,
+          lesson: reflection.lesson,
+          confidence: reflection.confidence,
+          evidence: reflection.evidence,
+        })
+      : false;
 
     const proposals = mergeLearningProposals(parsedResults);
     const memories = mergeMemoryProposals(parsedResults);
@@ -310,6 +306,100 @@ Aturan:
   } catch (error) {
     console.error("James multi-provider learning error:", error);
   }
+}
+
+type JamesMergedReflection = {
+  observation: string;
+  whatWorked: string;
+  whatFailed: string;
+  lesson: string;
+  confidence: number;
+  evidence: string;
+};
+
+function mergeReflectionResults(
+  results: Array<{ provider: string; data: Record<string, unknown> }>
+): JamesMergedReflection | null {
+  if (!results.length) return null;
+
+  const fields = [
+    "observation",
+    "what_worked",
+    "what_failed",
+    "lesson",
+    "evidence",
+  ] as const;
+
+  const selectField = (field: (typeof fields)[number]) => {
+    const candidates = results
+      .map((result) => ({
+        provider: result.provider,
+        value: cleanReflectionText(result.data[field], 500),
+        confidence: clampReflectionConfidence(result.data.confidence),
+      }))
+      .filter((item) => item.value);
+
+    if (!candidates.length) return "";
+
+    const groups = new Map<string, typeof candidates>();
+    for (const candidate of candidates) {
+      const key = candidate.value.toLowerCase().replace(/\\s+/g, " ").trim();
+      const group = groups.get(key) || [];
+      group.push(candidate);
+      groups.set(key, group);
+    }
+
+    const ranked = [...groups.values()].sort((a, b) => {
+      const support = b.length - a.length;
+      if (support !== 0) return support;
+      return Math.max(...b.map((item) => item.confidence)) -
+        Math.max(...a.map((item) => item.confidence));
+    });
+
+    const winner = ranked[0];
+    if (!winner) return "";
+
+    // Bila provider berbeda pendapat, reflection hanya memakai nilai
+    // yang didukung minimal dua provider.
+    if (groups.size > 1 && winner.length < 2) return "";
+
+    return winner.reduce((best, item) =>
+      item.confidence > best.confidence ? item : best
+    ).value;
+  };
+
+  const observation = selectField("observation");
+  const lesson = selectField("lesson");
+
+  // Observation dan lesson adalah inti reflection. Jika keduanya tidak
+  // mendapat dukungan yang cukup, jangan membuat reflection seolah-olah
+  // sudah tervalidasi.
+  if (!observation || !lesson) return null;
+
+  const whatWorked = selectField("what_worked");
+  const whatFailed = selectField("what_failed");
+  const evidence = selectField("evidence");
+
+  const confidenceValues = results
+    .map((result) => clampReflectionConfidence(result.data.confidence))
+    .filter((value) => value > 0);
+
+  const confidence = confidenceValues.length
+    ? Math.min(
+        1,
+        confidenceValues.reduce((sum, value) => sum + value, 0) /
+          confidenceValues.length
+      )
+    : 0;
+
+  return {
+    observation,
+    whatWorked,
+    whatFailed,
+    lesson,
+    confidence,
+    evidence,
+  };
 }
 
 function mergeLearningProposals(
