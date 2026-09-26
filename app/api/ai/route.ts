@@ -405,17 +405,16 @@ function mergeReflectionResults(
 function mergeLearningProposals(
   results: Array<{ provider: string; data: Record<string, unknown> }>
 ): JamesEvolutionProposal[] {
-  const merged = new Map<string, JamesEvolutionProposal>();
+  const candidates = new Map<string, JamesEvolutionProposal[]>();
 
   for (const result of results) {
-    const items = Array.isArray(result.data.proposals)
-      ? result.data.proposals
-      : [];
+    const items = Array.isArray(result.data.proposals) ? result.data.proposals : [];
 
     for (const raw of items) {
       if (!raw || typeof raw !== "object") continue;
       const item = raw as Record<string, unknown>;
       const category = item.category;
+
       if (
         category !== "communication_style" &&
         category !== "interest" &&
@@ -435,16 +434,47 @@ function mergeLearningProposals(
 
       if (!proposal.key || !proposal.value || proposal.confidence < 0.70) continue;
 
-      const identity = `${proposal.category}:${proposal.key}:${proposal.value.toLowerCase()}`;
-      const existing = merged.get(identity);
-
-      if (!existing || proposal.confidence > existing.confidence) {
-        merged.set(identity, proposal);
-      }
+      const identity = `${proposal.category}:${proposal.key}`;
+      const list = candidates.get(identity) || [];
+      list.push(proposal);
+      candidates.set(identity, list);
     }
   }
 
-  return [...merged.values()].slice(0, 5);
+  const resolved: JamesEvolutionProposal[] = [];
+
+  for (const proposals of candidates.values()) {
+    const groups = new Map<string, JamesEvolutionProposal[]>();
+
+    for (const proposal of proposals) {
+      const value = proposal.value.toLowerCase().replace(/\\s+/g, " ").trim();
+      const group = groups.get(value) || [];
+      group.push(proposal);
+      groups.set(value, group);
+    }
+
+    const ranked = [...groups.values()].sort((a, b) => {
+      const supportDiff = b.length - a.length;
+      if (supportDiff !== 0) return supportDiff;
+      return b.reduce((sum, item) => sum + item.confidence, 0) -
+        a.reduce((sum, item) => sum + item.confidence, 0);
+    });
+
+    const winner = ranked[0];
+    if (!winner) continue;
+
+    if (groups.size > 1 && winner.length < 2) continue;
+
+    resolved.push(
+      winner.reduce((best, item) =>
+        item.confidence > best.confidence ? item : best
+      )
+    );
+  }
+
+  return resolved
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 5);
 }
 
 function mergeMemoryProposals(
