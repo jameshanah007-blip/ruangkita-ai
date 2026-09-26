@@ -1,4 +1,5 @@
 import { buildJamesMemoryContext } from "../../ai/persona";
+import { understandJamesInput } from "./jamesInputUnderstanding";
 
 type ContextMessage = {
   role: string;
@@ -44,8 +45,10 @@ const STOP_WORDS = new Set([
 ]);
 
 function terms(text: string) {
+  const understood = understandJamesInput(text).normalized;
+
   return [...new Set(
-    text
+    understood
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, " ")
       .split(/\s+/)
@@ -56,21 +59,60 @@ function terms(text: string) {
 function score(query: string, value: string) {
   const q = new Set(terms(query));
   const v = new Set(terms(value));
+  if (!q.size || !v.size) return 0;
+
   let matches = 0;
   for (const word of q) if (v.has(word)) matches++;
-  return matches;
+
+  // Reward coverage rather than raw word count, so a short follow-up can
+  // still match a longer memory when the key concepts overlap.
+  const coverage = matches / q.size;
+  return matches + coverage;
+}
+
+function recencyBonus(createdAt: string | undefined, index: number) {
+  if (!createdAt) return Math.max(0, 0.15 - index * 0.002);
+
+  const timestamp = Date.parse(createdAt);
+  if (!Number.isFinite(timestamp)) return Math.max(0, 0.15 - index * 0.002);
+
+  const ageDays = Math.max(0, (Date.now() - timestamp) / 86_400_000);
+  return Math.max(0, 0.5 * Math.exp(-ageDays / 14));
+}
+
+function rankRelevance(query: string, value: string, index: number, createdAt?: string) {
+  return score(query, value) + recencyBonus(createdAt, index);
 }
 
 export function buildJamesContext(input: ContextInput) {
   const query = input.userRequest.trim();
-  const selectedMessages = [...(input.messages || [])]
+  const allMessages = [...(input.messages || [])];
+
+  // Preserve a recent conversational window even when the current wording
+  // shares few literal terms with the previous turns ("lanjutkan", "yang tadi",
+  // "project itu", etc.). Relevance retrieval then fills the remaining slots.
+  const recentWindow = allMessages.slice(-8);
+  const recentKeys = new Set(recentWindow.map((_, index) => allMessages.length - recentWindow.length + index));
+
+  const rankedMessages = allMessages
     .map((message, index) => ({
       message,
       index,
-      relevance: score(query, message.content),
+      relevance: rankRelevance(query, message.content, index, message.created_at),
     }))
-    .sort((a, b) => b.relevance - a.relevance || b.index - a.index)
-    .slice(0, 20)
+    .sort((a, b) => b.relevance - a.relevance || b.index - a.index);
+
+  const relevantMessages = rankedMessages
+    .filter((item) => !recentKeys.has(item.index))
+    .slice(0, 12);
+
+  const selectedMessages = [
+    ...recentWindow.map((message, offset) => ({
+      message,
+      index: allMessages.length - recentWindow.length + offset,
+    })),
+    ...relevantMessages.map(({ message, index }) => ({ message, index })),
+  ]
     .sort((a, b) => a.index - b.index)
     .map(({ message }) => message);
 

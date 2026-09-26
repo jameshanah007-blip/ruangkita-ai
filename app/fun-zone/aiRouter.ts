@@ -1,5 +1,6 @@
 import {
   aiProviders,
+  type AIProvider,
   type AIGenerateRequest,
   type AIGenerateResponse,
 } from "./aiProvider";
@@ -23,6 +24,8 @@ type ProviderError = Error & {
 };
 
 const PROVIDER_TIMEOUT_MS = 20_000;
+
+type ProviderFailureReason = "timeout" | "quota" | "rate_limit" | "auth" | "server" | "network" | "empty" | "invalid" | "unknown";
 
 function getErrorMessage(
   error: unknown
@@ -55,46 +58,61 @@ function getErrorStatus(
   return undefined;
 }
 
-function isRetryableProviderError(
-  error: unknown
-): boolean {
-  const status =
-    getErrorStatus(error);
-
-  const message =
-    getErrorMessage(error)
-      .toLowerCase();
-
-  if (
-    status === 401 ||
-    status === 403
-  ) {
-    return false;
-  }
-
-  if (
-    status === 408 ||
-    status === 429 ||
-    status === 500 ||
-    status === 502 ||
-    status === 503 ||
-    status === 504
-  ) {
-    return true;
-  }
-
-  return (
-    message.includes("timeout") ||
-    message.includes("timed out") ||
-    message.includes("rate limit") ||
-    message.includes("quota") ||
-    message.includes("too many requests") ||
-    message.includes("temporarily unavailable") ||
-    message.includes("network") ||
-    message.includes("fetch failed")
-  );
+function classifyProviderFailure(error: unknown): ProviderFailureReason {
+  const status = getErrorStatus(error);
+  const message = getErrorMessage(error).toLowerCase();
+  if (status === 401 || status === 403) return "auth";
+  if (status === 429 || message.includes("rate limit") || message.includes("too many requests")) return "rate_limit";
+  if (message.includes("quota") || message.includes("insufficient quota") || message.includes("exceeded")) return "quota";
+  if (status === 408 || message.includes("timeout") || message.includes("timed out")) return "timeout";
+  if (status === 500 || status === 502 || status === 503 || status === 504 || message.includes("temporarily unavailable") || message.includes("server error")) return "server";
+  if (message.includes("network") || message.includes("fetch failed") || message.includes("econn") || message.includes("socket")) return "network";
+  if (message.includes("tidak menghasilkan output teks") || message.includes("output kosong") || message.includes("empty output")) return "empty";
+  if (status && status >= 400) return "invalid";
+  return "unknown";
 }
 
+function isRetryableProviderError(error: unknown): boolean {
+  return ["timeout", "quota", "rate_limit", "server", "network", "empty"].includes(classifyProviderFailure(error));
+}
+
+function validateProviderResponse(providerName: string, result: AIGenerateResponse): AIGenerateResponse {
+  if (!result || typeof result.text !== "string") {
+    const error = new Error(providerName + " mengembalikan respons dengan format tidak valid.") as ProviderError;
+    error.provider = providerName;
+    throw error;
+  }
+  const text = result.text.trim();
+  if (!text) {
+    const error = new Error(providerName + " menghasilkan output kosong.") as ProviderError;
+    error.provider = providerName;
+    throw error;
+  }
+  if (typeof result.provider !== "string" || typeof result.model !== "string") {
+    const error = new Error(providerName + " mengembalikan metadata respons tidak valid.") as ProviderError;
+    error.provider = providerName;
+    throw error;
+  }
+  return { ...result, text };
+}
+
+function getProviderList(): AIProvider[] {
+  const providers = [...aiProviders, openRouterProvider, groqProvider];
+  return Array.from(new Map(providers.map((provider) => [provider.name, provider])).values());
+}
+
+function formatProviderFailure(providerName: string, error: unknown): string {
+  const status = getErrorStatus(error);
+  const reason = classifyProviderFailure(error);
+  const message = getErrorMessage(error);
+  const prefix = status ? providerName + ": HTTP " + status : providerName;
+  return prefix + " [" + reason + "] - " + message;
+}
+
+async function tryProvider(provider: AIProvider, request: AIGenerateRequest): Promise<AIGenerateResponse> {
+  const result = await generateWithTimeout(provider.name, () => provider.generate(request));
+  return validateProviderResponse(provider.name, result);
+}
 async function generateWithTimeout(
   providerName: string,
   providerGenerate: () =>
@@ -137,11 +155,7 @@ async function generateWithTimeout(
 export async function generateWithAIRouter(
   request: AIGenerateRequest
 ): Promise<AIRouterResult> {
-  const providers = [
-    ...aiProviders,
-    openRouterProvider,
-    groqProvider,
-  ];
+  const providers = getProviderList();
 
   const availableProviders =
     providers.filter(
@@ -170,14 +184,7 @@ export async function generateWithAIRouter(
       const startedAt =
         Date.now();
 
-      const result =
-        await generateWithTimeout(
-          provider.name,
-          () =>
-            provider.generate(
-              request
-            )
-        );
+      const result = await tryProvider(provider, request);
 
       const elapsed =
         Date.now() - startedAt;
@@ -197,15 +204,9 @@ export async function generateWithAIRouter(
       const status =
         getErrorStatus(error);
 
-      const retryable =
-        isRetryableProviderError(
-          error
-        );
-
-      const detail =
-        status
-          ? `${provider.name}: HTTP ${status} - ${message}`
-          : `${provider.name}: ${message}`;
+      const reason = classifyProviderFailure(error);
+      const retryable = isRetryableProviderError(error);
+      const detail = formatProviderFailure(provider.name, error);
 
       attempts.push(detail);
 
@@ -214,6 +215,7 @@ export async function generateWithAIRouter(
         {
           message,
           status,
+          reason,
           retryable,
         }
       );
@@ -233,15 +235,9 @@ export async function generateWithAIRouter(
        * Jadi kegagalan satu provider tidak
        * menghentikan AI Game Lab.
        */
-      if (!retryable) {
-        console.warn(
-          `Provider ${provider.name} mengalami error yang tidak retryable. Tetap lanjut ke provider berikutnya.`
-        );
-      } else {
-        console.warn(
-          `Provider ${provider.name} mengalami error retryable. Lanjut ke provider berikutnya.`
-        );
-      }
+      console.warn(
+        `Provider ${provider.name} gagal [${reason}]. ${retryable ? "Fallback dilanjutkan." : "Tetap mencoba provider berikutnya untuk menjaga availability."}`
+      );
     }
   }
 
@@ -261,13 +257,12 @@ export async function generateWithAIRouter(
 export async function generateWithAllAIProviders(
   request: AIGenerateRequest
 ): Promise<Array<AIGenerateResponse & { attempts: string[] }>> {
-  const providers = [
-    ...aiProviders,
-    openRouterProvider,
-    groqProvider,
-  ];
+  const providers = getProviderList();
 
-  const availableProviders = providers.filter((provider) => provider.isAvailable());
+  const availableProviders =
+    providers.filter(
+      (provider) => provider.isAvailable()
+    );
 
   if (!availableProviders.length) {
     throw new Error("Tidak ada AI provider yang tersedia untuk James Learning.");
@@ -277,15 +272,10 @@ export async function generateWithAllAIProviders(
     availableProviders.map(async (provider) => {
       const attempts: string[] = [];
       try {
-        const result = await generateWithTimeout(
-          provider.name,
-          () => provider.generate(request)
-        );
+        const result = await tryProvider(provider, request);
         return { ...result, attempts };
       } catch (error) {
-        attempts.push(
-          `${provider.name}: ${getErrorMessage(error)}`
-        );
+        attempts.push(formatProviderFailure(provider.name, error));
         throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
           attempts,
         });

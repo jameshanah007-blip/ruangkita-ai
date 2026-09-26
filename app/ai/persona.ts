@@ -273,7 +273,7 @@ export function buildJamesMemoryContext(input: {
       })
       .join("\n");
 
-    parts.push(`RIWAYAT PERCAKAPAN TERKINI:\n${history}`);
+    parts.push(`RIWAYAT PERCAKAPAN TERKINI:\n${history}\n\nATURAN RESOLUSI KONTEKS:\n- Anggap beberapa pesan terakhir sebagai konteks percakapan aktif, terutama saat pengguna memakai kata seperti "ini", "itu", "yang tadi", "project saya", "lanjutkan", "perbaiki", atau "buatkan lagi".\n- Hubungkan kata rujukan tersebut ke entitas atau tugas yang paling jelas dari riwayat terbaru.\n- Jangan mengarang referen. Jika ada dua kemungkinan yang sama-sama masuk akal, tanyakan klarifikasi singkat.\n- Jangan mengabaikan riwayat terbaru hanya karena kata-katanya berbeda dari pesan sekarang.`);
   }
 
   if (input.longTermMemories?.length) {

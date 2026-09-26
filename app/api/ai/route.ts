@@ -30,6 +30,7 @@ import { buildJamesContext } from "../tools/jamesContext";
 import { executeJamesCapabilities, planJamesIntelligence } from "../tools/jamesIntelligence";
 import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
+import { understandJamesInput } from "../tools/jamesInputUnderstanding";
 
 type Intent =
   | "chat"
@@ -56,70 +57,6 @@ function requestsMultiProviderKnowledge(request: string) {
 function requestsPermanentKnowledgeLearning(request: string) {
   return /\b(?:belajar|pelajari|tambahkan|simpan|jadikan pengetahuan|ingat|menambah pengetahuan|tambah pengetahuan)\b/i.test(request) &&
     /\b(?:kamu|mu|james|pengetahuan|belajar)\b/i.test(request);
-}
-
-function detectIntent(request: string): Intent {
-  const text = request.toLowerCase();
-
-  const calculatorPatterns = [
-    /\d+\s*[+\-*/x×÷%]\s*\d+/,
-    /berapa hasil/,
-    /hitung/,
-    /berapakah/,
-    /kalkulator/,
-  ];
-
-  if (calculatorPatterns.some((pattern) => pattern.test(text))) {
-    return "calculator";
-  }
-
-  const explicitResearchPatterns = [
-    /\bcarikan\b/,
-    /\bcari(?:kan)?\b.*\b(internet|web|online|sumber|referensi|informasi|berita|lomba|beasiswa|lowongan)\b/,
-    /\btolong\b.*\bcari\b/,
-    /\bcek\b.*\b(terbaru|sekarang|hari ini|online|internet|web)\b/,
-    /\bsearch\b.*\b(web|internet|online)\b/,
-  ];
-
-  const freshnessPatterns = [
-    /\b(terbaru|terkini|hari ini|sekarang|saat ini|minggu ini|bulan ini)\b/,
-    /\b(versi|rilis|harga|jadwal|berita|event|lomba|beasiswa|lowongan)\b.*\b(terbaru|terkini|sekarang|hari ini)\b/,
-    /\b(terbaru|terkini|sekarang|hari ini)\b.*\b(versi|rilis|harga|jadwal|berita|event|lomba|beasiswa|lowongan)\b/,
-  ];
-
-  const sourceRequestPatterns = [
-    /\b(sumber|referensi|link|tautan)\b.*\b(cari|berikan|kirim|tampilkan)\b/,
-    /\b(cari|berikan|kirim|tampilkan)\b.*\b(sumber|referensi|link|tautan)\b/,
-  ];
-
-  if (
-    explicitResearchPatterns.some((pattern) => pattern.test(text)) ||
-    freshnessPatterns.some((pattern) => pattern.test(text)) ||
-    sourceRequestPatterns.some((pattern) => pattern.test(text))
-  ) {
-    return "web_search";
-  }
-
-  const documentPatterns = [
-    "buatkan surat", "buat surat", "surat resmi", "surat izin",
-    "surat undangan", "proposal", "laporan", "dokumen",
-    "buatkan dokumen",
-  ];
-
-  if (documentPatterns.some((keyword) => text.includes(keyword))) {
-    return "document";
-  }
-
-  const plannerPatterns = [
-    "buat rencana", "rencana belajar", "jadwal belajar",
-    "buat jadwal", "planning", "rencanakan", "strategi belajar",
-  ];
-
-  if (plannerPatterns.some((keyword) => text.includes(keyword))) {
-    return "planner";
-  }
-
-  return "chat";
 }
 
 async function callJamesAI(
@@ -872,6 +809,9 @@ export async function POST(request: Request) {
     const userRequest =
       typeof body?.request === "string" ? body.request.trim() : "";
 
+    const inputUnderstanding = understandJamesInput(userRequest);
+    const understoodRequest = inputUnderstanding.normalized || userRequest;
+
     const claimsOmanto = /\b(?:saya|aku)\s+(?:adalah\s+)?omanto\b/i.test(userRequest);
     const omantoVerified = isOmantoVerified(request);
 
@@ -892,12 +832,12 @@ export async function POST(request: Request) {
 
     const trainingRequest = isJamesTrainingInstruction(userRequest);
     if (trainingRequest && omantoVerified) {
-      const proposals = await interpretJamesTrainingInstruction(userRequest);
+      const proposals = await interpretJamesTrainingInstruction(understoodRequest);
       if (proposals.length) {
         await applyVerifiedJamesGlobalEvolution(
           userId,
           conversationId,
-          userRequest,
+          understoodRequest,
           proposals,
           omantoVerified
         );
@@ -952,7 +892,7 @@ export async function POST(request: Request) {
       getGlobalGrowth(20),
     ]);
     const contextResult = buildJamesContext({
-      userRequest,
+      userRequest: understoodRequest,
       ...memory,
       longTermMemories,
       growth,
@@ -976,14 +916,14 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
     const jamesKnowledgeContext = `${memoryContext}
 
 ${activeKnowledgeContext}`;
-    const intelligencePlan = planJamesIntelligence(userRequest);
+    const intelligencePlan = planJamesIntelligence(understoodRequest);
     const intent = intelligencePlan.primary;
-    if (requestsMultiProviderKnowledge(userRequest)) {
+    if (requestsMultiProviderKnowledge(understoodRequest)) {
       const providerResults = await generateWithAllAIProviders({
         prompt: `Pengguna meminta James mendapatkan pengetahuan dari beberapa provider AI.
 
 PERMINTAAN PENGGUNA:
-"${userRequest}"
+"${understoodRequest}"
 
 Berikan jawaban/insight yang faktual dan berguna untuk permintaan tersebut.
 Jangan mengarang akses provider. Fokus pada pengetahuan yang dapat digunakan James.`,
@@ -998,14 +938,14 @@ Jangan mengarang akses provider. Fokus pada pengetahuan yang dapat digunakan Jam
         .map((item) => `PROVIDER: ${item.provider}\nMODEL: ${item.model}\nINSIGHT:\n${item.text}`)
         .join("\n\n---\n\n");
 
-      const wantsPermanentLearning = requestsPermanentKnowledgeLearning(userRequest) && omantoVerified;
+      const wantsPermanentLearning = requestsPermanentKnowledgeLearning(understoodRequest) && omantoVerified;
       let learnedKnowledgeCandidate: { category: string; key: string; value: string; rationale: string; evidenceCount: number } | null = null;
 
       if (wantsPermanentLearning && providerResults.length >= 2) {
         const learningResults = await generateWithAllAIProviders({
           prompt: `Ekstrak satu pengetahuan umum yang benar-benar didukung oleh hasil konsultasi berikut untuk disimpan sebagai kandidat pengetahuan James.
 PERMINTAAN:
-"${userRequest}"
+"${understoodRequest}"
 
 HASIL PROVIDER:
 ${providerContext}
@@ -1059,7 +999,7 @@ Jangan menyimpan rahasia, kredensial, data pribadi, atau klaim sensitif.`,
         `${memoryContext}
 
 PENTING: Server RuangKita BARU SAJA melakukan konsultasi provider AI untuk permintaan pengguna berikut:
-"${userRequest}"
+"${understoodRequest}"
 
 Provider yang BENAR-BENAR berhasil memberikan hasil pada request ini:
 ${providerResults.map((item) => item.provider).join(", ")}
@@ -1128,7 +1068,7 @@ Jangan menyebut reasoning internal.`
     if (intelligencePlan.capabilities.length > 1) {
       const capabilityResults = await executeJamesCapabilities(
         intelligencePlan,
-        userRequest
+        understoodRequest
       );
 
       const toolContext = capabilityResults.length
@@ -1151,7 +1091,7 @@ ATURAN RESEARCH:
 
 
 PERMINTAAN:
-"${userRequest}"
+"${understoodRequest}"
 
 HASIL CAPABILITY YANG SUDAH DIJALANKAN:
 ${toolContext}
@@ -1222,7 +1162,7 @@ Jangan mengarang fakta tentang pengguna yang tidak ada dalam memori.
 
     if (intent === "calculator") {
       const resultText = String(
-        calculate(extractMathExpression(userRequest))
+        calculate(extractMathExpression(understoodRequest))
       );
 
       await saveActivity(userRequest, intent, "calculator", resultText);
@@ -1240,7 +1180,7 @@ Jangan mengarang fakta tentang pengguna yang tidak ada dalam memori.
     }
 
     if (intent === "web_search") {
-      const research = await webSearch(intelligencePlan.researchQuery || userRequest);
+      const research = await webSearch(intelligencePlan.researchQuery || understoodRequest);
       const searchResults = research.results;
 
       const citations: Citation[] = searchResults.map((item) => ({
@@ -1253,7 +1193,7 @@ Jangan mengarang fakta tentang pengguna yang tidak ada dalam memori.
 ${memoryContext}
 
 Pengguna meminta informasi yang mungkin membutuhkan penelitian eksternal:
-"${userRequest}"
+"${understoodRequest}"
 
 Status research: ${research.status}
 Query research: ${research.query}
@@ -1316,7 +1256,7 @@ Jawab sebagai James dalam bahasa Indonesia yang natural dan praktis.
 ${memoryContext}
 
 Pengguna meminta:
-"${userRequest}"
+"${understoodRequest}"
 
 Berikut hasil pencarian dari mesin pencari Exa:
 
@@ -1367,7 +1307,7 @@ Jangan membuat URL baru. Gunakan hanya URL yang tersedia dari hasil pencarian.
 ${memoryContext}
 
 Pengguna meminta:
-"${userRequest}"
+"${understoodRequest}"
 
 Buatkan dokumen yang sesuai dengan permintaan tersebut.
 Gunakan bahasa Indonesia yang baik dan formal jika diperlukan.
@@ -1402,7 +1342,7 @@ Berikan hasil yang siap disalin dan diedit.
 ${memoryContext}
 
 Pengguna meminta:
-"${userRequest}"
+"${understoodRequest}"
 
 Buatkan rencana yang praktis dan mudah dijalankan.
 Jika berkaitan dengan belajar, buat tujuan, jadwal, pembagian materi,
@@ -1432,8 +1372,8 @@ Gunakan format yang mudah dibaca.
     }
 
     const chatPrompt = `
-Percakapan terbaru dari pengguna:
-"${userRequest}"
+Pesan pengguna yang sudah dipahami James:
+"${understoodRequest}"
 
 Jawab langsung sebagai James.
 Gunakan bahasa Indonesia yang natural, ramah, hangat, jelas, dan praktis.

@@ -205,8 +205,36 @@ function createFallbackBlueprint(
 }
 
 function buildDiagnosticHtml(
-  gameHtml: string
+  gameHtml: string,
+  testActions: string[]
 ) {
+  const serializedTestActions =
+    JSON.stringify(
+      Array.from(
+        new Set(
+          [
+            ...testActions,
+            "move",
+            "interact",
+            "jump",
+            "attack",
+            "collect",
+          ]
+            .filter(
+              (action) =>
+                typeof action === "string" &&
+                action.trim()
+            )
+            .map((action) => action.trim())
+        )
+      ).slice(0, 12)
+    );
+
+  const renderedDiagnostic =
+    diagnostic.replace(
+      "__RK_TEST_ACTIONS__",
+      serializedTestActions
+    );
   const diagnostic = `
 <script>
 (function () {
@@ -1045,13 +1073,7 @@ var beforeLost =
       var protocolAction = "";
       var restartVerified = false;
 
-      var testActions = [
-        "move",
-        "interact",
-        "jump",
-        "attack",
-        "collect"
-      ];
+      var testActions = __RK_TEST_ACTIONS__;
 
       if (
         gameTestProtocol &&
@@ -1678,7 +1700,7 @@ var beforeLost =
   ) {
     return gameHtml.replace(
       /(<html[^>]*>)/i,
-      "$1" + diagnostic
+      "$1" + renderedDiagnostic
     );
   }
 
@@ -1689,7 +1711,7 @@ var beforeLost =
   ) {
     return gameHtml.replace(
       /(<head[^>]*>)/i,
-      "$1" + diagnostic
+      "$1" + renderedDiagnostic
     );
   }
 
@@ -1705,7 +1727,7 @@ var beforeLost =
   }
 
   return (
-    diagnostic +
+    renderedDiagnostic +
     gameHtml
   );
 }
@@ -1912,13 +1934,20 @@ export default function AIGameSandbox({
     setDebugging(false);
   }, [gameHtml]);
 
+  const sandboxTestActions =
+    useMemo(
+      () => blueprint?.playerActions ?? [],
+      [blueprint]
+    );
+
   const sandboxHtml =
     useMemo(
       () =>
         buildDiagnosticHtml(
-          currentHtml
+          currentHtml,
+          sandboxTestActions
         ),
-      [currentHtml]
+      [currentHtml, sandboxTestActions]
     );
 
   const startTest =
