@@ -11,6 +11,7 @@ export type JamesExperience = {
   successCount: number;
   confidence: number;
   status: "active" | "candidate" | "retired";
+  relevance?: number;
 };
 
 function db() {
@@ -129,6 +130,59 @@ export function formatJamesExperienceContext(experiences: JamesExperience[]) {
     "",
     "Gunakan pengalaman sebagai pola kerja, bukan sebagai fakta eksternal atau aturan mutlak.",
   ].join("\n");
+}
+
+export async function recordJamesExperienceOutcome(input: {
+  experienceIds: string[];
+  verified: boolean;
+}) {
+  const supabase = db();
+  const ids = input.experienceIds.filter(safeId).slice(0, 10);
+  if (!supabase || !ids.length) return 0;
+
+  const { data, error } = await supabase
+    .from("james_experiences")
+    .select("id, success_count, failure_count, confidence, status")
+    .in("id", ids)
+    .eq("status", "active");
+
+  if (error || !data?.length) return 0;
+
+  let updated = 0;
+
+  for (const item of data) {
+    const successCount = Number(item.success_count || 0);
+    const failureCount = Number(item.failure_count || 0);
+    const previousConfidence = clamp(item.confidence);
+
+    const nextSuccess = input.verified ? successCount + 1 : successCount;
+    const nextFailure = input.verified ? failureCount : failureCount + 1;
+    const total = nextSuccess + nextFailure;
+
+    // Confidence follows observed outcomes instead of accumulating blindly.
+    const empirical = total > 0 ? nextSuccess / total : previousConfidence;
+    const nextConfidence = Math.max(
+      0.05,
+      Math.min(0.99, previousConfidence * 0.35 + empirical * 0.65)
+    );
+
+    const shouldRetire = nextFailure >= 4 && empirical < 0.35;
+
+    const { error: updateError } = await supabase
+      .from("james_experiences")
+      .update({
+        success_count: nextSuccess,
+        failure_count: nextFailure,
+        confidence: nextConfidence,
+        status: shouldRetire ? "retired" : "active",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", item.id);
+
+    if (!updateError) updated += 1;
+  }
+
+  return updated;
 }
 
 export async function learnJamesExperience(input: {
