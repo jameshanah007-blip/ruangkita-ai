@@ -933,6 +933,47 @@ export async function POST(request: Request) {
       });
     }
 
+
+    if (claimsOmanto && !omantoVerified) {
+      return NextResponse.json({
+        result: "Kalau kamu Omanto, aku perlu memastikan identitasmu terlebih dahulu. Masukkan kode verifikasi Omanto.",
+        identityVerificationRequired: true,
+        identity: "omanto",
+        citations: [],
+      });
+    }
+
+    const [memory, longTermMemories, growth, globalGrowth] = await Promise.all([
+      getJamesMemory(userId, conversationId),
+      getJamesLongTermMemory(userId, 30),
+      getJamesGrowth(userId),
+      getGlobalGrowth(20),
+    ]);
+    const contextResult = buildJamesContext({
+      userRequest,
+      ...memory,
+      longTermMemories,
+      growth,
+      globalGrowth,
+    });
+    const memoryContext = contextResult.context;
+
+    const activeKnowledgeContext = globalGrowth.length
+      ? `ACTIVE JAMES KNOWLEDGE:
+${globalGrowth
+  .map((item, index) =>
+    `KNOWLEDGE ${index + 1}: [${item.category}] ${item.key} — ${item.value}
+Rationale: ${item.rationale}
+Consensus: ${item.consensus_score}`
+  )
+  .join("\n\n")}
+
+Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate, consensus, atau mekanisme internal kepada pengguna. Active knowledge bukan pengganti research untuk informasi yang dapat berubah cepat.`
+      : "ACTIVE JAMES KNOWLEDGE: belum ada pengetahuan global aktif.";
+
+    const jamesKnowledgeContext = `${memoryContext}
+
+${activeKnowledgeContext}`;
     if (requestsMultiProviderKnowledge(userRequest)) {
       const providerResults = await generateWithAllAIProviders({
         prompt: `Pengguna meminta James mendapatkan pengetahuan dari beberapa provider AI.
@@ -1049,46 +1090,7 @@ Jangan menyebut mekanisme internal kecuali pengguna memang bertanya bagaimana si
       });
     }
 
-    if (claimsOmanto && !omantoVerified) {
-      return NextResponse.json({
-        result: "Kalau kamu Omanto, aku perlu memastikan identitasmu terlebih dahulu. Masukkan kode verifikasi Omanto.",
-        identityVerificationRequired: true,
-        identity: "omanto",
-        citations: [],
-      });
-    }
 
-    const [memory, longTermMemories, growth, globalGrowth] = await Promise.all([
-      getJamesMemory(userId, conversationId),
-      getJamesLongTermMemory(userId, 30),
-      getJamesGrowth(userId),
-      getGlobalGrowth(20),
-    ]);
-    const contextResult = buildJamesContext({
-      userRequest,
-      ...memory,
-      longTermMemories,
-      growth,
-      globalGrowth,
-    });
-    const memoryContext = contextResult.context;
-
-    const activeKnowledgeContext = globalGrowth.length
-      ? `ACTIVE JAMES KNOWLEDGE:
-${globalGrowth
-  .map((item, index) =>
-    `KNOWLEDGE ${index + 1}: [${item.category}] ${item.key} — ${item.value}
-Rationale: ${item.rationale}
-Consensus: ${item.consensus_score}`
-  )
-  .join("\n\n")}
-
-Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate, consensus, atau mekanisme internal kepada pengguna. Active knowledge bukan pengganti research untuk informasi yang dapat berubah cepat.`
-      : "ACTIVE JAMES KNOWLEDGE: belum ada pengetahuan global aktif.";
-
-    const jamesKnowledgeContext = `${memoryContext}
-
-${activeKnowledgeContext}`;
     const verifiedIdentityContext = omantoVerified
       ? "\\nIDENTITAS TERVERIFIKASI: Pengguna telah melewati verifikasi server sebagai Omanto. Kamu boleh memperlakukan identitas Omanto sebagai terverifikasi untuk percakapan ini.\\n"
       : "";
