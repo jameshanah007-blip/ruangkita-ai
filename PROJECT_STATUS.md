@@ -657,3 +657,57 @@ Reflection
 5. Uji chat dan pastikan lebih dari satu provider dapat berkontribusi jika API key tersedia.
 6. Periksa `james_learning_runs`, `james_reflections`, `james_growth_state`, `james_evolution_events`, dan `james_curiosity`.
 7. Setelah validasi, lanjutkan **James Goals Engine** dan kemudian provider-aware global learning/approval.
+
+## 23. James Dynamic Autonomous Learning Loop — 2026-09-26
+
+### Implemented
+- James sekarang memiliki **development goals** melalui `james_goals`.
+- James memiliki **provider capability journal** melalui `james_provider_capabilities`.
+- Service baru: `app/api/tools/jamesGoals.ts`.
+- Service baru: `app/api/tools/jamesProviderCapabilities.ts`.
+- James dapat mengambil daftar model/metadata capability dari Gemini, OpenRouter, dan Groq menggunakan API resmi masing-masing saat learning cycle berjalan.
+- Endpoint baru: `/api/ai/james-learning`.
+- Learning cycle menjalankan ketiga provider melalui `generateWithAllAIProviders()`, lalu membandingkan hasilnya untuk membuat development goals.
+- Vercel Cron dikonfigurasi di `vercel.json` untuk menjalankan learning cycle setiap hari pukul 03:00 UTC.
+- Endpoint mendukung `CRON_SECRET` atau `JAMES_LEARNING_SECRET` sehingga learning cycle tidak terbuka untuk publik.
+- Goals dibuat sebagai bounded learning objectives; James tidak diberi izin untuk melakukan tindakan eksternal, memperoleh credential, atau mengubah core identity.
+
+### Target perilaku James
+James sekarang memiliki dua jalur perkembangan:
+
+```
+A. EXPERIENCE LEARNING
+User conversation
+  -> Reflection
+  -> Gemini + OpenRouter + Groq
+  -> Growth / Curiosity
+
+B. CAPABILITY LEARNING
+Scheduled learning cycle
+  -> Provider model/capability discovery
+  -> Gemini + OpenRouter + Groq comparison
+  -> Development Goals
+  -> Future learning cycles
+```
+
+Dengan demikian, James tidak hanya menunggu pengguna untuk mengajarinya. Sistem dapat menjalankan sesi pengembangan berkala untuk mengevaluasi kemampuan AI yang tersedia dan menentukan area pengembangan berikutnya.
+
+### Important limitation
+- "Selalu mengikuti perkembangan provider" berarti James dapat membaca capability/model metadata terbaru yang tersedia melalui API provider saat learning cycle berjalan; ini **bukan** jaminan bahwa James otomatis mengetahui semua perubahan produk/provider yang belum terekspos oleh API.
+- Global James Growth lintas pengguna masih belum diterapkan secara otomatis. Saat ini global development goals dipisahkan dari user-specific growth agar pengalaman satu pengguna tidak sembarangan mengubah karakter James untuk semua pengguna.
+- Tidak ada self-modifying source code. Evolusi tetap melalui state, goals, reflection, dan audited events.
+
+### Validation
+- Source telah dibaca ulang melalui GitHub.
+- `npx tsc --noEmit`, production build, dan runtime Supabase/provider **belum dijalankan** setelah penambahan autonomous learning loop.
+- Vercel Cron belum diverifikasi runtime.
+- Environment variable yang diperlukan untuk scheduler: `CRON_SECRET` atau `JAMES_LEARNING_SECRET`; API keys provider tetap disimpan sebagai secrets.
+
+### Next Action Tanya Saya
+1. Pull latest `main`.
+2. Jalankan seluruh migration James yang belum aktif.
+3. Jalankan `npx tsc --noEmit`.
+4. Jalankan `npm run build`.
+5. Deploy ke Vercel dengan `CRON_SECRET`.
+6. Jalankan satu learning cycle manual dan verifikasi `james_provider_capabilities` + `james_goals`.
+7. Setelah valid, bangun **Global James Learning Aggregator** agar pengalaman yang sudah terverifikasi dari banyak pengguna dapat menjadi pembelajaran global tanpa membawa data pribadi pengguna.
