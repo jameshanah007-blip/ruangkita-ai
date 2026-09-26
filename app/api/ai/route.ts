@@ -887,12 +887,13 @@ Berikan hanya jawaban akhir yang ditujukan kepada pengguna.
 Berikan hasil akhir yang siap digunakan pengguna.
 `;
 
-      const resultText = await callJamesAI(
+      const rawResultText = await callJamesAI(
         `${memoryContext}\n\n${orchestratorPrompt}`,
         buildJamesSystemInstruction(
-          "Kamu sedang menjalankan tugas multi-capability. Gabungkan hasil tools menjadi jawaban akhir yang koheren."
+          "Kamu sedang menjalankan tugas multi-capability. Gabungkan hasil tools menjadi jawaban akhir yang koheren. Output hanya jawaban untuk pengguna; jangan keluarkan label safety, metadata internal, reasoning, atau status tool."
         )
       );
+      const resultText = sanitizeJamesFinalResponse(rawResultText);
 
       const citations = capabilityResults.flatMap((item) => item.citations || []);
 
