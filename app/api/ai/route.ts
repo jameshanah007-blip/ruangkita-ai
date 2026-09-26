@@ -814,11 +814,26 @@ function sanitizeResearchFallback(text: string, researchAvailable: boolean): str
 function sanitizeUnavailableResearchResponse(text: string, researchVerified: boolean): string {
   if (researchVerified) return text.trim();
 
-  return text
+  const lines = text
+    .split(/\r?\n/)
+    .filter((line) => {
+      const normalized = line.toLowerCase();
+
+      const blockedPatterns = [
+        /\b(?:latest|latest stable|stable release|versi|version)\b.*\b(?:20\d{2}|terbaru|terkini|release|rilis)\b/i,
+        /\b(?:20\d{2})[-/]\d{1,2}\b/,
+        /\b(?:rilis|release)\b.*\b20\d{2}\b/i,
+        /\b(?:hingga|sampai|snapshot|as of|per)\s+(?:20\d{2}|(?:januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember))\b/i,
+        /\b(?:latest|terbaru|terkini)\b.*\b(?:adalah|is|:)\b/i,
+      ];
+
+      return !blockedPatterns.some((pattern) => pattern.test(normalized));
+    });
+
+  return lines
+    .join("\n")
     .replace(/\b(?:Next\.js|React|Node\.js|Angular|Vue|Svelte|TypeScript)\s*(?:versi|version)\s*(?:terbaru|terkini)?\s*(?:adalah|:)?\s*[^.\n]*/gi, "")
     .replace(/\b(?:versi|version)\s+(?:terbaru|terkini)\s*(?:adalah|:)?\s*[^.\n]*/gi, "")
-    .replace(/\b(?:hingga|sampai)\s+(?:awal|akhir)?\s*(?:20\d{2}|Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)[^\.\n]*/gi, "")
-    .replace(/\b(?:rilis|release)\s+(?:awal|akhir)?\s*20\d{2}[^.\n]*/gi, "")
     .trim();
 }
 
