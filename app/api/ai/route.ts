@@ -62,18 +62,18 @@ function requestsConversationRecall(request: string) {
   const text = request
     .toLowerCase()
     .replace(/[!?.,]/g, " ")
-    .replace(/\\s+/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
   return [
-    /\\btadi kita (sedang )?(membicarakan|ngobrol|bahas)/,
-    /\\bkita tadi (sedang )?(membicarakan|ngobrol|bahas)/,
-    /\\byang tadi (apa|gimana|tentang apa)/,
-    /\\bkamu ingat( apa)?( yang)? tadi/,
-    /\\bkamu masih ingat/,
-    /\\bapa yang kita (bahas|bicarakan|obrolkan)/,
-    /\\btopik (kita )?(tadi|sebelumnya)/,
-    /\\bpercakapan (tadi|sebelumnya)/
+    /\btadi kita (sedang )?(membicarakan|ngobrol|bahas)/,
+    /\bkita tadi (sedang )?(membicarakan|ngobrol|bahas)/,
+    /\byang tadi (apa|gimana|tentang apa)/,
+    /\bkamu ingat( apa)?( yang)? tadi/,
+    /\bkamu masih ingat/,
+    /\bapa yang kita (bahas|bicarakan|obrolkan)/,
+    /\btopik (kita )?(tadi|sebelumnya)/,
+    /\bpercakapan (tadi|sebelumnya)/
   ].some((pattern) => pattern.test(text));
 }
 
@@ -95,7 +95,7 @@ function buildConversationRecallResponse(
   }
 
   const topics = recentUserMessages.map((message) => {
-    const content = message.content.trim().replace(/\\s+/g, " ");
+    const content = message.content.trim().replace(/\s+/g, " ");
     return content.length > 240 ? `“${content.slice(0, 237)}...”` : `“${content}”`;
   });
 
@@ -438,7 +438,7 @@ function mergeReflectionResults(
 
     const groups = new Map<string, typeof candidates>();
     for (const candidate of candidates) {
-      const key = candidate.value.toLowerCase().replace(/\\s+/g, " ").trim();
+      const key = candidate.value.toLowerCase().replace(/\s+/g, " ").trim();
       const group = groups.get(key) || [];
       group.push(candidate);
       groups.set(key, group);
@@ -542,7 +542,7 @@ function mergeLearningProposals(
     const groups = new Map<string, JamesEvolutionProposal[]>();
 
     for (const proposal of proposals) {
-      const value = proposal.value.toLowerCase().replace(/\\s+/g, " ").trim();
+      const value = proposal.value.toLowerCase().replace(/\s+/g, " ").trim();
       const group = groups.get(value) || [];
       group.push(proposal);
       groups.set(value, group);
