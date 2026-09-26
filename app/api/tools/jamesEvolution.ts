@@ -101,10 +101,16 @@ export async function applyJamesEvolution(
   userId: string,
   conversationId: string,
   userRequest: string,
-  proposals: JamesEvolutionProposal[]
+  proposals: JamesEvolutionProposal[],
+  additionalEvidence: string[] = []
 ) {
   const supabase = getSupabase();
   if (!supabase || !validId(userId) || !validId(conversationId)) return;
+
+  const evidenceText = [userRequest, ...additionalEvidence]
+    .filter(Boolean)
+    .join("\n")
+    .toLowerCase();
 
   const safe = proposals
     .map((proposal) => ({
@@ -120,7 +126,7 @@ export async function applyJamesEvolution(
       proposal.value &&
       proposal.confidence >= 0.70 &&
       proposal.source_excerpt.length >= 3 &&
-      userRequest.toLowerCase().includes(proposal.source_excerpt.toLowerCase())
+      evidenceText.includes(proposal.source_excerpt.toLowerCase())
     )
     .slice(0, 5);
 
