@@ -46,6 +46,12 @@ const MODEL = "gemini-3.6-flash";
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/interactions";
 
+function requestsMultiProviderKnowledge(request: string) {
+  const text = request.toLowerCase();
+  return /\b(?:akses|gunakan|konsultasikan|konsultasi|tanya|bandingkan|gabungkan)\b.*\b(?:gemini|openai|groq|openrouter|provider ai|ai provider)\b/i.test(text) ||
+    /\b(?:gemini|openai|groq|openrouter)\b.*\b(?:akses|gunakan|konsultasikan|konsultasi|bandingkan|gabungkan)\b/i.test(text);
+}
+
 function detectIntent(request: string): Intent {
   const text = request.toLowerCase();
 
@@ -919,6 +925,61 @@ export async function POST(request: Request) {
         identityVerificationRequired: true,
         identity: "omanto",
         citations: [],
+      });
+    }
+
+    if (requestsMultiProviderKnowledge(userRequest)) {
+      const providerResults = await generateWithAllAIProviders({
+        prompt: `Pengguna meminta James mendapatkan pengetahuan dari beberapa provider AI.
+
+PERMINTAAN PENGGUNA:
+"${userRequest}"
+
+Berikan jawaban/insight yang faktual dan berguna untuk permintaan tersebut.
+Jangan mengarang akses provider. Fokus pada pengetahuan yang dapat digunakan James.`,
+        systemInstruction: buildJamesSystemInstruction(
+          "Kamu adalah learning/knowledge consultant James. Berikan insight yang jelas dan dapat diverifikasi. Jangan membahas reasoning internal."
+        ),
+        temperature: 0.3,
+        maxOutputTokens: 3000,
+      });
+
+      const providerContext = providerResults
+        .map((item) => `PROVIDER: ${item.provider}\nMODEL: ${item.model}\nINSIGHT:\n${item.text}`)
+        .join("\n\n---\n\n");
+
+      const synthesis = await callJamesAI(
+        `${memoryContext}\n\nBeberapa provider AI telah dikonsultasikan untuk permintaan pengguna berikut:
+"${userRequest}"
+
+HASIL KONSULTASI:
+${providerContext}
+
+Sintesis hasil tersebut menjadi satu jawaban James yang natural, jujur, dan berguna.
+Jika provider berbeda pendapat, jelaskan perbedaannya daripada mengarang kepastian.
+Jangan menyebut mekanisme internal kecuali pengguna memang bertanya bagaimana sistem bekerja.`,
+        buildJamesSystemInstruction(
+          "Sintesis pengetahuan dari hasil beberapa provider AI. Jangan mengklaim akses provider yang tidak muncul dalam konteks."
+        )
+      );
+
+      const resultText = sanitizeJamesFinalResponse(synthesis);
+      await saveActivity(userRequest, intent, "multi-provider-ai", resultText);
+      await saveJames(userId, conversationId, userRequest, resultText, intent, "multi-provider-ai");
+
+      return NextResponse.json({
+        result: resultText,
+        intent,
+        tool: "multi-provider-ai",
+        providers: providerResults.map((item) => ({
+          provider: item.provider,
+          model: item.model,
+        })),
+        citations: [],
+        userId,
+        conversationId,
+        memoryAvailable: memory.available,
+        evolutionVersion: growth.evolution_version,
       });
     }
 
