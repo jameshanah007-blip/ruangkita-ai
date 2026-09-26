@@ -228,9 +228,16 @@ Aturan:
     const parsedResults = providerResults
       .map((result) => ({
         provider: result.provider,
+        model: result.model,
         data: extractJsonObject(result.text),
       }))
       .filter((item) => item.data && typeof item.data === "object");
+
+    await saveJamesLearningRuns({
+      userId: input.userId,
+      conversationId: input.conversationId,
+      results: providerResults,
+    });
 
     if (!parsedResults.length) return;
 
@@ -406,6 +413,46 @@ async function saveJamesReflection(input: {
   }
 
   return true;
+}
+
+async function saveJamesLearningRuns(input: {
+  userId: string;
+  conversationId: string;
+  results: Array<{ provider: string; model: string; text: string }>;
+}) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
+
+  if (!supabaseUrl || !supabaseSecretKey) return;
+
+  const { createClient } = await import("@supabase/supabase-js");
+  const supabase = createClient(supabaseUrl, supabaseSecretKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
+
+  const rows = input.results
+    .filter((result) =>
+      result.provider === "gemini" ||
+      result.provider === "openrouter" ||
+      result.provider === "groq"
+    )
+    .map((result) => ({
+      user_id: input.userId,
+      conversation_id: input.conversationId,
+      provider: result.provider,
+      model: result.model,
+      success: Boolean(result.text.trim()),
+      contribution: result.text.slice(0, 500),
+    }));
+
+  if (!rows.length) return;
+
+  const { error } = await supabase.from("james_learning_runs").insert(rows);
+  if (error) console.error("James learning audit save error:", error.message);
 }
 
 function extractMathExpression(request: string): string {
