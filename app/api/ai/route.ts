@@ -968,14 +968,16 @@ Berikan hasil akhir yang siap digunakan pengguna.
 
       await saveActivity(userRequest, intent, "intelligence-orchestrator", resultText);
       await saveJames(userId, conversationId, userRequest, resultText, intent, "intelligence-orchestrator");
-      void evolveJames({
+      if (omantoVerified) {
+        void evolveJames({
         userId,
         conversationId,
         userRequest,
         assistantResult: resultText,
-      }).catch((error) => {
-        console.error("James background learning error:", error);
-      });
+        }).catch((error) => {
+          console.error("James background learning error:", error);
+        });
+      }
 
       return NextResponse.json({
         result: resultText,
@@ -1230,14 +1232,16 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
 
     await saveActivity(userRequest, intent, "gemini", resultText);
     await saveJames(userId, conversationId, userRequest, resultText, intent, "gemini");
-    void evolveJames({
+    if (omantoVerified) {
+      void evolveJames({
       userId,
       conversationId,
       userRequest,
       assistantResult: resultText,
-    }).catch((error) => {
-      console.error("James background learning error:", error);
-    });
+      }).catch((error) => {
+        console.error("James background learning error:", error);
+      });
+    }
 
     return NextResponse.json({
       result: resultText,
