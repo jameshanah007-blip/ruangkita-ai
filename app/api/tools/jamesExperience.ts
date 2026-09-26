@@ -35,11 +35,100 @@ function clamp(value: unknown) {
   return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
 }
 
+function normalize(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9áéíóúàèìòùâêîôûäëïöüñ\s]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function lexicalRelevance(request: string, experience: JamesExperience) {
+  const requestTerms = new Set(normalize(request).split(" ").filter((term) => term.length > 2));
+  const experienceTerms = new Set(
+    normalize(experience.pattern + " " + experience.strategy).split(" ").filter((term) => term.length > 2)
+  );
+  if (!requestTerms.size || !experienceTerms.size) return 0;
+
+  let overlap = 0;
+  for (const term of requestTerms) {
+    if (experienceTerms.has(term)) overlap += 1;
+  }
+
+  return Math.min(1, overlap / Math.max(3, Math.min(requestTerms.size, 12)));
+}
+
 function redact(value: string) {
   return value
     .replace(/(?:api[_ -]?key|token|password|secret|verification[_ -]?code)\s*[:=]\s*\S+/gi, "[REDACTED]")
     .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, "[EMAIL]")
     .replace(/\b(?:\+?\d[\d\s().-]{7,}\d)\b/g, "[PHONE]");
+}
+
+export async function retrieveJamesExperiences(input: {
+  userId: string;
+  request: string;
+  capabilities?: string[];
+  limit?: number;
+}) {
+  const supabase = db();
+  if (!supabase || !safeId(input.userId)) return [];
+
+  const { data, error } = await supabase
+    .from("james_experiences")
+    .select("id, pattern, strategy, capabilities, success_count, confidence, status")
+    .eq("user_id", input.userId)
+    .eq("status", "active")
+    .order("updated_at", { ascending: false })
+    .limit(30);
+
+  if (error || !data?.length) return [];
+
+  const requestedCapabilities = new Set(input.capabilities || []);
+
+  return data
+    .map((item) => {
+      const experience: JamesExperience = {
+        id: item.id,
+        pattern: item.pattern,
+        strategy: item.strategy,
+        capabilities: Array.isArray(item.capabilities) ? item.capabilities : [],
+        successCount: Number(item.success_count || 0),
+        confidence: clamp(item.confidence),
+        status: item.status,
+      };
+
+      const lexical = lexicalRelevance(input.request, experience);
+      const capabilityMatch = requestedCapabilities.size
+        ? experience.capabilities.some((capability) => requestedCapabilities.has(capability)) ? 1 : 0
+        : 0;
+      const successScore = Math.min(1, Math.log10(experience.successCount + 1) / 3);
+      const score = lexical * 0.55 + capabilityMatch * 0.20 + experience.confidence * 0.15 + successScore * 0.10;
+
+      return { ...experience, relevance: score };
+    })
+    .filter((item) => (item.relevance || 0) >= 0.18)
+    .sort((a, b) => (b.relevance || 0) - (a.relevance || 0))
+    .slice(0, Math.min(Math.max(input.limit || 4, 1), 6));
+}
+
+export function formatJamesExperienceContext(experiences: JamesExperience[]) {
+  if (!experiences.length) return "RELEVANT JAMES EXPERIENCES: none.";
+
+  return [
+    "RELEVANT JAMES EXPERIENCES:",
+    ...experiences.map((item, index) => [
+      "EXPERIENCE " + (index + 1),
+      "Pattern: " + item.pattern,
+      "Strategy: " + item.strategy,
+      "Capabilities: " + item.capabilities.join(", "),
+      "Success count: " + item.successCount,
+      "Confidence: " + item.confidence.toFixed(2),
+      "Relevance: " + (item.relevance || 0).toFixed(2),
+    ].join("\n")),
+    "",
+    "Gunakan pengalaman sebagai pola kerja, bukan sebagai fakta eksternal atau aturan mutlak.",
+  ].join("\n");
 }
 
 export async function learnJamesExperience(input: {
