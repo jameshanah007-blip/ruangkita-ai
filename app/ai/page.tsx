@@ -28,6 +28,9 @@ export default function AIExecutor() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [memoryReady, setMemoryReady] = useState(false);
+  const [feedbackSent, setFeedbackSent] = useState<"helpful" | "not_helpful" | null>(null);
+  const [feedbackNote, setFeedbackNote] = useState("");
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
 
   const [userId, setUserId] = useState("");
   const [conversationId, setConversationId] = useState("");
@@ -43,6 +46,8 @@ export default function AIExecutor() {
     setResult("");
     setCitations([]);
     setError("");
+    setFeedbackSent(null);
+    setFeedbackNote("");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -54,6 +59,8 @@ export default function AIExecutor() {
     setResult("");
     setCitations([]);
     setError("");
+    setFeedbackSent(null);
+    setFeedbackNote("");
 
     try {
       const response = await fetch("/api/ai", {
@@ -95,6 +102,39 @@ export default function AIExecutor() {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function sendFeedback(rating: "helpful" | "not_helpful") {
+    if (!result || feedbackLoading || feedbackSent) return;
+
+    setFeedbackLoading(true);
+    try {
+      const response = await fetch("/api/ai/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          conversationId,
+          userMessage: request.trim(),
+          assistantMessage: result,
+          rating,
+          feedback: feedbackNote.trim(),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Feedback gagal disimpan.");
+      }
+
+      setFeedbackSent(rating);
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "Feedback gagal disimpan."
+      );
+    } finally {
+      setFeedbackLoading(false);
     }
   }
 
@@ -213,6 +253,56 @@ export default function AIExecutor() {
 
               <div className="whitespace-pre-wrap leading-7 text-slate-300">
                 {result}
+              </div>
+
+              <div className="mt-8 border-t border-white/10 pt-6">
+                <p className="text-sm font-medium text-slate-400">
+                  Apakah jawaban James membantu?
+                </p>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void sendFeedback("helpful")}
+                    disabled={feedbackLoading || Boolean(feedbackSent)}
+                    className="rounded-lg border border-white/10 px-4 py-2 text-sm transition hover:border-cyan-400/30 hover:bg-white/5 disabled:opacity-50"
+                  >
+                    👍 Membantu
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void sendFeedback("not_helpful")}
+                    disabled={feedbackLoading || Boolean(feedbackSent)}
+                    className="rounded-lg border border-white/10 px-4 py-2 text-sm transition hover:border-cyan-400/30 hover:bg-white/5 disabled:opacity-50"
+                  >
+                    👎 Perlu diperbaiki
+                  </button>
+                </div>
+
+                {feedbackSent === "not_helpful" && (
+                  <div className="mt-3">
+                    <textarea
+                      value={feedbackNote}
+                      onChange={(e) => setFeedbackNote(e.target.value)}
+                      placeholder="Apa yang perlu diperbaiki? (opsional)"
+                      className="min-h-20 w-full rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white outline-none placeholder:text-slate-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void sendFeedback("not_helpful")}
+                      disabled={feedbackLoading}
+                      className="mt-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50"
+                    >
+                      Kirim catatan
+                    </button>
+                  </div>
+                )}
+
+                {feedbackSent && (
+                  <p className="mt-3 text-xs text-slate-500">
+                    Terima kasih. Feedback ini akan menjadi salah satu bukti untuk membantu James berkembang.
+                  </p>
+                )}
               </div>
 
               {citations.length > 0 && (
