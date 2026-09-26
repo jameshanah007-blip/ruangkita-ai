@@ -22,7 +22,7 @@ type ProviderError = Error & {
   status?: number;
 };
 
-const PROVIDER_TIMEOUT_MS = 90_000;
+const PROVIDER_TIMEOUT_MS = 20_000;
 
 function getErrorMessage(
   error: unknown
