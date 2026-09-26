@@ -257,13 +257,12 @@ export async function generateWithAIRouter(
 export async function generateWithAllAIProviders(
   request: AIGenerateRequest
 ): Promise<Array<AIGenerateResponse & { attempts: string[] }>> {
-  const providers = [
-    ...aiProviders,
-    openRouterProvider,
-    groqProvider,
-  ];
+  const providers = getProviderList();
 
-  const availableProviders = providers.filter((provider) => provider.isAvailable());
+  const availableProviders =
+    providers.filter(
+      (provider) => provider.isAvailable()
+    );
 
   if (!availableProviders.length) {
     throw new Error("Tidak ada AI provider yang tersedia untuk James Learning.");
