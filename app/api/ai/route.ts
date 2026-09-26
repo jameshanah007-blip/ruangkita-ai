@@ -801,6 +801,16 @@ async function saveJames(
   }
 }
 
+function sanitizeResearchFallback(text: string, researchAvailable: boolean): string {
+  if (researchAvailable) return text.trim();
+
+  return text
+    .replace(/\b(?:versi terbaru|versi terkini)\s*(?:adalah|:)?\s*[^.\n]*/gi, "")
+    .replace(/\b(?:hingga|sampai)\s+(?:April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember|Januari|Februari|Maret)\s+\d{4}\b[^.\n]*/gi, "")
+    .replace(/\b(?:rilis|release)\s+(?:akhir|awal)?\s*\d{4}\b[^.\n]*/gi, "")
+    .trim();
+}
+
 function sanitizeJamesFinalResponse(text: string): string {
   const cleaned = text
     .replace(/^\s*(User Safety|Safety|Safety Check)\s*:\s*(safe|unsafe|allowed|blocked)\s*$/gim, "")
@@ -986,12 +996,13 @@ Kamu BOLEH tetap membantu dengan konsep umum yang tidak bergantung pada versi, l
 Jawab sebagai James dalam bahasa Indonesia yang natural dan praktis.
 `;
 
-        const resultText = await callJamesAI(
+        const rawFallbackText = await callJamesAI(
           fallbackPrompt,
           buildJamesSystemInstruction(
-            "Research eksternal tidak tersedia pada permintaan ini. Utamakan kejujuran, jangan mengarang sumber atau mengklaim verifikasi web."
+            "Research eksternal tidak tersedia pada permintaan ini. Utamakan kejujuran, jangan mengarang sumber atau mengklaim verifikasi web. Jangan menyebut nomor versi, tanggal rilis, atau klaim terbaru."
           )
         );
+        const resultText = sanitizeResearchFallback(rawFallbackText, false);
 
         await saveActivity(userRequest, intent, "ai-fallback", resultText);
         await saveJames(userId, conversationId, userRequest, resultText, intent, "ai-fallback");
