@@ -31,6 +31,7 @@ export default function AIExecutor() {
   const [feedbackSent, setFeedbackSent] = useState<"helpful" | "not_helpful" | null>(null);
   const [feedbackNote, setFeedbackNote] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackNoteSubmitted, setFeedbackNoteSubmitted] = useState(false);
 
   const [userId, setUserId] = useState("");
   const [conversationId, setConversationId] = useState("");
@@ -48,6 +49,7 @@ export default function AIExecutor() {
     setError("");
     setFeedbackSent(null);
     setFeedbackNote("");
+    setFeedbackNoteSubmitted(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -61,6 +63,7 @@ export default function AIExecutor() {
     setError("");
     setFeedbackSent(null);
     setFeedbackNote("");
+    setFeedbackNoteSubmitted(false);
 
     try {
       const response = await fetch("/api/ai", {
@@ -106,7 +109,17 @@ export default function AIExecutor() {
   }
 
   async function sendFeedback(rating: "helpful" | "not_helpful") {
-    if (!result || feedbackLoading || feedbackSent) return;
+    if (!result || feedbackLoading) return;
+
+    // Untuk feedback negatif, tampilkan kolom catatan terlebih dahulu.
+    // Feedback baru disimpan setelah pengguna menekan "Kirim catatan",
+    // sehingga catatan ikut tersimpan sebagai satu feedback yang utuh.
+    if (rating === "not_helpful" && !feedbackNoteSubmitted) {
+      setFeedbackSent("not_helpful");
+      return;
+    }
+
+    if (feedbackSent === "helpful" || feedbackNoteSubmitted) return;
 
     setFeedbackLoading(true);
     try {
@@ -129,6 +142,9 @@ export default function AIExecutor() {
       }
 
       setFeedbackSent(rating);
+      if (rating === "not_helpful") {
+        setFeedbackNoteSubmitted(true);
+      }
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Feedback gagal disimpan."
@@ -272,7 +288,7 @@ export default function AIExecutor() {
                   <button
                     type="button"
                     onClick={() => void sendFeedback("not_helpful")}
-                    disabled={feedbackLoading || Boolean(feedbackSent)}
+                    disabled={feedbackLoading || Boolean(feedbackSent) && feedbackNoteSubmitted}
                     className="rounded-lg border border-white/10 px-4 py-2 text-sm transition hover:border-cyan-400/30 hover:bg-white/5 disabled:opacity-50"
                   >
                     👎 Perlu diperbaiki
@@ -290,7 +306,7 @@ export default function AIExecutor() {
                     <button
                       type="button"
                       onClick={() => void sendFeedback("not_helpful")}
-                      disabled={feedbackLoading}
+                      disabled={feedbackLoading || feedbackNoteSubmitted}
                       className="mt-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50"
                     >
                       Kirim catatan
@@ -298,7 +314,7 @@ export default function AIExecutor() {
                   </div>
                 )}
 
-                {feedbackSent && (
+                {feedbackSent && (feedbackSent === "helpful" || feedbackNoteSubmitted) && (
                   <p className="mt-3 text-xs text-slate-500">
                     Terima kasih. Feedback ini akan menjadi salah satu bukti untuk membantu James berkembang.
                   </p>
