@@ -191,6 +191,86 @@ export async function applyJamesEvolution(
   if (eventError) console.error("James evolution event save error:", eventError.message);
 }
 
+export async function applyVerifiedJamesGlobalEvolution(
+  userId: string,
+  conversationId: string,
+  userRequest: string,
+  proposals: JamesEvolutionProposal[],
+  omantoVerified: boolean,
+) {
+  const supabase = getSupabase();
+  if (!supabase || !omantoVerified || !validId(userId) || !validId(conversationId)) {
+    return false;
+  }
+
+  const evidenceText = userRequest.toLowerCase();
+  const safe = proposals
+    .map((proposal) => ({
+      category: proposal.category,
+      key: cleanText(proposal.key, 80),
+      value: cleanText(proposal.value, 400),
+      reason: cleanText(proposal.reason, 400),
+      confidence: clampConfidence(proposal.confidence),
+      source_excerpt: cleanText(proposal.source_excerpt, 500),
+    }))
+    .filter((proposal) =>
+      proposal.key &&
+      proposal.value &&
+      proposal.confidence >= 0.80 &&
+      proposal.source_excerpt.length >= 3 &&
+      evidenceText.includes(proposal.source_excerpt.toLowerCase())
+    )
+    .slice(0, 5);
+
+  if (!safe.length) return false;
+
+  for (const proposal of safe) {
+    const { data: existing } = await supabase
+      .from("james_global_growth")
+      .select("id, evidence_count, version")
+      .eq("category", proposal.category)
+      .eq("key", proposal.key)
+      .eq("value", proposal.value)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from("james_global_growth")
+        .update({
+          rationale: proposal.reason,
+          evidence_count: Math.min((existing.evidence_count || 0) + 1, 1000000),
+          consensus_score: 1,
+          status: "active",
+          version: (existing.version || 1) + 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+    } else {
+      await supabase
+        .from("james_global_growth")
+        .insert({
+          category: proposal.category,
+          key: proposal.key,
+          value: proposal.value,
+          rationale: proposal.reason,
+          evidence_count: 1,
+          consensus_score: 1,
+          status: "active",
+          version: 1,
+        });
+    }
+
+    await supabase.from("james_global_learning_runs").insert({
+      provider: "verified-omanto",
+      decision: "activate",
+      confidence: proposal.confidence,
+      rationale: proposal.reason,
+    });
+  }
+
+  return true;
+}
+
 export async function saveJamesFeedback(input: {
   userId: string;
   conversationId: string;
