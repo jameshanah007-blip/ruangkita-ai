@@ -863,6 +863,21 @@ export async function POST(request: Request) {
     const claimsOmanto = /\b(?:saya|aku)\s+(?:adalah\s+)?omanto\b/i.test(userRequest);
     const omantoVerified = isOmantoVerified(request);
 
+    if (!userRequest) {
+      return NextResponse.json(
+        { error: "Permintaan tidak boleh kosong." },
+        { status: 400 }
+      );
+    }
+
+    const userId = validUuid(body?.userId)
+      ? body.userId
+      : crypto.randomUUID();
+
+    const conversationId = validUuid(body?.conversationId)
+      ? body.conversationId
+      : crypto.randomUUID();
+
     const trainingRequest = isJamesTrainingInstruction(userRequest);
     if (trainingRequest && omantoVerified) {
       const proposals = await interpretJamesTrainingInstruction(userRequest);
@@ -915,21 +930,6 @@ export async function POST(request: Request) {
         citations: [],
       });
     }
-
-    if (!userRequest) {
-      return NextResponse.json(
-        { error: "Permintaan tidak boleh kosong." },
-        { status: 400 }
-      );
-    }
-
-    const userId = validUuid(body?.userId)
-      ? body.userId
-      : crypto.randomUUID();
-
-    const conversationId = validUuid(body?.conversationId)
-      ? body.conversationId
-      : crypto.randomUUID();
 
     const [memory, longTermMemories, growth, globalGrowth] = await Promise.all([
       getJamesMemory(userId, conversationId),
