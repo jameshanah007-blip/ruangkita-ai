@@ -59,6 +59,21 @@ function requestsPermanentKnowledgeLearning(request: string) {
     /\b(?:kamu|mu|james|pengetahuan|belajar)\b/i.test(request);
 }
 
+function requestsAgentResume(request: string) {
+  const text = request
+    .toLowerCase()
+    .replace(/[!?.,]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return [
+    /\blanjutkan (tugas|pekerjaan|task) (tadi|sebelumnya)/,
+    /\blanjut (tugas|pekerjaan|task) tadi/,
+    /\bresume (tugas|task)/,
+    /\tteruskan (tugas|pekerjaan) tadi/,
+  ].some((pattern) => pattern.test(text));
+}
+
 function requestsConversationRecall(request: string) {
   const text = request
     .toLowerCase()
@@ -1034,6 +1049,50 @@ ${activeKnowledgeContext}`;
     // Pertanyaan recall percakapan tidak membutuhkan model eksternal.
     // Gunakan history yang sudah tersimpan agar fungsi memori tetap bekerja
     // walaupun semua provider sedang terkena quota/rate limit.
+    if (requestsAgentResume(userRequest)) {
+      const resumePlan = await planJamesIntelligenceWithAI(
+        userRequest,
+        memoryContext
+      );
+
+      const agentResult = await runJamesAgentLoop({
+        request: userRequest,
+        initialPlan: resumePlan,
+        conversationContext: memoryContext,
+        userId,
+        conversationId,
+        resume: true,
+      });
+
+      const resultText = sanitizeJamesFinalResponse(agentResult.answer);
+      await saveActivity(userRequest, "planner", "james-agent-resume", resultText);
+      await saveJames(
+        userId,
+        conversationId,
+        userRequest,
+        resultText,
+        "planner",
+        "james-agent-resume"
+      );
+
+      return NextResponse.json({
+        result: resultText,
+        intent: "planner",
+        tool: "james-agent-resume",
+        agent: {
+          resumed: true,
+          verified: agentResult.verified,
+          iterations: agentResult.iterations,
+          recovered: agentResult.recovered,
+          steps: agentResult.steps,
+        },
+        citations: agentResult.citations,
+        userId,
+        conversationId,
+        memoryAvailable: memory.available,
+      });
+    }
+
     if (requestsConversationRecall(userRequest)) {
       const resultText = buildConversationRecallResponse(memory.messages);
 
