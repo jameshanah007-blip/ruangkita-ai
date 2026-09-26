@@ -150,7 +150,7 @@ Aturan:
     }
 
     
-    const globalCandidateMap = new Map<string, { category: string; key: string; value: string; rationale: string }>();
+    const globalCandidateMap = new Map<string, { category: string; key: string; value: string; rationale: string; support: number }>();
     for (const result of proposals) {
       const items = Array.isArray(result.data.global_candidates) ? result.data.global_candidates : [];
       for (const raw of items) {
@@ -160,51 +160,111 @@ Aturan:
         const key = typeof item.key === "string" ? item.key.trim().slice(0, 80) : "";
         const value = typeof item.value === "string" ? item.value.trim().slice(0, 240) : "";
         const rationale = typeof item.rationale === "string" ? item.rationale.trim().slice(0, 400) : "";
-        if (!category || !key || !value) continue;
+        if (!["communication_style", "learned_topic", "lesson", "preference"].includes(category)) continue;
+        if (!key || !value) continue;
         const id = category.toLowerCase() + ":" + key.toLowerCase() + ":" + value.toLowerCase();
-        if (!globalCandidateMap.has(id)) globalCandidateMap.set(id, { category, key, value, rationale });
+        const existing = globalCandidateMap.get(id);
+        if (existing) {
+          existing.support += 1;
+        } else {
+          globalCandidateMap.set(id, { category, key, value, rationale, support: 1 });
+        }
       }
     }
 
-    for (const candidate of [...globalCandidateMap.values()].slice(0, 3)) {
+    const candidateRows = [];
+    for (const candidate of [...globalCandidateMap.values()].filter((item) => item.support >= 2).slice(0, 5)) {
       const row = await addGlobalCandidate({
         category: candidate.category,
         key: candidate.key,
         value: candidate.value,
         rationale: candidate.rationale,
-        evidenceCount: 1,
+        evidenceCount: candidate.support,
       });
-      if (row) {
-        for (const result of proposals) {
-          const decisions = Array.isArray(result.data.global_decisions) ? result.data.global_decisions : [];
-          const decision = decisions.find((raw: any) =>
-            raw && typeof raw === "object" &&
-            String(raw.candidate_key || "").toLowerCase() === candidate.key.toLowerCase()
-          );
-          if (!decision) continue;
-          const d = decision as Record<string, unknown>;
-          const choice = d.decision === "support" || d.decision === "reject" || d.decision === "uncertain"
-            ? d.decision : "uncertain";
-          const confidence = typeof d.confidence === "number"
-            ? Math.max(0, Math.min(1, d.confidence)) : 0;
-          await recordGlobalDecision({
-            candidateId: row.id,
-            provider: result.provider,
-            decision: choice,
-            confidence,
-            rationale: typeof d.rationale === "string" ? d.rationale.slice(0, 400) : "",
-          });
-        }
-      }
+      if (row) candidateRows.push(row);
     }
 
-    const refreshedCandidates = await getGlobalCandidates(20);
-    for (const candidate of refreshedCandidates) {
-      const decisions = await getGlobalDecisions(candidate.id);
-      const strongSupport = decisions.filter((item: any) => item.decision === "support" && item.confidence >= 0.75).length;
-      const strongReject = decisions.filter((item: any) => item.decision === "reject" && item.confidence >= 0.75).length;
-      if (candidate.evidence_count >= 3 && strongSupport >= 2 && strongReject === 0) {
-        await activateGlobalCandidate(candidate.id, strongSupport / Math.max(decisions.length, 1), "Validated by multiple AI providers.");
+    // Re-validate candidates with the provider ensemble. A learning proposal
+    // never becomes active merely because the first generation agreed on it.
+    const validationResults = [];
+    const candidatesToValidate = await getGlobalCandidates(20);
+    for (const candidate of candidatesToValidate) {
+      const validationPrompt = `Validasi kandidat pengetahuan global James berikut.
+
+TOPIK:
+${candidate.key}
+
+PENGETAHUAN:
+${candidate.value}
+
+ALASAN:
+${candidate.rationale}
+
+Nilai apakah kandidat ini merupakan pola pembelajaran umum yang aman, jelas,
+dan layak menjadi pengetahuan aktif James. Jangan gunakan data pengguna.
+Jika bukti tidak cukup, pilih reject.
+
+Keluarkan JSON SAJA:
+{"decision":"activate"|"reject","confidence":0.0,"rationale":"alasan singkat"}`;
+
+      const validatorResults = await generateWithAllAIProviders({
+        prompt: validationPrompt,
+        systemInstruction:
+          "Kamu adalah validator independen untuk global knowledge James. Jangan mengarang fakta. Nilai hanya kandidat yang diberikan.",
+        temperature: 0.1,
+        maxOutputTokens: 500,
+      });
+
+      for (const validator of validatorResults) {
+        const parsed = extractJson(validator.text) as Record<string, unknown> | null;
+        const decision = parsed?.decision === "activate" ? "activate" : "reject";
+        const confidence = typeof parsed?.confidence === "number"
+          ? Math.max(0, Math.min(1, parsed.confidence))
+          : 0;
+        const rationale = typeof parsed?.rationale === "string"
+          ? parsed.rationale.trim().slice(0, 400)
+          : "";
+
+        await recordGlobalDecision({
+          candidateId: candidate.id,
+          provider: validator.provider,
+          decision,
+          confidence,
+          rationale,
+        });
+      }
+
+      const approvals = validatorResults
+        .map((validator) => {
+          const parsed = extractJson(validator.text) as Record<string, unknown> | null;
+          return {
+            decision: parsed?.decision === "activate" ? "activate" : "reject",
+            confidence: typeof parsed?.confidence === "number"
+              ? Math.max(0, Math.min(1, parsed.confidence))
+              : 0,
+          };
+        })
+        .filter((item) => item.decision === "activate" && item.confidence >= 0.8);
+
+      const rejects = validatorResults
+        .map((validator) => {
+          const parsed = extractJson(validator.text) as Record<string, unknown> | null;
+          return {
+            decision: parsed?.decision === "activate" ? "activate" : "reject",
+            confidence: typeof parsed?.confidence === "number"
+              ? Math.max(0, Math.min(1, parsed.confidence))
+              : 0,
+          };
+        })
+        .filter((item) => item.decision === "reject" && item.confidence >= 0.8);
+
+      if (candidate.evidence_count >= 3 && approvals.length >= 2 && rejects.length === 0) {
+        const activated = await activateGlobalCandidate(
+          candidate.id,
+          approvals.reduce((sum, item) => sum + item.confidence, 0) / approvals.length,
+          "Validated independently by multiple AI providers."
+        );
+        validationResults.push({ candidateId: candidate.id, activated, approvals: approvals.length });
       }
     }
 
@@ -214,6 +274,8 @@ Aturan:
       capabilityObservations: capabilities.length,
       activeGoals: goals.length + saved.length,
       newGoals: saved,
+      candidateCount: candidateRows.length,
+      validationResults,
     });
   } catch (error) {
     console.error("James autonomous learning error:", error);
