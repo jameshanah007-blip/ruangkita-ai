@@ -1,6 +1,6 @@
 import { calculate } from "./calculator";
 import { webSearch } from "./webSearch";
-import { generateWithAIRouter } from "../../fun-zone/aiRouter";
+import { generateWithJamesResourceManager } from "./jamesResourceManager";
 
 export type JamesCapability =
   | "chat"
@@ -211,7 +211,7 @@ export async function planJamesIntelligenceWithAI(
   const deterministic = buildDeterministicPlan(request);
 
   try {
-    const result = await generateWithAIRouter({
+    const result = await generateWithJamesResourceManager("planning", {
       prompt: `
 Tentukan rencana eksekusi untuk James berdasarkan permintaan pengguna.
 
