@@ -38,8 +38,7 @@ export async function GET() {
       globalGrowth,
       goals,
       curiosity: [],
-      reflections: [],
-
+      reflections,
       providerRuns,
     });
   } catch (error) {
