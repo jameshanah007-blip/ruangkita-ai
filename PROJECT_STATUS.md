@@ -843,3 +843,60 @@ npx tsc --noEmit
 npm run build
 ```
 Then run the Supabase migrations and one protected James learning cycle before treating the system as production-ready.
+
+
+## 28. Checkpoint Audit — 2026-09-28
+
+### GitHub audit
+- Repository source of truth: `jameshanah007-blip/ruangkita-ai`
+- Branch: `main`
+- Latest verified commit before this work: `1b77e8a294c79d24f94106c520c8880895eb0f9d`
+- That commit only documented deployment environment variables.
+- GitHub commit status for that commit reports **Vercel: failure**.
+- Vercel deployment logs are not exposed through the currently connected GitHub tools, so the exact Vercel build failure is not claimed as identified.
+
+### Fun Zone audit findings
+- The current Fun Zone pipeline remains Director → Builder → browser Sandbox → Tester → Debugger/Repair → Retest.
+- Tester PASS is intentionally evidence-based and requires runtime stability, valid canvas, visible rendering, game-loop activity, input evidence, semantic gameplay evidence, and restart verification.
+- The previous 82% state therefore represents the testing stage, not proof that the game is playable.
+- Diagnostic heartbeat was already changed from requestAnimationFrame to setTimeout(100ms); game RAF remains instrumented separately.
+- Sandbox debugger remains bounded at 5 repair attempts.
+
+### Deployment/runtime hardening completed
+Added explicit Node.js runtime and 120-second max duration to:
+- `app/api/fun-zone/laboratory/route.ts`
+- `app/api/fun-zone/brain/route.ts`
+- `app/api/fun-zone/factory/route.ts`
+- `app/api/fun-zone/debug/route.ts`
+
+Reason:
+- Laboratory performs sequential AI Director and Builder calls.
+- Debugging/repair may also require a long provider response.
+- Explicit duration removes dependence on a short platform default.
+
+Commits:
+- `4dfdcd78d1a633fbcb0d964bb60d41b65fe74bf6`
+- `0845ed20f8b1f890d12230ed3b223ad3af4c8016`
+- `9dda240ff12a124cfa81dfd909016235355e48a7`
+- `33b28f175518a563df97e8cebfb3daeeeb3db2b4`
+
+### Validation limitation
+- GitHub source files were re-read after each change.
+- Local `git clone` / `npm ci` could not be executed in this environment because outbound GitHub DNS/network access is unavailable.
+- Therefore TypeScript, production build, Vercel deployment, Supabase runtime, and provider runtime are **not claimed PASS** from this audit.
+
+### Next action
+1. Pull latest `main`.
+2. Run `npm install`.
+3. Run `npx tsc --noEmit`.
+4. Run `npm run build`.
+5. Redeploy/inspect the newest Vercel deployment.
+6. Run Catch the Star in Fun Zone and record the actual Tester evidence:
+   - Visible pixels
+   - Game RAF
+   - Diagnostic heartbeat
+   - Input events/listeners
+   - Runtime errors
+   - Semantic gameplay
+   - Restart verification
+7. Only then make the next Sandbox/Tester code change.
