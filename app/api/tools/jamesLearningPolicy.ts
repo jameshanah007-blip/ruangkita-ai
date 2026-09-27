@@ -12,8 +12,8 @@ export type JamesLearningPolicy = {
   reason: string;
 };
 
-export async function planJamesLearningPolicy(task: JamesResourceTask): Promise<JamesLearningPolicy> {
-  const decision = await decideJamesBrainStrategy(task);
+export async function planJamesLearningPolicy(task: JamesResourceTask, userId?: string): Promise<JamesLearningPolicy> {
+  const decision = await decideJamesBrainStrategy(task, userId);
 
   const mode: JamesLearningMode =
     decision.strategy === "single-provider"
