@@ -962,6 +962,132 @@ export async function POST(request: Request) {
       : crypto.randomUUID();
 
     const trainingRequest = isJamesTrainingInstruction(userRequest);
+    const codeEvolutionRequest =
+      /\b(?:buat|bikin|tulis|hasilkan|kembangkan|perbaiki|tingkatkan|bangun|buatkan)\b[\\s\\S]{0,180}\b(?:kode|code|coding|program|programming|source code|self.?evol|evolusi sistem|kemampuan)\b/i.test(userRequest) ||
+      /\b(?:self.?evol|evolusi sistem|code evolution|evolusi kode)\b/i.test(userRequest);
+
+    if (omantoVerified && codeEvolutionRequest) {
+      const currentFiles = [
+        "app/api/tools/jamesAgentLoop.ts",
+        "app/api/tools/jamesEvolution.ts",
+        "app/api/tools/jamesMetaLearning.ts",
+        "app/api/tools/jamesExperience.ts",
+        "app/api/ai/route.ts",
+        "app/fun-zone/aiRouter.ts",
+      ];
+
+      const fileContents = [];
+      for (const path of currentFiles) {
+        try {
+          const githubToken = process.env.GITHUB_TOKEN;
+          const repo = process.env.GITHUB_REPOSITORY || "jameshanah007-blip/ruangkita-ai";
+          if (!githubToken) break;
+
+          const response = await fetch(
+            `https://api.github.com/repos/${repo}/contents/${path}?ref=main`,
+            {
+              headers: {
+                Authorization: `Bearer ${githubToken}`,
+                Accept: "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+              },
+              cache: "no-store",
+            }
+          );
+
+          if (!response.ok) continue;
+          const data = await response.json();
+          if (typeof data?.content !== "string") continue;
+
+          const decoded = Buffer.from(data.content.replace(/\n/g, ""), "base64").toString("utf8");
+          fileContents.push({ path, content: decoded });
+        } catch (error) {
+          console.error("James evolution context read error:", error);
+        }
+      }
+
+      if (!fileContents.length) {
+        return NextResponse.json({
+          result:
+            "Aku siap membuat kode untuk mengembangkan diriku, tetapi server belum memiliki GITHUB_TOKEN untuk membaca source code secara aman. Tambahkan GITHUB_TOKEN terlebih dahulu.",
+          intent: "chat",
+          tool: "james-code-evolution",
+          evolutionApplied: false,
+          identityVerificationRequired: false,
+          citations: [],
+          userId,
+          conversationId,
+        });
+      }
+
+      const { proposeJamesCodeEvolution } = await import("../tools/jamesCodeEvolution");
+      const evolution = await proposeJamesCodeEvolution({
+        userId,
+        conversationId,
+        request: userRequest,
+        currentFiles: fileContents,
+      });
+
+      let pullRequest: {
+        branch: string;
+        pullRequestNumber: number;
+        pullRequestUrl: string;
+        changed: Array<{ path: string; commitSha: string }>;
+      } | null = null;
+
+      if (evolution.status === "approved" && process.env.GITHUB_TOKEN && evolution.proposalId) {
+        try {
+          const { createJamesEvolutionPullRequest } = await import("../tools/jamesCodeEvolutionGitHub");
+          pullRequest = await createJamesEvolutionPullRequest({
+            proposalId: evolution.proposalId,
+            goal: evolution.proposal.goal,
+            files: evolution.proposal.files.map((file) => ({
+              path: file.path,
+              content: file.content,
+            })),
+          });
+        } catch (error) {
+          console.error("James evolution PR creation error:", error);
+        }
+      }
+
+      return NextResponse.json({
+        result: [
+          "Aku sudah menjalankan Code Evolution James.",
+          "",
+          "Tujuan: " + evolution.proposal.goal,
+          "Status proposal: " + evolution.status,
+          "Risiko: " + evolution.proposal.riskLevel,
+          "File yang diusulkan: " + evolution.proposal.files.map((file) => file.path).join(", "),
+          "Test: " + evolution.proposal.tests.join(" | "),
+          "",
+          evolution.status === "approved"
+            ? "Proposal lolos review multi-provider dan siap masuk tahap pembuatan branch/PR."
+            : "Proposal belum otomatis diterapkan. Proposal harus lolos review dan CI sebelum perubahan kode dapat masuk ke branch utama.",
+        ].join("\n"),
+        intent: "chat",
+        tool: "james-code-evolution",
+        evolutionApplied: false,
+        evolutionProposalId: evolution.proposalId,
+        evolutionStatus: evolution.status,
+        pullRequest,
+        evolution: {
+          goal: evolution.proposal.goal,
+          rationale: evolution.proposal.rationale,
+          riskLevel: evolution.proposal.riskLevel,
+          files: evolution.proposal.files.map((file) => ({
+            path: file.path,
+            reason: file.reason,
+          })),
+          tests: evolution.proposal.tests,
+          reviews: evolution.reviews,
+        },
+        citations: [],
+        userId,
+        conversationId,
+      });
+    }
+
     if (trainingRequest && omantoVerified) {
       const proposals = await interpretJamesTrainingInstruction(userRequest);
       if (proposals.length) {
@@ -1006,7 +1132,6 @@ export async function POST(request: Request) {
       });
     }
 
-
     if (claimsOmanto && !omantoVerified) {
       return NextResponse.json({
         result: "Kalau kamu Omanto, aku perlu memastikan identitasmu terlebih dahulu. Masukkan kode verifikasi Omanto.",
@@ -1044,8 +1169,43 @@ Consensus: ${item.consensus_score}`
 Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate, consensus, atau mekanisme internal kepada pengguna. Active knowledge bukan pengganti research untuk informasi yang dapat berubah cepat.`
       : "ACTIVE JAMES KNOWLEDGE: belum ada pengetahuan global aktif.";
 
-    const jamesKnowledgeContext = `${memoryContext}\n\n${activeKnowledgeContext}\n\n${experienceContext}`;
     const deterministicIntelligencePlan = planJamesIntelligence(userRequest);
+    const [experiences, consolidations, metaStrategies] = await Promise.all([
+      retrieveJamesExperiences({
+        userId,
+        request: userRequest,
+        capabilities: deterministicIntelligencePlan.capabilities,
+        limit: 4,
+      }),
+      retrieveJamesConsolidations(userId, userRequest, 3),
+      retrieveJamesMetaStrategiesByCapabilities(deterministicIntelligencePlan.capabilities, 4),
+    ]);
+    const experienceConflict = await resolveJamesExperienceConflict({
+      request: userRequest,
+      experiences,
+      consolidations,
+      capabilities: deterministicIntelligencePlan.capabilities,
+    });
+    const experienceContext = [
+      formatJamesExperienceContext(experiences),
+      formatJamesConsolidationContext(consolidations),
+      experienceConflict.context,
+      metaStrategies.length
+        ? [
+            "ACTIVE JAMES META STRATEGIES:",
+            ...metaStrategies.map((item, index) => [
+              "META STRATEGY " + (index + 1),
+              "Task class: " + item.task_class,
+              "Strategy: " + item.strategy,
+              "Evidence: " + item.evidence_count,
+              "Confidence: " + Number(item.confidence).toFixed(2),
+              "Relevance: " + Number(item.relevance).toFixed(2),
+            ].join("\n")).join("\n\n"),
+          ].join("\n")
+        : "",
+    ].filter(Boolean).join("\n\n");
+
+    const jamesKnowledgeContext = `${memoryContext}\n\n${activeKnowledgeContext}\n\n${experienceContext}`;
     let intent = deterministicIntelligencePlan.primary;
 
     // Pertanyaan recall percakapan tidak membutuhkan model eksternal.
@@ -1323,12 +1483,6 @@ Jangan menyebut reasoning internal.`
             answer: agentResult.answer,
             capabilities: agentResult.plan.capabilities,
             verified: agentResult.verified,
-            outcome:
-              evaluation?.outcome === "success" ||
-              evaluation?.outcome === "failure" ||
-              evaluation?.outcome === "partial"
-                ? evaluation.outcome
-                : agentResult.verified ? "success" : "partial",
           });
         }
       })().catch((error) => {
@@ -1688,42 +1842,3 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
     );
   }
 }
-    const [experiences, consolidations, metaStrategies] = await Promise.all([
-      retrieveJamesExperiences({
-        userId,
-        request: userRequest,
-        capabilities: deterministicIntelligencePlan.capabilities,
-        limit: 4,
-      }),
-      retrieveJamesConsolidations(userId, userRequest, 3),
-      retrieveJamesMetaStrategiesByCapabilities(deterministicIntelligencePlan.capabilities, 4),
-    ]);
-    const experienceConflict = await resolveJamesExperienceConflict({
-      request: userRequest,
-      experiences,
-      consolidations,
-      capabilities: deterministicIntelligencePlan.capabilities,
-    });
-    const experienceContext = [
-      formatJamesExperienceContext(experiences),
-      formatJamesConsolidationContext(consolidations),
-      experienceConflict.context,
-      metaStrategies.length
-        ? [
-            "ACTIVE JAMES META STRATEGIES:",
-            ...metaStrategies.map((item, index) => [
-              "META STRATEGY " + (index + 1),
-              "Task class: " + item.task_class,
-              "Strategy: " + item.strategy,
-              "Evidence: " + item.evidence_count,
-              "Confidence: " + Number(item.confidence).toFixed(2),
-              "Relevance: " + Number(item.relevance).toFixed(2),
-            ].join("\n")),
-            "",
-            "Gunakan meta strategy hanya sebagai pola kerja yang dapat diuji kembali; jangan menganggapnya sebagai aturan mutlak.",
-          ].join("\n")
-        : "ACTIVE JAMES META STRATEGIES: none.",
-    ].join("\n\n");
-
-
-

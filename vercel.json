@@ -3,6 +3,10 @@
     {
       "path": "/api/ai/james-learning",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/ai/autonomous/heartbeat",
+      "schedule": "0 * * * *"
     }
   ]
 }

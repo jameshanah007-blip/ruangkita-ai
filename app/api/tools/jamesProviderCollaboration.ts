@@ -45,3 +45,15 @@ export function buildCollaborationPrompt(
     "Berikan hasil kerja yang konkret dan dapat diverifikasi oleh synthesizer James.",
   ].join("\n");
 }
+
+
+export function formatJamesCollaborationContext(results: JamesCollaborationResult[]) {
+  return results.map((item, index) => [
+    "COLLABORATION PROVIDER " + (index + 1),
+    "Provider: " + item.provider,
+    "Model: " + item.model,
+    "Task: " + item.task,
+    "Output:",
+    item.text.slice(0, 6000),
+  ].join("\n")).join("\n\n");
+}

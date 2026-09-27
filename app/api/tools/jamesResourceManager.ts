@@ -7,7 +7,6 @@ import {
 } from "../../fun-zone/aiProvider";
 import { openRouterProvider } from "../../fun-zone/openRouterProvider";
 import { groqProvider } from "../../fun-zone/groqProvider";
-import { getJamesProviderPerformance, scoreJamesProviderPerformance } from "./jamesProviderPerformance";
 import { planJamesLearningPolicy } from "./jamesLearningPolicy";
 
 export type JamesResourceTask =
@@ -149,20 +148,20 @@ function taskOrder(task: JamesResourceTask): AIProviderName[] {
 async function getCandidates(task: JamesResourceTask) {
   const policy = await planJamesLearningPolicy(task);
   const order = policy.rankedProviders.length ? policy.rankedProviders : taskOrder(task);
-  const performance = await getJamesProviderPerformance(task);
-
   return order
     .map((name, index) => ({
       provider: providers.find((provider) => provider.name === name),
-      score: scoreJamesProviderPerformance(performance.find((item) => item.provider === name), index),
+      rank: index,
     }))
-    .filter((item): item is { provider: AIProvider; score: number } => Boolean(item.provider))
+    .filter((item): item is { provider: AIProvider; rank: number } => Boolean(item.provider))
     .filter((item) => item.provider.isAvailable())
     .filter((item) => {
       const current = state.get(item.provider.name);
       return !current?.cooldownUntil || current.cooldownUntil <= Date.now();
     })
-    .sort((a, b) => b.score - a.score)
+    // The Decision Engine has already ranked providers using historical
+    // decisions + provider performance. Preserve that evidence-based order.
+    .sort((a, b) => a.rank - b.rank)
     .map((item) => item.provider);
 }
 
@@ -226,7 +225,8 @@ export async function generateWithJamesProviderCollaboration(
     .map((name) => providers.find((provider) => provider.name === name))
     .filter((provider): provider is AIProvider => Boolean(provider))
     .filter((provider) => provider.isAvailable())
-    .slice(0, 3);
+    // James keeps all four RuangKita providers eligible for knowledge distillation.
+    .slice(0, 4);
 
   const results = await Promise.allSettled(selected.map(async (provider) => {
     const startedAt = Date.now();

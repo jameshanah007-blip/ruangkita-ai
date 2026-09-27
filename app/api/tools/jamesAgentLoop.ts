@@ -13,7 +13,9 @@ import {
   runJamesCognitiveVerification,
 } from "./jamesCognitiveLoop";
 import { planJamesTaskActions, type JamesTaskAction } from "./jamesTaskPlanner";
-import type { JamesLearningMode } from "./jamesLearningPolicy";
+import { planJamesLearningPolicy, type JamesLearningMode } from "./jamesLearningPolicy";
+import { runJamesSpecializedCollaboration, formatJamesSpecializedContext } from "./jamesSpecializedCollaboration";
+import { formatJamesCollaborationContext } from "./jamesProviderCollaboration";
 import {
   createJamesAgentTask,
   updateJamesAgentTask,
@@ -300,7 +302,7 @@ export async function runJamesAgentLoop(input: {
     ].join("\n\n");
 
     try {
-      const providerPolicy = await planJamesLearningPolicy("reasoning");
+      const providerPolicy = await planJamesLearningPolicy("reasoning", input.userId);
       let collaborationContext = "";
       let actualRoutingMode: JamesLearningMode | "specialized" = providerPolicy.mode;
       const routingProviders: string[] = [];
