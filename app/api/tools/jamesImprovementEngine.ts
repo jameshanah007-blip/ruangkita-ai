@@ -251,15 +251,26 @@ export async function executeJamesLearningGoal(input: {
   const client = db();
   if (!client) return null;
 
-  const { data: goal, error: goalError } = await client
+  const { data: candidate } = await client
     .from("james_improvement_goals")
     .select("*")
     .eq("id", input.improvementGoalId)
     .eq("user_id", input.userId)
+    .in("status", ["proposed", "queued"])
     .maybeSingle();
 
-  if (goalError || !goal) return null;
-  if (goal.status !== "proposed" && goal.status !== "queued") return goal;
+  if (!candidate) return null;
+
+  const { data: goal, error: claimError } = await client
+    .from("james_improvement_goals")
+    .update({ status: "running" })
+    .eq("id", input.improvementGoalId)
+    .eq("user_id", input.userId)
+    .in("status", ["proposed", "queued"])
+    .select("*")
+    .maybeSingle();
+
+  if (claimError || !goal) return null;
 
   const { data: selfModel } = await client
     .from("james_self_model")
@@ -267,12 +278,6 @@ export async function executeJamesLearningGoal(input: {
     .eq("user_id", input.userId)
     .eq("capability_name", goal.target_capability)
     .maybeSingle();
-
-  await client
-    .from("james_improvement_goals")
-    .update({ status: "running" })
-    .eq("id", input.improvementGoalId)
-    .eq("user_id", input.userId);
 
   const teachers = ["gemini", "openai", "openrouter", "groq"] as const;
   const capability = clean(goal.target_capability, 180);
