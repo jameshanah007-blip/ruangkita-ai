@@ -217,6 +217,38 @@ export async function generateWithJamesResourceManager(
   );
 }
 
+export async function generateWithJamesProviderCollaboration(
+  task: JamesResourceTask,
+  request: AIGenerateRequest,
+  selectedNames: AIProviderName[],
+): Promise<JamesResourceResult[]> {
+  const selected = selectedNames
+    .map((name) => providers.find((provider) => provider.name === name))
+    .filter((provider): provider is AIProvider => Boolean(provider))
+    .filter((provider) => provider.isAvailable())
+    .slice(0, 3);
+
+  const results = await Promise.allSettled(selected.map(async (provider) => {
+    const startedAt = Date.now();
+    const result = await generateWithTimeout(provider, request);
+    recordSuccess(provider.name);
+    return {
+      ...result,
+      task,
+      latencyMs: Date.now() - startedAt,
+    };
+  }));
+
+  const successful: JamesResourceResult[] = [];
+  for (const item of results) {
+    if (item.status === "fulfilled") {
+      successful.push(item.value);
+    }
+  }
+
+  return successful;
+}
+
 export function getJamesResourceProviderNames(task: JamesResourceTask) {
   return providers.filter((provider) => provider.isAvailable()).map((provider) => provider.name);
 }
