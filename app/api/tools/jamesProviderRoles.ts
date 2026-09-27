@@ -60,6 +60,5 @@ export function buildJamesRolePrompt(input: {
     "",
     "Berikan output konkret untuk provider berikutnya.",
     "Jangan mengubah identity James, memory, credentials, atau security policy.",
-  ].join("
-");
+  ].join("\n");
 }
