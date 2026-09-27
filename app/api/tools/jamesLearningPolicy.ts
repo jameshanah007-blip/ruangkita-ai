@@ -2,6 +2,7 @@ import type { AIProviderName } from "../../fun-zone/aiProvider";
 import type { JamesResourceTask } from "./jamesResourceManager";
 import { getJamesProviderPerformance, scoreJamesProviderPerformance } from "./jamesProviderPerformance";
 import { getJamesDecisionMemory } from "./jamesDecisionMemory";
+import { critiqueJamesPolicy } from "./jamesPolicyCritic";
 
 export type JamesLearningMode = "single" | "fallback" | "multi";
 
@@ -49,6 +50,38 @@ export async function planJamesLearningPolicy(task: JamesResourceTask): Promise<
   const closeRace = second && Math.abs(top.score - second.score) < 0.08;
   const weakEvidence = !top.evidence || top.evidence.attempts < 3;
   const lowConfidence = top.evidence ? top.evidence.confidence < 0.55 : true;
+
+  const basePolicy: JamesLearningPolicy = closeRace || weakEvidence || lowConfidence
+    ? {
+        mode: "multi",
+        rankedProviders: ranked.map((item) => item.provider),
+        confidence: Math.min(0.65, top.score),
+        reason: "Evidence belum cukup kuat untuk mempercayai satu provider; pertahankan beberapa resource.",
+      }
+    : {
+        mode: "single",
+        rankedProviders: ranked.map((item) => item.provider),
+        confidence: Math.min(0.95, top.score),
+        reason: "Evidence historis menunjukkan provider teratas cukup konsisten untuk task ini.",
+      };
+
+  const critique = await critiqueJamesPolicy(task, basePolicy);
+  if (critique.recommendation === "reduce_confidence" && basePolicy.mode === "single") {
+    return {
+      ...basePolicy,
+      mode: "multi",
+      confidence: Math.max(0.25, basePolicy.confidence - 0.15),
+      reason: critique.reason,
+    };
+  }
+
+  if (critique.recommendation === "increase_confidence") {
+    return {
+      ...basePolicy,
+      confidence: Math.min(0.95, basePolicy.confidence + 0.05),
+      reason: critique.reason,
+    };
+  }
 
   if (rememberedMulti >= 2 && rememberedMulti > rememberedSingle + 1 && rememberedFailures < 4) {
     return {
