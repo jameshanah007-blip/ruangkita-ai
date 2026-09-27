@@ -13,6 +13,7 @@ import {
   runJamesCognitiveVerification,
 } from "./jamesCognitiveLoop";
 import { planJamesTaskActions, type JamesTaskAction } from "./jamesTaskPlanner";
+import type { JamesLearningMode } from "./jamesLearningPolicy";
 import {
   createJamesAgentTask,
   updateJamesAgentTask,
@@ -49,6 +50,14 @@ export type JamesAgentResult = {
   steps: JamesAgentStep[];
   taskId: string | null;
   providerTrace: Array<{ provider: string; model: string; task: string; latencyMs: number }>;
+  routingDecisions: Array<{
+    task: "reasoning";
+    mode: JamesLearningMode | "specialized";
+    providers: string[];
+    confidence: number;
+    reason: string;
+    iteration: number;
+  }>;
 };
 
 const MAX_ITERATIONS = 3;
@@ -144,6 +153,7 @@ export async function runJamesAgentLoop(input: {
   let outputs: Record<string, string> = {};
   let taskId: string | null = null;
   const providerTrace: Array<{ provider: string; model: string; task: string; latencyMs: number }> = [];
+  const routingDecisions: JamesAgentResult["routingDecisions"] = [];
 
   if (input.resume && input.userId && input.conversationId) {
     const existing = await getLatestJamesAgentTask(
@@ -292,17 +302,22 @@ export async function runJamesAgentLoop(input: {
     try {
       const providerPolicy = await planJamesLearningPolicy("reasoning");
       let collaborationContext = "";
+      let actualRoutingMode: JamesLearningMode | "specialized" = providerPolicy.mode;
+      const routingProviders: string[] = [];
       if (providerPolicy.mode === "multi") {
         try {
           const collaboration = await runJamesSpecializedCollaboration({
             request: input.request,
             task: "reasoning",
           });
+          actualRoutingMode =
+            collaboration.mode === "specialized" ? "specialized" : "fallback";
           collaborationContext =
             collaboration.mode === "specialized"
               ? formatJamesSpecializedContext(collaboration.results)
               : formatJamesCollaborationContext(collaboration.results);
           for (const item of collaboration.results) {
+            routingProviders.push(item.provider);
             providerTrace.push({
               provider: item.provider,
               model: item.model,
@@ -331,6 +346,15 @@ export async function runJamesAgentLoop(input: {
       );
       lastAnswer = synthesis.text.trim();
       providerTrace.push({ provider: synthesis.provider, model: synthesis.model, task: synthesis.task, latencyMs: synthesis.latencyMs });
+      routingProviders.push(synthesis.provider);
+      routingDecisions.push({
+        task: "reasoning",
+        mode: actualRoutingMode,
+        providers: [...new Set(routingProviders)],
+        confidence: providerPolicy.confidence,
+        reason: providerPolicy.reason,
+        iteration,
+      });
 
       steps.push({
         iteration,
@@ -398,6 +422,7 @@ export async function runJamesAgentLoop(input: {
           steps,
           taskId,
           providerTrace,
+          routingDecisions,
         };
       }
     }
@@ -491,5 +516,6 @@ export async function runJamesAgentLoop(input: {
     steps,
     taskId,
     providerTrace,
+    routingDecisions,
   };
 }
