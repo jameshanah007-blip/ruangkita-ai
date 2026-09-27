@@ -29,7 +29,7 @@ import { addGlobalCandidate, getGlobalGrowth } from "../tools/jamesGlobalLearnin
 import { buildJamesContext } from "../tools/jamesContext";
 import { planJamesIntelligence, planJamesIntelligenceWithAI } from "../tools/jamesIntelligence";
 import { runJamesAgentLoop } from "../tools/jamesAgentLoop";
-import { formatJamesConsolidationContext, formatJamesExperienceContext, learnJamesExperience, recordJamesExperienceOutcome, retrieveJamesConsolidations, retrieveJamesExperiences } from "../tools/jamesExperience";
+import { formatJamesConsolidationContext, formatJamesExperienceContext, learnJamesExperience, recordJamesExperienceOutcome, retrieveJamesConsolidations, retrieveJamesExperiences, resolveJamesExperienceConflict } from "../tools/jamesExperience";
 import { getJamesAgentTask } from "../tools/jamesAgentState";
 import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
@@ -1659,9 +1659,16 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
       }),
       retrieveJamesConsolidations(userId, userRequest, 3),
     ]);
+    const experienceConflict = await resolveJamesExperienceConflict({
+      request: userRequest,
+      experiences,
+      consolidations,
+      capabilities: deterministicIntelligencePlan.capabilities,
+    });
     const experienceContext = [
       formatJamesExperienceContext(experiences),
       formatJamesConsolidationContext(consolidations),
+      experienceConflict.context,
     ].join("\n\n");
 
 
