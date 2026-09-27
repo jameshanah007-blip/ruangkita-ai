@@ -805,6 +805,7 @@ async function saveJamesLearningRuns(input: {
   const rows = input.results
     .filter((result) =>
       result.provider === "gemini" ||
+      result.provider === "openai" ||
       result.provider === "openrouter" ||
       result.provider === "groq"
     )
