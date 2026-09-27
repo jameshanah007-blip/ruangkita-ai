@@ -1,4 +1,4 @@
-import type { AIProviderName } from "../../fun-zone/aiProvider";
+import type { AIProviderName } from "../../core/ai/aiProvider";
 import type { JamesResourceTask } from "./jamesResourceManager";
 
 export type JamesProviderRole =
