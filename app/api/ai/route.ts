@@ -962,6 +962,108 @@ export async function POST(request: Request) {
       : crypto.randomUUID();
 
     const trainingRequest = isJamesTrainingInstruction(userRequest);
+    const codeEvolutionRequest =
+      trainingRequest &&
+      /\\b(?:kode|code|coding|program|programming|source code|self.?evol|evolusi sistem|perbaiki kemampuan|tingkatkan kemampuan)\\b/i.test(userRequest);
+
+    if (trainingRequest && omantoVerified && codeEvolutionRequest) {
+      const currentFiles = [
+        "app/api/tools/jamesAgentLoop.ts",
+        "app/api/tools/jamesEvolution.ts",
+        "app/api/tools/jamesMetaLearning.ts",
+        "app/api/tools/jamesExperience.ts",
+        "app/api/ai/route.ts",
+        "app/fun-zone/aiRouter.ts",
+      ];
+
+      const fileContents = [];
+      for (const path of currentFiles) {
+        try {
+          const githubToken = process.env.GITHUB_TOKEN;
+          const repo = process.env.GITHUB_REPOSITORY || "jameshanah007-blip/ruangkita-ai";
+          if (!githubToken) break;
+
+          const response = await fetch(
+            `https://api.github.com/repos/${repo}/contents/${path}?ref=main`,
+            {
+              headers: {
+                Authorization: `Bearer ${githubToken}`,
+                Accept: "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+              },
+              cache: "no-store",
+            }
+          );
+
+          if (!response.ok) continue;
+          const data = await response.json();
+          if (typeof data?.content !== "string") continue;
+
+          const decoded = Buffer.from(data.content.replace(/\\n/g, ""), "base64").toString("utf8");
+          fileContents.push({ path, content: decoded });
+        } catch (error) {
+          console.error("James evolution context read error:", error);
+        }
+      }
+
+      if (!fileContents.length) {
+        return NextResponse.json({
+          result:
+            "Aku siap membuat kode untuk mengembangkan diriku, tetapi server belum memiliki GITHUB_TOKEN untuk membaca source code secara aman. Tambahkan GITHUB_TOKEN terlebih dahulu.",
+          intent: "chat",
+          tool: "james-code-evolution",
+          evolutionApplied: false,
+          identityVerificationRequired: false,
+          citations: [],
+          userId,
+          conversationId,
+        });
+      }
+
+      const { proposeJamesCodeEvolution } = await import("../tools/jamesCodeEvolution");
+      const evolution = await proposeJamesCodeEvolution({
+        userId,
+        conversationId,
+        request: userRequest,
+        currentFiles: fileContents,
+      });
+
+      return NextResponse.json({
+        result: [
+          "Aku sudah menjalankan Code Evolution James.",
+          "",
+          "Tujuan: " + evolution.proposal.goal,
+          "Status proposal: " + evolution.status,
+          "Risiko: " + evolution.proposal.riskLevel,
+          "File yang diusulkan: " + evolution.proposal.files.map((file) => file.path).join(", "),
+          "Test: " + evolution.proposal.tests.join(" | "),
+          "",
+          evolution.status === "approved"
+            ? "Proposal lolos review multi-provider dan siap masuk tahap pembuatan branch/PR."
+            : "Proposal belum otomatis diterapkan. Proposal harus lolos review dan CI sebelum perubahan kode dapat masuk ke branch utama.",
+        ].join("\\n"),
+        intent: "chat",
+        tool: "james-code-evolution",
+        evolutionApplied: false,
+        evolutionProposalId: evolution.proposalId,
+        evolutionStatus: evolution.status,
+        evolution: {
+          goal: evolution.proposal.goal,
+          rationale: evolution.proposal.rationale,
+          riskLevel: evolution.proposal.riskLevel,
+          files: evolution.proposal.files.map((file) => ({
+            path: file.path,
+            reason: file.reason,
+          })),
+          tests: evolution.proposal.tests,
+          reviews: evolution.reviews,
+        },
+        citations: [],
+        userId,
+        conversationId,
+      });
+    }
+
     if (trainingRequest && omantoVerified) {
       const proposals = await interpretJamesTrainingInstruction(userRequest);
       if (proposals.length) {
@@ -1005,7 +1107,6 @@ export async function POST(request: Request) {
         citations: [],
       });
     }
-
 
     if (claimsOmanto && !omantoVerified) {
       return NextResponse.json({
@@ -1724,6 +1825,5 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
           ].join("\n")
         : "ACTIVE JAMES META STRATEGIES: none.",
     ].join("\n\n");
-
 
 
