@@ -434,7 +434,7 @@ export async function executeJamesLearningGoal(input: {
       .from("james_improvement_goals")
       .update({
         status: "queued",
-        last_error: message.slice(0, 1000),
+        evidence: { ...(goal.evidence || {}), last_learning_error: message.slice(0, 1000) },
       })
       .eq("id", input.improvementGoalId)
       .eq("user_id", input.userId);
