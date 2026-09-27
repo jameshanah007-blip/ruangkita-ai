@@ -28,9 +28,10 @@ create index if not exists james_model_learning_jobs_status_idx
 alter table public.james_model_learning_jobs enable row level security;
 
 drop policy if exists "james model learning service access" on public.james_model_learning_jobs;
-create policy "james model learning service access"
-  on public.james_model_learning_jobs
-  for all using (true) with check (true);
+-- No client-facing policy is created. James accesses this table server-side
+-- with SUPABASE_SECRET_KEY; Supabase service-role access bypasses RLS.
+-- This prevents anonymous/authenticated clients from reading or mutating
+-- model-learning datasets, provider job IDs, or adaptation metadata.
 
 create or replace function public.james_model_learning_jobs_updated_at()
 returns trigger language plpgsql as $$
