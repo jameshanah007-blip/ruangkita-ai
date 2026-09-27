@@ -4,7 +4,7 @@ import { planJamesIntelligenceWithAI } from "./jamesIntelligence";
 import { evaluateJamesTask } from "./jamesSelfEvaluation";
 import { learnJamesExperience } from "./jamesExperience";
 import { learnJamesMetaStrategy } from "./jamesMetaLearning";
-import { detectJamesImprovementGoal, evolveJamesImprovementGoal } from "./jamesImprovementEngine";
+import { detectJamesImprovementGoal, evolveJamesImprovementGoal, queueJamesCapabilityGap } from "./jamesImprovementEngine";
 import { decideJamesBrainStrategy } from "./jamesDecisionEngine";
 import { decideJamesModelLearning } from "./jamesModelLearningPolicy";
 import { distillJamesKnowledge, startJamesModelAdaptation, syncJamesModelLearningJobs } from "./jamesModelLearning";
@@ -303,6 +303,16 @@ export async function runJamesAutonomousBrain(input: {
               });
             }
           }
+        }
+      }
+
+      if (mode === "autonomous") {
+        const capabilityGap = await queueJamesCapabilityGap({
+          userId: input.userId,
+          conversationId: input.conversationId,
+        });
+        if (capabilityGap?.id) {
+          cycleRecord.decision += " | capability-gap:" + capabilityGap.id;
         }
       }
 
