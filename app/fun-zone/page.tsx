@@ -21,6 +21,8 @@ type LabStage =
   | "designing"
   | "building"
   | "testing"
+  | "debugging"
+  | "retesting"
   | "ready"
   | "error";
 
@@ -115,6 +117,12 @@ function getStageProgress(stage: LabStage): number {
     case "testing":
       return 82;
 
+    case "debugging":
+      return 88;
+
+    case "retesting":
+      return 94;
+
     case "ready":
       return 100;
 
@@ -136,6 +144,12 @@ function getStageDescription(stage: LabStage): string {
 
     case "testing":
       return "Game sedang dijalankan di isolated sandbox dan diperiksa oleh AI Tester.";
+
+    case "debugging":
+      return "AI Debugger sedang menganalisis kegagalan dan memperbaiki Game Artifact.";
+
+    case "retesting":
+      return "Game hasil perbaikan sedang dijalankan kembali untuk verifikasi.";
 
     case "ready":
       return "Game telah melewati pemeriksaan dan siap dimainkan.";
@@ -278,6 +292,8 @@ function getTerminalLines(
 
   if (
     stage === "testing" ||
+    stage === "debugging" ||
+    stage === "retesting" ||
     stage === "ready"
   ) {
     lines.push({
@@ -673,9 +689,15 @@ const handleSandboxReady =
     setStage("ready");
   }, []);
 
+const handleSandboxDebugging =
+  useCallback((active: boolean) => {
+    setStage(active ? "debugging" : "retesting");
+  }, []);
+
 const handleSandboxError =
   useCallback((message: string) => {
     setError(message);
+    setStage("error");
   }, []);
 
   const showLaboratory =
