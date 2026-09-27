@@ -162,3 +162,48 @@ export async function validateJamesAdaptedModel(input: {
     samples: rows.length,
   };
 }
+
+export async function validateRegisteredJamesModelFromLearningJob(input: {
+  userId: string;
+  registryId: string;
+  learningJobId: string;
+  baselineProvider: AIProviderName;
+}) {
+  const client = db();
+  if (!client) throw new Error("Supabase secret configuration is missing.");
+
+  const { data: job } = await client
+    .from("james_model_learning_jobs")
+    .select("dataset")
+    .eq("id", input.learningJobId)
+    .eq("user_id", input.userId)
+    .maybeSingle();
+
+  const dataset = Array.isArray(job?.dataset) ? job.dataset : [];
+  const prompts = dataset
+    .filter((item: any) => typeof item?.prompt === "string")
+    .slice(0, 10)
+    .map((item: any) => ({
+      prompt: item.prompt,
+      expectedSignals: typeof item.response === "string"
+        ? item.response.split(/\\s+/).filter(Boolean).slice(0, 8)
+        : [],
+    }));
+
+  if (prompts.length < 3) {
+    await client.from("james_model_registry").update({
+      status: "rejected",
+      evidence: { reason: "Insufficient validation samples in source dataset." },
+      updated_at: new Date().toISOString(),
+    }).eq("id", input.registryId).eq("user_id", input.userId);
+    return { registryId: input.registryId, status: "rejected", reason: "insufficient_samples" };
+  }
+
+  return validateJamesAdaptedModel({
+    userId: input.userId,
+    registryId: input.registryId,
+    prompts,
+    baselineProvider: input.baselineProvider,
+  });
+}
+
