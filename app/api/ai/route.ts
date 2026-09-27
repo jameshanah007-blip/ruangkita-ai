@@ -1483,12 +1483,6 @@ Jangan menyebut reasoning internal.`
             answer: agentResult.answer,
             capabilities: agentResult.plan.capabilities,
             verified: agentResult.verified,
-            outcome:
-              evaluation?.outcome === "success" ||
-              evaluation?.outcome === "failure" ||
-              evaluation?.outcome === "partial"
-                ? evaluation.outcome
-                : agentResult.verified ? "success" : "partial",
           });
         }
       })().catch((error) => {
