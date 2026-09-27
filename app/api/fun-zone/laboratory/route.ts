@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+
+export const runtime = "nodejs";
+export const maxDuration = 120;
 import type {
   GameArtifact,
   GameBlueprint,
