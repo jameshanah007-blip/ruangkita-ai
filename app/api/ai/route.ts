@@ -1049,6 +1049,8 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
       : "ACTIVE JAMES KNOWLEDGE: belum ada pengetahuan global aktif.";
 
 
+    const deterministicIntelligencePlan = planJamesIntelligence(userRequest);
+
     const [experiences, consolidations, metaStrategies] = await Promise.all([
       retrieveJamesExperiences({
         userId,
@@ -1087,7 +1089,6 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
     ].join("\n\n");
 
     const jamesKnowledgeContext = `${memoryContext}\n\n${activeKnowledgeContext}\n\n${experienceContext}`;
-    const deterministicIntelligencePlan = planJamesIntelligence(userRequest);
     let intent = deterministicIntelligencePlan.primary;
 
     // Pertanyaan recall percakapan tidak membutuhkan model eksternal.
