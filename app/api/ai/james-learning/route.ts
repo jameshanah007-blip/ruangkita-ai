@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateWithAllAIProviders } from "../../../fun-zone/aiRouter";
+import { generateWithAllAIProviders } from "../../../core/ai/aiRouter";
 import { refreshJamesProviderCapabilities } from "../../tools/jamesProviderCapabilities";
 import { getJamesGoals, saveJamesGoal } from "../../tools/jamesGoals";
 import {
