@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { generateWithJamesResourceManager } from "./jamesResourceManager";
 import type { JamesAgentResult } from "./jamesAgentLoop";
+import { recordJamesProviderPerformance } from "./jamesProviderPerformance";
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -125,6 +126,20 @@ export async function evaluateJamesTask(input: {
     if (error) {
       console.warn("James self evaluation save unavailable:", error.message);
       return null;
+    }
+
+    const seen = new Set<string>();
+    for (const observation of input.result.providerTrace) {
+      const key = observation.provider + ":" + observation.task;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      await recordJamesProviderPerformance({
+        provider: observation.provider as "gemini" | "openai" | "openrouter" | "groq",
+        task: observation.task as "planning" | "chat" | "research" | "reasoning" | "learning" | "verification" | "fallback",
+        quality: Number(data?.quality_score ?? 0.5),
+        verified: input.result.verified,
+        latencyMs: observation.latencyMs,
+      });
     }
 
     return data || null;
