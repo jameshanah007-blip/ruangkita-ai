@@ -105,7 +105,7 @@ async function reassessJamesMastery(userId: string) {
   const now = new Date();
   const { data: rows } = await client
     .from("james_self_model")
-    .select("id, capability_key, capability_name, competence, confidence, evidence_count, success_count, failure_count, status, last_evidence, updated_at, last_reassessed_at, reassessment_due_at")
+    .select("id, capability_key, capability_name, competence, confidence, evidence_count, success_count, failure_count, teacher_providers, status, last_evidence, updated_at, last_reassessed_at, reassessment_due_at")
     .eq("user_id", userId)
     .or("reassessment_due_at.is.null,reassessment_due_at.lte." + now.toISOString())
     .limit(50);
