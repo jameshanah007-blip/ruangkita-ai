@@ -294,11 +294,14 @@ export async function runJamesAgentLoop(input: {
       let collaborationContext = "";
       if (providerPolicy.mode === "multi") {
         try {
-          const collaboration = await runJamesAdaptiveCollaboration({
+          const collaboration = await runJamesSpecializedCollaboration({
             request: input.request,
             task: "reasoning",
           });
-          collaborationContext = formatJamesCollaborationContext(collaboration.results);
+          collaborationContext =
+            collaboration.mode === "specialized"
+              ? formatJamesSpecializedContext(collaboration.results)
+              : formatJamesCollaborationContext(collaboration.results);
           for (const item of collaboration.results) {
             providerTrace.push({
               provider: item.provider,
