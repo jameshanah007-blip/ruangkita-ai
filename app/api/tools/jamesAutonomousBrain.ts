@@ -80,6 +80,24 @@ async function updateBrainState(
   );
 }
 
+async function recordCapabilityEvidence(userId: string, capability: string, verified: boolean, quality: number, providers: string[]) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key || !capability.trim()) return;
+  const { createClient } = await import("@supabase/supabase-js");
+  const client = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } });
+  const capabilityKey = capability.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(0, 120);
+  const { data: old } = await client.from("james_self_model").select("*").eq("user_id", userId).eq("capability_key", capabilityKey).maybeSingle();
+  const evidence = Number(old?.evidence_count || 0) + 1;
+  const success = Number(old?.success_count || 0) + (verified ? 1 : 0);
+  const failure = Number(old?.failure_count || 0) + (verified ? 0 : 1);
+  const q = Math.max(0, Math.min(1, quality));
+  const competence = Math.max(0, Math.min(1, Number(old?.competence || 0.5) * 0.35 + q * 0.30 + (success / evidence) * 0.35));
+  const confidence = Math.max(0, Math.min(1, 0.15 + Math.min(0.80, evidence / 20)));
+  const status = evidence < 2 ? "unknown" : competence >= 0.85 && evidence >= 12 ? "strong" : competence >= 0.70 && evidence >= 5 ? "competent" : "developing";
+  const teacherProviders = [...new Set([...(Array.isArray(old?.teacher_providers) ? old.teacher_providers : []), ...providers])].slice(0, 4);
+  await client.from("james_self_model").upsert({ user_id: userId, capability_key: capabilityKey, capability_name: capability.slice(0, 180), competence, confidence, evidence_count: evidence, success_count: success, failure_count: failure, teacher_providers: teacherProviders, last_evidence: { quality: q, verified }, next_learning_action: status === "strong" ? "monitor-and-verify" : status === "competent" ? "increase-diversity-and-test" : "distill-more-evidence", status }, { onConflict: "user_id,capability_key" });
+}
+
 function boundedText(value: string, max = 6000) {
   return value.length > max ? value.slice(0, max) + "..." : value;
 }
@@ -216,7 +234,9 @@ export async function runJamesAutonomousBrain(input: {
         resume: true,
       });
 
-      if (canary?.text?.trim()) {\n        cycleRecord.decision += " | canary:" + canary.candidateId;\n      }\n\n      cycleRecord.status = "verifying";
+      if (canary?.text?.trim()) {\n        cycleRecord.decision += " | canary:" + canary.candidateId;\n      }\n\n      await recordCapabilityEvidence(input.userId, workingGoal, agent.verified, plan.confidence, brainDecision.rankedProviders);
+
+      cycleRecord.status = "verifying";
       cycleRecord.verified = agent.verified;
       cycleRecord.taskId = agent.taskId;
       cycleRecord.answer = boundedText(agent.answer || "");
