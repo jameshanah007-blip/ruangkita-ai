@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getJamesMemory } from "../../tools/memory";
 
 function validUuid(value: unknown): value is string {
@@ -11,13 +12,22 @@ function validUuid(value: unknown): value is string {
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const userId = url.searchParams.get("userId");
-    const conversationId = url.searchParams.get("conversationId");
+    const requestedUserId = url.searchParams.get("userId");
+    const requestedConversationId = url.searchParams.get("conversationId");
+    const cookieStore = await cookies();
+    const userId = cookieStore.get("ruangkita-session-user")?.value || requestedUserId;
+    const conversationId =
+      cookieStore.get("ruangkita-session-conversation")?.value || requestedConversationId;
 
-    if (!validUuid(userId) || !validUuid(conversationId)) {
+    if (
+      !validUuid(userId) ||
+      !validUuid(conversationId) ||
+      (requestedUserId && requestedUserId !== userId) ||
+      (requestedConversationId && requestedConversationId !== conversationId)
+    ) {
       return NextResponse.json(
-        { error: "userId dan conversationId tidak valid." },
-        { status: 400 }
+        { error: "Session James tidak valid." },
+        { status: 403 }
       );
     }
 
