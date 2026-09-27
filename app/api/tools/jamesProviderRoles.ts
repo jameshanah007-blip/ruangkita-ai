@@ -26,7 +26,7 @@ export function assignJamesProviderRoles(
     provider,
     role: roles[index],
     task,
-  }));
+  })).filter((item): item is JamesProviderRoleAssignment => Boolean(item.role));
 }
 
 export function buildJamesRolePrompt(input: {
