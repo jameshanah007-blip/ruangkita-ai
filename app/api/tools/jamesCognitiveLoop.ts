@@ -15,6 +15,7 @@ export type JamesCognitiveResult = {
   verified: boolean;
   steps: JamesCognitiveStep[];
   recoveryUsed: boolean;
+  provider?: { provider: string; model: string; task: JamesResourceTask; latencyMs: number };
 };
 
 function taskForPlan(plan: JamesIntelligencePlan): JamesResourceTask {
@@ -104,6 +105,7 @@ JSON SAJA.
         verified: true,
         steps,
         recoveryUsed: false,
+        provider: { provider: result.provider, model: result.model, task: result.task, latencyMs: result.latencyMs },
       };
     }
 
@@ -120,6 +122,7 @@ JSON SAJA.
       verified: false,
       steps,
       recoveryUsed: false,
+      provider: { provider: result.provider, model: result.model, task: result.task, latencyMs: result.latencyMs },
     };
   } catch (error) {
     steps.push({
@@ -186,6 +189,7 @@ Jika informasi memang belum cukup, katakan apa yang kurang secara singkat.
       verified: true,
       steps,
       recoveryUsed: true,
+      provider: { provider: result.provider, model: result.model, task: result.task, latencyMs: result.latencyMs },
     };
   } catch (error) {
     steps.push({
