@@ -129,18 +129,34 @@ export async function evaluateJamesTask(input: {
       return null;
     }
 
-    const providerNames = [...new Set(input.result.providerTrace.map((item) => item.provider))] as Array<"gemini" | "openai" | "openrouter" | "groq">;
-    const mode = providerNames.length >= 2 ? "multi" : "single";
-    await recordJamesDecisionMemory({
-      task: "reasoning",
-      mode,
-      providers: providerNames,
-      reason: clean(parsed.rootCause, 500) || "Decision dicatat dari execution trace dan self-evaluation.",
-      outcome,
-      quality: clamp(parsed.qualityScore),
-      verified: input.result.verified,
-      evidenceCount: input.result.providerTrace.length,
-    });
+    const decisions = input.result.routingDecisions?.length
+      ? input.result.routingDecisions
+      : [{
+          task: "reasoning" as const,
+          mode: (input.result.providerTrace.length >= 2 ? "multi" : "single") as "multi" | "single",
+          providers: [...new Set(input.result.providerTrace.map((item) => item.provider))],
+          confidence: 0.5,
+          reason: "Fallback decision record dari execution trace.",
+          iteration: input.result.iterations,
+        }];
+
+    for (const decision of decisions.slice(-3)) {
+      const providerNames = [...new Set(decision.providers)]
+        .filter((provider): provider is "gemini" | "openai" | "openrouter" | "groq" =>
+          provider === "gemini" || provider === "openai" || provider === "openrouter" || provider === "groq"
+        );
+
+      await recordJamesDecisionMemory({
+        task: decision.task,
+        mode: decision.mode,
+        providers: providerNames,
+        reason: clean(decision.reason, 500) || clean(parsed.rootCause, 500) || "Routing decision dicatat dari policy engine.",
+        outcome,
+        quality: clamp(parsed.qualityScore),
+        verified: input.result.verified,
+        evidenceCount: providerNames.length,
+      });
+    }
 
     const seen = new Set<string>();
     for (const observation of input.result.providerTrace) {
