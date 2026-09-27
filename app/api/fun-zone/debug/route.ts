@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateWithAIRouter } from "../../../core/ai/aiRouter";
+import { runJamesBrain } from "../../../core/james/jamesBrain";
 import type {
   GameBlueprint,
   RuntimeError,
@@ -828,7 +828,9 @@ export async function POST(request: Request) {
     });
 
     const result =
-      await generateWithAIRouter({
+      await runJamesBrain({
+        surface: "fun_zone",
+        mode: "game_debugger",
         systemInstruction: `
 Kamu adalah AI Game Debugger profesional untuk
 laboratorium game RuangKita AI.
