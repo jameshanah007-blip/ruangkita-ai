@@ -963,10 +963,10 @@ export async function POST(request: Request) {
 
     const trainingRequest = isJamesTrainingInstruction(userRequest);
     const codeEvolutionRequest =
-      trainingRequest &&
-      /\b(?:kode|code|coding|program|programming|source code|self.?evol|evolusi sistem|perbaiki kemampuan|tingkatkan kemampuan)\b/i.test(userRequest);
+      /\b(?:buat|bikin|tulis|hasilkan|kembangkan|perbaiki|tingkatkan|bangun|buatkan)\b[\\s\\S]{0,180}\b(?:kode|code|coding|program|programming|source code|self.?evol|evolusi sistem|kemampuan)\b/i.test(userRequest) ||
+      /\b(?:self.?evol|evolusi sistem|code evolution|evolusi kode)\b/i.test(userRequest);
 
-    if (trainingRequest && omantoVerified && codeEvolutionRequest) {
+    if (omantoVerified && codeEvolutionRequest) {
       const currentFiles = [
         "app/api/tools/jamesAgentLoop.ts",
         "app/api/tools/jamesEvolution.ts",
