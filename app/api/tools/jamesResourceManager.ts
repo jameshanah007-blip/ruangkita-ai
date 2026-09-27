@@ -154,15 +154,21 @@ async function getCandidates(task: JamesResourceTask) {
   return order
     .map((name, index) => ({
       provider: providers.find((provider) => provider.name === name),
-      score: scoreJamesProviderPerformance(performance.find((item) => item.provider === name), index),
+      score: scoreJamesProviderPerformance(
+        performance.find((item) => item.provider === name),
+        index
+      ),
+      rank: index,
     }))
-    .filter((item): item is { provider: AIProvider; score: number } => Boolean(item.provider))
+    .filter((item): item is { provider: AIProvider; score: number; rank: number } => Boolean(item.provider))
     .filter((item) => item.provider.isAvailable())
     .filter((item) => {
       const current = state.get(item.provider.name);
       return !current?.cooldownUntil || current.cooldownUntil <= Date.now();
     })
-    .sort((a, b) => b.score - a.score)
+    // The Decision Engine has already ranked providers using historical
+    // decisions + provider performance. Preserve that evidence-based order.
+    .sort((a, b) => a.rank - b.rank)
     .map((item) => item.provider);
 }
 
