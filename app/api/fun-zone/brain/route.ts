@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateWithAIRouter } from "../../../core/ai/aiRouter";
+import { runJamesBrainGameDirector } from "../../../core/james/jamesBrain";
 import type { GameBlueprint } from "../../../fun-zone/laboratory/types";
 
 function extractJson(text: string): unknown {
@@ -532,7 +532,7 @@ Output JSON saja.
 `;
 
     const result =
-      await generateWithAIRouter({
+      await runJamesBrainGameDirector({
         systemInstruction:
           SYSTEM_INSTRUCTION,
 
