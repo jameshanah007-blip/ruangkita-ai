@@ -67,6 +67,130 @@ function redact(value: string) {
     .replace(/\b(?:\+?\d[\d\s().-]{7,}\d)\b/g, "[PHONE]");
 }
 
+export async function resolveJamesExperienceConflict(input: {
+  request: string;
+  experiences: JamesExperience[];
+  consolidations: Array<{
+    merged_pattern: string;
+    merged_strategy: string;
+    capabilities: string[];
+    confidence: number;
+    evidence_count: number;
+    relevance: number;
+  }>;
+  capabilities?: string[];
+}) {
+  const candidates = [
+    ...input.experiences.map((item) => ({
+      source: "experience",
+      id: item.id || "",
+      pattern: item.pattern,
+      strategy: item.strategy,
+      capabilities: item.capabilities,
+      confidence: item.confidence,
+      successCount: item.successCount,
+      failureCount: item.failureCount,
+      relevance: item.relevance || 0,
+      evidence: item.successCount + item.failureCount,
+    })),
+    ...input.consolidations.map((item) => ({
+      source: "consolidated",
+      id: item.merged_pattern,
+      pattern: item.merged_pattern,
+      strategy: item.merged_strategy,
+      capabilities: item.capabilities,
+      confidence: Number(item.confidence),
+      successCount: item.evidence_count,
+      failureCount: 0,
+      relevance: item.relevance,
+      evidence: item.evidence_count,
+    })),
+  ];
+
+  if (candidates.length < 2) {
+    return {
+      selected: candidates,
+      context: "EXPERIENCE CONFLICT: tidak ada konflik yang perlu diselesaikan.",
+    };
+  }
+
+  const ranked = [...candidates].sort((a, b) => {
+    const scoreA = a.relevance * 0.50 + a.confidence * 0.30 +
+      Math.min(1, a.successCount / 10) * 0.15 -
+      Math.min(0.30, a.failureCount / Math.max(6, a.evidence) * 0.5) * 0.20;
+    const scoreB = b.relevance * 0.50 + b.confidence * 0.30 +
+      Math.min(1, b.successCount / 10) * 0.15 -
+      Math.min(0.30, b.failureCount / Math.max(6, b.evidence) * 0.5) * 0.20;
+    return scoreB - scoreA;
+  });
+
+  const top = ranked.slice(0, 4);
+
+  try {
+    const result = await generateWithJamesResourceManager("reasoning", {
+      prompt: [
+        "Evaluasi kandidat pengalaman James untuk permintaan berikut.",
+        "Jangan menganggap kandidat sebagai fakta eksternal.",
+        "Pilih strategi berdasarkan relevansi konteks dan bukti keberhasilan.",
+        "Jika kandidat bertentangan, jangan memaksakan penggabungan.",
+        "",
+        "REQUEST:",
+        redact(clean(input.request, 1600)),
+        "",
+        "CANDIDATES:",
+        JSON.stringify(top),
+        "",
+        "Output JSON saja:",
+        '{"decision":"use_candidate|use_consolidated|no_preference","selected_indices":[0],"reason":"alasan singkat"}',
+      ].join("\n"),
+      systemInstruction:
+        "Kamu adalah James Experience Conflict Resolver. Kamu hanya memilih strategi kerja. Jangan mengubah memory atau identity.",
+      temperature: 0.1,
+      maxOutputTokens: 700,
+    });
+
+    const start = result.text.indexOf("{");
+    const end = result.text.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      const parsed = JSON.parse(result.text.slice(start, end + 1)) as Record<string, unknown>;
+      const indices = Array.isArray(parsed.selected_indices)
+        ? parsed.selected_indices.filter((item): item is number =>
+            typeof item === "number" && Number.isInteger(item) && item >= 0 && item < top.length
+          ).slice(0, 2)
+        : [];
+
+      const selected = indices.length ? indices.map((index) => top[index]) : top.slice(0, 1);
+      return {
+        selected,
+        context: [
+          "EXPERIENCE CONFLICT RESOLUTION:",
+          "Decision: " + clean(parsed.decision, 60),
+          "Reason: " + clean(parsed.reason, 400),
+          "Selected strategies:",
+          ...selected.map((item, index) =>
+            (index + 1) + ". " + item.pattern + " → " + item.strategy
+          ),
+          "",
+          "Gunakan keputusan ini sebagai preferensi strategi kerja, bukan kebenaran mutlak.",
+        ].join("\n"),
+      };
+    }
+  } catch {
+    // Deterministic ranking remains the safe fallback.
+  }
+
+  const selected = top.slice(0, 1);
+  return {
+    selected,
+    context: [
+      "EXPERIENCE CONFLICT RESOLUTION:",
+      "Decision: deterministic evidence ranking",
+      "Selected strategy:",
+      selected[0].pattern + " → " + selected[0].strategy,
+    ].join("\n"),
+  };
+}
+
 export async function retrieveJamesConsolidations(userId: string, request: string, limit = 3) {
   const supabase = db();
   if (!supabase || !safeId(userId)) return [];
