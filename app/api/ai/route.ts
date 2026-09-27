@@ -1308,26 +1308,32 @@ Jangan menyebut reasoning internal.`
         });
       }
 
-      void evaluateJamesTask({
-        userId,
-        conversationId,
-        taskId: agentResult.taskId,
-        request: userRequest,
-        result: agentResult,
-      }).catch((error) => {
-        console.error("James self evaluation error:", error);
-      });
-
-      if (agentResult.verified && metaStrategies.length) {
-        void evaluateJamesMetaStrategies({
+      void (async () => {
+        const evaluation = await evaluateJamesTask({
+          userId,
+          conversationId,
+          taskId: agentResult.taskId,
           request: userRequest,
-          answer: agentResult.answer,
-          capabilities: agentResult.plan.capabilities,
-          verified: agentResult.verified,
-        }).catch((error) => {
-          console.error("James meta-strategy evaluation error:", error);
+          result: agentResult,
         });
-      }
+
+        if (metaStrategies.length) {
+          await evaluateJamesMetaStrategies({
+            request: userRequest,
+            answer: agentResult.answer,
+            capabilities: agentResult.plan.capabilities,
+            verified: agentResult.verified,
+            outcome:
+              evaluation?.outcome === "success" ||
+              evaluation?.outcome === "failure" ||
+              evaluation?.outcome === "partial"
+                ? evaluation.outcome
+                : agentResult.verified ? "success" : "partial",
+          });
+        }
+      })().catch((error) => {
+        console.error("James task/meta-strategy evaluation error:", error);
+      });
 
       if (agentResult.verified && agentResult.taskId) {
         void (async () => {
