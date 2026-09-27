@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import type { AIProviderName } from "../../fun-zone/aiProvider";
 import type { JamesResourceTask } from "./jamesResourceManager";
 import { getJamesProviderPerformance, scoreJamesProviderPerformance } from "./jamesProviderPerformance";
