@@ -1,5 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { generateWithAIRouter } from "../../fun-zone/aiRouter";
+import { aiProviders, type AIGenerateRequest, type AIGenerateResponse } from "../../fun-zone/aiProvider";
+import { openRouterProvider } from "../../fun-zone/openRouterProvider";
+import { groqProvider } from "../../fun-zone/groqProvider";
 import type { JamesAgentResult } from "./jamesAgentLoop";
 import { evaluateJamesTask } from "./jamesSelfEvaluation";
 import { proposeJamesCodeEvolution } from "./jamesCodeEvolution";
@@ -20,6 +23,20 @@ function clean(v: unknown, max = 1000) {
 function clamp(v: unknown) {
   const n = Number(v);
   return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.5;
+}
+
+async function generateWithAllAIProviders(request: AIGenerateRequest): Promise<AIGenerateResponse[]> {
+  const providers = [...aiProviders, openRouterProvider, groqProvider];
+  const results: AIGenerateResponse[] = [];
+  for (const provider of providers) {
+    if (!provider.isAvailable()) continue;
+    try {
+      results.push(await provider.generate(request));
+    } catch {
+      // One provider failing must not prevent the remaining providers from evaluating mastery.
+    }
+  }
+  return results;
 }
 
 function validProvider(value: unknown): value is "gemini" | "openai" | "openrouter" | "groq" {
@@ -106,7 +123,7 @@ export async function detectJamesImprovementGoal(input: {
   const title = clean(parsed.title, 180);
   const problem = clean(parsed.problem, 1600);
   const rawTargetCapability = clean(parsed.targetCapability, 180);
-  const target = normalizeCapability(rawTargetCapability);
+  const target = normalizeJamesCapability(rawTargetCapability);
   const targetCapability = target.name;
   if (!title || !problem || !targetCapability || !target.key) return null;
 
@@ -307,7 +324,7 @@ export async function executeJamesLearningGoal(input: {
     .maybeSingle();
 
   const teachers = ["gemini", "openai", "openrouter", "groq"] as const;
-  const normalized = normalizeCapability(goal.target_capability);
+  const normalized = normalizeJamesCapability(goal.target_capability);
   const capability = normalized.name;
   const problem = clean(goal.problem, 1600);
   const prompts = [
@@ -496,7 +513,7 @@ export async function executeJamesLearningGoal(input: {
             selfModelStatus: status,
             validationScore,
             validated,
-            reason: clean(validationParsed?.reason, 800),
+            reason: clean(evaluations.find((item) => typeof item.reason === "string")?.reason, 800),
           },
         },
       })
