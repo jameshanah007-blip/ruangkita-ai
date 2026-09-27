@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { generateWithJamesResourceManager } from "./jamesResourceManager";
 import type { JamesAgentResult } from "./jamesAgentLoop";
 import { recordJamesProviderPerformance } from "./jamesProviderPerformance";
+import { recordJamesDecisionMemory } from "./jamesDecisionMemory";
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -127,6 +128,19 @@ export async function evaluateJamesTask(input: {
       console.warn("James self evaluation save unavailable:", error.message);
       return null;
     }
+
+    const providerNames = [...new Set(input.result.providerTrace.map((item) => item.provider))] as Array<"gemini" | "openai" | "openrouter" | "groq">;
+    const mode = providerNames.length >= 2 ? "multi" : "single";
+    await recordJamesDecisionMemory({
+      task: "reasoning",
+      mode,
+      providers: providerNames,
+      reason: clean(parsed.rootCause, 500) || "Decision dicatat dari execution trace dan self-evaluation.",
+      outcome,
+      quality: clamp(parsed.qualityScore),
+      verified: input.result.verified,
+      evidenceCount: input.result.providerTrace.length,
+    });
 
     const seen = new Set<string>();
     for (const observation of input.result.providerTrace) {
