@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runJamesBrainGameBuilder } from "../../../core/james/jamesBrain";
+import { runJamesBrainWithSharedKnowledge } from "../../../core/james/jamesSharedKnowledge";
 import type { GameBlueprint } from "../../../fun-zone/laboratory/types";
 
 function extractHtml(text: string): string {
@@ -1338,7 +1339,9 @@ sebelum output limit.
 `;
 
     const result =
-      await runJamesBrainGameBuilder({
+      await runJamesBrainWithSharedKnowledge({
+        surface: "fun_zone",
+        mode: "game_builder",
         systemInstruction:
           SYSTEM_INSTRUCTION,
 
