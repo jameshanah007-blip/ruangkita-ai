@@ -67,6 +67,64 @@ function redact(value: string) {
     .replace(/\b(?:\+?\d[\d\s().-]{7,}\d)\b/g, "[PHONE]");
 }
 
+export async function retrieveJamesConsolidations(userId: string, request: string, limit = 3) {
+  const supabase = db();
+  if (!supabase || !safeId(userId)) return [];
+
+  const { data, error } = await supabase
+    .from("james_experience_consolidations")
+    .select("id, merged_pattern, merged_strategy, capabilities, confidence, evidence_count, status")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .order("confidence", { ascending: false })
+    .limit(12);
+
+  if (error || !data?.length) return [];
+
+  return data
+    .map((item) => ({
+      ...item,
+      relevance: lexicalRelevance(request, {
+        pattern: item.merged_pattern,
+        strategy: item.merged_strategy,
+        capabilities: Array.isArray(item.capabilities) ? item.capabilities : [],
+        successCount: Number(item.evidence_count || 0),
+        failureCount: 0,
+        confidence: clamp(item.confidence),
+        status: "active" as const,
+      }),
+    }))
+    .filter((item) => item.relevance >= 0.20)
+    .sort((a, b) => (b.relevance + Number(b.confidence)) - (a.relevance + Number(a.confidence)))
+    .slice(0, Math.min(Math.max(limit, 1), 5));
+}
+
+export function formatJamesConsolidationContext(items: Array<{
+  merged_pattern: string;
+  merged_strategy: string;
+  capabilities: string[];
+  confidence: number;
+  evidence_count: number;
+  relevance: number;
+}>) {
+  if (!items.length) return "CONSOLIDATED JAMES EXPERIENCES: none.";
+
+  return [
+    "CONSOLIDATED JAMES EXPERIENCES:",
+    ...items.map((item, index) => [
+      "CONSOLIDATED EXPERIENCE " + (index + 1),
+      "Pattern: " + item.merged_pattern,
+      "Strategy: " + item.merged_strategy,
+      "Capabilities: " + item.capabilities.join(", "),
+      "Evidence count: " + item.evidence_count,
+      "Confidence: " + Number(item.confidence).toFixed(2),
+      "Relevance: " + item.relevance.toFixed(2),
+    ].join("\n")),
+    "",
+    "Ini adalah strategi gabungan dari beberapa pengalaman. Gunakan sebagai pola kerja, bukan fakta eksternal.",
+  ].join("\n");
+}
+
 export async function retrieveJamesExperiences(input: {
   userId: string;
   request: string;
