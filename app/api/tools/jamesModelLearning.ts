@@ -5,6 +5,7 @@ import {
   type JamesResourceTask,
 } from "./jamesResourceManager";
 import { createClient } from "@supabase/supabase-js";
+import { registerJamesAdaptedModel } from "./jamesModelValidation";
 
 export type JamesModelLearningMode =
   | "distillation"
@@ -267,6 +268,82 @@ async function groqFineTune(input: {
     fineTunedModel: data.fine_tuned_model || null,
     trainingFile: uploadData.id as string,
   };
+}
+
+
+export async function syncJamesModelLearningJobs(userId: string) {
+  const supabase = db();
+  if (!supabase) return [];
+
+  const { data: jobs } = await supabase
+    .from("james_model_learning_jobs")
+    .select("id, target_provider, base_model, job_id, status, fine_tuned_model")
+    .eq("user_id", userId)
+    .eq("mode", "fine_tuning")
+    .in("status", ["submitted", "running"])
+    .not("job_id", "is", null)
+    .order("created_at", { ascending: true })
+    .limit(10);
+
+  const updates: Array<Record<string, unknown>> = [];
+
+  for (const item of jobs || []) {
+    if (item.target_provider !== "openai" && item.target_provider !== "groq") continue;
+
+    const apiKey = item.target_provider === "openai"
+      ? process.env.OPENAI_API_KEY
+      : process.env.GROQ_API_KEY;
+    if (!apiKey) continue;
+
+    const url = item.target_provider === "openai"
+      ? "https://api.openai.com/v1/fine_tuning/jobs/" + item.job_id
+      : "https://api.groq.com/openai/v1/fine_tunings/" + item.job_id;
+
+    try {
+      const response = await fetch(url, {
+        headers: { Authorization: "Bearer " + apiKey },
+      });
+      const data = await response.json();
+      if (!response.ok) continue;
+
+      const status = String(data?.status || data?.data?.status || "running");
+      const model = data?.fine_tuned_model || data?.data?.fine_tuned_model || null;
+      const normalized =
+        status === "succeeded" || status === "completed" ? "completed" :
+        status === "failed" || status === "cancelled" ? "failed" :
+        "running";
+
+      await supabase.from("james_model_learning_jobs").update({
+        status: normalized,
+        fine_tuned_model: model,
+        error_message: normalized === "failed"
+          ? String(data?.error?.message || data?.data?.error?.message || "Provider fine-tuning failed.")
+          : null,
+        updated_at: new Date().toISOString(),
+      }).eq("id", item.id).eq("user_id", userId);
+
+      if (normalized === "completed" && model) {
+        const registryId = await registerJamesAdaptedModel({
+          userId,
+          learningJobId: item.id,
+          provider: item.target_provider,
+          baseModel: item.base_model || "",
+          candidateModel: model,
+        });
+        updates.push({ jobId: item.id, status: normalized, registryId, candidateModel: model });
+      } else {
+        updates.push({ jobId: item.id, status: normalized, candidateModel: model });
+      }
+    } catch (error) {
+      updates.push({
+        jobId: item.id,
+        status: "error",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return updates;
 }
 
 /**
