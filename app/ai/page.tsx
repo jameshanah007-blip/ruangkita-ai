@@ -15,15 +15,6 @@ type ChatMessage = {
   feedbackNoteSubmitted?: boolean;
 };
 
-function getOrCreateId(key: string) {
-  const existing = window.localStorage.getItem(key);
-  if (existing) return existing;
-
-  const id = crypto.randomUUID();
-  window.localStorage.setItem(key, id);
-  return id;
-}
-
 function makeId() {
   return crypto.randomUUID();
 }
@@ -45,15 +36,25 @@ export default function AIExecutor() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    const nextUserId = getOrCreateId("ruangkita-james-user-id");
-    const nextConversationId = getOrCreateId("ruangkita-james-conversation-id");
+    void fetch("/api/ai/session")
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Session James gagal dimuat.");
 
-    setUserId(nextUserId);
-    setConversationId(nextConversationId);
+        const nextUserId = typeof data.userId === "string" ? data.userId : "";
+        const nextConversationId = typeof data.conversationId === "string" ? data.conversationId : "";
 
-    void fetch(
-      `/api/ai/history?userId=${encodeURIComponent(nextUserId)}&conversationId=${encodeURIComponent(nextConversationId)}`
-    )
+        if (!nextUserId || !nextConversationId) {
+          throw new Error("Session James tidak lengkap.");
+        }
+
+        setUserId(nextUserId);
+        setConversationId(nextConversationId);
+
+        return fetch(
+          `/api/ai/history?userId=${encodeURIComponent(nextUserId)}&conversationId=${encodeURIComponent(nextConversationId)}`
+        );
+      })
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "History James gagal dimuat.");
@@ -155,15 +156,11 @@ export default function AIExecutor() {
 
       if (data.userId && data.userId !== userId) {
         setUserId(data.userId);
-        window.localStorage.setItem("ruangkita-james-user-id", data.userId);
       }
 
       if (data.conversationId && data.conversationId !== conversationId) {
         setConversationId(data.conversationId);
-        window.localStorage.setItem(
-          "ruangkita-james-conversation-id",
-          data.conversationId
-        );
+        
       }
 
       setMessages((current) => [
@@ -207,6 +204,39 @@ export default function AIExecutor() {
 
       if (!response.ok || !data.verified) {
         throw new Error(data.error || "Kode verifikasi tidak valid.");
+      }
+
+      if (typeof data.userId === "string" && typeof data.conversationId === "string") {
+        setUserId(data.userId);
+        setConversationId(data.conversationId);
+        try {
+          const historyResponse = await fetch(
+            `/api/ai/history?userId=${encodeURIComponent(data.userId)}&conversationId=${encodeURIComponent(data.conversationId)}`
+          );
+          const history = await historyResponse.json();
+          if (historyResponse.ok && Array.isArray(history.messages)) {
+            setMessages(
+              history.messages
+                .filter(
+                  (item: { role?: string; content?: string }) =>
+                    (item.role === "user" || item.role === "assistant") &&
+                    typeof item.content === "string"
+                )
+                .map(
+                  (item: { role: "user" | "assistant"; content: string }, index: number) => ({
+                    id: `verified-history-${index}-${item.role}`,
+                    role: item.role,
+                    content: item.content,
+                    feedback: null,
+                    feedbackNote: "",
+                    feedbackNoteSubmitted: false,
+                  })
+                )
+            );
+          }
+        } catch (historyError) {
+          console.error("James verified history load error:", historyError);
+        }
       }
 
       setOmantoVerified(true);
