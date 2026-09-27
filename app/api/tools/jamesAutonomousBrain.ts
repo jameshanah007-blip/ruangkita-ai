@@ -96,7 +96,7 @@ async function recordCapabilityEvidence(userId: string, capability: string, veri
   const confidence = Math.max(0, Math.min(1, 0.15 + Math.min(0.80, evidence / 20)));
   const status = evidence < 2 ? "unknown" : competence >= 0.85 && evidence >= 12 ? "strong" : competence >= 0.70 && evidence >= 5 ? "competent" : "developing";
   const teacherProviders = [...new Set([...(Array.isArray(old?.teacher_providers) ? old.teacher_providers : []), ...providers])].slice(0, 4);
-  await client.from("james_self_model").upsert({ user_id: userId, capability_key: capabilityKey, capability_name: normalized.name, competence, confidence, evidence_count: evidence, success_count: success, failure_count: failure, teacher_providers: teacherProviders, last_evidence: { quality: q, verified }, next_learning_action: status === "strong" ? "monitor-and-verify" : status === "competent" ? "increase-diversity-and-test" : "distill-more-evidence", status }, { onConflict: "user_id,capability_key" });
+  await client.from("james_self_model").upsert({ user_id: userId, capability_key: capabilityKey, capability_name: normalized.name, competence, confidence, evidence_count: evidence, success_count: success, failure_count: failure, teacher_providers: teacherProviders, last_evidence: { quality: q, verified, at: new Date().toISOString() }, next_learning_action: status === "strong" ? "monitor-and-verify" : status === "competent" ? "increase-diversity-and-test" : "distill-more-evidence", status }, { onConflict: "user_id,capability_key" });
 }
 
 async function reassessJamesMastery(userId: string) {
@@ -105,7 +105,7 @@ async function reassessJamesMastery(userId: string) {
   const now = new Date();
   const { data: rows } = await client
     .from("james_self_model")
-    .select("id, capability_key, capability_name, competence, confidence, evidence_count, success_count, failure_count, status, last_evidence, last_reassessed_at, reassessment_due_at")
+    .select("id, capability_key, capability_name, competence, confidence, evidence_count, success_count, failure_count, status, last_evidence, updated_at, last_reassessed_at, reassessment_due_at")
     .eq("user_id", userId)
     .or("reassessment_due_at.is.null,reassessment_due_at.lte." + now.toISOString())
     .limit(50);
