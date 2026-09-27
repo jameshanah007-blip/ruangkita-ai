@@ -157,3 +157,29 @@ export async function retrieveJamesMetaStrategies(taskClass: string, limit = 4) 
   if (error) return [];
   return data || [];
 }
+
+export async function retrieveJamesMetaStrategiesByCapabilities(capabilities: string[], limit = 4) {
+  const supabase = db();
+  if (!supabase || !capabilities.length) return [];
+
+  const { data, error } = await supabase
+    .from("james_meta_strategies")
+    .select("id, task_class, strategy, capabilities, evidence_count, success_count, failure_count, confidence, status")
+    .eq("status", "active")
+    .order("confidence", { ascending: false })
+    .limit(20);
+
+  if (error || !data?.length) return [];
+
+  const requested = new Set(capabilities);
+  return data
+    .map((item) => {
+      const itemCapabilities = Array.isArray(item.capabilities) ? item.capabilities : [];
+      const matches = itemCapabilities.filter((capability) => requested.has(capability)).length;
+      const capabilityScore = matches / Math.max(1, Math.min(requested.size, itemCapabilities.length || 1));
+      return { ...item, relevance: capabilityScore * 0.7 + Number(item.confidence || 0) * 0.3 };
+    })
+    .filter((item) => item.relevance >= 0.35)
+    .sort((a, b) => b.relevance - a.relevance)
+    .slice(0, Math.min(Math.max(limit, 1), 8));
+}
