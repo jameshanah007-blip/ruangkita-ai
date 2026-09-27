@@ -242,3 +242,168 @@ export async function evolveJamesImprovementGoal(input: {
     evolution_proposal_id: proposal.proposalId,
   };
 }
+
+export async function executeJamesLearningGoal(input: {
+  userId: string;
+  conversationId: string;
+  improvementGoalId: string;
+}) {
+  const client = db();
+  if (!client) return null;
+
+  const { data: goal, error: goalError } = await client
+    .from("james_improvement_goals")
+    .select("*")
+    .eq("id", input.improvementGoalId)
+    .eq("user_id", input.userId)
+    .maybeSingle();
+
+  if (goalError || !goal) return null;
+  if (goal.status !== "proposed" && goal.status !== "queued") return goal;
+
+  const { data: selfModel } = await client
+    .from("james_self_model")
+    .select("capability_name, competence, confidence, evidence_count, success_count, failure_count, teacher_providers, active_models, next_learning_action, status")
+    .eq("user_id", input.userId)
+    .eq("capability_name", goal.target_capability)
+    .maybeSingle();
+
+  await client
+    .from("james_improvement_goals")
+    .update({ status: "running", last_run_at: new Date().toISOString() })
+    .eq("id", input.improvementGoalId)
+    .eq("user_id", input.userId);
+
+  const teachers = ["gemini", "openai", "openrouter", "groq"] as const;
+  const capability = clean(goal.target_capability, 180);
+  const problem = clean(goal.problem, 1600);
+  const prompts = [
+    `Ajarkan capability berikut kepada James secara praktis: ${capability}. Masalah: ${problem}. Berikan prinsip, contoh, dan hasil yang bisa diuji. Jangan tampilkan chain-of-thought.`,
+    `Buat latihan terarah untuk menguji capability ${capability}. Sertakan input, expected outcome, dan jebakan umum. Fokus pada hasil final yang dapat diverifikasi.`,
+    `Berikan solusi alternatif yang lebih robust untuk capability ${capability}. Jelaskan kriteria keberhasilan dan cara memverifikasinya. Jangan tampilkan reasoning internal.`,
+    `Buat checklist pengetahuan dan implementasi yang harus dikuasai James untuk capability ${capability}. Prioritaskan hal yang dapat dibuktikan lewat pengujian.`,
+  ];
+
+  try {
+    const distilled = await (await import("./jamesModelLearning")).distillJamesKnowledge({
+      userId: input.userId,
+      prompts,
+      teacherProviders: [...teachers],
+      systemInstruction:
+        "Kamu adalah teacher untuk James. Ajarkan hanya pengetahuan final yang dapat diverifikasi. Jangan keluarkan chain-of-thought, secrets, credentials, atau protected internals.",
+      task: "learning",
+    });
+
+    if (!distilled.sampleCount || !distilled.jobId) {
+      await client
+        .from("james_improvement_goals")
+        .update({
+          status: "queued",
+          evidence: {
+            ...(goal.evidence || {}),
+            last_learning_attempt: { sampleCount: distilled.sampleCount, result: "no-dataset" },
+          },
+        })
+        .eq("id", input.improvementGoalId)
+        .eq("user_id", input.userId);
+      return { ...goal, status: "queued", learningJobId: distilled.jobId, sampleCount: distilled.sampleCount };
+    }
+
+    const oldEvidence = Number(selfModel?.evidence_count || 0);
+    const oldCompetence = Number(selfModel?.competence || 0.5);
+    const oldConfidence = Number(selfModel?.confidence || 0.2);
+    const gainedEvidence = Math.min(4, distilled.sampleCount);
+    const competence = Math.max(0, Math.min(1,
+      oldCompetence * 0.60 + Math.min(1, 0.62 + distilled.sampleCount / 50) * 0.25 + 0.15
+    ));
+    const confidence = Math.max(0, Math.min(1,
+      oldConfidence * 0.55 + Math.min(0.85, 0.25 + (oldEvidence + gainedEvidence) / 20) * 0.45
+    ));
+    const evidenceCount = oldEvidence + gainedEvidence;
+    const status =
+      evidenceCount >= 12 && competence >= 0.85 ? "strong" :
+      evidenceCount >= 5 && competence >= 0.70 ? "competent" :
+      evidenceCount < 2 ? "unknown" : "developing";
+
+    const providerList = [
+      ...(Array.isArray(selfModel?.teacher_providers) ? selfModel.teacher_providers : []),
+      ...teachers,
+    ].filter(validProvider);
+    const activeModels = Array.isArray(selfModel?.active_models) ? selfModel.active_models : [];
+
+    await client
+      .from("james_self_model")
+      .upsert({
+        user_id: input.userId,
+        capability_key: capability.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(0, 120),
+        capability_name: capability,
+        competence,
+        confidence,
+        evidence_count: evidenceCount,
+        success_count: Number(selfModel?.success_count || 0),
+        failure_count: Number(selfModel?.failure_count || 0),
+        teacher_providers: [...new Set(providerList)].slice(0, 4),
+        active_models: activeModels,
+        last_evidence: {
+          source: "learning_queue_executor",
+          learningJobId: distilled.jobId,
+          sampleCount: distilled.sampleCount,
+          teachers,
+          validated: false,
+          note: "Distillation evidence increases knowledge coverage; competence is not marked strong without task verification.",
+        },
+        next_learning_action: status === "strong"
+          ? "monitor-and-verify"
+          : status === "competent"
+            ? "increase-diversity-and-test"
+            : "distill-more-evidence",
+        status,
+      }, { onConflict: "user_id,capability_key" });
+
+    const goalStatus = status === "strong" || status === "competent" ? "completed" : "queued";
+    await client
+      .from("james_improvement_goals")
+      .update({
+        status: goalStatus,
+        evidence: {
+          ...(goal.evidence || {}),
+          last_learning_attempt: {
+            learningJobId: distilled.jobId,
+            sampleCount: distilled.sampleCount,
+            teachers,
+            competenceBefore: oldCompetence,
+            competenceAfter: competence,
+            confidenceAfter: confidence,
+            selfModelStatus: status,
+            validated: false,
+          },
+        },
+      })
+      .eq("id", input.improvementGoalId)
+      .eq("user_id", input.userId);
+
+    return {
+      ...goal,
+      status: goalStatus,
+      learningJobId: distilled.jobId,
+      sampleCount: distilled.sampleCount,
+      capability,
+      competence,
+      confidence,
+      selfModelStatus: status,
+      validated: false,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await client
+      .from("james_improvement_goals")
+      .update({
+        status: "queued",
+        last_error: message.slice(0, 1000),
+      })
+      .eq("id", input.improvementGoalId)
+      .eq("user_id", input.userId);
+    throw error;
+  }
+}
+
