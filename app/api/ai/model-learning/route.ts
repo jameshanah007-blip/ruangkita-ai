@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
     if (body.mode === "distill") {
       const prompts = Array.isArray(body.prompts)
-        ? body.prompts.filter((item: unknown): item is string => typeof item === "string" && item.trim()).slice(0, 50)
+        ? body.prompts.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 50)
         : [];
       const teachers = Array.isArray(body.teacherProviders)
         ? body.teacherProviders.map(provider).filter((item: AIProviderName | null): item is AIProviderName => Boolean(item))
