@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateWithAIRouter } from "../../../core/ai/aiRouter";
+import { runJamesBrainGameBuilder } from "../../../core/james/jamesBrain";
 import type { GameBlueprint } from "../../../fun-zone/laboratory/types";
 
 function extractHtml(text: string): string {
@@ -1338,7 +1338,7 @@ sebelum output limit.
 `;
 
     const result =
-      await generateWithAIRouter({
+      await runJamesBrainGameBuilder({
         systemInstruction:
           SYSTEM_INSTRUCTION,
 
