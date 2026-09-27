@@ -4,7 +4,6 @@ import { planJamesIntelligenceWithAI } from "./jamesIntelligence";
 import { evaluateJamesTask } from "./jamesSelfEvaluation";
 import { learnJamesExperience } from "./jamesExperience";
 import { learnJamesMetaStrategy } from "./jamesMetaLearning";
-import { proposeJamesCodeEvolution } from "./jamesCodeEvolution";
 import { detectJamesImprovementGoal, evolveJamesImprovementGoal } from "./jamesImprovementEngine";
 
 export type JamesAutonomyMode = "supervised" | "bounded" | "autonomous";
