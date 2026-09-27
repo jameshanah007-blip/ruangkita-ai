@@ -34,6 +34,7 @@ import { formatJamesConsolidationContext, formatJamesExperienceContext, learnJam
 import { getJamesAgentTask } from "../tools/jamesAgentState";
 import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
+import { learnJamesMetaStrategy, retrieveJamesMetaStrategiesByCapabilities } from "../tools/jamesMetaLearning";
 
 type Intent =
   | "chat"
@@ -1322,7 +1323,7 @@ Jangan menyebut reasoning internal.`
           const task = await getJamesAgentTask(agentResult.taskId || "");
           if (!task) return;
 
-          await learnJamesExperience({
+          const learnedExperience = await learnJamesExperience({
             userId,
             conversationId,
             taskId: agentResult.taskId,
@@ -1330,6 +1331,15 @@ Jangan menyebut reasoning internal.`
             actions: task.actions,
             verified: agentResult.verified,
           });
+
+          if (learnedExperience) {
+            await learnJamesMetaStrategy({
+              pattern: learnedExperience.pattern,
+              strategy: learnedExperience.strategy,
+              capabilities: Array.isArray(learnedExperience.capabilities) ? learnedExperience.capabilities : [],
+              verified: agentResult.verified,
+            });
+          }
         })().catch((error) => {
           console.error("James experience learning error:", error);
         });
@@ -1661,7 +1671,7 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
     );
   }
 }
-    const [experiences, consolidations] = await Promise.all([
+    const [experiences, consolidations, metaStrategies] = await Promise.all([
       retrieveJamesExperiences({
         userId,
         request: userRequest,
@@ -1669,6 +1679,7 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
         limit: 4,
       }),
       retrieveJamesConsolidations(userId, userRequest, 3),
+      retrieveJamesMetaStrategiesByCapabilities(deterministicIntelligencePlan.capabilities, 4),
     ]);
     const experienceConflict = await resolveJamesExperienceConflict({
       request: userRequest,
@@ -1680,6 +1691,21 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
       formatJamesExperienceContext(experiences),
       formatJamesConsolidationContext(consolidations),
       experienceConflict.context,
+      metaStrategies.length
+        ? [
+            "ACTIVE JAMES META STRATEGIES:",
+            ...metaStrategies.map((item, index) => [
+              "META STRATEGY " + (index + 1),
+              "Task class: " + item.task_class,
+              "Strategy: " + item.strategy,
+              "Evidence: " + item.evidence_count,
+              "Confidence: " + Number(item.confidence).toFixed(2),
+              "Relevance: " + Number(item.relevance).toFixed(2),
+            ].join("\n")),
+            "",
+            "Gunakan meta strategy hanya sebagai pola kerja yang dapat diuji kembali; jangan menganggapnya sebagai aturan mutlak.",
+          ].join("\n")
+        : "ACTIVE JAMES META STRATEGIES: none.",
     ].join("\n\n");
 
 
