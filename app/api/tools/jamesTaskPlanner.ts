@@ -42,28 +42,28 @@ function clean(value: unknown, max = 600) {
 function normalizeActions(parsed: Record<string, unknown>): JamesTaskAction[] {
   const raw = Array.isArray(parsed.actions) ? parsed.actions : [];
 
-  return raw
-    .map((item, index) => {
-      if (!item || typeof item !== "object") return null;
-      const value = item as Record<string, unknown>;
-      const capability = value.capability;
-      if (!validCapability(capability)) return null;
+  return raw.flatMap((item, index): JamesTaskAction[] => {
+    if (!item || typeof item !== "object") return [];
+    const value = item as Record<string, unknown>;
+    const capability = value.capability;
+    if (!validCapability(capability)) return [];
 
-      const dependencies = Array.isArray(value.dependsOn)
-        ? value.dependsOn.filter((item): item is string => typeof item === "string").slice(0, 8)
-        : [];
+    const dependencies = Array.isArray(value.dependsOn)
+      ? value.dependsOn.filter((item): item is string => typeof item === "string").slice(0, 8)
+      : [];
+    const goal = clean(value.goal, 300);
+    const actionInput = clean(value.input, 700);
+    if (!goal || !actionInput) return [];
 
-      return {
-        id: clean(value.id, 40) || "step-" + (index + 1),
-        goal: clean(value.goal, 300),
-        capability,
-        input: clean(value.input, 700),
-        dependsOn: dependencies,
-        status: "pending" as const,
-      };
-    })
-    .filter((item): item is JamesTaskAction => Boolean(item?.goal && item.input))
-    .slice(0, 8);
+    return [{
+      id: clean(value.id, 40) || "step-" + (index + 1),
+      goal,
+      capability,
+      input: actionInput,
+      dependsOn: dependencies,
+      status: "pending",
+    }];
+  }).slice(0, 8);
 }
 
 export async function planJamesTaskActions(input: {
