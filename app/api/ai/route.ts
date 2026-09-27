@@ -1028,6 +1028,29 @@ export async function POST(request: Request) {
         currentFiles: fileContents,
       });
 
+      let pullRequest: {
+        branch: string;
+        pullRequestNumber: number;
+        pullRequestUrl: string;
+        changed: Array<{ path: string; commitSha: string }>;
+      } | null = null;
+
+      if (evolution.status === "approved" && process.env.GITHUB_TOKEN && evolution.proposalId) {
+        try {
+          const { createJamesEvolutionPullRequest } = await import("../tools/jamesCodeEvolutionGitHub");
+          pullRequest = await createJamesEvolutionPullRequest({
+            proposalId: evolution.proposalId,
+            goal: evolution.proposal.goal,
+            files: evolution.proposal.files.map((file) => ({
+              path: file.path,
+              content: file.content,
+            })),
+          });
+        } catch (error) {
+          console.error("James evolution PR creation error:", error);
+        }
+      }
+
       return NextResponse.json({
         result: [
           "Aku sudah menjalankan Code Evolution James.",
