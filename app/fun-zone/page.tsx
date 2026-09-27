@@ -1398,6 +1398,10 @@ onReady={
   handleSandboxReady
 }
 
+onDebuggingChange={
+  handleSandboxDebugging
+}
+
 onError={
   handleSandboxError
 }                  
