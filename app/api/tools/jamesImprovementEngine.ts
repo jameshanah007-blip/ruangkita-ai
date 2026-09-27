@@ -318,8 +318,8 @@ export async function executeJamesLearningGoal(input: {
         JSON.stringify(distilled.dataset.slice(0, 8)),
         "",
         "Buat satu probe answer singkat untuk target capability, lalu nilai apakah pengetahuan hasil distillation cukup untuk menjawabnya.",
-        "Output JSON saja: {\\"score\\":0.0,\\"passed\\":false,\\"reason\\":\\"\\"}",
-      ].join("\\n"),
+        'Output JSON saja: {"score":0.0,"passed":false,"reason":""}',
+      ].join("\n"),
       systemInstruction:
         "Kamu adalah evaluator pembelajaran James. Nilai evidence yang tersedia, bukan gaya bahasa. Jangan tampilkan chain-of-thought.",
       temperature: 0.05,
