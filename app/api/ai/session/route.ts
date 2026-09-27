@@ -19,10 +19,15 @@ export async function GET() {
   if (!validUuid(userId)) userId = crypto.randomUUID();
   if (!validUuid(conversationId)) conversationId = crypto.randomUUID();
 
+  const memoryAvailable = Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.SUPABASE_SECRET_KEY
+  );
+
   const response = NextResponse.json({
     userId,
     conversationId,
-    memoryAvailable: true,
+    memoryAvailable,
   });
 
   response.cookies.set({
