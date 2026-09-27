@@ -1,6 +1,7 @@
 import type { AIProviderName } from "../../fun-zone/aiProvider";
 import type { JamesResourceTask } from "./jamesResourceManager";
 import { getJamesProviderPerformance, scoreJamesProviderPerformance } from "./jamesProviderPerformance";
+import { getJamesDecisionMemory } from "./jamesDecisionMemory";
 
 export type JamesLearningMode = "single" | "fallback" | "multi";
 
@@ -13,6 +14,7 @@ export type JamesLearningPolicy = {
 
 export async function planJamesLearningPolicy(task: JamesResourceTask): Promise<JamesLearningPolicy> {
   const performance = await getJamesProviderPerformance(task);
+  const decisions = await getJamesDecisionMemory(task, 12);
   const defaults: AIProviderName[] = ["openai", "gemini", "openrouter", "groq"];
 
   const ranked = defaults
@@ -27,6 +29,8 @@ export async function planJamesLearningPolicy(task: JamesResourceTask): Promise<
     .sort((a, b) => b.score - a.score);
 
   const observed = ranked.filter((item) => Boolean(item.evidence));
+  const successfulDecisions = decisions.filter((item) => item.verified && item.outcome === "success");
+  const failedDecisions = decisions.filter((item) => item.outcome === "failure");
   const top = ranked[0];
 
   if (!top || observed.length === 0) {
@@ -39,9 +43,30 @@ export async function planJamesLearningPolicy(task: JamesResourceTask): Promise<
   }
 
   const second = ranked[1];
+  const rememberedMulti = successfulDecisions.filter((item) => item.mode === "multi" || item.mode === "specialized").length;
+  const rememberedSingle = successfulDecisions.filter((item) => item.mode === "single").length;
+  const rememberedFailures = failedDecisions.length;
   const closeRace = second && Math.abs(top.score - second.score) < 0.08;
   const weakEvidence = !top.evidence || top.evidence.attempts < 3;
   const lowConfidence = top.evidence ? top.evidence.confidence < 0.55 : true;
+
+  if (rememberedMulti >= 2 && rememberedMulti > rememberedSingle + 1 && rememberedFailures < 4) {
+    return {
+      mode: "multi",
+      rankedProviders: ranked.map((item) => item.provider),
+      confidence: Math.min(0.8, top.score + 0.05),
+      reason: "Decision memory menunjukkan kolaborasi multi-provider sebelumnya efektif untuk task ini.",
+    };
+  }
+
+  if (rememberedSingle >= 3 && rememberedSingle >= rememberedMulti + 1 && top.evidence && top.evidence.attempts >= 3) {
+    return {
+      mode: "single",
+      rankedProviders: ranked.map((item) => item.provider),
+      confidence: Math.min(0.9, top.score + 0.03),
+      reason: "Decision memory menunjukkan single-provider sebelumnya konsisten untuk task ini.",
+    };
+  }
 
   if (closeRace || weakEvidence || lowConfidence) {
     return {
