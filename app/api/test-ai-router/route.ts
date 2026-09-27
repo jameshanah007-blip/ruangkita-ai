@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateWithAIRouter } from "../../fun-zone/aiRouter";
+import { generateWithAIRouter } from "../../core/ai/aiRouter";
 
 export async function GET() {
   try {
