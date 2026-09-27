@@ -234,7 +234,11 @@ export async function runJamesAutonomousBrain(input: {
         resume: true,
       });
 
-      if (canary?.text?.trim()) {\n        cycleRecord.decision += " | canary:" + canary.candidateId;\n      }\n\n      await recordCapabilityEvidence(input.userId, workingGoal, agent.verified, plan.confidence, brainDecision.rankedProviders);
+      if (canary?.text?.trim()) {
+        cycleRecord.decision += " | canary:" + canary.candidateId;
+      }
+
+      await recordCapabilityEvidence(input.userId, workingGoal, agent.verified, plan.confidence, brainDecision.rankedProviders);
 
       cycleRecord.status = "verifying";
       cycleRecord.verified = agent.verified;
