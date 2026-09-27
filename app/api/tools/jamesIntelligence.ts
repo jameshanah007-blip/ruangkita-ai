@@ -267,7 +267,7 @@ Keluarkan JSON SAJA:
 export function planJamesIntelligence(request: string): JamesIntelligencePlan {
   return buildDeterministicPlan(request);
 }
-\nfunction extractMathExpression(request: string) {
+function extractMathExpression(request: string) {
   const expression = request
     .replace(/berapakah/gi, "")
     .replace(/berapa/gi, "")
