@@ -2,6 +2,8 @@ import {
   generateWithAIRouter,
   type AIRouterResult,
 } from "../ai/aiRouter";
+import { getGlobalGrowth } from "../../api/tools/jamesGlobalLearning";
+import { getJamesDecisionMemory } from "../../api/tools/jamesDecisionMemory";
 
 export type JamesBrainSurface =
   | "tanya_saya"
@@ -26,6 +28,7 @@ export type JamesBrainRequest = {
   context?: string;
   temperature?: number;
   maxOutputTokens?: number;
+  sharedLearningContext?: string;
 };
 
 export type JamesBrainResponse = AIRouterResult & {
