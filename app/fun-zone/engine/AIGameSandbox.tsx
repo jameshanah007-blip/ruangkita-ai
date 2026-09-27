@@ -206,7 +206,8 @@ function createFallbackBlueprint(
 }
 
 function buildDiagnosticHtml(
-  gameHtml: string
+  gameHtml: string,
+  blueprintActions: string[] = []
 ) {
   const diagnostic = `
 <script>
@@ -1046,13 +1047,8 @@ var beforeLost =
       var protocolAction = "";
       var restartVerified = false;
 
-      var testActions = [
-        "move",
-        "interact",
-        "jump",
-        "attack",
-        "collect"
-      ];
+      var testActions = [];
+      var declaredTestActions = [];
 
       if (
         gameTestProtocol &&
@@ -1069,32 +1065,62 @@ var beforeLost =
             gameTestError =
               "Game Test Protocol tidak menyediakan performTestAction().";
           } else {
+            var actionCandidates = [];
+
+            for (
+              var declaredIndex = 0;
+              declaredIndex < declaredTestActions.length;
+              declaredIndex++
+            ) {
+              var declaredAction =
+                String(declaredTestActions[declaredIndex] || "").trim();
+
+              if (
+                declaredAction &&
+                declaredAction.toLowerCase() !== "restart" &&
+                actionCandidates.indexOf(declaredAction) === -1
+              ) {
+                actionCandidates.push(declaredAction);
+              }
+            }
+
+            for (
+              var fallbackIndex = 0;
+              fallbackIndex < testActions.length;
+              fallbackIndex++
+            ) {
+              if (
+                actionCandidates.indexOf(testActions[fallbackIndex]) === -1
+              ) {
+                actionCandidates.push(testActions[fallbackIndex]);
+              }
+            }
+
+            var executedActions = [];
+
             for (
               var actionIndex = 0;
-              actionIndex < testActions.length;
+              actionIndex < actionCandidates.length &&
+              actionIndex < 8;
               actionIndex++
             ) {
-              var action =
-                testActions[actionIndex];
+              var action = actionCandidates[actionIndex];
 
               try {
-                protocol.performTestAction(
-                  action
-                );
+                protocol.performTestAction(action);
+                protocolActionExecuted = true;
+                executedActions.push(action);
 
-                protocolActionExecuted =
-                  true;
-
-                protocolAction =
-                  action;
-
-                break;
+                if (!protocolAction) {
+                  protocolAction = action;
+                }
               } catch (_) {
-                /*
-                 * Try the next legitimate
-                 * generic gameplay action.
-                 */
+                /* Try the next legitimate action. */
               }
+            }
+
+            if (executedActions.length > 0) {
+              protocolAction = executedActions.join(", ");
             }
           }
         } catch (error) {
@@ -1918,7 +1944,8 @@ export default function AIGameSandbox({
     useMemo(
       () =>
         buildDiagnosticHtml(
-          currentHtml
+          currentHtml,
+          blueprint?.playerActions ?? []
         ),
       [currentHtml]
     );
