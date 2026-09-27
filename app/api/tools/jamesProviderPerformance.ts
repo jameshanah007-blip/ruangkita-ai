@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import type { AIProviderName } from "../../fun-zone/aiProvider";
+import type { AIProviderName } from "../../core/ai/aiProvider";
 import type { JamesResourceTask } from "./jamesResourceManager";
 
 function db() {
