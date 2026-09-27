@@ -1169,6 +1169,41 @@ Consensus: ${item.consensus_score}`
 Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate, consensus, atau mekanisme internal kepada pengguna. Active knowledge bukan pengganti research untuk informasi yang dapat berubah cepat.`
       : "ACTIVE JAMES KNOWLEDGE: belum ada pengetahuan global aktif.";
 
+    const [experiences, consolidations, metaStrategies] = await Promise.all([
+      retrieveJamesExperiences({
+        userId,
+        request: userRequest,
+        capabilities: deterministicIntelligencePlan.capabilities,
+        limit: 4,
+      }),
+      retrieveJamesConsolidations(userId, userRequest, 3),
+      retrieveJamesMetaStrategiesByCapabilities(deterministicIntelligencePlan.capabilities, 4),
+    ]);
+    const experienceConflict = await resolveJamesExperienceConflict({
+      request: userRequest,
+      experiences,
+      consolidations,
+      capabilities: deterministicIntelligencePlan.capabilities,
+    });
+    const experienceContext = [
+      formatJamesExperienceContext(experiences),
+      formatJamesConsolidationContext(consolidations),
+      experienceConflict.context,
+      metaStrategies.length
+        ? [
+            "ACTIVE JAMES META STRATEGIES:",
+            ...metaStrategies.map((item, index) => [
+              "META STRATEGY " + (index + 1),
+              "Task class: " + item.task_class,
+              "Strategy: " + item.strategy,
+              "Evidence: " + item.evidence_count,
+              "Confidence: " + Number(item.confidence).toFixed(2),
+              "Relevance: " + Number(item.relevance).toFixed(2),
+            ].join("\n")).join("\n\n"),
+          ].join("\n")
+        : "",
+    ].filter(Boolean).join("\n\n");
+
     const jamesKnowledgeContext = `${memoryContext}\n\n${activeKnowledgeContext}\n\n${experienceContext}`;
     const deterministicIntelligencePlan = planJamesIntelligence(userRequest);
     let intent = deterministicIntelligencePlan.primary;
