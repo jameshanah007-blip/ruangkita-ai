@@ -158,14 +158,14 @@ export async function queueJamesCapabilityGap(input: {
     .limit(1);
 
   if (input.capability?.trim()) {
+    const normalizedRequested = normalizeJamesCapability(input.capability);
     query = client
       .from("james_self_model")
       .select("capability_name, competence, confidence, evidence_count, status, next_learning_action")
       .eq("user_id", input.userId)
-      .eq("capability_key", input.capability.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(0, 120))
+      .eq("capability_key", normalizedRequested.key)
       .limit(1);
   }
-
   const { data: rows } = await query;
   const gap = rows?.[0];
   if (!gap) return null;
