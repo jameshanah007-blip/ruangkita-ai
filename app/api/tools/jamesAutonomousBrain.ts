@@ -7,7 +7,7 @@ import { learnJamesMetaStrategy } from "./jamesMetaLearning";
 import { detectJamesImprovementGoal, evolveJamesImprovementGoal } from "./jamesImprovementEngine";
 import { decideJamesBrainStrategy } from "./jamesDecisionEngine";
 import { decideJamesModelLearning } from "./jamesModelLearningPolicy";
-import { distillJamesKnowledge, startJamesModelAdaptation } from "./jamesModelLearning";
+import { distillJamesKnowledge, startJamesModelAdaptation, syncJamesModelLearningJobs } from "./jamesModelLearning";
 import { createJamesAutonomousGoal } from "./jamesAutonomousGoals";
 
 export type JamesAutonomyMode = "supervised" | "bounded" | "autonomous";
@@ -120,6 +120,19 @@ export async function runJamesAutonomousBrain(input: {
   let answer = "";
   let verified = false;
   let finalStatus: JamesBrainStatus = "failed";
+
+  // Every autonomous run first reconciles provider-side adaptation jobs.
+  // This lets James discover completed fine-tunes without human polling.
+  if (mode === "autonomous") {
+    try {
+      await syncJamesModelLearningJobs(input.userId);
+    } catch (error) {
+      console.warn(
+        "James model-learning sync skipped:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
 
   for (let cycle = 1; cycle <= maxCycles; cycle += 1) {
     await updateBrainState(input.userId, {
