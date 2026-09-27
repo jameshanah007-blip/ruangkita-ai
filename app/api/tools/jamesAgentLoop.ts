@@ -290,11 +290,41 @@ export async function runJamesAgentLoop(input: {
     ].join("\n\n");
 
     try {
+      const providerPolicy = await planJamesLearningPolicy("reasoning");
+      let collaborationContext = "";
+      if (providerPolicy.mode === "multi") {
+        try {
+          const collaboration = await runJamesAdaptiveCollaboration({
+            request: input.request,
+            task: "reasoning",
+          });
+          collaborationContext = formatJamesCollaborationContext(collaboration.results);
+          for (const item of collaboration.results) {
+            providerTrace.push({
+              provider: item.provider,
+              model: item.model,
+              task: item.task,
+              latencyMs: item.latencyMs,
+            });
+          }
+        } catch (error) {
+          steps.push({
+            iteration,
+            stage: "execute",
+            status: "failed",
+            detail: error instanceof Error ? error.message : "Provider collaboration gagal.",
+          });
+        }
+      }
+
       const synthesis = await synthesize(
         input.request,
         plan,
         allCapabilityResults,
-        input.conversationContext || "(tidak ada)",
+        [
+          input.conversationContext || "(tidak ada)",
+          collaborationContext ? "HASIL KOLABORASI PROVIDER:\n" + collaborationContext : "",
+        ].filter(Boolean).join("\n\n"),
       );
       lastAnswer = synthesis.text.trim();
       providerTrace.push({ provider: synthesis.provider, model: synthesis.model, task: synthesis.task, latencyMs: synthesis.latencyMs });
