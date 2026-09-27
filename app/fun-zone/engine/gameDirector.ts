@@ -18,7 +18,7 @@ export async function createGame(
 ): Promise<GameDirectorResult> {
   try {
     const response = await fetch(
-      "http://localhost:3000/api/fun-zone/generate",
+      "/api/fun-zone/generate",
       {
         method: "POST",
         headers: {
