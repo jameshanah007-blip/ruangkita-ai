@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+
+export const runtime = "nodejs";
+export const maxDuration = 120;
 import { runJamesBrainGameBuilder } from "../../../core/james/jamesBrain";
 import { runJamesBrainWithSharedKnowledge } from "../../../core/james/jamesSharedKnowledge";
 import type { GameBlueprint } from "../../../fun-zone/laboratory/types";
