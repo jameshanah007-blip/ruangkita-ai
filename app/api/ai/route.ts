@@ -29,6 +29,7 @@ import { addGlobalCandidate, getGlobalGrowth } from "../tools/jamesGlobalLearnin
 import { buildJamesContext } from "../tools/jamesContext";
 import { planJamesIntelligence, planJamesIntelligenceWithAI } from "../tools/jamesIntelligence";
 import { runJamesAgentLoop } from "../tools/jamesAgentLoop";
+import { evaluateJamesTask } from "../tools/jamesSelfEvaluation";
 import { formatJamesConsolidationContext, formatJamesExperienceContext, learnJamesExperience, recordJamesExperienceOutcome, retrieveJamesConsolidations, retrieveJamesExperiences, resolveJamesExperienceConflict } from "../tools/jamesExperience";
 import { getJamesAgentTask } from "../tools/jamesAgentState";
 import { isOmantoVerified } from "./verify-identity/route";
@@ -1305,6 +1306,16 @@ Jangan menyebut reasoning internal.`
           console.error("James experience feedback error:", error);
         });
       }
+
+      void evaluateJamesTask({
+        userId,
+        conversationId,
+        taskId: agentResult.taskId,
+        request: userRequest,
+        result: agentResult,
+      }).catch((error) => {
+        console.error("James self evaluation error:", error);
+      });
 
       if (agentResult.verified && agentResult.taskId) {
         void (async () => {
