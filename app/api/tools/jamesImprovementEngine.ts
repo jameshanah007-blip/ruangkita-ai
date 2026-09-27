@@ -318,25 +318,58 @@ export async function executeJamesLearningGoal(input: {
       return { ...goal, status: "queued", learningJobId: distilled.jobId, sampleCount: distilled.sampleCount };
     }
 
-    const validation = await generateWithAIRouter({
+    const masteryProbe = await generateWithAllAIProviders({
       prompt: [
-        "Evaluasi hasil pembelajaran James berikut secara objektif.",
+        "CAPABILITY MASTERY TEST FOR JAMES",
         "Target capability: " + capability,
         "Problem: " + problem,
-        "Knowledge samples:",
+        "",
+        "Buat 3 tugas uji yang berbeda dan konkret untuk capability ini.",
+        "Setiap tugas harus dapat dinilai benar/salah atau memenuhi kriteria yang jelas.",
+        "Output JSON saja: [{\"task\":\"\",\"criteria\":\"\",\"expected\":\"\"}]",
+      ].join("\n"),
+      systemInstruction:
+        "Kamu adalah test designer. Jangan tampilkan chain-of-thought. Hanya hasil akhir yang dapat diuji.",
+      temperature: 0.1,
+      maxOutputTokens: 1800,
+    });
+    const probeSource = masteryProbe
+      .map((item) => item.text)
+      .join("\n\n---\n\n")
+      .slice(0, 12000);
+
+    const masteryEvaluation = await generateWithAllAIProviders({
+      prompt: [
+        "Nilai capability James berdasarkan test evidence berikut.",
+        "TARGET: " + capability,
+        "PROBLEM: " + problem,
+        "",
+        "TEST DESIGN EVIDENCE:",
+        probeSource,
+        "",
+        "Knowledge distilled:",
         JSON.stringify(distilled.dataset.slice(0, 8)),
         "",
-        "Buat satu probe answer singkat untuk target capability, lalu nilai apakah pengetahuan hasil distillation cukup untuk menjawabnya.",
+        "Beri skor keseluruhan berdasarkan kecukupan evidence, consistency, dan verifiability.",
         'Output JSON saja: {"score":0.0,"passed":false,"reason":""}',
       ].join("\n"),
       systemInstruction:
-        "Kamu adalah evaluator pembelajaran James. Nilai evidence yang tersedia, bukan gaya bahasa. Jangan tampilkan chain-of-thought.",
+        "Kamu adalah independent mastery evaluator. Jangan tampilkan reasoning internal. Hanya JSON final.",
       temperature: 0.05,
-      maxOutputTokens: 1000,
+      maxOutputTokens: 1200,
     });
-    const validationParsed = parse(validation.text);
-    const validationScore = clamp(validationParsed?.score);
-    const validated = validationParsed?.passed === true && validationScore >= 0.75;
+
+    const evaluations = masteryEvaluation
+      .map((item) => parse(item.text))
+      .filter((item): item is { score?: unknown; passed?: unknown; reason?: unknown } => Boolean(item));
+    const validationScores = evaluations.map((item) => clamp(item.score));
+    const validationScore = validationScores.length
+      ? validationScores.reduce((sum, value) => sum + value, 0) / validationScores.length
+      : 0;
+    const passedVotes = evaluations.filter((item) => item.passed === true).length;
+    const validated = evaluations.length >= 2 &&
+      passedVotes / evaluations.length >= 0.75 &&
+      validationScore >= 0.78;
 
     const oldEvidence = Number(selfModel?.evidence_count || 0);
     const oldCompetence = Number(selfModel?.competence || 0.5);
@@ -384,7 +417,7 @@ export async function executeJamesLearningGoal(input: {
           teachers,
           validationScore,
           validated,
-          evaluator: "ai-router",
+          evaluator: "multi-provider-mastery-panel",\n          evaluatorProviders: masteryEvaluation.map((item) => item.provider),\n          probeCount: 3,
           reason: clean(validationParsed?.reason, 800),
         },
         next_learning_action: status === "strong"
