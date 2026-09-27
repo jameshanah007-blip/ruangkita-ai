@@ -34,7 +34,7 @@ import { formatJamesConsolidationContext, formatJamesExperienceContext, learnJam
 import { getJamesAgentTask } from "../tools/jamesAgentState";
 import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
-import { learnJamesMetaStrategy, retrieveJamesMetaStrategiesByCapabilities } from "../tools/jamesMetaLearning";
+import { evaluateJamesMetaStrategies, learnJamesMetaStrategy, retrieveJamesMetaStrategiesByCapabilities } from "../tools/jamesMetaLearning";
 
 type Intent =
   | "chat"
@@ -1317,6 +1317,17 @@ Jangan menyebut reasoning internal.`
       }).catch((error) => {
         console.error("James self evaluation error:", error);
       });
+
+      if (agentResult.verified && metaStrategies.length) {
+        void evaluateJamesMetaStrategies({
+          request: userRequest,
+          answer: agentResult.answer,
+          capabilities: agentResult.plan.capabilities,
+          verified: agentResult.verified,
+        }).catch((error) => {
+          console.error("James meta-strategy evaluation error:", error);
+        });
+      }
 
       if (agentResult.verified && agentResult.taskId) {
         void (async () => {
