@@ -5,7 +5,7 @@ import {
   type JamesResourceTask,
 } from "./jamesResourceManager";
 import { createClient } from "@supabase/supabase-js";
-import { registerJamesAdaptedModel } from "./jamesModelValidation";
+import { registerJamesAdaptedModel, validateRegisteredJamesModelFromLearningJob } from "./jamesModelValidation";
 
 export type JamesModelLearningMode =
   | "distillation"
@@ -277,7 +277,7 @@ export async function syncJamesModelLearningJobs(userId: string) {
 
   const { data: jobs } = await supabase
     .from("james_model_learning_jobs")
-    .select("id, target_provider, base_model, job_id, status, fine_tuned_model")
+    .select("id, target_provider, base_model, job_id, status, fine_tuned_model, teacher_providers")
     .eq("user_id", userId)
     .eq("mode", "fine_tuning")
     .in("status", ["submitted", "running"])
@@ -330,7 +330,15 @@ export async function syncJamesModelLearningJobs(userId: string) {
           baseModel: item.base_model || "",
           candidateModel: model,
         });
-        updates.push({ jobId: item.id, status: normalized, registryId, candidateModel: model });
+        const teachers = Array.isArray(item.teacher_providers) ? item.teacher_providers : [];
+        const baselineProvider = (teachers.find((p: unknown) => p === "openai" || p === "gemini" || p === "openrouter" || p === "groq") || "openai") as AIProviderName;
+        const validation = await validateRegisteredJamesModelFromLearningJob({
+          userId,
+          registryId,
+          learningJobId: item.id,
+          baselineProvider,
+        });
+        updates.push({ jobId: item.id, status: normalized, registryId, candidateModel: model, validation });
       } else {
         updates.push({ jobId: item.id, status: normalized, candidateModel: model });
       }
