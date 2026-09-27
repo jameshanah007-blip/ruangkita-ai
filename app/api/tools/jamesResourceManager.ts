@@ -225,7 +225,8 @@ export async function generateWithJamesProviderCollaboration(
     .map((name) => providers.find((provider) => provider.name === name))
     .filter((provider): provider is AIProvider => Boolean(provider))
     .filter((provider) => provider.isAvailable())
-    .slice(0, 3);
+    // James keeps all four RuangKita providers eligible for knowledge distillation.
+    .slice(0, 4);
 
   const results = await Promise.allSettled(selected.map(async (provider) => {
     const startedAt = Date.now();
