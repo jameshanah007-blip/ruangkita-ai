@@ -1047,7 +1047,19 @@ var beforeLost =
       var protocolAction = "";
       var restartVerified = false;
 
-      var testActions = [];
+      var testActions = [
+        "move",
+        "interact",
+        "jump",
+        "attack",
+        "collect",
+        "dodge",
+        "shoot",
+        "open_door",
+        "use_item",
+        "talk",
+        "solve"
+      ];
       var declaredTestActions = [];
 
       if (
