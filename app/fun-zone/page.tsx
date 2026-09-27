@@ -92,6 +92,14 @@ const stages: {
     label: "Testing game",
   },
   {
+    id: "debugging",
+    label: "AI Debugging",
+  },
+  {
+    id: "retesting",
+    label: "Retesting game",
+  },
+  {
     id: "ready",
     label: "Finalizing",
   },
