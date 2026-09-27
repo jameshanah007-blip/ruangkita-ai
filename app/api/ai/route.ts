@@ -961,16 +961,22 @@ export async function POST(request: Request) {
     const cookieUserId = cookieStore.get("ruangkita-session-user")?.value;
     const cookieConversationId = cookieStore.get("ruangkita-session-conversation")?.value;
 
-    const userId = validUuid(body?.userId)
-      ? body.userId
-      : validUuid(cookieUserId)
-        ? cookieUserId
+    // The server-issued session is authoritative whenever it exists.
+    // Request-body IDs remain only as a compatibility fallback for clients
+    // that have not received the session cookie yet.
+    const hasValidSessionUser = validUuid(cookieUserId);
+    const hasValidSessionConversation = validUuid(cookieConversationId);
+
+    const userId = hasValidSessionUser
+      ? cookieUserId
+      : validUuid(body?.userId)
+        ? body.userId
         : crypto.randomUUID();
 
-    const conversationId = validUuid(body?.conversationId)
-      ? body.conversationId
-      : validUuid(cookieConversationId)
-        ? cookieConversationId
+    const conversationId = hasValidSessionConversation
+      ? cookieConversationId
+      : validUuid(body?.conversationId)
+        ? body.conversationId
         : crypto.randomUUID();
 
     const trainingRequest = isJamesTrainingInstruction(userRequest);
