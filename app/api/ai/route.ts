@@ -26,6 +26,7 @@ import {
   generateWithAllAIProviders,
 } from "../../core/ai/aiRouter";
 import { addGlobalCandidate, getGlobalGrowth } from "../tools/jamesGlobalLearning";
+import { runJamesBrainChat } from "../../core/james/jamesBrain";
 import { buildJamesContext } from "../tools/jamesContext";
 import { planJamesIntelligence, planJamesIntelligenceWithAI } from "../tools/jamesIntelligence";
 import { runJamesAgentLoop } from "../tools/jamesAgentLoop";
@@ -197,7 +198,7 @@ async function callJamesAI(
   userInput: string,
   systemInstruction?: string
 ): Promise<string> {
-  const result = await generateWithAIRouter({
+  const result = await runJamesBrainChat({
     prompt: userInput,
     systemInstruction: systemInstruction || buildJamesSystemInstruction(),
     temperature: 0.7,
