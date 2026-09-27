@@ -964,7 +964,7 @@ export async function POST(request: Request) {
     const trainingRequest = isJamesTrainingInstruction(userRequest);
     const codeEvolutionRequest =
       trainingRequest &&
-      /\\b(?:kode|code|coding|program|programming|source code|self.?evol|evolusi sistem|perbaiki kemampuan|tingkatkan kemampuan)\\b/i.test(userRequest);
+      /\b(?:kode|code|coding|program|programming|source code|self.?evol|evolusi sistem|perbaiki kemampuan|tingkatkan kemampuan)\b/i.test(userRequest);
 
     if (trainingRequest && omantoVerified && codeEvolutionRequest) {
       const currentFiles = [
@@ -999,7 +999,7 @@ export async function POST(request: Request) {
           const data = await response.json();
           if (typeof data?.content !== "string") continue;
 
-          const decoded = Buffer.from(data.content.replace(/\\n/g, ""), "base64").toString("utf8");
+          const decoded = Buffer.from(data.content.replace(/\n/g, ""), "base64").toString("utf8");
           fileContents.push({ path, content: decoded });
         } catch (error) {
           console.error("James evolution context read error:", error);
@@ -1041,7 +1041,7 @@ export async function POST(request: Request) {
           evolution.status === "approved"
             ? "Proposal lolos review multi-provider dan siap masuk tahap pembuatan branch/PR."
             : "Proposal belum otomatis diterapkan. Proposal harus lolos review dan CI sebelum perubahan kode dapat masuk ke branch utama.",
-        ].join("\\n"),
+        ].join("\n"),
         intent: "chat",
         tool: "james-code-evolution",
         evolutionApplied: false,
