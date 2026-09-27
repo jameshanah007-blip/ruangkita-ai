@@ -957,13 +957,21 @@ export async function POST(request: Request) {
       );
     }
 
+    const cookieStore = await cookies();
+    const cookieUserId = cookieStore.get("ruangkita-session-user")?.value;
+    const cookieConversationId = cookieStore.get("ruangkita-session-conversation")?.value;
+
     const userId = validUuid(body?.userId)
       ? body.userId
-      : crypto.randomUUID();
+      : validUuid(cookieUserId)
+        ? cookieUserId
+        : crypto.randomUUID();
 
     const conversationId = validUuid(body?.conversationId)
       ? body.conversationId
-      : crypto.randomUUID();
+      : validUuid(cookieConversationId)
+        ? cookieConversationId
+        : crypto.randomUUID();
 
     const trainingRequest = isJamesTrainingInstruction(userRequest);
     if (trainingRequest && omantoVerified) {
