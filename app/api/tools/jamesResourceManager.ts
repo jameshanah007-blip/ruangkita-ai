@@ -7,6 +7,7 @@ import {
 } from "../../fun-zone/aiProvider";
 import { openRouterProvider } from "../../fun-zone/openRouterProvider";
 import { groqProvider } from "../../fun-zone/groqProvider";
+import { getJamesProviderPerformance, scoreJamesProviderPerformance } from "./jamesProviderPerformance";
 
 export type JamesResourceTask =
   | "planning"
@@ -144,17 +145,23 @@ function taskOrder(task: JamesResourceTask): AIProviderName[] {
   }
 }
 
-function getCandidates(task: JamesResourceTask) {
+async function getCandidates(task: JamesResourceTask) {
   const order = taskOrder(task);
+  const performance = await getJamesProviderPerformance(task);
 
   return order
-    .map((name) => providers.find((provider) => provider.name === name))
-    .filter((provider): provider is AIProvider => Boolean(provider))
-    .filter((provider) => provider.isAvailable())
-    .filter((provider) => {
-      const current = state.get(provider.name);
+    .map((name, index) => ({
+      provider: providers.find((provider) => provider.name === name),
+      score: scoreJamesProviderPerformance(performance.find((item) => item.provider === name), index),
+    }))
+    .filter((item): item is { provider: AIProvider; score: number } => Boolean(item.provider))
+    .filter((item) => item.provider.isAvailable())
+    .filter((item) => {
+      const current = state.get(item.provider.name);
       return !current?.cooldownUntil || current.cooldownUntil <= Date.now();
-    });
+    })
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.provider);
 }
 
 export function getJamesProviderHealth(): JamesProviderHealth[] {
@@ -174,7 +181,7 @@ export async function generateWithJamesResourceManager(
   task: JamesResourceTask,
   request: AIGenerateRequest
 ): Promise<JamesResourceResult> {
-  const candidates = getCandidates(task);
+  const candidates = await getCandidates(task);
 
   if (!candidates.length) {
     throw new Error(
@@ -209,5 +216,5 @@ export async function generateWithJamesResourceManager(
 }
 
 export function getJamesResourceProviderNames(task: JamesResourceTask) {
-  return getCandidates(task).map((provider) => provider.name);
+  return providers.filter((provider) => provider.isAvailable()).map((provider) => provider.name);
 }
