@@ -7,7 +7,6 @@ import {
 } from "../../fun-zone/aiProvider";
 import { openRouterProvider } from "../../fun-zone/openRouterProvider";
 import { groqProvider } from "../../fun-zone/groqProvider";
-import { getJamesProviderPerformance, scoreJamesProviderPerformance } from "./jamesProviderPerformance";
 import { planJamesLearningPolicy } from "./jamesLearningPolicy";
 
 export type JamesResourceTask =
@@ -149,18 +148,12 @@ function taskOrder(task: JamesResourceTask): AIProviderName[] {
 async function getCandidates(task: JamesResourceTask) {
   const policy = await planJamesLearningPolicy(task);
   const order = policy.rankedProviders.length ? policy.rankedProviders : taskOrder(task);
-  const performance = await getJamesProviderPerformance(task);
-
   return order
     .map((name, index) => ({
       provider: providers.find((provider) => provider.name === name),
-      score: scoreJamesProviderPerformance(
-        performance.find((item) => item.provider === name),
-        index
-      ),
       rank: index,
     }))
-    .filter((item): item is { provider: AIProvider; score: number; rank: number } => Boolean(item.provider))
+    .filter((item): item is { provider: AIProvider; rank: number } => Boolean(item.provider))
     .filter((item) => item.provider.isAvailable())
     .filter((item) => {
       const current = state.get(item.provider.name);
