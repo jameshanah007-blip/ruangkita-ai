@@ -311,6 +311,117 @@ export async function learnJamesExperience(input: {
   }
 }
 
+export async function consolidateJamesExperiences(userId: string, limit = 5) {
+  const supabase = db();
+  if (!supabase || !safeId(userId)) return [];
+
+  const { data, error } = await supabase
+    .from("james_experiences")
+    .select("id, pattern, strategy, capabilities, success_count, failure_count, confidence, status")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .order("updated_at", { ascending: false })
+    .limit(30);
+
+  if (error || !data?.length) return [];
+
+  const experiences = data.map((item) => ({
+    id: item.id,
+    pattern: clean(item.pattern, 240),
+    strategy: clean(item.strategy, 700),
+    capabilities: Array.isArray(item.capabilities) ? item.capabilities : [],
+    successCount: Number(item.success_count || 0),
+    failureCount: Number(item.failure_count || 0),
+    confidence: clamp(item.confidence),
+  }));
+
+  const candidates = experiences.filter((item) => item.confidence >= 0.70 && item.successCount >= 2);
+  if (candidates.length < 2) return [];
+
+  const groups: typeof experiences[] = [];
+  for (const experience of candidates) {
+    const similar = groups.find((group) =>
+      lexicalRelevance(experience.pattern, {
+        pattern: group[0].pattern,
+        strategy: group[0].strategy,
+        capabilities: group[0].capabilities,
+        successCount: group[0].successCount,
+        failureCount: group[0].failureCount,
+        confidence: group[0].confidence,
+        status: "active",
+      }) >= 0.45
+    );
+
+    if (similar) similar.push(experience);
+    else groups.push([experience]);
+  }
+
+  const consolidated = [];
+
+  for (const group of groups.filter((items) => items.length >= 2).slice(0, limit)) {
+    const result = await generateWithJamesResourceManager("learning", {
+      prompt: [
+        "Konsolidasikan pengalaman James yang sangat mirip menjadi SATU strategi reusable.",
+        "Jangan menggabungkan pengalaman yang bertentangan.",
+        "Pertahankan hanya pola kerja yang didukung oleh beberapa pengalaman.",
+        "",
+        JSON.stringify(group.map((item) => ({
+          id: item.id,
+          pattern: item.pattern,
+          strategy: item.strategy,
+          capabilities: item.capabilities,
+          successCount: item.successCount,
+          failureCount: item.failureCount,
+          confidence: item.confidence,
+        }))),
+        "",
+        "Output JSON saja:",
+        '{"pattern":"pola umum","strategy":"strategi matang","confidence":0.0}',
+        "confidence harus mencerminkan bukti gabungan, bukan optimisme.",
+      ].join("\n"),
+      systemInstruction:
+        "Kamu adalah James Experience Consolidator. Gabungkan hanya pengalaman yang kompatibel dan didukung bukti.",
+      temperature: 0.1,
+      maxOutputTokens: 900,
+    });
+
+    try {
+      const start = result.text.indexOf("{");
+      const end = result.text.lastIndexOf("}");
+      if (start < 0 || end <= start) continue;
+      const parsed = JSON.parse(result.text.slice(start, end + 1)) as Record<string, unknown>;
+      const pattern = redact(clean(parsed.pattern, 240));
+      const strategy = redact(clean(parsed.strategy, 700));
+      const confidence = clamp(parsed.confidence);
+      if (!pattern || !strategy || confidence < 0.75) continue;
+
+      const capabilities = [...new Set(group.flatMap((item) => item.capabilities))].slice(0, 8);
+      const sourceIds = group.map((item) => item.id).filter((id): id is string => Boolean(id));
+
+      const { data: saved } = await supabase
+        .from("james_experience_consolidations")
+        .insert({
+          user_id: userId,
+          source_experience_ids: sourceIds,
+          merged_pattern: pattern,
+          merged_strategy: strategy,
+          capabilities,
+          confidence,
+          evidence_count: group.length,
+          status: "active",
+        })
+        .select("id, merged_pattern, merged_strategy, capabilities, confidence, evidence_count, status")
+        .maybeSingle();
+
+      if (saved) consolidated.push(saved);
+    } catch {
+      // A failed consolidation must never delete or mutate source experiences.
+    }
+  }
+
+  return consolidated;
+}
+
 export async function getJamesExperiences(userId: string, limit = 6) {
   const supabase = db();
   if (!supabase || !safeId(userId)) return [];
