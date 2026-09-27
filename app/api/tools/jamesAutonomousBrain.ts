@@ -9,6 +9,7 @@ import { decideJamesBrainStrategy } from "./jamesDecisionEngine";
 import { decideJamesModelLearning } from "./jamesModelLearningPolicy";
 import { distillJamesKnowledge, startJamesModelAdaptation, syncJamesModelLearningJobs } from "./jamesModelLearning";
 import { createJamesAutonomousGoal } from "./jamesAutonomousGoals";
+import { tryJamesCandidateCanary } from "./jamesModelRouting";
 
 export type JamesAutonomyMode = "supervised" | "bounded" | "autonomous";
 
@@ -193,6 +194,19 @@ export async function runJamesAutonomousBrain(input: {
     });
 
     try {
+      // Give validated adapted models a small, bounded canary opportunity.
+      // The four primary providers remain the normal routing backbone.
+      const canary = await tryJamesCandidateCanary({
+        userId: input.userId,
+        task: "autonomous",
+        request: {
+          systemInstruction: "Return only the final answer. No chain-of-thought.",
+          prompt: workingGoal,
+          temperature: 0.2,
+          maxOutputTokens: 3000,
+        },
+      });
+
       const agent: JamesAgentResult = await runJamesAgentLoop({
         request: workingGoal,
         initialPlan: plan,
@@ -202,7 +216,7 @@ export async function runJamesAutonomousBrain(input: {
         resume: true,
       });
 
-      cycleRecord.status = "verifying";
+      if (canary?.text?.trim()) {\n        cycleRecord.decision += " | canary:" + canary.candidateId;\n      }\n\n      cycleRecord.status = "verifying";
       cycleRecord.verified = agent.verified;
       cycleRecord.taskId = agent.taskId;
       cycleRecord.answer = boundedText(agent.answer || "");
