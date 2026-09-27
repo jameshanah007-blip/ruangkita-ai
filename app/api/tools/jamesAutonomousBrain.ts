@@ -4,7 +4,7 @@ import { planJamesIntelligenceWithAI } from "./jamesIntelligence";
 import { evaluateJamesTask } from "./jamesSelfEvaluation";
 import { learnJamesExperience } from "./jamesExperience";
 import { learnJamesMetaStrategy } from "./jamesMetaLearning";
-import { detectJamesImprovementGoal, evolveJamesImprovementGoal, queueJamesCapabilityGap } from "./jamesImprovementEngine";
+import { detectJamesImprovementGoal, evolveJamesImprovementGoal, queueJamesCapabilityGap, executeJamesLearningGoal } from "./jamesImprovementEngine";
 import { decideJamesBrainStrategy } from "./jamesDecisionEngine";
 import { decideJamesModelLearning } from "./jamesModelLearningPolicy";
 import { distillJamesKnowledge, startJamesModelAdaptation, syncJamesModelLearningJobs } from "./jamesModelLearning";
@@ -161,7 +161,7 @@ export async function runJamesAutonomousBrain(input: {
       cycle_count: cycle,
     });
 
-    const brainDecision = await decideJamesBrainStrategy("planning");
+    const brainDecision = await decideJamesBrainStrategy("planning", input.userId);
 
     const plan = await planJamesIntelligenceWithAI(
       workingGoal,
@@ -313,6 +313,24 @@ export async function runJamesAutonomousBrain(input: {
         });
         if (capabilityGap?.id) {
           cycleRecord.decision += " | capability-gap:" + capabilityGap.id;
+          try {
+            const learning = await executeJamesLearningGoal({
+              userId: input.userId,
+              conversationId: input.conversationId,
+              improvementGoalId: capabilityGap.id,
+            });
+            if (learning?.status) {
+              cycleRecord.decision += " | learning:" + learning.status;
+              cycleRecord.modelLearningJobId = learning.learningJobId || cycleRecord.modelLearningJobId || null;
+              cycleRecord.modelLearningStatus = learning.validated ? "validated" : "learning-queued";
+            }
+          } catch (learningError) {
+            cycleRecord.decision += " | learning:error";
+            console.warn(
+              "James learning queue executor skipped:",
+              learningError instanceof Error ? learningError.message : String(learningError),
+            );
+          }
         }
       }
 
