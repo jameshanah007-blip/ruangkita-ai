@@ -26,7 +26,7 @@ function validProvider(value: unknown): value is "gemini" | "openai" | "openrout
   return value === "gemini" || value === "openai" || value === "openrouter" || value === "groq";
 }
 
-function normalizeCapability(value: unknown) {
+export function normalizeJamesCapability(value: unknown) {
   const raw = clean(value, 180).toLowerCase().replace(/[\\/]+/g, " ").replace(/\\s+/g, " ").trim();
   if (!raw) return { key: "", name: "" };
   const aliases: Array<[RegExp, string]> = [
