@@ -5,6 +5,7 @@ import { evaluateJamesTask } from "./jamesSelfEvaluation";
 import { learnJamesExperience } from "./jamesExperience";
 import { learnJamesMetaStrategy } from "./jamesMetaLearning";
 import { detectJamesImprovementGoal, evolveJamesImprovementGoal } from "./jamesImprovementEngine";
+import { decideJamesBrainStrategy } from "./jamesDecisionEngine";
 
 export type JamesAutonomyMode = "supervised" | "bounded" | "autonomous";
 
@@ -122,6 +123,8 @@ export async function runJamesAutonomousBrain(input: {
       cycle_count: cycle,
     });
 
+    const brainDecision = await decideJamesBrainStrategy("planning");
+
     const plan = await planJamesIntelligenceWithAI(
       workingGoal,
       [
@@ -130,6 +133,15 @@ export async function runJamesAutonomousBrain(input: {
         "MODE: " + mode,
         "GOAL:",
         workingGoal,
+        "BRAIN DECISION:",
+        JSON.stringify({
+          strategy: brainDecision.strategy,
+          rankedProviders: brainDecision.rankedProviders,
+          confidence: brainDecision.confidence,
+          evidenceCount: brainDecision.evidenceCount,
+          reason: brainDecision.reason,
+        }),
+        "Gunakan decision di atas sebagai evidence, bukan sebagai kebenaran mutlak.",
         "James harus menentukan langkah yang paling berguna berikutnya.",
         "Jangan melakukan tindakan di luar capability yang tersedia.",
       ].join("\n\n"),
@@ -142,10 +154,13 @@ export async function runJamesAutonomousBrain(input: {
           ? "execute-with-verification"
           : "gap-detected-replan";
 
+    const decisionLabel =
+      decision + " | brain-strategy:" + brainDecision.strategy;
+
     const cycleRecord: JamesBrainCycle = {
       cycle,
       status: "acting",
-      decision,
+      decision: decisionLabel,
       confidence: plan.confidence,
       verified: false,
       taskId: null,
@@ -154,7 +169,7 @@ export async function runJamesAutonomousBrain(input: {
 
     await updateBrainState(input.userId, {
       status: "acting",
-      last_decision: decision,
+      last_decision: decisionLabel,
       last_confidence: plan.confidence,
     });
 
