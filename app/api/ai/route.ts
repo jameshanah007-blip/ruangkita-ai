@@ -1070,6 +1070,7 @@ export async function POST(request: Request) {
         evolutionApplied: false,
         evolutionProposalId: evolution.proposalId,
         evolutionStatus: evolution.status,
+        pullRequest,
         evolution: {
           goal: evolution.proposal.goal,
           rationale: evolution.proposal.rationale,
