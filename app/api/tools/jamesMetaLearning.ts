@@ -183,3 +183,118 @@ export async function retrieveJamesMetaStrategiesByCapabilities(capabilities: st
     .sort((a, b) => b.relevance - a.relevance)
     .slice(0, Math.min(Math.max(limit, 1), 8));
 }
+
+export async function evaluateJamesMetaStrategies(input: {
+  request: string;
+  answer: string;
+  capabilities: string[];
+  verified: boolean;
+}) {
+  const supabase = db();
+  if (!supabase || !input.answer) return [];
+
+  const { data, error } = await supabase
+    .from("james_meta_strategies")
+    .select("id, task_class, strategy, capabilities, evidence_count, success_count, failure_count, confidence, status")
+    .eq("status", "active")
+    .order("confidence", { ascending: false })
+    .limit(20);
+
+  if (error || !data?.length) return [];
+
+  const candidates = data
+    .map((item) => ({
+      ...item,
+      capabilityMatch: Array.isArray(item.capabilities)
+        ? item.capabilities.filter((capability) => input.capabilities.includes(capability)).length
+        : 0,
+    }))
+    .filter((item) => item.capabilityMatch > 0)
+    .slice(0, 8);
+
+  if (!candidates.length) return [];
+
+  try {
+    const evaluation = await generateWithJamesResourceManager("verification", {
+      prompt: [
+        "Tentukan meta-strategy mana yang benar-benar relevan dan tampak digunakan dalam task James.",
+        "Gunakan hanya evidence yang tersedia. Jangan memilih strategi hanya karena namanya mirip.",
+        "Jika tidak yakin, kembalikan selected_ids kosong.",
+        "",
+        "REQUEST:",
+        clean(input.request, 1800),
+        "",
+        "ANSWER:",
+        clean(input.answer, 3500),
+        "",
+        "CAPABILITIES:",
+        input.capabilities.slice(0, 8).join(", "),
+        "",
+        "CANDIDATE META STRATEGIES:",
+        JSON.stringify(candidates.map((item) => ({
+          id: item.id,
+          taskClass: item.task_class,
+          strategy: item.strategy,
+          capabilities: item.capabilities,
+        }))),
+        "",
+        "Output JSON saja:",
+        '{"selected_ids":[],"reason":"..."}',
+      ].join("\n"),
+      systemInstruction: "Kamu adalah James Meta-Strategy Evaluator. Pilih hanya strategi yang didukung evidence task.",
+      temperature: 0.1,
+      maxOutputTokens: 650,
+    });
+
+    const start = evaluation.text.indexOf("{");
+    const end = evaluation.text.lastIndexOf("}");
+    if (start < 0 || end <= start) return [];
+
+    const parsed = JSON.parse(evaluation.text.slice(start, end + 1)) as Record<string, unknown>;
+    const ids = Array.isArray(parsed.selected_ids)
+      ? parsed.selected_ids.filter((id): id is string => typeof id === "string" && candidates.some((item) => item.id === id)).slice(0, 4)
+      : [];
+
+    if (!ids.length) return [];
+
+    const updated = [];
+    for (const id of ids) {
+      const item = candidates.find((candidate) => candidate.id === id);
+      if (!item) continue;
+
+      const evidence = Number(item.evidence_count || 0) + 1;
+      const success = Number(item.success_count || 0) + (input.verified ? 1 : 0);
+      const failure = Number(item.failure_count || 0) + (input.verified ? 0 : 1);
+      const total = Math.max(1, success + failure);
+      const empirical = success / total;
+      const previousConfidence = clamp(item.confidence);
+      const nextConfidence = Math.max(
+        0.05,
+        Math.min(0.99, previousConfidence * 0.35 + empirical * 0.65)
+      );
+      const shouldRetire = failure >= 3 && empirical < 0.45;
+
+      const { data: saved } = await supabase
+        .from("james_meta_strategies")
+        .update({
+          evidence_count: evidence,
+          success_count: success,
+          failure_count: failure,
+          confidence: nextConfidence,
+          status: shouldRetire ? "retired" : "active",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .eq("status", "active")
+        .select("id, task_class, strategy, evidence_count, success_count, failure_count, confidence, status")
+        .maybeSingle();
+
+      if (saved) updated.push(saved);
+    }
+
+    return updated;
+  } catch (error) {
+    console.warn("James meta-strategy evaluation unavailable:", error);
+    return [];
+  }
+}
