@@ -26,6 +26,27 @@ function validProvider(value: unknown): value is "gemini" | "openai" | "openrout
   return value === "gemini" || value === "openai" || value === "openrouter" || value === "groq";
 }
 
+function normalizeCapability(value: unknown) {
+  const raw = clean(value, 180).toLowerCase().replace(/[\\/]+/g, " ").replace(/\\s+/g, " ").trim();
+  if (!raw) return { key: "", name: "" };
+  const aliases: Array<[RegExp, string]> = [
+    [/\\b(web[ -]?search|internet research|online research)\\b/, "web research"],
+    [/\\b(code generation|coding|software development|programming)\\b/, "code generation"],
+    [/\\b(code review|review code|software review)\\b/, "code review"],
+    [/\\b(debugging|debug|troubleshooting)\\b/, "debugging"],
+    [/\\b(planning|task planning|plan tasks)\\b/, "task planning"],
+    [/\\b(reasoning|logical reasoning|problem solving)\\b/, "reasoning"],
+    [/\\b(verification|verify|fact checking|fact-checking)\\b/, "verification"],
+    [/\\b(learning|knowledge learning|knowledge acquisition)\\b/, "knowledge learning"],
+    [/\\b(summarization|summarizing|summary)\\b/, "summarization"],
+    [/\\b(translation|translating)\\b/, "translation"],
+  ];
+  const matched = aliases.find(([pattern]) => pattern.test(raw));
+  const name = matched ? matched[1] : raw.replace(/[^a-z0-9._ -]+/g, "").replace(/\\s+/g, " ").trim();
+  const key = name.replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 120);
+  return { key, name: name.slice(0, 180) };
+}
+
 function parse(text: string) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
@@ -84,8 +105,10 @@ export async function detectJamesImprovementGoal(input: {
 
   const title = clean(parsed.title, 180);
   const problem = clean(parsed.problem, 1600);
-  const targetCapability = clean(parsed.targetCapability, 180);
-  if (!title || !problem || !targetCapability) return null;
+  const rawTargetCapability = clean(parsed.targetCapability, 180);
+  const target = normalizeCapability(rawTargetCapability);
+  const targetCapability = target.name;
+  if (!title || !problem || !targetCapability || !target.key) return null;
 
   const { data, error } = await client
     .from("james_improvement_goals")
@@ -284,7 +307,8 @@ export async function executeJamesLearningGoal(input: {
     .maybeSingle();
 
   const teachers = ["gemini", "openai", "openrouter", "groq"] as const;
-  const capability = clean(goal.target_capability, 180);
+  const normalized = normalizeCapability(goal.target_capability);
+  const capability = normalized.name;
   const problem = clean(goal.problem, 1600);
   const prompts = [
     `Ajarkan capability berikut kepada James secara praktis: ${capability}. Masalah: ${problem}. Berikan prinsip, contoh, dan hasil yang bisa diuji. Jangan tampilkan chain-of-thought.`,
@@ -401,7 +425,7 @@ export async function executeJamesLearningGoal(input: {
       .from("james_self_model")
       .upsert({
         user_id: input.userId,
-        capability_key: capability.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(0, 120),
+        capability_key: normalized.key,
         capability_name: capability,
         competence,
         confidence,
