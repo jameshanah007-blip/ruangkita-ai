@@ -1,0 +1,69 @@
+import { NextResponse } from "next/server";
+import { isOmantoVerified } from "../verify-identity/route";
+import { runJamesAutonomousBrain, type JamesAutonomyMode } from "../../tools/jamesAutonomousBrain";
+
+export async function POST(request: Request) {
+  try {
+    const verified = await isOmantoVerified(request);
+    if (!verified) {
+      return NextResponse.json(
+        { error: "Autonomous Brain control requires verified Omanto identity." },
+        { status: 403 },
+      );
+    }
+
+    const body = await request.json();
+    const userId = typeof body.userId === "string" ? body.userId.trim() : "";
+    const conversationId =
+      typeof body.conversationId === "string" ? body.conversationId.trim() : "";
+    const goal = typeof body.goal === "string" ? body.goal.trim() : "";
+    const mode: JamesAutonomyMode =
+      body.mode === "supervised" || body.mode === "autonomous"
+        ? body.mode
+        : "bounded";
+
+    const maxCycles =
+      typeof body.maxCycles === "number"
+        ? Math.min(Math.max(Math.floor(body.maxCycles), 1), 5)
+        : mode === "autonomous"
+          ? 5
+          : 2;
+
+    if (!userId || !conversationId || !goal) {
+      return NextResponse.json(
+        { error: "userId, conversationId, and goal are required." },
+        { status: 400 },
+      );
+    }
+
+    const result = await runJamesAutonomousBrain({
+      userId,
+      conversationId,
+      goal,
+      mode,
+      maxCycles,
+      conversationContext:
+        typeof body.conversationContext === "string"
+          ? body.conversationContext
+          : "",
+      allowCodeEvolution: body.allowCodeEvolution === true,
+    });
+
+    return NextResponse.json({
+      brain: "James Autonomous AI Brain",
+      version: "1.0",
+      result,
+    });
+  } catch (error) {
+    console.error("James autonomous brain error:", error);
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Autonomous Brain gagal dijalankan.",
+      },
+      { status: 500 },
+    );
+  }
+}
