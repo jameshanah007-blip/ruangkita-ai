@@ -418,7 +418,8 @@ export async function executeJamesLearningGoal(input: {
           validationScore,
           validated,
           evaluator: "multi-provider-mastery-panel",
-          evaluatorProviders: masteryEvaluation.map((item) => item.provider),\n          probeCount: 3,
+          evaluatorProviders: masteryEvaluation.map((item) => item.provider),
+          probeCount: 3,
           reason: clean(evaluations.find((item) => typeof item.reason === "string")?.reason, 800),
         },
         next_learning_action: status === "strong"
