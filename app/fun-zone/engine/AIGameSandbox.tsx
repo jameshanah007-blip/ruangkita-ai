@@ -1060,7 +1060,7 @@ var beforeLost =
         "talk",
         "solve"
       ];
-      var declaredTestActions = [];
+      var declaredTestActions = ${JSON.stringify(blueprintActions)};
 
       if (
         gameTestProtocol &&
