@@ -24,7 +24,7 @@ import { saveJamesCuriosity, type JamesCuriosityProposal } from "../tools/jamesC
 import {
   generateWithAIRouter,
   generateWithAllAIProviders,
-} from "../../fun-zone/aiRouter";
+} from "../../core/ai/aiRouter";
 import { addGlobalCandidate, getGlobalGrowth } from "../tools/jamesGlobalLearning";
 import { buildJamesContext } from "../tools/jamesContext";
 import { planJamesIntelligence, planJamesIntelligenceWithAI } from "../tools/jamesIntelligence";
