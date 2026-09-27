@@ -6,6 +6,8 @@ import { learnJamesExperience } from "./jamesExperience";
 import { learnJamesMetaStrategy } from "./jamesMetaLearning";
 import { detectJamesImprovementGoal, evolveJamesImprovementGoal } from "./jamesImprovementEngine";
 import { decideJamesBrainStrategy } from "./jamesDecisionEngine";
+import { decideJamesModelLearning } from "./jamesModelLearningPolicy";
+import { distillJamesKnowledge, startJamesModelAdaptation } from "./jamesModelLearning";
 
 export type JamesAutonomyMode = "supervised" | "bounded" | "autonomous";
 
@@ -31,6 +33,9 @@ export type JamesBrainCycle = {
   answer: string;
   evolutionProposalId?: string | null;
   evolutionStatus?: string | null;
+  modelLearningJobId?: string | null;
+  modelLearningStatus?: string | null;
+  adaptedProvider?: string | null;
 };
 
 export type JamesAutonomousBrainResult = {
@@ -245,6 +250,66 @@ export async function runJamesAutonomousBrain(input: {
                 verified: agent.verified,
               });
             }
+          }
+        }
+      }
+
+      if (mode === "autonomous" && agent.verified) {
+        const modelLearning = await decideJamesModelLearning({
+          userId: input.userId,
+          confidence: plan.confidence,
+          evidenceCount: brainDecision.evidenceCount,
+          verified: agent.verified,
+          autonomous: true,
+        });
+
+        cycleRecord.decision +=
+          " | model-learning:" + (modelLearning.shouldDistill ? "distill" : "wait");
+
+        if (modelLearning.shouldDistill && modelLearning.teacherProviders.length) {
+          await updateBrainState(input.userId, {
+            status: "learning",
+            last_decision: cycleRecord.decision,
+          });
+
+          const teachingPrompts = [
+            workingGoal,
+            "Jelaskan kembali solusi untuk tujuan berikut dengan pendekatan yang lebih robust dan praktis:\n" + workingGoal,
+            "Berikan solusi alternatif yang dapat diuji untuk tujuan berikut. Fokus pada hasil final, bukan reasoning internal:\n" + workingGoal,
+            "Apa jawaban/implementasi yang paling dapat dipelajari James dari tujuan berikut? Berikan hasil final yang dapat diverifikasi:\n" + workingGoal,
+          ];
+
+          const distilled = await distillJamesKnowledge({
+            userId: input.userId,
+            prompts: teachingPrompts,
+            teacherProviders: modelLearning.teacherProviders,
+            systemInstruction:
+              "James sedang membangun capability internal dari output final beberapa provider. Jangan keluarkan chain-of-thought. Berikan jawaban final yang dapat diuji dan dipelajari.",
+            task: "learning",
+          });
+
+          cycleRecord.modelLearningJobId = distilled.jobId;
+          cycleRecord.modelLearningStatus =
+            distilled.sampleCount > 0 ? "dataset_ready" : "failed";
+
+          if (
+            modelLearning.shouldAdapt &&
+            distilled.jobId &&
+            modelLearning.targetProvider &&
+            modelLearning.baseModel
+          ) {
+            const adapted = await startJamesModelAdaptation({
+              userId: input.userId,
+              distillationJobId: distilled.jobId,
+              targetProvider: modelLearning.targetProvider,
+              baseModel: modelLearning.baseModel,
+            });
+
+            cycleRecord.modelLearningJobId = adapted.jobId;
+            cycleRecord.modelLearningStatus = adapted.status;
+            cycleRecord.adaptedProvider = adapted.provider;
+            cycleRecord.decision +=
+              " | adaptation:" + adapted.provider;
           }
         }
       }
