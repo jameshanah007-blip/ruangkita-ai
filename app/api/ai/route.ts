@@ -27,6 +27,7 @@ import {
 } from "../../core/ai/aiRouter";
 import { addGlobalCandidate, getGlobalGrowth } from "../tools/jamesGlobalLearning";
 import { runJamesBrainChat } from "../../core/james/jamesBrain";
+import { runJamesBrainWithSharedKnowledge } from "../../core/james/jamesSharedKnowledge";
 import { buildJamesContext } from "../tools/jamesContext";
 import { planJamesIntelligence, planJamesIntelligenceWithAI } from "../tools/jamesIntelligence";
 import { runJamesAgentLoop } from "../tools/jamesAgentLoop";
@@ -198,7 +199,9 @@ async function callJamesAI(
   userInput: string,
   systemInstruction?: string
 ): Promise<string> {
-  const result = await runJamesBrainChat({
+  const result = await runJamesBrainWithSharedKnowledge({
+    surface: "tanya_saya",
+    mode: "chat",
     prompt: userInput,
     systemInstruction: systemInstruction || buildJamesSystemInstruction(),
     temperature: 0.7,
