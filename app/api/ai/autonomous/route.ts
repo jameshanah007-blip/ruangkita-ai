@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isOmantoVerified } from "../verify-identity/route";
 import { runJamesAutonomousBrain, type JamesAutonomyMode } from "../../tools/jamesAutonomousBrain";
+import { createJamesAutonomousGoal } from "../../tools/jamesAutonomousGoals";
 
 export async function POST(request: Request) {
   try {
@@ -34,6 +35,32 @@ export async function POST(request: Request) {
         { error: "userId, conversationId, and goal are required." },
         { status: 400 },
       );
+    }
+
+    if (body.persistGoal === true) {
+      const savedGoal = await createJamesAutonomousGoal({
+        userId,
+        conversationId,
+        title:
+          typeof body.title === "string" && body.title.trim()
+            ? body.title
+            : goal.slice(0, 120),
+        goal,
+        priority:
+          typeof body.priority === "number" ? body.priority : 50,
+        maxCycles,
+        nextRunAt:
+          typeof body.nextRunAt === "string"
+            ? body.nextRunAt
+            : new Date().toISOString(),
+      });
+
+      return NextResponse.json({
+        brain: "James Autonomous AI Brain",
+        version: "1.0",
+        queued: true,
+        goal: savedGoal,
+      });
     }
 
     const result = await runJamesAutonomousBrain({
