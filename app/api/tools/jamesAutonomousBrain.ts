@@ -5,6 +5,7 @@ import { evaluateJamesTask } from "./jamesSelfEvaluation";
 import { learnJamesExperience } from "./jamesExperience";
 import { learnJamesMetaStrategy } from "./jamesMetaLearning";
 import { proposeJamesCodeEvolution } from "./jamesCodeEvolution";
+import { detectJamesImprovementGoal, evolveJamesImprovementGoal } from "./jamesImprovementEngine";
 
 export type JamesAutonomyMode = "supervised" | "bounded" | "autonomous";
 
@@ -242,17 +243,24 @@ export async function runJamesAutonomousBrain(input: {
           status: "evolving",
         });
 
-        const proposal = await proposeJamesCodeEvolution({
+        const improvementGoal = await detectJamesImprovementGoal({
           userId: input.userId,
           conversationId: input.conversationId,
-          request:
-            "Analisis gap pada siklus autonomous brain berikut dan usulkan perubahan kode yang aman untuk meningkatkan kemampuan James.\n\n" +
-            boundedText(JSON.stringify(cycleRecord), 5000),
-          currentFiles: [],
+          request: workingGoal,
+          result: agent,
         });
 
-        cycleRecord.evolutionProposalId = proposal.proposalId || null;
-        cycleRecord.evolutionStatus = proposal.status;
+        if (improvementGoal?.id) {
+          const evolved = await evolveJamesImprovementGoal({
+            userId: input.userId,
+            conversationId: input.conversationId,
+            improvementGoalId: improvementGoal.id,
+          });
+
+          cycleRecord.evolutionProposalId = evolved?.evolution_proposal_id || null;
+          cycleRecord.evolutionStatus = evolved?.status || "proposed";
+          cycleRecord.decision += " | improvement-goal:" + improvementGoal.id;
+        }
       }
 
       cycles.push(cycleRecord);
