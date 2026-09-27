@@ -8,6 +8,7 @@ import { detectJamesImprovementGoal, evolveJamesImprovementGoal } from "./jamesI
 import { decideJamesBrainStrategy } from "./jamesDecisionEngine";
 import { decideJamesModelLearning } from "./jamesModelLearningPolicy";
 import { distillJamesKnowledge, startJamesModelAdaptation } from "./jamesModelLearning";
+import { createJamesAutonomousGoal } from "./jamesAutonomousGoals";
 
 export type JamesAutonomyMode = "supervised" | "bounded" | "autonomous";
 
@@ -393,6 +394,37 @@ export async function runJamesAutonomousBrain(input: {
     last_confidence: cycles.at(-1)?.confidence || 0,
     last_decision: cycles.at(-1)?.decision || "none",
   });
+
+  // In autonomous mode, a successful cycle schedules the next maintenance
+  // cycle automatically. This removes the need for a human to repeatedly
+  // issue "learn/clone" commands while keeping the cadence bounded by the
+  // hourly heartbeat.
+  if (mode === "autonomous" && verified) {
+    const nextRun = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    try {
+      await createJamesAutonomousGoal({
+        userId: input.userId,
+        conversationId: input.conversationId,
+        title: "James Autonomous Learning Cycle",
+        goal: [
+          "Continue autonomous self-improvement for James.",
+          "Review the latest verified experience and provider evidence.",
+          "Distill useful knowledge from Gemini, OpenAI, OpenRouter, and Groq when the model-learning policy allows it.",
+          "Evaluate whether a provider-supported model adaptation is justified.",
+          "Do not copy proprietary model weights, secrets, credentials, or protected internals.",
+          "Do not deploy an adapted model as the default until it has been validated.",
+        ].join("\n"),
+        priority: 60,
+        maxCycles: 2,
+        nextRunAt: nextRun,
+      });
+    } catch (error) {
+      console.warn(
+        "James autonomous continuation could not be scheduled:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
 
   return {
     goal: input.goal,
