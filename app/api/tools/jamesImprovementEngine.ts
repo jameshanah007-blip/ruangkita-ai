@@ -112,6 +112,83 @@ export async function detectJamesImprovementGoal(input: {
   return data;
 }
 
+
+export async function queueJamesCapabilityGap(input: {
+  userId: string;
+  conversationId: string;
+  capability?: string;
+}) {
+  const client = db();
+  if (!client) return null;
+
+  let query = client
+    .from("james_self_model")
+    .select("capability_name, competence, confidence, evidence_count, status, next_learning_action")
+    .eq("user_id", input.userId)
+    .in("status", ["unknown", "developing"])
+    .order("competence", { ascending: true })
+    .order("confidence", { ascending: true })
+    .limit(1);
+
+  if (input.capability?.trim()) {
+    query = client
+      .from("james_self_model")
+      .select("capability_name, competence, confidence, evidence_count, status, next_learning_action")
+      .eq("user_id", input.userId)
+      .eq("capability_key", input.capability.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(0, 120))
+      .limit(1);
+  }
+
+  const { data: rows } = await query;
+  const gap = rows?.[0];
+  if (!gap) return null;
+
+  const { data: existing } = await client
+    .from("james_improvement_goals")
+    .select("id, status, target_capability, priority, confidence")
+    .eq("user_id", input.userId)
+    .eq("target_capability", gap.capability_name)
+    .in("status", ["proposed", "queued", "running"])
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) return existing;
+
+  const priority = Math.min(100, Math.max(40, Math.round(
+    (1 - Number(gap.competence || 0.5)) * 70 + Number(gap.confidence || 0.2) * 30
+  )));
+
+  const { data, error } = await client
+    .from("james_improvement_goals")
+    .insert({
+      user_id: input.userId,
+      title: "Strengthen capability: " + gap.capability_name,
+      problem: "Self-model menunjukkan capability ini masih " + gap.status +
+        " dengan competence " + Number(gap.competence || 0).toFixed(2) +
+        " berdasarkan " + Number(gap.evidence_count || 0) + " evidence.",
+      target_capability: gap.capability_name,
+      evidence: {
+        source: "james_self_model",
+        competence: Number(gap.competence || 0),
+        confidence: Number(gap.confidence || 0),
+        evidence_count: Number(gap.evidence_count || 0),
+        next_learning_action: gap.next_learning_action || "distill-more-evidence",
+      },
+      priority,
+      confidence: Number(gap.confidence || 0.2),
+      status: "proposed",
+    })
+    .select("id, title, problem, target_capability, priority, confidence, status, created_at")
+    .maybeSingle();
+
+  if (error) {
+    console.warn("James capability learning queue unavailable:", error.message);
+    return null;
+  }
+
+  return data;
+}
+
 export async function evolveJamesImprovementGoal(input: {
   userId: string;
   conversationId: string;
