@@ -270,7 +270,7 @@ export async function executeJamesLearningGoal(input: {
 
   await client
     .from("james_improvement_goals")
-    .update({ status: "running", last_run_at: new Date().toISOString() })
+    .update({ status: "running" })
     .eq("id", input.improvementGoalId)
     .eq("user_id", input.userId);
 
