@@ -22,6 +22,10 @@ function clamp(v: unknown) {
   return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.5;
 }
 
+function validProvider(value: unknown): value is "gemini" | "openai" | "openrouter" | "groq" {
+  return value === "gemini" || value === "openai" || value === "openrouter" || value === "groq";
+}
+
 function parse(text: string) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
