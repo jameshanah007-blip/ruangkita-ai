@@ -99,6 +99,46 @@ async function recordCapabilityEvidence(userId: string, capability: string, veri
   await client.from("james_self_model").upsert({ user_id: userId, capability_key: capabilityKey, capability_name: normalized.name, competence, confidence, evidence_count: evidence, success_count: success, failure_count: failure, teacher_providers: teacherProviders, last_evidence: { quality: q, verified }, next_learning_action: status === "strong" ? "monitor-and-verify" : status === "competent" ? "increase-diversity-and-test" : "distill-more-evidence", status }, { onConflict: "user_id,capability_key" });
 }
 
+async function reassessJamesMastery(userId: string) {
+  const client = db();
+  if (!client) return { due: 0, updated: 0 };
+  const now = new Date();
+  const { data: rows } = await client
+    .from("james_self_model")
+    .select("id, capability_key, capability_name, competence, confidence, evidence_count, success_count, failure_count, status, last_evidence, last_reassessed_at, reassessment_due_at")
+    .eq("user_id", userId)
+    .or("reassessment_due_at.is.null,reassessment_due_at.lte." + now.toISOString())
+    .limit(50);
+  let updated = 0;
+  for (const row of rows || []) {
+    const lastEvidenceAt = row.last_evidence?.at ? new Date(row.last_evidence.at) : new Date(row.last_reassessed_at || row.updated_at || now);
+    const ageDays = Math.max(0, (now.getTime() - lastEvidenceAt.getTime()) / 86400000);
+    if (ageDays < 7) continue;
+    const decay = Math.min(0.20, Math.max(0, (ageDays - 7) * 0.006));
+    const competence = Math.max(0.35, Number(row.competence || 0.5) - decay);
+    const confidence = Math.max(0.15, Number(row.confidence || 0.2) - Math.min(0.25, decay * 1.2));
+    const status = competence >= 0.85 && Number(row.evidence_count || 0) >= 12 ? "strong" :
+      competence >= 0.70 && Number(row.evidence_count || 0) >= 5 ? "competent" : "developing";
+    const dueDays = status === "strong" ? 30 : status === "competent" ? 14 : 7;
+    await client.from("james_self_model").update({
+      competence, confidence, decay_score: decay, status,
+      last_reassessed_at: now.toISOString(),
+      reassessment_due_at: new Date(now.getTime() + dueDays * 86400000).toISOString(),
+      last_evidence: { ...(row.last_evidence || {}), reassessedAt: now.toISOString(), ageDays, decay },
+      next_learning_action: status === "strong" ? "monitor-and-verify" : "reassess-and-distill",
+    }).eq("id", row.id).eq("user_id", userId);
+    await client.from("james_capability_mastery_history").insert({
+      user_id: userId, capability_key: row.capability_key, capability_name: row.capability_name,
+      source: "mastery_reassessment", evidence_count: Number(row.evidence_count || 0),
+      competence, confidence, validation_score: null, verified: false,
+      provider_panel: Array.isArray(row.teacher_providers) ? row.teacher_providers : [],
+      details: { ageDays, decay, previousCompetence: Number(row.competence || 0.5) },
+    });
+    updated++;
+  }
+  return { due: (rows || []).length, updated };
+}
+
 function boundedText(value: string, max = 6000) {
   return value.length > max ? value.slice(0, max) + "..." : value;
 }
