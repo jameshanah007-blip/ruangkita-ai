@@ -4,7 +4,7 @@ import { planJamesIntelligenceWithAI } from "./jamesIntelligence";
 import { evaluateJamesTask } from "./jamesSelfEvaluation";
 import { learnJamesExperience } from "./jamesExperience";
 import { learnJamesMetaStrategy } from "./jamesMetaLearning";
-import { detectJamesImprovementGoal, evolveJamesImprovementGoal, queueJamesCapabilityGap, executeJamesLearningGoal } from "./jamesImprovementEngine";
+import { detectJamesImprovementGoal, evolveJamesImprovementGoal, queueJamesCapabilityGap, executeJamesLearningGoal, normalizeJamesCapability } from "./jamesImprovementEngine";
 import { decideJamesBrainStrategy } from "./jamesDecisionEngine";
 import { decideJamesModelLearning } from "./jamesModelLearningPolicy";
 import { distillJamesKnowledge, startJamesModelAdaptation, syncJamesModelLearningJobs } from "./jamesModelLearning";
@@ -85,7 +85,8 @@ async function recordCapabilityEvidence(userId: string, capability: string, veri
   if (!url || !key || !capability.trim()) return;
   const { createClient } = await import("@supabase/supabase-js");
   const client = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } });
-  const capabilityKey = capability.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(0, 120);
+  const normalized = normalizeJamesCapability(capability);
+  const capabilityKey = normalized.key;
   const { data: old } = await client.from("james_self_model").select("*").eq("user_id", userId).eq("capability_key", capabilityKey).maybeSingle();
   const evidence = Number(old?.evidence_count || 0) + 1;
   const success = Number(old?.success_count || 0) + (verified ? 1 : 0);
@@ -95,7 +96,7 @@ async function recordCapabilityEvidence(userId: string, capability: string, veri
   const confidence = Math.max(0, Math.min(1, 0.15 + Math.min(0.80, evidence / 20)));
   const status = evidence < 2 ? "unknown" : competence >= 0.85 && evidence >= 12 ? "strong" : competence >= 0.70 && evidence >= 5 ? "competent" : "developing";
   const teacherProviders = [...new Set([...(Array.isArray(old?.teacher_providers) ? old.teacher_providers : []), ...providers])].slice(0, 4);
-  await client.from("james_self_model").upsert({ user_id: userId, capability_key: capabilityKey, capability_name: capability.slice(0, 180), competence, confidence, evidence_count: evidence, success_count: success, failure_count: failure, teacher_providers: teacherProviders, last_evidence: { quality: q, verified }, next_learning_action: status === "strong" ? "monitor-and-verify" : status === "competent" ? "increase-diversity-and-test" : "distill-more-evidence", status }, { onConflict: "user_id,capability_key" });
+  await client.from("james_self_model").upsert({ user_id: userId, capability_key: capabilityKey, capability_name: normalized.name, competence, confidence, evidence_count: evidence, success_count: success, failure_count: failure, teacher_providers: teacherProviders, last_evidence: { quality: q, verified }, next_learning_action: status === "strong" ? "monitor-and-verify" : status === "competent" ? "increase-diversity-and-test" : "distill-more-evidence", status }, { onConflict: "user_id,capability_key" });
 }
 
 function boundedText(value: string, max = 6000) {
