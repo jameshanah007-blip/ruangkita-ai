@@ -1,0 +1,61 @@
+import type { AIProviderName } from "../../fun-zone/aiProvider";
+import type { JamesResourceTask } from "./jamesResourceManager";
+import { getJamesProviderPerformance, scoreJamesProviderPerformance } from "./jamesProviderPerformance";
+
+export type JamesLearningMode = "single" | "fallback" | "multi";
+
+export type JamesLearningPolicy = {
+  mode: JamesLearningMode;
+  rankedProviders: AIProviderName[];
+  confidence: number;
+  reason: string;
+};
+
+export async function planJamesLearningPolicy(task: JamesResourceTask): Promise<JamesLearningPolicy> {
+  const performance = await getJamesProviderPerformance(task);
+  const defaults: AIProviderName[] = ["openai", "gemini", "openrouter", "groq"];
+
+  const ranked = defaults
+    .map((provider, index) => ({
+      provider,
+      score: scoreJamesProviderPerformance(
+        performance.find((item) => item.provider === provider),
+        index
+      ),
+      evidence: performance.find((item) => item.provider === provider),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const observed = ranked.filter((item) => Boolean(item.evidence));
+  const top = ranked[0];
+
+  if (!top || observed.length === 0) {
+    return {
+      mode: "fallback",
+      rankedProviders: ranked.map((item) => item.provider),
+      confidence: 0.25,
+      reason: "Belum ada evidence provider yang cukup; gunakan fallback konservatif.",
+    };
+  }
+
+  const second = ranked[1];
+  const closeRace = second && Math.abs(top.score - second.score) < 0.08;
+  const weakEvidence = !top.evidence || top.evidence.attempts < 3;
+  const lowConfidence = top.evidence ? top.evidence.confidence < 0.55 : true;
+
+  if (closeRace || weakEvidence || lowConfidence) {
+    return {
+      mode: "multi",
+      rankedProviders: ranked.map((item) => item.provider),
+      confidence: Math.min(0.65, top.score),
+      reason: "Evidence belum cukup kuat untuk mempercayai satu provider; pertahankan beberapa resource.",
+    };
+  }
+
+  return {
+    mode: "single",
+    rankedProviders: ranked.map((item) => item.provider),
+    confidence: Math.min(0.95, top.score),
+    reason: "Evidence historis menunjukkan provider teratas cukup konsisten untuk task ini.",
+  };
+}
