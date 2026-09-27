@@ -29,7 +29,7 @@ import { addGlobalCandidate, getGlobalGrowth } from "../tools/jamesGlobalLearnin
 import { buildJamesContext } from "../tools/jamesContext";
 import { planJamesIntelligence, planJamesIntelligenceWithAI } from "../tools/jamesIntelligence";
 import { runJamesAgentLoop } from "../tools/jamesAgentLoop";
-import { formatJamesExperienceContext, learnJamesExperience, recordJamesExperienceOutcome, retrieveJamesExperiences } from "../tools/jamesExperience";
+import { formatJamesConsolidationContext, formatJamesExperienceContext, learnJamesExperience, recordJamesExperienceOutcome, retrieveJamesConsolidations, retrieveJamesExperiences } from "../tools/jamesExperience";
 import { getJamesAgentTask } from "../tools/jamesAgentState";
 import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
@@ -1650,13 +1650,19 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
     );
   }
 }
-    const experiences = await retrieveJamesExperiences({
-      userId,
-      request: userRequest,
-      capabilities: deterministicIntelligencePlan.capabilities,
-      limit: 4,
-    });
-    const experienceContext = formatJamesExperienceContext(experiences);
+    const [experiences, consolidations] = await Promise.all([
+      retrieveJamesExperiences({
+        userId,
+        request: userRequest,
+        capabilities: deterministicIntelligencePlan.capabilities,
+        limit: 4,
+      }),
+      retrieveJamesConsolidations(userId, userRequest, 3),
+    ]);
+    const experienceContext = [
+      formatJamesExperienceContext(experiences),
+      formatJamesConsolidationContext(consolidations),
+    ].join("\n\n");
 
 
 
