@@ -5,6 +5,17 @@ const COOKIE_NAME = "ruangkita-omanto-verification";
 const TOKEN_VERSION = "v1";
 const TOKEN_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
+
+function stableUuid(label: string) {
+  const secret = process.env.OMANTO_VERIFICATION_CODE;
+  if (!secret) return null;
+  const hash = crypto.createHash("sha256").update(`ruangkita:${secret}:${label}`).digest();
+  hash[6] = (hash[6] & 0x0f) | 0x40;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  const hex = hash.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
 function createToken() {
   const secret = process.env.OMANTO_VERIFICATION_CODE;
   if (!secret) return null;
@@ -90,11 +101,37 @@ export async function POST(request: Request) {
       );
     }
 
+    const userId = stableUuid("omanto-user");
+    const conversationId = stableUuid("omanto-conversation");
+
     const response = NextResponse.json({
       verified: true,
       identity: "omanto",
       message: "Identitas Omanto berhasil diverifikasi.",
+      userId,
+      conversationId,
     });
+
+    if (userId && conversationId) {
+      response.cookies.set({
+        name: "ruangkita-session-user",
+        value: userId,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+      response.cookies.set({
+        name: "ruangkita-session-conversation",
+        value: conversationId,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    }
 
     response.cookies.set({
       name: COOKIE_NAME,
