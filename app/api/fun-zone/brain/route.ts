@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runJamesBrainGameDirector } from "../../../core/james/jamesBrain";
+import { runJamesBrainWithSharedKnowledge } from "../../../core/james/jamesSharedKnowledge";
 import type { GameBlueprint } from "../../../fun-zone/laboratory/types";
 
 function extractJson(text: string): unknown {
@@ -532,7 +533,9 @@ Output JSON saja.
 `;
 
     const result =
-      await runJamesBrainGameDirector({
+      await runJamesBrainWithSharedKnowledge({
+        surface: "fun_zone",
+        mode: "game_director",
         systemInstruction:
           SYSTEM_INSTRUCTION,
 
