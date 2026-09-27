@@ -251,7 +251,7 @@ export async function runJamesAutonomousBrain(input: {
           currentFiles: [],
         });
 
-        cycleRecord.evolutionProposalId = proposal.id || null;
+        cycleRecord.evolutionProposalId = proposal.proposalId || null;
         cycleRecord.evolutionStatus = proposal.status;
       }
 
