@@ -48,6 +48,7 @@ export type JamesAgentResult = {
   citations: Array<{ title: string; url: string }>;
   steps: JamesAgentStep[];
   taskId: string | null;
+  providerTrace: Array<{ provider: string; model: string; task: string; latencyMs: number }>;
 };
 
 const MAX_ITERATIONS = 3;
@@ -142,6 +143,7 @@ export async function runJamesAgentLoop(input: {
   let actions: JamesTaskAction[] = [];
   let outputs: Record<string, string> = {};
   let taskId: string | null = null;
+  const providerTrace: Array<{ provider: string; model: string; task: string; latencyMs: number }> = [];
 
   if (input.resume && input.userId && input.conversationId) {
     const existing = await getLatestJamesAgentTask(
@@ -295,6 +297,7 @@ export async function runJamesAgentLoop(input: {
         input.conversationContext || "(tidak ada)",
       );
       lastAnswer = synthesis.text.trim();
+      providerTrace.push({ provider: synthesis.provider, model: synthesis.model, task: synthesis.task, latencyMs: synthesis.latencyMs });
 
       steps.push({
         iteration,
@@ -339,6 +342,8 @@ export async function runJamesAgentLoop(input: {
         });
       }
 
+      if (verification.provider) providerTrace.push(verification.provider);
+
       if (verification.verified && verification.answer) {
         const citations = allCapabilityResults.flatMap((item) => item.citations || []);
         await completeJamesAgentTask(taskId, outputs);
@@ -359,6 +364,7 @@ export async function runJamesAgentLoop(input: {
           citations,
           steps,
           taskId,
+          providerTrace,
         };
       }
     }
@@ -439,6 +445,8 @@ export async function runJamesAgentLoop(input: {
 
   const citations = allCapabilityResults.flatMap((item) => item.citations || []);
 
+  if (recovery.provider) providerTrace.push(recovery.provider);
+
   return {
     answer: recovery.answer || lastAnswer,
     verified: recovery.verified,
@@ -449,5 +457,6 @@ export async function runJamesAgentLoop(input: {
     citations,
     steps,
     taskId,
+    providerTrace,
   };
 }
