@@ -20,7 +20,7 @@ function taskDefaultOrder(task: JamesResourceTask): AIProviderName[] {
   }
 }
 
-export async function decideJamesBrainStrategy(task: JamesResourceTask): Promise<JamesBrainDecision> {
+export async function decideJamesBrainStrategy(task: JamesResourceTask, userId?: string): Promise<JamesBrainDecision> {
   const [performance, decisions] = await Promise.all([
     getJamesProviderPerformance(task), getJamesDecisionMemory(task, 30),
   ]);
@@ -57,10 +57,17 @@ export async function decideJamesBrainStrategy(task: JamesResourceTask): Promise
   const weakEvidence = totalEvidence < 4 || top.attempts < 3;
   const failurePressure = failedEvidence >= 2 || (top.evidence >= 3 && providerEvidence.get(top.provider)!.failure >= 2);
 
-  const { data: selfModel } = (() => {
+  const { data: selfModel } = await (async () => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.SUPABASE_SECRET_KEY;
     if (!url || !key) return Promise.resolve({ data: null });
-    return import("@supabase/supabase-js").then(({ createClient }) => createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } }).from("james_self_model").select("capability_name,competence,confidence,status").order("competence", { ascending: false }).limit(12));
+    const client = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } });
+    let query = client
+      .from("james_self_model")
+      .select("capability_name,competence,confidence,status")
+      .order("competence", { ascending: false })
+      .limit(12);
+    if (userId) query = query.eq("user_id", userId);
+    return query;
   })();
 
   const capabilityEvidence = Array.isArray(selfModel) ? selfModel.length : 0;
