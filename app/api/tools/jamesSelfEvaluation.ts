@@ -58,6 +58,7 @@ export async function evaluateJamesTask(input: {
       plan: input.result.plan,
       steps: input.result.steps.slice(-12),
       capabilities: input.result.capabilityResults.map((item) => item.capability),
+      providerTrace: input.result.providerTrace,
     };
 
     const evaluation = await generateWithJamesResourceManager("verification", {
@@ -106,7 +107,12 @@ export async function evaluateJamesTask(input: {
       strengths: list(parsed.strengths),
       weaknesses: list(parsed.weaknesses),
       improvements: list(parsed.improvements),
-      provider_observations: [],
+      provider_observations: input.result.providerTrace.map((item) => ({
+        provider: item.provider,
+        model: item.model,
+        task: item.task,
+        latencyMs: item.latencyMs,
+      })),
       evidence,
     };
 
