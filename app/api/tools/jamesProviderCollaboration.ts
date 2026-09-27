@@ -1,4 +1,4 @@
-import type { AIProviderName, AIGenerateRequest, AIGenerateResponse } from "../../fun-zone/aiProvider";
+import type { AIProviderName, AIGenerateRequest, AIGenerateResponse } from "../../core/ai/aiProvider";
 import type { JamesResourceTask } from "./jamesResourceManager";
 import { getJamesProviderPerformance, scoreJamesProviderPerformance } from "./jamesProviderPerformance";
 
