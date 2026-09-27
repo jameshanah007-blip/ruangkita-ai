@@ -309,17 +309,41 @@ export async function executeJamesLearningGoal(input: {
       return { ...goal, status: "queued", learningJobId: distilled.jobId, sampleCount: distilled.sampleCount };
     }
 
+    const validation = await generateWithAIRouter({
+      prompt: [
+        "Evaluasi hasil pembelajaran James berikut secara objektif.",
+        "Target capability: " + capability,
+        "Problem: " + problem,
+        "Knowledge samples:",
+        JSON.stringify(distilled.dataset.slice(0, 8)),
+        "",
+        "Buat satu probe answer singkat untuk target capability, lalu nilai apakah pengetahuan hasil distillation cukup untuk menjawabnya.",
+        "Output JSON saja: {\\"score\\":0.0,\\"passed\\":false,\\"reason\\":\\"\\"}",
+      ].join("\\n"),
+      systemInstruction:
+        "Kamu adalah evaluator pembelajaran James. Nilai evidence yang tersedia, bukan gaya bahasa. Jangan tampilkan chain-of-thought.",
+      temperature: 0.05,
+      maxOutputTokens: 1000,
+    });
+    const validationParsed = parse(validation.text);
+    const validationScore = clamp(validationParsed?.score);
+    const validated = validationParsed?.passed === true && validationScore >= 0.75;
+
     const oldEvidence = Number(selfModel?.evidence_count || 0);
     const oldCompetence = Number(selfModel?.competence || 0.5);
     const oldConfidence = Number(selfModel?.confidence || 0.2);
     const gainedEvidence = Math.min(4, distilled.sampleCount);
+    const evidenceCount = oldEvidence + gainedEvidence + 1;
     const competence = Math.max(0, Math.min(1,
-      oldCompetence * 0.60 + Math.min(1, 0.62 + distilled.sampleCount / 50) * 0.25 + 0.15
+      oldCompetence * 0.50 +
+      Math.min(1, 0.55 + distilled.sampleCount / 60) * 0.20 +
+      validationScore * 0.30
     ));
     const confidence = Math.max(0, Math.min(1,
-      oldConfidence * 0.55 + Math.min(0.85, 0.25 + (oldEvidence + gainedEvidence) / 20) * 0.45
+      oldConfidence * 0.50 + Math.min(0.90, 0.25 + evidenceCount / 20) * 0.30 + validationScore * 0.20
     ));
-    const evidenceCount = oldEvidence + gainedEvidence;
+    const successCount = Number(selfModel?.success_count || 0) + (validated ? 1 : 0);
+    const failureCount = Number(selfModel?.failure_count || 0) + (validated ? 0 : 1);
     const status =
       evidenceCount >= 12 && competence >= 0.85 ? "strong" :
       evidenceCount >= 5 && competence >= 0.70 ? "competent" :
@@ -331,7 +355,7 @@ export async function executeJamesLearningGoal(input: {
     ].filter(validProvider);
     const activeModels = Array.isArray(selfModel?.active_models) ? selfModel.active_models : [];
 
-    await client
+    const selfModelUpdate = await client
       .from("james_self_model")
       .upsert({
         user_id: input.userId,
@@ -340,8 +364,8 @@ export async function executeJamesLearningGoal(input: {
         competence,
         confidence,
         evidence_count: evidenceCount,
-        success_count: Number(selfModel?.success_count || 0),
-        failure_count: Number(selfModel?.failure_count || 0),
+        success_count: successCount,
+        failure_count: failureCount,
         teacher_providers: [...new Set(providerList)].slice(0, 4),
         active_models: activeModels,
         last_evidence: {
@@ -349,8 +373,10 @@ export async function executeJamesLearningGoal(input: {
           learningJobId: distilled.jobId,
           sampleCount: distilled.sampleCount,
           teachers,
-          validated: false,
-          note: "Distillation evidence increases knowledge coverage; competence is not marked strong without task verification.",
+          validationScore,
+          validated,
+          evaluator: "ai-router",
+          reason: clean(validationParsed?.reason, 800),
         },
         next_learning_action: status === "strong"
           ? "monitor-and-verify"
@@ -360,7 +386,13 @@ export async function executeJamesLearningGoal(input: {
         status,
       }, { onConflict: "user_id,capability_key" });
 
-    const goalStatus = status === "strong" || status === "competent" ? "completed" : "queued";
+    if (selfModelUpdate.error) {
+      throw new Error("Self-model update gagal: " + selfModelUpdate.error.message);
+    }
+
+    const goalStatus = validated && (status === "competent" || status === "strong")
+      ? "completed"
+      : "queued";
     await client
       .from("james_improvement_goals")
       .update({
@@ -375,7 +407,9 @@ export async function executeJamesLearningGoal(input: {
             competenceAfter: competence,
             confidenceAfter: confidence,
             selfModelStatus: status,
-            validated: false,
+            validationScore,
+            validated,
+            reason: clean(validationParsed?.reason, 800),
           },
         },
       })
@@ -391,7 +425,8 @@ export async function executeJamesLearningGoal(input: {
       competence,
       confidence,
       selfModelStatus: status,
-      validated: false,
+      validationScore,
+      validated,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
