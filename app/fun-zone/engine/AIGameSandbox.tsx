@@ -27,6 +27,7 @@ type AIGameSandboxProps = {
     report: TestReport
   ) => void;
   onReady: () => void;
+  onDebuggingChange?: (active: boolean) => void;
   onError: (message: string) => void;
 };
 
@@ -1828,6 +1829,7 @@ export default function AIGameSandbox({
   blueprint,
   onTestReport,
   onReady,
+  onDebuggingChange,
   onError
 }: AIGameSandboxProps) {
   const iframeRef =
@@ -2012,6 +2014,7 @@ export default function AIGameSandbox({
           MAX_DEBUG_ATTEMPTS
         ) {
           setDebugging(false);
+          onDebuggingChange?.(false);
 
           setTestRunning(false);
 
@@ -2047,6 +2050,7 @@ export default function AIGameSandbox({
         );
 
         setDebugging(true);
+        onDebuggingChange?.(true);
 
         setTestRunning(false);
 
@@ -2195,6 +2199,7 @@ body: JSON.stringify({
                 setDebugging(
                   false
                 );
+                onDebuggingChange?.(false);
               },
               150
             );
@@ -2205,6 +2210,7 @@ body: JSON.stringify({
               : "AI debugger mengalami error.";
 
           setDebugging(false);
+          onDebuggingChange?.(false);
 
           if (
             nextAttempt >=
@@ -2249,6 +2255,7 @@ body: JSON.stringify({
   blueprint,
   currentHtml,
   genre,
+  onDebuggingChange,
   onError
 ]      
 
