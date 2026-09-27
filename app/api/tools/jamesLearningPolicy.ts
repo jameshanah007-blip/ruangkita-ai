@@ -2,7 +2,7 @@ import type { AIProviderName } from "../../fun-zone/aiProvider";
 import type { JamesResourceTask } from "./jamesResourceManager";
 import { getJamesProviderPerformance, scoreJamesProviderPerformance } from "./jamesProviderPerformance";
 import { getJamesDecisionMemory } from "./jamesDecisionMemory";
-import { critiqueJamesPolicy } from "./jamesPolicyCritic";
+import { critiqueJamesPolicy, saveJamesPolicyCritique } from "./jamesPolicyCritic";
 
 export type JamesLearningMode = "single" | "fallback" | "multi";
 
@@ -66,6 +66,7 @@ export async function planJamesLearningPolicy(task: JamesResourceTask): Promise<
       };
 
   const critique = await critiqueJamesPolicy(task, basePolicy);
+  await saveJamesPolicyCritique(critique);
   if (critique.recommendation === "reduce_confidence" && basePolicy.mode === "single") {
     return {
       ...basePolicy,
