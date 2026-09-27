@@ -8,6 +8,7 @@ import {
 import { openRouterProvider } from "../../fun-zone/openRouterProvider";
 import { groqProvider } from "../../fun-zone/groqProvider";
 import { getJamesProviderPerformance, scoreJamesProviderPerformance } from "./jamesProviderPerformance";
+import { planJamesLearningPolicy } from "./jamesLearningPolicy";
 
 export type JamesResourceTask =
   | "planning"
@@ -146,7 +147,8 @@ function taskOrder(task: JamesResourceTask): AIProviderName[] {
 }
 
 async function getCandidates(task: JamesResourceTask) {
-  const order = taskOrder(task);
+  const policy = await planJamesLearningPolicy(task);
+  const order = policy.rankedProviders.length ? policy.rankedProviders : taskOrder(task);
   const performance = await getJamesProviderPerformance(task);
 
   return order
