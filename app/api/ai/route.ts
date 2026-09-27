@@ -1413,16 +1413,14 @@ Jangan menyebut reasoning internal.`
         });
       }
 
-      if (omantoVerified) {
-        void evolveJames({
-          userId,
-          conversationId,
-          userRequest,
-          assistantResult: resultText,
-        }).catch((error) => {
-          console.error("James background learning error:", error);
-        });
-      }
+      void evolveJames({
+        userId,
+        conversationId,
+        userRequest,
+        assistantResult: resultText,
+      }).catch((error) => {
+        console.error("James background learning error:", error);
+      });
 
       return NextResponse.json({
         result: resultText,
@@ -1704,16 +1702,14 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
 
     await saveActivity(userRequest, intent, "gemini", resultText);
     await saveJames(userId, conversationId, userRequest, resultText, intent, "gemini");
-    if (omantoVerified) {
-      void evolveJames({
+    void evolveJames({
       userId,
       conversationId,
       userRequest,
       assistantResult: resultText,
-      }).catch((error) => {
-        console.error("James background learning error:", error);
-      });
-    }
+    }).catch((error) => {
+      console.error("James background learning error:", error);
+    });
 
     return NextResponse.json({
       result: resultText,
