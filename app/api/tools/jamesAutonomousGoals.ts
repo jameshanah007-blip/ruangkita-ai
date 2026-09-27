@@ -12,6 +12,7 @@ export type JamesAutonomousGoal = {
   next_run_at: string;
   attempts: number;
   last_result?: string | null;
+  last_run_at?: string | null;
   last_error?: string | null;
 };
 
