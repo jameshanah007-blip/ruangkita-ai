@@ -458,6 +458,25 @@ export async function executeJamesLearningGoal(input: {
       throw new Error("Self-model update gagal: " + selfModelUpdate.error.message);
     }
 
+    await client.from("james_capability_mastery_history").insert({
+      user_id: input.userId,
+      capability_key: normalized.key,
+      capability_name: capability,
+      source: "learning_queue_executor",
+      evidence_count: evidenceCount,
+      competence,
+      confidence,
+      validation_score: validationScore,
+      verified: validated,
+      provider_panel: masteryEvaluation.map((item) => item.provider).filter(validProvider),
+      details: {
+        learningJobId: distilled.jobId,
+        sampleCount: distilled.sampleCount,
+        evaluatorCount: evaluations.length,
+        passedVotes,
+      },
+    });
+
     const goalStatus = validated && (status === "competent" || status === "strong")
       ? "completed"
       : "queued";
