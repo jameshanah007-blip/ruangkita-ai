@@ -33,7 +33,7 @@ export type JamesResourceResult = AIGenerateResponse & {
 };
 
 const COOLDOWN_MS = 30_000;
-const FAILURE_THRESHOLD = 2;
+const RATE_LIMIT_COOLDOWN_MS = 60_000;
 
 const providers: AIProvider[] = [
   ...aiProviders,
@@ -67,18 +67,30 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function isRateLimited(error: unknown) {
+  const status = errorStatus(error);
+  const message = errorMessage(error).toLowerCase();
+
+  return status === 429 ||
+    message.includes("rate limit") ||
+    message.includes("rate_limit") ||
+    message.includes("too many requests") ||
+    message.includes("tokens per minute") ||
+    message.includes("requests per minute") ||
+    message.includes("quota exceeded");
+}
+
 function isQuotaOrTransient(error: unknown) {
   const status = errorStatus(error);
   const message = errorMessage(error).toLowerCase();
 
-  return status === 408 ||
-    status === 429 ||
+  return isRateLimited(error) ||
+    status === 408 ||
     status === 500 ||
     status === 502 ||
     status === 503 ||
     status === 504 ||
     message.includes("quota") ||
-    message.includes("rate limit") ||
     message.includes("timeout") ||
     message.includes("temporarily unavailable") ||
     message.includes("network") ||
@@ -92,7 +104,12 @@ function recordFailure(provider: AIProviderName, error: unknown) {
   current.failures += 1;
   current.lastFailureAt = Date.now();
 
-  if (isQuotaOrTransient(error) && current.failures >= FAILURE_THRESHOLD) {
+  if (isRateLimited(error)) {
+    current.cooldownUntil = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+    return;
+  }
+
+  if (isQuotaOrTransient(error)) {
     current.cooldownUntil = Date.now() + COOLDOWN_MS;
   }
 }
@@ -127,6 +144,7 @@ async function generateWithTimeout(
     if (timer) clearTimeout(timer);
   }
 }
+
 function taskOrder(task: JamesResourceTask): AIProviderName[] {
   switch (task) {
     case "planning":
@@ -199,6 +217,10 @@ export async function generateWithJamesResourceManager(
     try {
       const result = await generateWithTimeout(provider, request);
 
+      if (!result.text || !result.text.trim()) {
+        throw new Error(provider.name + " menghasilkan output teks kosong.");
+      }
+
       recordSuccess(provider.name);
 
       return {
@@ -226,17 +248,29 @@ export async function generateWithJamesProviderCollaboration(
     .map((name) => providers.find((provider) => provider.name === name))
     .filter((provider): provider is AIProvider => Boolean(provider))
     .filter((provider) => provider.isAvailable())
+    .filter((provider) => {
+      const current = state.get(provider.name);
+      return !current?.cooldownUntil || current.cooldownUntil <= Date.now();
+    })
     .slice(0, 3);
 
   const results = await Promise.allSettled(selected.map(async (provider) => {
     const startedAt = Date.now();
-    const result = await generateWithTimeout(provider, request);
-    recordSuccess(provider.name);
-    return {
-      ...result,
-      task,
-      latencyMs: Date.now() - startedAt,
-    };
+    try {
+      const result = await generateWithTimeout(provider, request);
+      if (!result.text || !result.text.trim()) {
+        throw new Error(provider.name + " menghasilkan output teks kosong.");
+      }
+      recordSuccess(provider.name);
+      return {
+        ...result,
+        task,
+        latencyMs: Date.now() - startedAt,
+      };
+    } catch (error) {
+      recordFailure(provider.name, error);
+      throw error;
+    }
   }));
 
   const successful: JamesResourceResult[] = [];
