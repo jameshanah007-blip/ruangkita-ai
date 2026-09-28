@@ -54,7 +54,7 @@ export async function GET() {
   if (!validUuid(userId)) userId = crypto.randomUUID();
   if (!validUuid(conversationId)) conversationId = crypto.randomUUID();
 
-  return buildSessionResponse(userId as string, conversationId as string);
+  return buildSessionResponse(userId, conversationId);
 }
 
 export async function POST() {
