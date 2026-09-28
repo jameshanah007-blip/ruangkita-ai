@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { generateWithAllAIProviders } from "../../../fun-zone/aiRouter";
 import { refreshJamesProviderCapabilities } from "../../tools/jamesProviderCapabilities";
 import { consolidateJamesExperiences } from "../../tools/jamesExperience";
+import { generateWithJamesResourceManager } from "../../tools/jamesResourceManager";
 import { getJamesGoals, saveJamesGoal } from "../../tools/jamesGoals";
 import {
   addGlobalCandidate,
@@ -67,6 +68,13 @@ export async function POST(request: Request) {
       (sum, result) => sum + (result.status === "fulfilled" ? result.value.length : 0),
       0
     );
+
+    const reflection = await runJamesSleepReflection({
+      supabase,
+      goals,
+      experienceUsers,
+      consolidatedCount,
+    });
 
     const prompt = `
 James sedang menjalankan sesi pengembangan mandiri terjadwal.
@@ -302,7 +310,7 @@ Keluarkan JSON SAJA:
       ok: true,
       providers: [...new Set(results.map((item) => item.provider))],
       capabilityObservations: capabilities.length,
-      autonomousHeartbeat: {
+      sleepReflection: reflection,      autonomousHeartbeat: {
         ran: true,
         usersReviewed: experienceUsers.length,
         experienceConsolidations: consolidatedCount,
@@ -348,4 +356,118 @@ async function getAutonomousDb() {
   return createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
   });
+}
+
+
+async function runJamesSleepReflection(input: {
+  supabase: any;
+  goals: any[];
+  experienceUsers: string[];
+  consolidatedCount: number;
+}) {
+  try {
+    const recentReflections = input.supabase
+      ? (await input.supabase
+          .from("james_reflections")
+          .select("observation, what_worked, what_failed, lesson, confidence, created_at")
+          .order("created_at", { ascending: false })
+          .limit(12)).data || []
+      : [];
+
+    const prompt = [
+      "James sedang dalam Sleep/Reflection Cycle.",
+      "Refleksikan perkembangan James berdasarkan data internal berikut.",
+      "",
+      "ACTIVE GOALS:",
+      JSON.stringify(input.goals),
+      "",
+      "RECENT REFLECTIONS:",
+      JSON.stringify(recentReflections),
+      "",
+      "EXPERIENCE USERS REVIEWED:",
+      String(input.experienceUsers.length),
+      "CONSOLIDATIONS CREATED:",
+      String(input.consolidatedCount),
+      "",
+      "Output JSON saja:",
+      '{"summary":"...","what_improved":[],"what_failed":[],"next_focus":[],"goal_actions":[{"goal":"exact goal text","action":"keep|pause|complete","reason":"..."}]}',
+      "",
+      "Aturan:",
+      "- Maksimal 3 item per array.",
+      "- Jangan mengarang pengalaman yang tidak ada di data.",
+      "- Jangan mengubah identitas inti James.",
+      "- Jangan membuat kesimpulan tentang sifat sensitif pengguna.",
+      "- Fokus pada peningkatan kemampuan James.",
+      "- goal_actions hanya untuk goal yang benar-benar ada pada ACTIVE GOALS."
+    ].join("\n");
+
+    const result = await generateWithJamesResourceManager("learning", {
+      prompt,
+      systemInstruction: "Kamu adalah James Sleep/Reflection Engine. Refleksikan proses belajar berdasarkan evidence internal. JSON valid saja.",
+      temperature: 0.15,
+      maxOutputTokens: 1400,
+    });
+
+    const parsed = extractJson(result.text) as Record<string, unknown> | null;
+    if (!parsed) return { ran: false, reason: "reflection_parse_failed" };
+
+    const cleanList = (value: unknown) =>
+      Array.isArray(value)
+        ? value.filter((x): x is string => typeof x === "string").map(x => x.trim().slice(0, 300)).filter(Boolean).slice(0, 3)
+        : [];
+
+    const summary = typeof parsed.summary === "string" ? parsed.summary.trim().slice(0, 700) : "";
+    if (!summary) return { ran: false, reason: "empty_reflection" };
+
+    // Store the sleep-cycle result as an internal reflection, not as a user memory.
+    if (input.supabase) {
+      await input.supabase.from("james_reflections").insert({
+        user_id: "system",
+        conversation_id: null,
+        observation: summary,
+        what_worked: cleanList(parsed.what_improved).join(" | "),
+        what_failed: cleanList(parsed.what_failed).join(" | "),
+        lesson: cleanList(parsed.next_focus).join(" | "),
+        confidence: 0.75,
+        evidence: "Autonomous Sleep/Reflection Cycle",
+        applied_to_growth: false,
+      });
+    }
+
+    const actions = Array.isArray(parsed.goal_actions) ? parsed.goal_actions : [];
+    let goalUpdates = 0;
+    for (const raw of actions.slice(0, 3)) {
+      if (!raw || typeof raw !== "object") continue;
+      const item = raw as Record<string, unknown>;
+      const goal = typeof item.goal === "string" ? item.goal.trim() : "";
+      const action = item.action;
+      if (!goal || !["keep", "pause", "complete"].includes(String(action))) continue;
+
+      const existing = input.goals.find(
+        (g: any) => typeof g.goal === "string" && g.goal.toLowerCase() === goal.toLowerCase()
+      );
+      if (!existing?.id) continue;
+
+      const status = action === "pause" ? "paused" : action === "complete" ? "completed" : "active";
+      const { error } = await input.supabase
+        .from("james_goals")
+        .update({
+          status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+
+      if (!error) goalUpdates += 1;
+    }
+
+    return {
+      ran: true,
+      provider: result.provider,
+      summary,
+      goalUpdates,
+    };
+  } catch (error) {
+    console.warn("James Sleep/Reflection Cycle unavailable:", error);
+    return { ran: false, reason: "reflection_error" };
+  }
 }
