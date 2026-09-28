@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { calculate } from "../tools/calculator";
 import { webSearch } from "../tools/webSearch";
 import { logActivity } from "../tools/logActivity";
