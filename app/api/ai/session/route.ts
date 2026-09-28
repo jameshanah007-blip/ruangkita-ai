@@ -32,7 +32,7 @@ export async function GET() {
 
   response.cookies.set({
     name: USER_COOKIE,
-    value: userId,
+    value: userId as string,
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -42,7 +42,7 @@ export async function GET() {
 
   response.cookies.set({
     name: CONVERSATION_COOKIE,
-    value: conversationId,
+    value: conversationId as string,
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
