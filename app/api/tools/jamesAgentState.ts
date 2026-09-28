@@ -74,6 +74,7 @@ export async function updateJamesAgentTask(
   patch: {
     status?: JamesAgentTaskState["status"];
     currentStep?: number;
+    maxSteps?: number;
     actions?: JamesTaskAction[];
     outputs?: Record<string, string>;
   }
@@ -96,6 +97,12 @@ export async function updateJamesAgentTask(
 
   if (patch.status) values.status = patch.status;
   if (typeof patch.currentStep === "number") values.current_step = patch.currentStep;
+
+  if (typeof patch.maxSteps === "number") {
+    values.max_steps = Math.max(patch.maxSteps, 1);
+  } else if (patch.actions) {
+    values.max_steps = Math.max(patch.actions.length, 1);
+  }
 
   if (statePatch) {
     const { data: existing } = await db
