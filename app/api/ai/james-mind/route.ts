@@ -23,7 +23,7 @@ export async function GET() {
     let providerRuns: any[] = [];
 
     if (supabase) {
-      const [reflectionResult, providerResult] = await Promise.all([
+      const [reflectionResult, providerResult, sleepResult] = await Promise.all([
         supabase.from("james_reflections").select("id, observation, lesson, confidence, created_at").order("created_at", { ascending: false }).limit(12),
         supabase.from("james_learning_runs").select("id, provider, model, success, created_at").order("created_at", { ascending: false }).limit(20),
       ]);
@@ -43,6 +43,8 @@ export async function GET() {
       reflections,
       providerRuns,
       feedbackStats,
+      capabilities,
+      sleepCycles,
     });
   } catch (error) {
     console.error("James Mind error:", error);
