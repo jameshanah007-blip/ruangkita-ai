@@ -136,13 +136,13 @@ type DebugResponse = {
 
 const MAX_DEBUG_ATTEMPTS = 5;
 
-const GAME_TEST_TIMEOUT_MS = 15000;
+const GAME_TEST_TIMEOUT_MS = 8000;
 
-const TEST_START_DELAY_MS = 1200;
+const TEST_START_DELAY_MS = 900;
 
-const TEST_RESULT_DELAY_MS = 2200;
+const TEST_RESULT_DELAY_MS = 1800;
 
-const MAX_TIMEOUT_PROBES = 1;
+const MAX_TIMEOUT_PROBES = 0;
 
 function createFallbackBlueprint(
   title: string,
@@ -1889,6 +1889,9 @@ export default function AIGameSandbox({
   const timeoutProbeRef =
     useRef(0);
 
+  const diagnosticBootRef =
+    useRef(false);
+
   const testTimerRef =
     useRef<ReturnType<
       typeof setTimeout
@@ -1941,6 +1944,9 @@ export default function AIGameSandbox({
     timeoutProbeRef.current =
       0;
 
+    diagnosticBootRef.current =
+      false;
+
     setDebugAttempt(0);
 
     setTestResult(null);
@@ -1990,40 +1996,10 @@ export default function AIGameSandbox({
           () => {
             setTestRunning(false);
 
-            if (
-              timeoutProbeRef.current <
-              MAX_TIMEOUT_PROBES
-            ) {
-              timeoutProbeRef.current++;
-
-              setErrorMessage(
-                "Sandbox belum memberikan diagnostik. Menjalankan probe ulang..."
-              );
-
-              if (
-                reloadTimerRef.current
-              ) {
-                clearTimeout(
-                  reloadTimerRef.current
-                );
-              }
-
-              reloadTimerRef.current =
-                setTimeout(
-                  () => {
-                    setReloadKey(
-                      (value) =>
-                        value + 1
-                    );
-                  },
-                  150
-                );
-
-              return;
-            }
-
             const timeoutMessage =
-              "Sandbox test timeout setelah probe ulang. Game tidak memberikan hasil diagnostik.";
+              diagnosticBootRef.current
+                ? "Sandbox berjalan tetapi Tester tidak mengirim hasil dalam batas waktu."
+                : "Sandbox diagnostic tidak melakukan boot. Artifact game kemungkinan gagal dieksekusi di iframe.";
 
             setErrorMessage(
               timeoutMessage
@@ -2324,6 +2300,14 @@ body: JSON.stringify({
 
             result?: TestResult;
           };
+
+        if (
+          data.type ===
+            "AI_GAME_DIAGNOSTIC_BOOT"
+        ) {
+          diagnosticBootRef.current = true;
+          return;
+        }
 
         if (
           data.type ===
