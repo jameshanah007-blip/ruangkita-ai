@@ -1,3 +1,10 @@
+import { planJamesLearningPolicy } from "./jamesLearningPolicy";
+import {
+  runJamesSpecializedCollaboration,
+  formatJamesSpecializedContext,
+} from "./jamesSpecializedCollaboration";
+import { formatJamesCollaborationContext } from "./jamesProviderCollaboration";
+
 import {
   generateWithJamesResourceManager,
   type JamesResourceResult,
