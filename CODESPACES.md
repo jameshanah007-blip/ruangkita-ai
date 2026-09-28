@@ -31,7 +31,9 @@ Do not commit `.env.local` or API keys.
 
 For development inside Codespaces, configure the required values as **GitHub Codespaces secrets** when needed. The repository intentionally ignores `.env*`.
 
-Production secrets remain managed by Vercel and are not copied into GitHub.\n\nFor Cloud Account / Supabase Auth, production also needs the Supabase Publishable Key (or legacy anon key) as `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Authentication sessions are kept in secure HTTP-only cookies; RuangKita does not use browser localStorage as its application database.
+Production secrets remain managed by Vercel and are not copied into GitHub.
+
+For Cloud Account / Supabase Auth, production also needs the Supabase Publishable Key (or legacy anon key) as `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Authentication sessions are kept in secure HTTP-only cookies; RuangKita does not use browser localStorage as its application database.
 
 ## Previewing changes
 
@@ -71,4 +73,7 @@ git push origin main
 ```
 
 On the next computer, simply create/open a Codespace from the repository and continue.
-\n## Cloud Account\n\nOpen `/auth` and create/sign in to a RuangKita account. The account is mapped to the existing legacy cloud user ID, so existing James memory and conversations are preserved when the same account is used on another computer.\n
+
+## Cloud Account
+
+Open `/auth` and create/sign in to a RuangKita account. The account is mapped to the existing legacy cloud user ID, so existing James memory and conversations are preserved when the same account is used on another computer.
