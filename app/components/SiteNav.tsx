@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 const items = [
   { href: "/", label: "Home" },
   { href: "/ai", label: "Tanya Saya" },
-  { href: "/fun-zone", label: "Fun Zone" },\n  { href: "/auth", label: "Akun Cloud" },
+  { href: "/fun-zone", label: "Fun Zone" },
+  { href: "/auth", label: "Akun Cloud" },
 ];
 
 export default function SiteNav() {
