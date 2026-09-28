@@ -36,10 +36,16 @@ export default function AIExecutor() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    void fetch("/api/ai/session")
+    // Setiap kali halaman Tanya Saya dibuka, mulai dengan percakapan baru.
+    // Riwayat lama tetap tersimpan di Supabase dan tidak dihapus, tetapi tidak
+    // ditampilkan otomatis di layar.
+    void fetch("/api/ai/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    })
       .then(async (response) => {
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Session James gagal dimuat.");
+        if (!response.ok) throw new Error(data.error || "Session James gagal dibuat.");
 
         const nextUserId = typeof data.userId === "string" ? data.userId : "";
         const nextConversationId = typeof data.conversationId === "string" ? data.conversationId : "";
@@ -50,38 +56,12 @@ export default function AIExecutor() {
 
         setUserId(nextUserId);
         setConversationId(nextConversationId);
-
-        return fetch(
-          `/api/ai/history?userId=${encodeURIComponent(nextUserId)}&conversationId=${encodeURIComponent(nextConversationId)}`
-        );
-      })
-      .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "History James gagal dimuat.");
-
-        if (Array.isArray(data.messages)) {
-          setMessages(
-            data.messages
-              .filter(
-                (item: { role?: string; content?: string }) =>
-                  (item.role === "user" || item.role === "assistant") &&
-                  typeof item.content === "string"
-              )
-              .map(
-                (item: { role: "user" | "assistant"; content: string }, index: number) => ({
-                  id: `history-${index}-${item.role}`,
-                  role: item.role,
-                  content: item.content,
-                  feedback: null,
-                  feedbackNote: "",
-                  feedbackNoteSubmitted: false,
-                })
-              )
-          );
-        }
+        setMessages([]);
+        setRequest("");
       })
       .catch((error) => {
-        console.error("James history load error:", error);
+        console.error("James new session error:", error);
+        setError(error instanceof Error ? error.message : "Session James gagal dibuat.");
       })
       .finally(() => {
         setMemoryReady(true);
