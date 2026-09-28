@@ -189,6 +189,7 @@ export async function evaluateJamesMetaStrategies(input: {
   answer: string;
   capabilities: string[];
   verified: boolean;
+  outcome?: "success" | "failure" | "partial";
 }) {
   const supabase = db();
   if (!supabase || !input.answer) return [];
