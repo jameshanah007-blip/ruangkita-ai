@@ -1841,7 +1841,7 @@ function makeResultError(
     result.hardFailures.length >
     0
   ) {
-    return result.hardFailures.join(
+    return (Array.isArray(result.hardFailures) ? result.hardFailures : []).join(
       " "
     );
   }
@@ -1850,7 +1850,7 @@ function makeResultError(
     result.runtimeErrors.length >
     0
   ) {
-    return result.runtimeErrors
+    return (Array.isArray(result.runtimeErrors) ? result.runtimeErrors : [])
       .map(
         (error) =>
           error.message
@@ -2531,9 +2531,9 @@ evidence: {
 
           const failureMessage =
             [
-              report.hardFailures.length >
+              (Array.isArray(report.hardFailures) ? report.hardFailures : []).length >
               0
-                ? report.hardFailures.join(
+                ? (Array.isArray(report.hardFailures) ? report.hardFailures : []).join(
                     " "
                   )
                 : "",
@@ -2542,9 +2542,9 @@ evidence: {
                 ? `Runtime details: ${runtimeErrorText}`
                 : "",
 
-              report.softWarnings.length >
+              (Array.isArray(report.softWarnings) ? report.softWarnings : []).length >
               0
-                ? `Observations: ${report.softWarnings.join(
+                ? `Observations: ${(Array.isArray(report.softWarnings) ? report.softWarnings : []).join(
                     " "
                   )}`
                 : ""
