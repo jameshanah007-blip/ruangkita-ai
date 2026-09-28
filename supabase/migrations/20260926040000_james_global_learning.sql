@@ -31,6 +31,10 @@ create table if not exists public.james_global_learning_runs (
   created_at timestamptz not null default now()
 );
 
+-- The table may already exist from an earlier schema version.
+alter table public.james_global_learning_runs
+  add column if not exists candidate_id uuid;
+
 create index if not exists james_global_learning_runs_candidate_idx
   on public.james_global_learning_runs(candidate_id, created_at desc);
 
