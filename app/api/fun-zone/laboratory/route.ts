@@ -90,7 +90,7 @@ async function persistCloudSession(session: LabSession, gameHtml: string) {
       game_genre: session.blueprint?.genre || null,
       difficulty: session.blueprint?.difficulty || null,
       mood: session.blueprint?.mood || null,
-      source: "lab",
+      source,
       score: 0,
       lives_remaining: 0,
       total_challenges: 0,
