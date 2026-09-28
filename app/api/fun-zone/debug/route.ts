@@ -232,8 +232,10 @@ function formatBlueprint(
     return "Tidak ada blueprint.";
   }
 
+  const safeBlueprint = normalizeBlueprint(blueprint)!;
+
   return `
-Title: ${blueprint.title}
+Title: ${safeBlueprint.title}
 Concept: ${blueprint.concept}
 Genre: ${blueprint.genre}
 Mood: ${blueprint.mood}
@@ -242,16 +244,16 @@ Theme: ${blueprint.theme}
 World: ${blueprint.world}
 Core Loop: ${blueprint.coreLoop}
 Objective: ${blueprint.objective}
-Mechanics: ${blueprint.mechanics.join(", ")}
-Player Actions: ${blueprint.playerActions.join(", ")}
-Controls: ${blueprint.controls.join(", ")}
+Mechanics: ${safeBlueprint.mechanics.join(", ")}
+Player Actions: ${safeBlueprint.playerActions.join(", ")}
+Controls: ${safeBlueprint.controls.join(", ")}
 Progression: ${blueprint.progression}
 Replayability: ${blueprint.replayability}
 Win Condition: ${blueprint.winCondition}
 Lose Condition: ${blueprint.loseCondition}
 Visual Style: ${blueprint.visualStyle}
-Mobile Notes: ${blueprint.mobileNotes.join(" | ")}
-Test Requirements: ${blueprint.testRequirements.join(" | ")}
+Mobile Notes: ${safeBlueprint.mobileNotes.join(" | ")}
+Test Requirements: ${safeBlueprint.testRequirements.join(" | ")}
 `;
 }
 
@@ -318,6 +320,18 @@ function determineFailureFocus(
   }
 
   return focus;
+}
+
+function normalizeBlueprint(blueprint: GameBlueprint | null): GameBlueprint | null {
+  if (!blueprint) return null;
+  return {
+    ...blueprint,
+    mechanics: Array.isArray(blueprint.mechanics) ? blueprint.mechanics : [],
+    playerActions: Array.isArray(blueprint.playerActions) ? blueprint.playerActions : [],
+    controls: Array.isArray(blueprint.controls) ? blueprint.controls : [],
+    mobileNotes: Array.isArray(blueprint.mobileNotes) ? blueprint.mobileNotes : [],
+    testRequirements: Array.isArray(blueprint.testRequirements) ? blueprint.testRequirements : [],
+  };
 }
 
 function buildDebuggerPrompt({
