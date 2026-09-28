@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -44,6 +46,38 @@ type BuilderResponse = {
   };
   error?: string;
 };
+
+async function persistCloudSession(session: LabSession) {
+  try {
+    const store = await cookies();
+    const userId = store.get("ruangkita-session-user")?.value;
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SECRET_KEY;
+    if (!userId || !url || !key) return;
+
+    const supabase = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+    });
+
+    await supabase.from("fun_sessions").upsert({
+      session_id: userId,
+      game_title: session.artifact?.title || session.blueprint?.title || "AI Game Laboratory",
+      game_theme: session.blueprint?.theme || null,
+      game_genre: session.blueprint?.genre || null,
+      difficulty: session.blueprint?.difficulty || null,
+      mood: session.blueprint?.mood || null,
+      source: "lab",
+      score: 0,
+      lives_remaining: 0,
+      total_challenges: 0,
+      completed: session.status === "ready",
+      started_at: session.createdAt,
+      finished_at: new Date().toISOString(),
+    }, { onConflict: "session_id" });
+  } catch (error) {
+    console.warn("Fun Zone cloud persistence unavailable:", error);
+  }
+}
 
 function absoluteUrl(
   request: Request,
@@ -383,6 +417,8 @@ export async function POST(
      * Karena itu artifact HTML dikirim
      * ke client bersama session.
      */
+
+    await persistCloudSession(session);
 
     return NextResponse.json({
       success: true,
