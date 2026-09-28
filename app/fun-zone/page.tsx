@@ -497,12 +497,15 @@ export default function FunZonePage() {
       );
   }, [isGenerating]);
 
-  async function persistLabSession(session: LabSession) {
+  async function persistLabSession(session: LabSession, html?: string) {
     try {
       await fetch("/api/fun-zone/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ labSession: session }),
+        body: JSON.stringify({
+          labSession: session,
+          ...(typeof html === "string" ? { gameHtml: html } : {}),
+        }),
       });
     } catch {
       // Cloud persistence must never block gameplay.
@@ -603,7 +606,7 @@ export default function FunZonePage() {
 
       const cloudSession = data.session as LabSession;
       setLabSession(cloudSession);
-      void persistLabSession(cloudSession);
+      void persistLabSession(cloudSession, data.gameHtml);
 
       setBlueprint(
         data.blueprint
@@ -675,6 +678,28 @@ const handleTestReport =
     (report: TestReport) => {
       setTestReport(report);
 
+      setLabSession((previous) => {
+        if (!previous) return previous;
+
+        const next: LabSession = {
+          ...previous,
+          status: report.passed ? "ready" : "debugging",
+          stage: report.passed ? "final" : "debugger",
+          testReports: [
+            ...previous.testReports,
+            report,
+          ],
+          currentAttempt: report.attempt,
+          updatedAt: new Date().toISOString(),
+          error: report.passed
+            ? undefined
+            : report.hardFailures.join(" ") || previous.error,
+        };
+
+        void persistLabSession(next);
+        return next;
+      });
+
       if (report.passed) {
         setError("");
         setStage("ready");
@@ -688,7 +713,19 @@ const handleTestReport =
       }
     },
     []
-  );  
+  );
+
+const handleSandboxGameHtmlChange =
+  useCallback((html: string) => {
+    setGameHtml(html);
+
+    setLabSession((previous) => {
+      if (!previous) return previous;
+
+      void persistLabSession(previous, html);
+      return previous;
+    });
+  }, []);  
 
   function createAnotherGame() {
     setStage(
@@ -1457,6 +1494,10 @@ onReady={
 
 onDebuggingChange={
   handleSandboxDebugging
+}
+
+onGameHtmlChange={
+  handleSandboxGameHtmlChange
 }
 
 onError={
