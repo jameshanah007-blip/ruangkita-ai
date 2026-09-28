@@ -1,4 +1,5 @@
-import { resolveLegacyUserId } from "../../auth/cloudIdentity";\nimport { NextResponse } from "next/server";
+import { resolveLegacyUserId } from "../../auth/cloudIdentity";
+import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
@@ -60,8 +61,7 @@ function normalizeBlueprintArrays(blueprint: GameBlueprint): GameBlueprint {
 
 async function persistCloudSession(session: LabSession, gameHtml: string) {
   try {
-    const store = await cookies();
-    const userId = store.get("ruangkita-session-user")?.value;
+    const userId = await resolveLegacyUserId();
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SECRET_KEY;
     if (!userId || !url || !key) return;
