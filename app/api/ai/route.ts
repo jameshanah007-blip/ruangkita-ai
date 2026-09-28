@@ -39,6 +39,7 @@ import { getJamesAgentTask } from "../tools/jamesAgentState";
 import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
 import { evaluateJamesMetaStrategies, learnJamesMetaStrategy, retrieveJamesMetaStrategiesByCapabilities } from "../tools/jamesMetaLearning";
+import { isRuangKitaProjectQuestion, RUANGKITA_PROJECT_KNOWLEDGE } from "../tools/ruangkitaProjectKnowledge";
 
 type Intent =
   | "chat"
@@ -1104,7 +1105,25 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
         : "ACTIVE JAMES META STRATEGIES: none.",
     ].join("\n\n");
 
-    const jamesKnowledgeContext = `${memoryContext}\n\n${activeKnowledgeContext}\n\n${experienceContext}`;
+    const projectKnowledgeContext = isRuangKitaProjectQuestion(userRequest)
+      ? [
+          "VERIFIED RUANGKITA PROJECT CONTEXT:",
+          RUANGKITA_PROJECT_KNOWLEDGE,
+          "",
+          "ATURAN PROJECT CONTEXT:",
+          "- Untuk pertanyaan tentang RuangKita, gunakan konteks proyek ini sebagai sumber fakta proyek.",
+          "- Jangan mengganti fakta proyek dengan template software umum.",
+          "- Jika fakta yang diminta tidak ada di konteks, katakan bahwa detail tersebut belum tersedia.",
+          "- Bedakan fakta proyek dari memori pribadi pengguna dan pengetahuan umum model.",
+        ].join("\\n")
+      : "";
+
+    const jamesKnowledgeContext = [
+      memoryContext,
+      activeKnowledgeContext,
+      experienceContext,
+      projectKnowledgeContext,
+    ].filter(Boolean).join("\\n\\n");
     let intent = deterministicIntelligencePlan.primary;
 
     // Pertanyaan recall percakapan tidak membutuhkan model eksternal.
@@ -1483,6 +1502,8 @@ Jangan menyebut reasoning internal.`
     }
 
     const rememberInstruction = buildJamesSystemInstruction(`
+${projectKnowledgeContext}
+
 KONTEKS MEMORI:
 ${memoryContext}
 
