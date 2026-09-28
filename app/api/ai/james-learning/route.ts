@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateWithAllAIProviders } from "../../../fun-zone/aiRouter";
 import { refreshJamesProviderCapabilities } from "../../tools/jamesProviderCapabilities";
+import { consolidateJamesExperiences } from "../../tools/jamesExperience";
 import { getJamesGoals, saveJamesGoal } from "../../tools/jamesGoals";
 import {
   addGlobalCandidate,
@@ -37,6 +38,35 @@ export async function POST(request: Request) {
     const capabilities = await refreshJamesProviderCapabilities();
     const goals = await getJamesGoals(undefined, 12);
     const globalCandidates = await getGlobalCandidates(12);
+
+    // Autonomous Brain heartbeat:
+    // consolidate reusable experiences even when no user is currently chatting
+    // with James. This keeps James learning from verified task outcomes instead
+    // of requiring a fresh conversation to trigger consolidation.
+    const supabase = await getAutonomousDb();
+    let experienceUsers: string[] = [];
+    if (supabase) {
+      const { data } = await supabase
+        .from("james_experiences")
+        .select("user_id")
+        .eq("status", "active")
+        .not("user_id", "is", null)
+        .order("updated_at", { ascending: false })
+        .limit(100);
+      experienceUsers = [...new Set(
+        (data || [])
+          .map((row: { user_id?: unknown }) => typeof row.user_id === "string" ? row.user_id : "")
+          .filter(Boolean)
+      )].slice(0, 8);
+    }
+
+    const consolidationResults = await Promise.allSettled(
+      experienceUsers.map((userId) => consolidateJamesExperiences(userId, 2))
+    );
+    const consolidatedCount = consolidationResults.reduce(
+      (sum, result) => sum + (result.status === "fulfilled" ? result.value.length : 0),
+      0
+    );
 
     const prompt = `
 James sedang menjalankan sesi pengembangan mandiri terjadwal.
@@ -272,6 +302,11 @@ Keluarkan JSON SAJA:
       ok: true,
       providers: [...new Set(results.map((item) => item.provider))],
       capabilityObservations: capabilities.length,
+      autonomousHeartbeat: {
+        ran: true,
+        usersReviewed: experienceUsers.length,
+        experienceConsolidations: consolidatedCount,
+      },
       activeGoals: goals.length + saved.length,
       newGoals: saved,
       candidateCount: candidateRows.length,
@@ -302,4 +337,15 @@ async function getGlobalDecisions(candidateId: string) {
     .select("provider, decision, confidence, rationale")
     .eq("candidate_id", candidateId);
   return data || [];
+}
+
+
+async function getAutonomousDb() {
+  const { createClient } = await import("@supabase/supabase-js");
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  });
 }
