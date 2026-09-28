@@ -331,8 +331,8 @@ export function markTestFailed(
       next,
       "tester.failed",
       "tester",
-      report.hardFailures.length > 0
-        ? report.hardFailures.join(" ")
+      (Array.isArray(report.hardFailures) ? report.hardFailures : []).length > 0
+        ? (Array.isArray(report.hardFailures) ? report.hardFailures : []).join(" ")
         : "Game belum memenuhi seluruh test.",
       report.attempt
     );
