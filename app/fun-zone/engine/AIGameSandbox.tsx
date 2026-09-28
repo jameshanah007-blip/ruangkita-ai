@@ -28,6 +28,7 @@ type AIGameSandboxProps = {
   ) => void;
   onReady: () => void;
   onDebuggingChange?: (active: boolean) => void;
+  onGameHtmlChange?: (html: string) => void;
   onError: (message: string) => void;
 };
 
@@ -1868,6 +1869,7 @@ export default function AIGameSandbox({
   onTestReport,
   onReady,
   onDebuggingChange,
+  onGameHtmlChange,
   onError
 }: AIGameSandboxProps) {
   const iframeRef =
@@ -2209,6 +2211,7 @@ body: JSON.stringify({
           setCurrentHtml(
             data.gameHtml
           );
+          onGameHtmlChange?.(data.gameHtml);
 
           setTestResult(null);
 
