@@ -10,15 +10,7 @@ function validUuid(value: string | undefined) {
   return typeof value === "string" && /^[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}$/.test(value);
 }
 
-export async function GET() {
-  const store = await cookies();
-
-  let userId = store.get(USER_COOKIE)?.value;
-  let conversationId = store.get(CONVERSATION_COOKIE)?.value;
-
-  if (!validUuid(userId)) userId = crypto.randomUUID();
-  if (!validUuid(conversationId)) conversationId = crypto.randomUUID();
-
+function buildSessionResponse(userId: string, conversationId: string) {
   const memoryAvailable = Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
     process.env.SUPABASE_SECRET_KEY
@@ -32,7 +24,7 @@ export async function GET() {
 
   response.cookies.set({
     name: USER_COOKIE,
-    value: userId as string,
+    value: userId,
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -42,7 +34,7 @@ export async function GET() {
 
   response.cookies.set({
     name: CONVERSATION_COOKIE,
-    value: conversationId as string,
+    value: conversationId,
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -51,4 +43,36 @@ export async function GET() {
   });
 
   return response;
+}
+
+export async function GET() {
+  const store = await cookies();
+
+  let userId = store.get(USER_COOKIE)?.value;
+  let conversationId = store.get(CONVERSATION_COOKIE)?.value;
+
+  if (!validUuid(userId)) userId = crypto.randomUUID();
+  if (!validUuid(conversationId)) conversationId = crypto.randomUUID();
+
+  return buildSessionResponse(userId as string, conversationId as string);
+}
+
+export async function POST() {
+  try {
+    const store = await cookies();
+    let userId = store.get(USER_COOKIE)?.value;
+
+    if (!validUuid(userId)) userId = crypto.randomUUID();
+
+    // Hanya membuat percakapan baru. Data percakapan lama tetap tersimpan di Supabase.
+    const conversationId = crypto.randomUUID();
+
+    return buildSessionResponse(userId, conversationId);
+  } catch (error) {
+    console.error("James new conversation session error:", error);
+    return NextResponse.json(
+      { error: "Percakapan baru James gagal dibuat." },
+      { status: 500 }
+    );
+  }
 }
