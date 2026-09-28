@@ -67,6 +67,28 @@ type LaboratoryResponse = {
   model?: string | null;
 };
 
+function normalizeErrorMessage(value: unknown): string {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (value instanceof Error && value.message) return value.message;
+  if (value && typeof value === "object") {
+    const candidate = value as Record<string, unknown>;
+    for (const key of ["message", "error", "detail", "details"]) {
+      const nested = candidate[key];
+      if (typeof nested === "string" && nested.trim()) return nested.trim();
+      if (nested && typeof nested === "object") {
+        const nestedMessage = normalizeErrorMessage(nested);
+        if (nestedMessage) return nestedMessage;
+      }
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "Objek error tidak dapat dibaca.";
+    }
+  }
+  return String(value || "Terjadi kesalahan yang tidak diketahui.");
+}
+
 type TerminalLine = {
   text: string;
   tone?: "normal" | "success" | "warning" | "cyan";
