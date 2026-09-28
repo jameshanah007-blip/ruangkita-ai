@@ -41,6 +41,16 @@ export async function POST(request: Request) {
     const goals = await getJamesGoals(undefined, 12);
     const globalCandidates = await getGlobalCandidates(12);
 
+    let funZoneRuns: any[] = [];
+    if (supabase) {
+      const { data } = await supabase
+        .from("james_fun_zone_runs")
+        .select("genre, passed, runtime_ok, rendered, loop_started, frame_advanced, input_test, gameplay_test, performance_test, game_test_protocol, state_changed, objective_changed, player_changed, win_state_detected, lose_state_detected, restart_verified, frame_count, game_animation_frames, input_events, input_listeners, elapsed_ms, hard_failure_count, warning_count, created_at")
+        .order("created_at", { ascending: false })
+        .limit(40);
+      funZoneRuns = data || [];
+    }
+
     // Autonomous Brain heartbeat:
     // consolidate reusable experiences even when no user is currently chatting
     // with James. This keeps James learning from verified task outcomes instead
@@ -87,6 +97,13 @@ ${JSON.stringify(goals)}
 
 Kandidat pembelajaran global yang belum tervalidasi:
 ${JSON.stringify(globalCandidates)}
+
+HASIL RUNTIME FUN ZONE TERBARU:
+${JSON.stringify(funZoneRuns)}
+
+Gunakan data Fun Zone hanya sebagai bukti engineering/runtime. Cari pola seperti
+jenis kegagalan berulang, kualitas game loop/input/gameplay, dan keberhasilan repair.
+Jangan menyimpan prompt pengguna, judul game, identitas pengguna, atau data sensitif.
 
 Kemampuan provider/model yang baru teramati:
 ${JSON.stringify(capabilities.slice(0, 80))}
