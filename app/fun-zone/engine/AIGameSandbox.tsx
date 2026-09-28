@@ -2420,6 +2420,44 @@ evidence: {
             report
           );
 
+          // Send only aggregate, non-user-sensitive test evidence back to James.
+          // This lets the autonomous learning cycle improve Fun Zone over time.
+          void fetch("/api/fun-zone/james-feedback", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              genre,
+              report: {
+                passed: report.passed,
+                runtimeOk: report.runtimeOk,
+                rendered: report.rendered,
+                loopStarted: report.loopStarted,
+                frameAdvanced: report.frameAdvanced,
+                inputTest: report.inputTest,
+                gameplayTest: report.gameplayTest,
+                performanceTest: report.performanceTest,
+                gameTestProtocol: report.gameTestProtocol,
+                stateChanged: report.stateChanged,
+                objectiveChanged: report.objectiveChanged,
+                playerChanged: report.playerChanged,
+                winStateDetected: report.winStateDetected,
+                loseStateDetected: report.loseStateDetected,
+                restartVerified: report.restartVerified,
+                frameCount: report.frameCount,
+                gameAnimationFrames: report.gameAnimationFrames,
+                inputEvents: report.inputEvents,
+                inputListeners: report.inputListeners,
+                elapsedMs: report.elapsedMs,
+                hardFailures: report.hardFailures.slice(0, 20),
+                softWarnings: report.softWarnings.slice(0, 20),
+              },
+            }),
+          }).catch(() => {
+            // Telemetry must never block gameplay or debugging.
+          });
+
           setTestRunning(
             false
           );
