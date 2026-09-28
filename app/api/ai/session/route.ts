@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { resolveLegacyUserId } from "../auth/cloudIdentity";\nimport { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
 
@@ -85,4 +85,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-}
+}async function getUserId() {\n  return resolveLegacyUserId();\n}
