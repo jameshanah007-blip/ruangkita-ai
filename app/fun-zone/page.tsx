@@ -875,6 +875,16 @@ const handleSandboxError =
 
               <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-cyan-950/20 md:p-6">
 
+                {savedLabSession && savedGameHtml && (
+                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-cyan-400">Game terakhir tersimpan</p>
+                      <p className="mt-1 text-sm text-slate-400">{savedLabSession.artifact?.title || savedLabSession.blueprint?.title || "AI Game"}</p>
+                    </div>
+                    <button type="button" onClick={resumeSavedGame} className="rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-400/20">Lanjutkan</button>
+                  </div>
+                )}
+
                 <label
                   htmlFor="game-prompt"
                   className="mb-3 block text-sm font-semibold text-slate-300"
