@@ -76,7 +76,7 @@ export async function getAuthenticatedUser(): Promise<User | null> {
   return refreshed.data.user || null;
 }
 
-export async function resolveLegacyUserId(): Promise<string> {
+export async function linkAuthUser(authUserId: string, preferredLegacyUserId?: string | null) {\n  const db = getAdminDb();\n  if (!db) return preferredLegacyUserId || crypto.randomUUID();\n  const existing = await db.from("james_user_identities").select("legacy_user_id").eq("auth_user_id", authUserId).maybeSingle();\n  if (existing.data?.legacy_user_id) return existing.data.legacy_user_id;\n  const legacyUserId = preferredLegacyUserId || crypto.randomUUID();\n  const linked = await db.from("james_user_identities").insert({ auth_user_id: authUserId, legacy_user_id: legacyUserId }).select("legacy_user_id").single();\n  return linked.data?.legacy_user_id || legacyUserId;\n}\n\nexport async function resolveLegacyUserId(): Promise<string> {
   const db = getAdminDb();
   const authUser = await getAuthenticatedUser();
   const legacyCookie = await getLegacyCookieUserId();
