@@ -812,6 +812,7 @@ async function saveJamesLearningRuns(input: {
   const rows = input.results
     .filter((result) =>
       result.provider === "gemini" ||
+      result.provider === "openai" ||
       result.provider === "openrouter" ||
       result.provider === "groq"
     )
@@ -1125,6 +1126,45 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
       projectKnowledgeContext,
     ].filter(Boolean).join("\\n\\n");
     let intent = deterministicIntelligencePlan.primary;
+
+    const [experiences, consolidations, metaStrategies] = await Promise.all([
+      retrieveJamesExperiences({
+        userId,
+        request: userRequest,
+        capabilities: deterministicIntelligencePlan.capabilities,
+        limit: 4,
+      }),
+      retrieveJamesConsolidations(userId, userRequest, 3),
+      retrieveJamesMetaStrategiesByCapabilities(deterministicIntelligencePlan.capabilities, 4),
+    ]);
+    const experienceConflict = await resolveJamesExperienceConflict({
+      request: userRequest,
+      experiences,
+      consolidations,
+      capabilities: deterministicIntelligencePlan.capabilities,
+    });
+    const experienceContext = [
+      formatJamesExperienceContext(experiences),
+      formatJamesConsolidationContext(consolidations),
+      experienceConflict.context,
+      metaStrategies.length
+        ? [
+            "ACTIVE JAMES META STRATEGIES:",
+            ...metaStrategies.map((item, index) => [
+              "META STRATEGY " + (index + 1),
+              "Task class: " + item.task_class,
+              "Strategy: " + item.strategy,
+              "Evidence: " + item.evidence_count,
+              "Confidence: " + Number(item.confidence).toFixed(2),
+              "Relevance: " + Number(item.relevance).toFixed(2),
+            ].join("\n")),
+            "",
+            "Gunakan meta strategy hanya sebagai pola kerja yang dapat diuji kembali; jangan menganggapnya sebagai aturan mutlak.",
+          ].join("\n")
+        : "ACTIVE JAMES META STRATEGIES: none.",
+    ].join("\n\n");
+
+
 
     // Pertanyaan recall percakapan tidak membutuhkan model eksternal.
     // Gunakan history yang sudah tersimpan agar fungsi memori tetap bekerja
