@@ -29,150 +29,76 @@ function extractTextFromResponse(data: any): string {
     if (Array.isArray(candidate)) {
       const text = candidate
         .map((item: any) => {
-          if (typeof item === "string") {
-            return item;
-          }
-
-          if (
-            item &&
-            typeof item.text === "string"
-          ) {
-            return item.text;
-          }
-
-          if (
-            item &&
-            typeof item.content === "string"
-          ) {
-            return item.content;
-          }
-
+          if (typeof item === "string") return item;
+          if (item && typeof item.text === "string") return item.text;
+          if (item && typeof item.content === "string") return item.content;
           return "";
         })
         .join("")
         .trim();
 
-      if (text) {
-        return text;
-      }
+      if (text) return text;
     }
 
-    if (
-      candidate &&
-      typeof candidate === "object"
-    ) {
-      const text =
-        candidate.text ||
-        candidate.value ||
-        candidate.content;
-
-      if (
-        typeof text === "string" &&
-        text.trim()
-      ) {
-        return text.trim();
-      }
+    if (candidate && typeof candidate === "object") {
+      const text = candidate.text || candidate.value || candidate.content;
+      if (typeof text === "string" && text.trim()) return text.trim();
     }
   }
 
   return "";
 }
 
-class OpenRouterProvider
-  implements AIProvider
-{
+class OpenRouterProvider implements AIProvider {
   readonly name = "openrouter" as const;
 
   isAvailable(): boolean {
-    return Boolean(
-      process.env.OPENROUTER_API_KEY
-    );
+    return Boolean(process.env.OPENROUTER_API_KEY);
   }
 
   async generate(
     request: AIGenerateRequest
   ): Promise<AIGenerateResponse> {
-    const apiKey =
-      process.env.OPENROUTER_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
-      throw new Error(
-        "OPENROUTER_API_KEY belum dikonfigurasi."
-      );
+      throw new Error("OPENROUTER_API_KEY belum dikonfigurasi.");
     }
 
-    const response = await fetch(
-      OPENROUTER_URL,
-      {
-        method: "POST",
+    const response = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer":
+          process.env.NEXT_PUBLIC_SITE_URL ||
+          (process.env.VERCEL_URL
+            ? `https://${process.env.VERCEL_URL}`
+            : "http://localhost:3000"),
+        "X-Title": "RuangKita AI",
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        messages: [
+          { role: "system", content: request.systemInstruction },
+          { role: "user", content: request.prompt },
+        ],
+        temperature: request.temperature ?? 0.7,
+        max_tokens: request.maxOutputTokens ?? 4000,
+      }),
+    });
 
-        headers: {
-          "Content-Type":
-            "application/json",
-
-          Authorization:
-            `Bearer ${apiKey}`,
-
-          "HTTP-Referer":
-            process.env.NEXT_PUBLIC_SITE_URL ||
-            (process.env.VERCEL_URL
-              ? `https://${process.env.VERCEL_URL}`
-              : "http://localhost:3000"),
-
-          "X-Title":
-            "RuangKita AI",
-        },
-
-        body: JSON.stringify({
-          model: OPENROUTER_MODEL,
-
-          messages: [
-            {
-              role: "system",
-              content:
-                request.systemInstruction,
-            },
-            {
-              role: "user",
-              content:
-                request.prompt,
-            },
-          ],
-
-          temperature:
-            request.temperature ?? 0.7,
-
-          max_tokens:
-            request.maxOutputTokens ?? 4000,
-        }),
-      }
-    );
-
-    const rawText =
-      await response.text();
+    const rawText = await response.text();
 
     let data: any;
-
     try {
       data = JSON.parse(rawText);
     } catch {
-      const error =
-        new Error(
-          `OpenRouter mengembalikan respons non-JSON: ${rawText.slice(
-            0,
-            500
-          )}`
-        ) as Error & {
-          provider?: string;
-          status?: number;
-        };
-
-      error.provider =
-        "openrouter";
-
-      error.status =
-        response.status;
-
+      const error = new Error(
+        `OpenRouter mengembalikan respons non-JSON: ${rawText.slice(0, 500)}`
+      ) as Error & { provider?: string; status?: number };
+      error.provider = "openrouter";
+      error.status = response.status;
       throw error;
     }
 
@@ -181,55 +107,36 @@ class OpenRouterProvider
         data?.error?.message ||
         data?.message ||
         "OpenRouter gagal menghasilkan respons.";
-
-      const error =
-        new Error(message) as Error & {
-          provider?: string;
-          status?: number;
-        };
-
-      error.provider =
-        "openrouter";
-
-      error.status =
-        response.status;
-
+      const error = new Error(message) as Error & {
+        provider?: string;
+        status?: number;
+      };
+      error.provider = "openrouter";
+      error.status = response.status;
       throw error;
     }
 
-    const text =
-      extractTextFromResponse(data);
+    const text = extractTextFromResponse(data);
+    const finishReason = data?.choices?.[0]?.finish_reason || "unknown";
+
+    if (finishReason === "length") {
+      console.warn("OpenRouter output terpotong karena finish_reason=length.", {
+        model: data?.model || OPENROUTER_MODEL,
+        outputLength: text.length,
+      });
+      throw new Error(
+        `OpenRouter output terpotong (finish_reason: length).`
+      );
+    }
 
     if (!text) {
-      const finishReason =
-        data?.choices?.[0]?.finish_reason ||
-        "unknown";
-
-      const refusal =
-        data?.choices?.[0]?.message?.refusal;
-
-      console.error(
-        "OpenRouter tidak menghasilkan output teks.",
-        {
-          model:
-            data?.model ||
-            OPENROUTER_MODEL,
-
-          finishReason,
-
-          refusal:
-            typeof refusal === "string"
-              ? refusal.slice(0, 500)
-              : undefined,
-
-          responsePreview:
-            JSON.stringify(data).slice(
-              0,
-              5000
-            ),
-        }
-      );
-
+      const refusal = data?.choices?.[0]?.message?.refusal;
+      console.error("OpenRouter tidak menghasilkan output teks.", {
+        model: data?.model || OPENROUTER_MODEL,
+        finishReason,
+        refusal: typeof refusal === "string" ? refusal.slice(0, 500) : undefined,
+        responsePreview: JSON.stringify(data).slice(0, 5000),
+      });
       throw new Error(
         `OpenRouter tidak menghasilkan output teks (finish_reason: ${finishReason}).`
       );
@@ -237,10 +144,7 @@ class OpenRouterProvider
 
     return {
       text,
-
-      provider:
-        "openrouter",
-
+      provider: "openrouter",
       model:
         typeof data?.model === "string"
           ? data.model
@@ -249,5 +153,4 @@ class OpenRouterProvider
   }
 }
 
-export const openRouterProvider =
-  new OpenRouterProvider();
+export const openRouterProvider = new OpenRouterProvider();
