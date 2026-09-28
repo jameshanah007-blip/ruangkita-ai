@@ -900,3 +900,43 @@ Commits:
    - Semantic gameplay
    - Restart verification
 7. Only then make the next Sandbox/Tester code change.
+
+## 29. Cross-Computer Online Persistence Audit — 2026-09-28
+
+### Goal
+The project must be resumable from another computer without depending on the original computer's local project files or local application database.
+
+### Verified architecture
+- GitHub main is the source of truth for RuangKita source code.
+- James conversation history is stored server-side in Supabase tables: ai_conversations and ai_messages.
+- James long-term memory is stored in Supabase: james_memories.
+- James decision memory is stored in Supabase: james_decision_memory.
+- The Tanya Saya client does not use localStorage, sessionStorage, or IndexedDB for conversation persistence.
+- Repository audit found no localhost:3000, SQLite, sqlite3, or better-sqlite usage for James persistence.
+- James session identifiers are stored in HTTP-only cookies, not browser localStorage.
+- The production session API creates UUIDs when no session cookie exists and reuses the cookie for subsequent requests.
+- Omanto verification derives stable user/conversation UUIDs from the server-side verification secret, allowing the same Omanto identity to map back to the same Supabase records on another computer after verification.
+
+### Important cross-computer behavior
+A new computer does not automatically possess the old computer's HTTP-only session cookie. Therefore a fresh browser can receive a new anonymous session. For the project owner, Omanto verification is the supported mechanism to restore the stable Omanto identity and access the corresponding online memory.
+
+### Deployment status
+- Latest verified GitHub commit before this status update: b789f36f0bc292663305d0d6d113f47f737c59b8
+- GitHub combined status currently reports: Vercel: failure.
+- The exact Vercel failure reason is not exposed by the connected GitHub tools.
+- Repository configuration contains the required environment-variable names in .env.example; secret values must remain in Vercel Environment Variables.
+- No code change is being made merely to guess the Vercel failure.
+
+### Current conclusion
+Online code persistence: PASS.
+Online James data architecture: PASS.
+No local application database detected: PASS.
+Cross-computer owner identity restore: IMPLEMENTED via Omanto verification.
+Production deployment health: BLOCKED until the Vercel failure is diagnosed/redeployed successfully.
+
+### Next action
+1. Obtain the detailed Vercel deployment/build log for the failing deployment.
+2. Verify all production environment variables exist in Vercel without exposing their values.
+3. Redeploy after correcting any configuration issue.
+4. Test /api/test-supabase on the live deployment.
+5. Test Tanya Saya on computer A, then access it from computer B and verify the same Omanto identity can retrieve the online conversation/memory.
