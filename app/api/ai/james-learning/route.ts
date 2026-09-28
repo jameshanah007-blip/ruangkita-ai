@@ -421,16 +421,30 @@ async function runJamesSleepReflection(input: {
 
     // Store the sleep-cycle result as an internal reflection, not as a user memory.
     if (input.supabase) {
+      const whatImproved = cleanList(parsed.what_improved);
+      const whatFailed = cleanList(parsed.what_failed);
+      const nextFocus = cleanList(parsed.next_focus);
+
       await input.supabase.from("james_reflections").insert({
         user_id: "system",
         conversation_id: null,
         observation: summary,
-        what_worked: cleanList(parsed.what_improved).join(" | "),
-        what_failed: cleanList(parsed.what_failed).join(" | "),
-        lesson: cleanList(parsed.next_focus).join(" | "),
+        what_worked: whatImproved.join(" | "),
+        what_failed: whatFailed.join(" | "),
+        lesson: nextFocus.join(" | "),
         confidence: 0.75,
         evidence: "Autonomous Sleep/Reflection Cycle",
         applied_to_growth: false,
+      });
+
+      await input.supabase.from("james_sleep_cycles").insert({
+        cycle_type: "daily",
+        provider: result.provider,
+        summary,
+        what_improved: whatImproved,
+        what_failed: whatFailed,
+        next_focus: nextFocus,
+        goal_updates: 0,
       });
     }
 
