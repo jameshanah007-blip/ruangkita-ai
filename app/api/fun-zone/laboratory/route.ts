@@ -47,7 +47,57 @@ type BuilderResponse = {
   error?: string;
 };
 
-async function persistCloudSession(session: LabSession) {
+async function persistCloudSession(session: LabSession, gameHtml: string) {
+  try {
+    const store = await cookies();
+    const userId = store.get("ruangkita-session-user")?.value;
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SECRET_KEY;
+    if (!userId || !url || !key) return;
+
+    const supabase = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+    });
+
+    const filePath = userId + "/" + session.id + ".html";
+    const htmlBytes = new TextEncoder().encode(gameHtml);
+    const upload = await supabase.storage
+      .from("fun-zone-games")
+      .upload(filePath, htmlBytes, {
+        contentType: "text/html; charset=utf-8",
+        upsert: true,
+      });
+
+    const gameHtmlUrl = upload.error
+      ? null
+      : filePath;
+
+    await supabase.from("fun_sessions").upsert({
+      session_id: userId,
+      game_title: session.artifact?.title || session.blueprint?.title || "AI Game Laboratory",
+      game_theme: session.blueprint?.theme || null,
+      game_genre: session.blueprint?.genre || null,
+      difficulty: session.blueprint?.difficulty || null,
+      mood: session.blueprint?.mood || null,
+      source: "lab",
+      score: 0,
+      lives_remaining: 0,
+      total_challenges: 0,
+      completed: session.status === "ready",
+      started_at: session.createdAt,
+      finished_at: new Date().toISOString(),
+      game_html_path: gameHtmlUrl,
+    }, { onConflict: "session_id" });
+
+    if (upload.error) {
+      console.warn("Fun Zone game artifact upload failed:", upload.error.message);
+    }
+  } catch (error) {
+    console.warn("Fun Zone cloud persistence unavailable:", error);
+  }
+}
+
+
   try {
     const store = await cookies();
     const userId = store.get("ruangkita-session-user")?.value;
@@ -418,7 +468,7 @@ export async function POST(
      * ke client bersama session.
      */
 
-    await persistCloudSession(session);
+    await persistCloudSession(session, builder.gameHtml);
 
     return NextResponse.json({
       success: true,
