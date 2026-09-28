@@ -165,14 +165,30 @@ function taskOrder(task: JamesResourceTask): AIProviderName[] {
 }
 
 async function getCandidates(task: JamesResourceTask) {
-  const policy = await planJamesLearningPolicy(task);
-  const order = policy.rankedProviders.length ? policy.rankedProviders : taskOrder(task);
+  const fallbackOrder = taskOrder(task);
+  let rankedProviders: AIProviderName[] = [];
+
+  try {
+    const policy = await planJamesLearningPolicy(task);
+    rankedProviders = Array.isArray(policy.rankedProviders)
+      ? policy.rankedProviders
+      : [];
+  } catch (error) {
+    console.warn("James provider policy unavailable; using static provider order.", error);
+  }
+
+  // Policy may rank only a subset of providers. Never let that subset
+  // disable the hard fallback chain.
+  const order = [...new Set([...rankedProviders, ...fallbackOrder])];
   const performance = await getJamesProviderPerformance(task);
 
   return order
     .map((name, index) => ({
       provider: providers.find((provider) => provider.name === name),
-      score: scoreJamesProviderPerformance(performance.find((item) => item.provider === name), index),
+      score: scoreJamesProviderPerformance(
+        performance.find((item) => item.provider === name),
+        index
+      ),
     }))
     .filter((item): item is { provider: AIProvider; score: number } => Boolean(item.provider))
     .filter((item) => item.provider.isAvailable())
