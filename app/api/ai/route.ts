@@ -32,6 +32,7 @@ import { runJamesBrainWithSharedKnowledge } from "../../core/james/jamesSharedKn
 import { buildJamesContext } from "../tools/jamesContext";
 import { planJamesIntelligence, planJamesIntelligenceWithAI } from "../tools/jamesIntelligence";
 import { runJamesAgentLoop } from "../tools/jamesAgentLoop";
+import { generateWithJamesResourceManager } from "../tools/jamesResourceManager";
 import { evaluateJamesTask } from "../tools/jamesSelfEvaluation";
 import { formatJamesConsolidationContext, formatJamesExperienceContext, learnJamesExperience, recordJamesExperienceOutcome, retrieveJamesConsolidations, retrieveJamesExperiences, resolveJamesExperienceConflict } from "../tools/jamesExperience";
 import { getJamesAgentTask } from "../tools/jamesAgentState";
@@ -1335,10 +1336,43 @@ Jangan menyebut reasoning internal.`
           item.text.includes("RESEARCH_STATUS: VERIFIED")
       );
 
-      const resultText = sanitizeUnavailableResearchResponse(
+      let resultText = sanitizeUnavailableResearchResponse(
         sanitizeJamesFinalResponse(agentResult.answer),
         researchVerified
       );
+
+      // Never expose an empty result when the multi-step agent has failed.
+      // A provider/verification failure should degrade to a direct answer,
+      // not to the generic UI fallback "James belum dapat memberikan jawaban."
+      if (!resultText.trim()) {
+        try {
+          const fallback = await generateWithJamesResourceManager("fallback", {
+            prompt: [
+              "Berikan jawaban langsung kepada pengguna sebagai James.",
+              "Tugas multi-step sebelumnya tidak menghasilkan jawaban yang dapat ditampilkan.",
+              "Gunakan konteks RuangKita yang tersedia dan jangan mengarang fakta eksternal.",
+              "",
+              "PERMINTAAN PENGGUNA:",
+              userRequest,
+              "",
+              "KONTEKS RUANGKITA:",
+              jamesKnowledgeContext,
+              "",
+              "Berikan analisis praktis dalam bahasa Indonesia. Jika diminta rencana, susun prioritas dan langkah bertahap.",
+            ].join("\n"),
+            systemInstruction:
+              "Kamu adalah last-resort response engine James. Selalu berikan jawaban yang berguna jika permintaan dapat dijawab dari konteks yang tersedia. Jangan mengarang fakta eksternal.",
+            temperature: 0.25,
+            maxOutputTokens: 2800,
+          });
+          resultText = sanitizeUnavailableResearchResponse(
+            sanitizeJamesFinalResponse(fallback.text),
+            researchVerified
+          );
+        } catch (error) {
+          console.error("James last-resort response error:", error);
+        }
+      }
 
       await saveActivity(
         userRequest,
