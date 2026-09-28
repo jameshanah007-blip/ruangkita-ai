@@ -23,10 +23,7 @@ export async function runJamesSpecializedCollaboration(input: {
       "Provider: " + item.provider,
       "Role: " + assignment.role,
       item.text.slice(0, 6000),
-    ].join("
-")).join("
-
-");
+    ].join("\n")).join("\n\n");
 
     const batch = await generateWithJamesProviderCollaboration(
       input.task,
@@ -80,8 +77,5 @@ export function formatJamesSpecializedContext(results: JamesResourceResult[]) {
     "Task: " + item.task,
     "Output:",
     item.text.slice(0, 6000),
-  ].join("
-")).join("
-
-");
+  ].join("\n")).join("\n\n");
 }
