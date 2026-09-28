@@ -48,7 +48,7 @@ export async function GET() {
     const { data, error } = await db
       .from("fun_sessions")
       .select("*")
-      .eq("session_id", userId)
+      .like("session_id", userId + ":%")
       .like("source", "lab:%")
       .order("finished_at", { ascending: false })
       .limit(1)
@@ -130,12 +130,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const payload = encodeLabState(session, body.gameHtml);
+    const payload = encodeLabState(session);
+
+    // Laboratory sessions use a dedicated composite session key so they
+    // cannot overwrite the user's normal gameplay session.
+    const laboratorySessionId = userId + ":" + session.id;
 
     const { data, error } = await db
       .from("fun_sessions")
       .upsert({
-        session_id: userId,
+        session_id: laboratorySessionId,
         game_title: session?.artifact?.title || session?.blueprint?.title || "AI Game Laboratory",
         game_theme: session?.blueprint?.theme || null,
         game_genre: session?.blueprint?.genre || null,
