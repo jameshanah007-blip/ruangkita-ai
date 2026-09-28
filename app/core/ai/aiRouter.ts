@@ -23,6 +23,11 @@ type ProviderError = Error & {
 };
 
 const PROVIDER_TIMEOUT_MS = 20_000;
+const MAX_TRANSIENT_RETRIES = 1;
+const DEFAULT_TRANSIENT_RETRY_MS = 1_000;
+const MAX_TRANSIENT_RETRY_MS = 4_000;
+
+const providerCooldownUntil = new Map<string, number>();
 
 function getErrorMessage(
   error: unknown
