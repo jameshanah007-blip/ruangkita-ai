@@ -135,6 +135,88 @@ function buildDeterministicPlan(request: string): JamesIntelligencePlan {
 
 
 
+function isExplicitResearchRequest(request: string) {
+  const text = normalize(request);
+  return /\\b(carikan|carikanlah|cari|cek|search|telusuri|riset|penelitian)\\b/.test(text) &&
+    /\\b(internet|web|online|sumber|referensi|berita|harga|jadwal|terbaru|terkini|hari ini)\\b/.test(text);
+}
+
+function isInternalRuangKitaRequest(request: string) {
+  const text = normalize(request);
+  const projectTerms = [
+    "ruangkita",
+    "ruang kita",
+    "tanya saya",
+    "fun zone",
+    "james ai",
+    "james",
+    "vercel",
+    "supabase",
+    "github",
+    "agent loop",
+    "provider ai",
+    "openrouter",
+    "gemini",
+    "groq",
+  ];
+
+  const workTerms = [
+    "pengembangan",
+    "pengembangan aplikasi",
+    "pengembangan project",
+    "pengembangan proyek",
+    "audit",
+    "perbaikan",
+    "masalah",
+    "bug",
+    "error",
+    "prioritas",
+    "langkah",
+    "arsitektur",
+    "fitur",
+    "development",
+    "debug",
+    "deploy",
+  ];
+
+  return projectTerms.some((term) => text.includes(term)) &&
+    workTerms.some((term) => text.includes(term));
+}
+
+function enforceInternalProjectPlan(
+  plan: JamesIntelligencePlan,
+  request: string
+): JamesIntelligencePlan {
+  if (!isInternalRuangKitaRequest(request) || isExplicitResearchRequest(request)) {
+    return plan;
+  }
+
+  const capabilities = plan.capabilities.filter((capability) => capability !== "web_search");
+
+  if (!capabilities.length) {
+    capabilities.push("planner");
+  }
+
+  if (!capabilities.includes("planner") && /\\b(rencana|langkah|prioritas|perbaikan|analisis)\\b/i.test(request)) {
+    capabilities.push("planner");
+  }
+
+  if (!capabilities.includes("chat")) {
+    capabilities.push("chat");
+  }
+
+  const primary = capabilities.includes("planner") ? "planner" : "chat";
+
+  return {
+    ...plan,
+    capabilities: [...new Set(capabilities)],
+    primary,
+    researchQuery: "",
+    needsResearch: false,
+    reason: plan.reason + " Internal RuangKita: web search tidak diperlukan kecuali diminta eksplisit.",
+  };
+}
+
 function extractPlannerJson(text: string): Record<string, unknown> | null {
   const fenced = text.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/i);
   const candidate = fenced?.[1] || text;
@@ -255,17 +337,17 @@ Keluarkan JSON SAJA:
     const semantic = parsed ? normalizePlannerPlan(parsed, request) : null;
 
     if (semantic && semantic.confidence >= 0.65) {
-      return semantic;
+      return enforceInternalProjectPlan(semantic, request);
     }
   } catch (error) {
     console.warn("James semantic planner unavailable; using deterministic planner.", error);
   }
 
-  return deterministic;
+  return enforceInternalProjectPlan(deterministic, request);
 }
 
 export function planJamesIntelligence(request: string): JamesIntelligencePlan {
-  return buildDeterministicPlan(request);
+  return enforceInternalProjectPlan(buildDeterministicPlan(request), request);
 }
 function extractMathExpression(request: string) {
   const expression = request
