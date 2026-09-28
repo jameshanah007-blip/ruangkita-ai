@@ -497,6 +497,18 @@ export default function FunZonePage() {
       );
   }, [isGenerating]);
 
+  async function persistLabSession(session: LabSession) {
+    try {
+      await fetch("/api/fun-zone/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ labSession: session }),
+      });
+    } catch {
+      // Cloud persistence must never block gameplay.
+    }
+  }
+
   async function buildGame() {
     const trimmedPrompt =
       prompt.trim();
@@ -588,6 +600,10 @@ export default function FunZonePage() {
           "Laboratory tidak menghasilkan Game Blueprint."
         );
       }
+
+      const cloudSession = data.session as LabSession;
+      setLabSession(cloudSession);
+      void persistLabSession(cloudSession);
 
       setBlueprint(
         data.blueprint
