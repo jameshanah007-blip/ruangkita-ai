@@ -426,6 +426,12 @@ export default function FunZonePage() {
   const [labSession, setLabSession] =
     useState<LabSession | null>(null);
 
+  const [savedLabSession, setSavedLabSession] =
+    useState<LabSession | null>(null);
+
+  const [savedGameHtml, setSavedGameHtml] =
+    useState("");
+
   const currentStageIndex =
     getStageIndex(stage);
 
@@ -455,25 +461,8 @@ export default function FunZonePage() {
       .then((data) => {
         const saved = data?.session?.session;
         if (!saved) return;
-        setLabSession(saved);
-        setPrompt(saved.prompt || "");
-        setSeed(saved.seed || "");
-        setBlueprint(saved.blueprint || null);
-        setGameHtml(data?.session?.gameHtml || "");
-        setTitle(saved.artifact?.title || saved.blueprint?.title || "");
-        setGenre(saved.artifact?.genre || saved.blueprint?.genre || "");
-        setProvider(saved.artifact?.provider || "");
-        setModel(saved.artifact?.model || "");
-        if (Array.isArray(saved.testReports) && saved.testReports.length) {
-          setTestReport(saved.testReports[saved.testReports.length - 1]);
-        }
-        setError(saved.error || "");
-        if (saved.status === "ready") setStage("ready");
-        else if (saved.status === "failed") setStage("error");
-        else if (saved.stage === "tester") setStage("testing");
-        else if (saved.stage === "debugger") setStage("debugging");
-        else if (saved.stage === "builder") setStage("building");
-        else if (saved.stage === "director") setStage("designing");
+        setSavedLabSession(saved);
+        setSavedGameHtml(data?.session?.gameHtml || "");
       })
       .catch(() => {});
   }, []);
@@ -726,6 +715,28 @@ const handleSandboxGameHtmlChange =
       return previous;
     });
   }, []);  
+
+  function resumeSavedGame() {
+    if (!savedLabSession) return;
+    setLabSession(savedLabSession);
+    setPrompt(savedLabSession.prompt || "");
+    setSeed(savedLabSession.seed || "");
+    setBlueprint(savedLabSession.blueprint || null);
+    setGameHtml(savedGameHtml || "");
+    setTitle(savedLabSession.artifact?.title || savedLabSession.blueprint?.title || "");
+    setGenre(savedLabSession.artifact?.genre || savedLabSession.blueprint?.genre || "");
+    setProvider(savedLabSession.artifact?.provider || "");
+    setModel(savedLabSession.artifact?.model || "");
+    setTestReport(Array.isArray(savedLabSession.testReports) && savedLabSession.testReports.length ? savedLabSession.testReports[savedLabSession.testReports.length - 1] : null);
+    setError(savedLabSession.error || "");
+    if (savedLabSession.status === "ready") setStage("ready");
+    else if (savedLabSession.status === "failed") setStage("error");
+    else if (savedLabSession.stage === "tester") setStage("testing");
+    else if (savedLabSession.stage === "debugger") setStage("debugging");
+    else if (savedLabSession.stage === "builder") setStage("building");
+    else if (savedLabSession.stage === "director") setStage("designing");
+    else setStage(savedGameHtml ? "testing" : "idle");
+  }
 
   function createAnotherGame() {
     setStage(
