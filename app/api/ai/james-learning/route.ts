@@ -3,6 +3,7 @@ import { generateWithAllAIProviders } from "../../../fun-zone/aiRouter";
 import { refreshJamesProviderCapabilities } from "../../tools/jamesProviderCapabilities";
 import { consolidateJamesExperiences } from "../../tools/jamesExperience";
 import { generateWithJamesResourceManager } from "../../tools/jamesResourceManager";
+import { runJamesAutonomousBrainCycle } from "../../tools/jamesAutonomousBrain";
 import { getJamesGoals, saveJamesGoal } from "../../tools/jamesGoals";
 import {
   addGlobalCandidate,
@@ -68,6 +69,8 @@ export async function POST(request: Request) {
       (sum, result) => sum + (result.status === "fulfilled" ? result.value.length : 0),
       0
     );
+
+    const autonomousBrain = await runJamesAutonomousBrainCycle({ maxCapabilities: 3, maxTestsPerCapability: 3 });
 
     const reflection = await runJamesSleepReflection({
       supabase,
@@ -310,7 +313,8 @@ Keluarkan JSON SAJA:
       ok: true,
       providers: [...new Set(results.map((item) => item.provider))],
       capabilityObservations: capabilities.length,
-      sleepReflection: reflection,      autonomousHeartbeat: {
+      sleepReflection: reflection,
+      autonomousBrain,      autonomousHeartbeat: {
         ran: true,
         usersReviewed: experienceUsers.length,
         experienceConsolidations: consolidatedCount,
