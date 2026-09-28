@@ -3,23 +3,17 @@ import {
   type AIGenerateRequest,
   type AIGenerateResponse,
 } from "./aiProvider";
+import { openRouterProvider } from "./openRouterProvider";
+import { groqProvider } from "./groqProvider";
 
-import {
-  openRouterProvider,
-} from "./openRouterProvider";
-
-import {
-  groqProvider,
-} from "./groqProvider";
-
-export type AIRouterResult =
-  AIGenerateResponse & {
-    attempts: string[];
-  };
+export type AIRouterResult = AIGenerateResponse & {
+  attempts: string[];
+};
 
 type ProviderError = Error & {
   provider?: string;
   status?: number;
+  retryAfterMs?: number;
 };
 
 const PROVIDER_TIMEOUT_MS = 20_000;
@@ -27,64 +21,59 @@ const MAX_TRANSIENT_RETRIES = 1;
 const DEFAULT_TRANSIENT_RETRY_MS = 1_000;
 const MAX_TRANSIENT_RETRY_MS = 4_000;
 
+// Best-effort cooldown for warm serverless instances.
+// It prevents repeatedly hammering a provider that just returned 429/503.
 const providerCooldownUntil = new Map<string, number>();
 
-function getErrorMessage(
-  error: unknown
-): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "Unknown provider error.";
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown provider error.";
 }
 
-function getErrorStatus(
-  error: unknown
-): number | undefined {
-  if (
-    error &&
-    typeof error === "object" &&
-    "status" in error
-  ) {
-    const status =
-      (error as {
-        status?: unknown;
-      }).status;
+function getErrorStatus(error: unknown): number | undefined {
+  if (error && typeof error === "object" && "status" in error) {
+    const status = (error as { status?: unknown }).status;
+    return typeof status === "number" ? status : undefined;
+  }
+  return undefined;
+}
 
-    if (typeof status === "number") {
-      return status;
+function getRetryAfterMs(error: unknown): number | undefined {
+  if (error && typeof error === "object" && "retryAfterMs" in error) {
+    const value = (error as { retryAfterMs?: unknown }).retryAfterMs;
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+      return value;
     }
   }
+
+  const message = getErrorMessage(error).toLowerCase();
+  const msMatch = message.match(/(?:try again|retry)(?: in)?\\s*(\\d+)\\s*ms/);
+  if (msMatch) return Number(msMatch[1]);
+
+  const secMatch = message.match(
+    /(?:try again|retry)(?: in)?\\s*(\\d+(?:\\.\\d+)?)\\s*s(?:ec(?:ond)?s?)?/
+  );
+  if (secMatch) return Math.ceil(Number(secMatch[1]) * 1000);
 
   return undefined;
 }
 
-function isRetryableProviderError(
-  error: unknown
-): boolean {
-  const status =
-    getErrorStatus(error);
+function isDailyQuotaError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    message.includes("free-models-per-day") ||
+    message.includes("requests per day") ||
+    message.includes("daily limit") ||
+    message.includes("daily quota")
+  );
+}
 
-  const message =
-    getErrorMessage(error)
-      .toLowerCase();
+function isRetryableProviderError(error: unknown): boolean {
+  const status = getErrorStatus(error);
+  const message = getErrorMessage(error).toLowerCase();
 
-  if (
-    status === 401 ||
-    status === 403
-  ) {
-    return false;
-  }
+  if (status === 401 || status === 403) return false;
 
-  if (
-    status === 408 ||
-    status === 429 ||
-    status === 500 ||
-    status === 502 ||
-    status === 503 ||
-    status === 504
-  ) {
+  if ([408, 429, 500, 502, 503, 504].includes(status ?? -1)) {
     return true;
   }
 
@@ -102,40 +91,25 @@ function isRetryableProviderError(
 
 async function generateWithTimeout(
   providerName: string,
-  providerGenerate: () =>
-    Promise<AIGenerateResponse>
+  providerGenerate: () => Promise<AIGenerateResponse>
 ): Promise<AIGenerateResponse> {
-  let timeoutId:
-    ReturnType<typeof setTimeout> | undefined;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-  const timeoutPromise =
-    new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => {
-        const error =
-          new Error(
-            `${providerName} timeout setelah ${
-              PROVIDER_TIMEOUT_MS / 1000
-            } detik.`
-          ) as ProviderError;
-
-        error.provider =
-          providerName;
-
-        error.status = 408;
-
-        reject(error);
-      }, PROVIDER_TIMEOUT_MS);
-    });
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const error = new Error(
+        `${providerName} timeout setelah ${PROVIDER_TIMEOUT_MS / 1000} detik.`
+      ) as ProviderError;
+      error.provider = providerName;
+      error.status = 408;
+      reject(error);
+    }, PROVIDER_TIMEOUT_MS);
+  });
 
   try {
-    return await Promise.race([
-      providerGenerate(),
-      timeoutPromise,
-    ]);
+    return await Promise.race([providerGenerate(), timeoutPromise]);
   } finally {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
+    if (timeoutId) clearTimeout(timeoutId);
   }
 }
 
@@ -148,15 +122,11 @@ export async function generateWithAIRouter(
     groqProvider,
   ];
 
-  const availableProviders =
-    providers.filter(
-      (provider) =>
-        provider.isAvailable()
-    );
+  const availableProviders = providers.filter((provider) =>
+    provider.isAvailable()
+  );
 
-  if (
-    availableProviders.length === 0
-  ) {
+  if (!availableProviders.length) {
     throw new Error(
       "Tidak ada AI provider yang tersedia. Periksa konfigurasi API key."
     );
@@ -164,102 +134,102 @@ export async function generateWithAIRouter(
 
   const attempts: string[] = [];
 
-  for (
-    const provider of availableProviders
-  ) {
-    try {
-      console.log(
-        `AI Router mencoba provider: ${provider.name}`
+  for (const provider of availableProviders) {
+    const cooldownUntil = providerCooldownUntil.get(provider.name) ?? 0;
+    if (cooldownUntil > Date.now()) {
+      attempts.push(
+        `${provider.name}: cooldown aktif sampai ${new Date(cooldownUntil).toISOString()}`
       );
+      continue;
+    }
 
-      const startedAt =
-        Date.now();
+    let providerSucceeded = false;
 
-      const result =
-        await generateWithTimeout(
-          provider.name,
-          () =>
-            provider.generate(
-              request
-            )
+    for (let retry = 0; retry <= MAX_TRANSIENT_RETRIES; retry += 1) {
+      try {
+        console.log(
+          `AI Router mencoba provider: ${provider.name}${retry ? ` (retry ${retry})` : ""}`
         );
 
-      const elapsed =
-        Date.now() - startedAt;
-
-      console.log(
-        `AI Router berhasil menggunakan: ${provider.name} (${elapsed}ms)`
-      );
-
-      return {
-        ...result,
-        attempts,
-      };
-    } catch (error) {
-      const message =
-        getErrorMessage(error);
-
-      const status =
-        getErrorStatus(error);
-
-      const retryable =
-        isRetryableProviderError(
-          error
+        const startedAt = Date.now();
+        const result = await generateWithTimeout(provider.name, () =>
+          provider.generate(request)
         );
 
-      const detail =
-        status
+        console.log(
+          `AI Router berhasil menggunakan: ${provider.name} (${Date.now() - startedAt}ms)`
+        );
+
+        providerCooldownUntil.delete(provider.name);
+        providerSucceeded = true;
+
+        return {
+          ...result,
+          attempts,
+        };
+      } catch (error) {
+        const message = getErrorMessage(error);
+        const status = getErrorStatus(error);
+        const retryable = isRetryableProviderError(error);
+        const detail = status
           ? `${provider.name}: HTTP ${status} - ${message}`
           : `${provider.name}: ${message}`;
 
-      attempts.push(detail);
+        if (retry === 0) attempts.push(detail);
 
-      console.error(
-        `AI provider ${provider.name} gagal:`,
-        {
+        console.error(`AI provider ${provider.name} gagal:`, {
           message,
           status,
           retryable,
-        }
-      );
+          retry,
+        });
 
-      /*
-       * Semua provider dicoba secara berurutan.
-       *
-       * Contoh:
-       * Gemini quota habis
-       *   ↓
-       * OpenRouter dicoba
-       *   ↓
-       * OpenRouter timeout/error
-       *   ↓
-       * Groq dicoba
-       *
-       * Jadi kegagalan satu provider tidak
-       * menghentikan AI Game Lab.
-       */
-      if (!retryable) {
-        console.warn(
-          `Provider ${provider.name} mengalami error yang tidak retryable. Tetap lanjut ke provider berikutnya.`
+        // A daily free-model quota will not recover by retrying immediately.
+        if (isDailyQuotaError(error)) {
+          providerCooldownUntil.set(
+            provider.name,
+            Date.now() + 24 * 60 * 60 * 1000
+          );
+          break;
+        }
+
+        if (!retryable || retry >= MAX_TRANSIENT_RETRIES) {
+          break;
+        }
+
+        const retryAfterMs = Math.min(
+          Math.max(
+            getRetryAfterMs(error) ?? DEFAULT_TRANSIENT_RETRY_MS,
+            250
+          ),
+          MAX_TRANSIENT_RETRY_MS
         );
-      } else {
-        console.warn(
-          `Provider ${provider.name} mengalami error retryable. Lanjut ke provider berikutnya.`
+
+        providerCooldownUntil.set(
+          provider.name,
+          Date.now() + retryAfterMs
         );
+
+        console.warn(
+          `Provider ${provider.name} akan di-retry setelah ${retryAfterMs}ms.`
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, retryAfterMs));
       }
+    }
+
+    if (!providerSucceeded) {
+      console.warn(
+        `AI Router berpindah dari provider ${provider.name} ke provider berikutnya.`
+      );
     }
   }
 
-  const error =
-    new Error(
-      `Semua AI provider gagal. ${attempts.join(
-        " | "
-      )}`
-    ) as ProviderError;
+  const error = new Error(
+    `Semua AI provider gagal. ${attempts.join(" | ")}`
+  ) as ProviderError;
 
-  error.provider =
-    "ai-router";
-
+  error.provider = "ai-router";
   throw error;
 }
 
@@ -272,46 +242,60 @@ export async function generateWithAllAIProviders(
     groqProvider,
   ];
 
-  const availableProviders = providers.filter((provider) => provider.isAvailable());
+  const availableProviders = providers.filter((provider) =>
+    provider.isAvailable()
+  );
 
   if (!availableProviders.length) {
-    throw new Error("Tidak ada AI provider yang tersedia untuk James Learning.");
+    throw new Error(
+      "Tidak ada AI provider yang tersedia untuk James Learning."
+    );
   }
 
   const results = await Promise.allSettled(
     availableProviders.map(async (provider) => {
       const attempts: string[] = [];
       try {
-        const result = await generateWithTimeout(
-          provider.name,
-          () => provider.generate(request)
+        const result = await generateWithTimeout(provider.name, () =>
+          provider.generate(request)
         );
         return { ...result, attempts };
       } catch (error) {
         attempts.push(
           `${provider.name}: ${getErrorMessage(error)}`
         );
-        throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
-          attempts,
-        });
+        throw Object.assign(
+          error instanceof Error
+            ? error
+            : new Error(String(error)),
+          { attempts }
+        );
       }
     })
   );
 
   const successful = results
     .filter(
-      (result): result is PromiseFulfilledResult<AIGenerateResponse & { attempts: string[] }> =>
-        result.status === "fulfilled"
+      (
+        result
+      ): result is PromiseFulfilledResult<
+        AIGenerateResponse & { attempts: string[] }
+      > => result.status === "fulfilled"
     )
     .map((result) => result.value);
 
   if (!successful.length) {
     const failures = results
-      .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+      .filter(
+        (result): result is PromiseRejectedResult =>
+          result.status === "rejected"
+      )
       .map((result) => getErrorMessage(result.reason))
       .join(" | ");
 
-    throw new Error(`Semua AI provider gagal dalam James Learning. ${failures}`);
+    throw new Error(
+      `Semua AI provider gagal dalam James Learning. ${failures}`
+    );
   }
 
   return successful;
