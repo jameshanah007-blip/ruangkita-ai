@@ -12,6 +12,11 @@ import {
   groqProvider,
 } from "./groqProvider";
 
+import {
+  buildJamesLocalCapabilityContext,
+  generateWithJamesLocalBrain,
+} from "../api/tools/jamesLocalBrain";
+
 export type AIRouterResult =
   AIGenerateResponse & {
     attempts: string[];
@@ -137,6 +142,33 @@ async function generateWithTimeout(
 export async function generateWithAIRouter(
   request: AIGenerateRequest
 ): Promise<AIRouterResult> {
+  const validatedCapabilities = await buildJamesLocalCapabilityContext();
+  const jamesRequest: AIGenerateRequest = {
+    ...request,
+    systemInstruction: [
+      "You are James, the autonomous AI brain of RuangKita.",
+      "Fun Zone is one of James laboratories.",
+      "Use validated James capabilities when relevant.",
+      "Do not claim capabilities that are not in the validated list.",
+      request.systemInstruction || "",
+      "",
+      "VALIDATED JAMES CAPABILITIES:",
+      JSON.stringify(validatedCapabilities),
+    ].filter(Boolean).join("\n"),
+  };
+
+  if (process.env.JAMES_LOCAL_BRAIN_ENABLED === "true") {
+    const local = await generateWithJamesLocalBrain(jamesRequest.prompt, jamesRequest.systemInstruction);
+    if (local.available && local.text) {
+      return {
+        provider: "james-local",
+        model: local.model || "local",
+        text: local.text,
+        attempts: [],
+      };
+    }
+  }
+
   const providers = [
     ...aiProviders,
     openRouterProvider,
@@ -175,7 +207,7 @@ export async function generateWithAIRouter(
           provider.name,
           () =>
             provider.generate(
-              request
+              jamesRequest
             )
         );
 
