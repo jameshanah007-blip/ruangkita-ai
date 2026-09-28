@@ -61,6 +61,29 @@ class GroqProvider implements AIProvider {
       throw new Error("GROQ_API_KEY belum dikonfigurasi.");
     }
 
+    const combinedInput = [request.systemInstruction, request.prompt].join("\n\n");
+    const inputTokens = estimateTokens(combinedInput);
+    const compactedInput = compactForGroq(combinedInput, GROQ_INPUT_TOKEN_BUDGET);
+    const systemBudget = Math.floor(GROQ_INPUT_TOKEN_BUDGET * 0.55);
+    const promptBudget = GROQ_INPUT_TOKEN_BUDGET - systemBudget;
+    const compactedSystem = compactForGroq(request.systemInstruction, systemBudget);
+    const compactedPrompt = compactedInput === combinedInput
+      ? request.prompt
+      : compactForGroq(request.prompt, promptBudget);
+    const outputBudget = Math.min(
+      request.maxOutputTokens ?? GROQ_OUTPUT_TOKEN_BUDGET,
+      GROQ_OUTPUT_TOKEN_BUDGET,
+      Math.max(512, GROQ_TPM_BUDGET - Math.min(inputTokens, GROQ_INPUT_TOKEN_BUDGET) - 400)
+    );
+
+    if (inputTokens > GROQ_INPUT_TOKEN_BUDGET) {
+      console.warn("Groq request dipadatkan untuk memenuhi TPM.", {
+        estimatedInputTokens: inputTokens,
+        inputBudget: GROQ_INPUT_TOKEN_BUDGET,
+        outputBudget,
+      });
+    }
+
     const response = await fetch(GROQ_URL, {
       method: "POST",
       headers: {
@@ -70,13 +93,13 @@ class GroqProvider implements AIProvider {
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: [
-          { role: "system", content: request.systemInstruction },
-          { role: "user", content: request.prompt },
+          { role: "system", content: compactedSystem },
+          { role: "user", content: compactedPrompt },
         ],
         reasoning_effort: "low",
         include_reasoning: false,
         temperature: request.temperature ?? 0.7,
-        // Groq currently exposes an 8k TPM limit for this organization/model.\n        // Keep a conservative completion cap so prompt tokens + completion tokens\n        // do not immediately push the request over the TPM window.\n        max_completion_tokens: Math.min(request.maxOutputTokens ?? 5000, 5000),
+        max_completion_tokens: outputBudget,
         stream: false,
       }),
     });
