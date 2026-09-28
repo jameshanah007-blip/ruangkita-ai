@@ -41,32 +41,36 @@ function clean(value: unknown, max = 600) {
 
 function normalizeActions(parsed: Record<string, unknown>): JamesTaskAction[] {
   const raw = Array.isArray(parsed.actions) ? parsed.actions : [];
+  const actions: JamesTaskAction[] = [];
 
-  return raw
-    .map((item, index) => {
-      if (!item || typeof item !== "object") return null;
-      const value = item as Record<string, unknown>;
-      const capability = value.capability;
-      if (!validCapability(capability)) return null;
+  raw.forEach((item, index) => {
+    if (!item || typeof item !== "object") return;
 
-      const dependencies = Array.isArray(value.dependsOn)
-        ? value.dependsOn.filter((item): item is string => typeof item === "string").slice(0, 8)
-        : [];
+    const value = item as Record<string, unknown>;
+    const capability = value.capability;
+    if (!validCapability(capability)) return;
 
-      const goal = clean(value.goal, 300);
-      const input = clean(value.input, 700);
-      if (!goal || !input) return null;
-      return {
-        id: clean(value.id, 40) || "step-" + (index + 1),
-        goal,
-        capability,
-        input,
-        dependsOn: dependencies,
-        status: "pending" as const,
-      };
-    })
-    .filter((item): item is JamesTaskAction => item !== null)
-    .slice(0, 8);
+    const dependencies = Array.isArray(value.dependsOn)
+      ? value.dependsOn
+          .filter((dependency): dependency is string => typeof dependency === "string")
+          .slice(0, 8)
+      : [];
+
+    const goal = clean(value.goal, 300);
+    const input = clean(value.input, 700);
+    if (!goal || !input) return;
+
+    actions.push({
+      id: clean(value.id, 40) || "step-" + (index + 1),
+      goal,
+      capability,
+      input,
+      dependsOn: dependencies,
+      status: "pending",
+    });
+  });
+
+  return actions.slice(0, 8);
 }
 
 export async function planJamesTaskActions(input: {
