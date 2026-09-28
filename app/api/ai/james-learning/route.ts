@@ -41,6 +41,12 @@ export async function POST(request: Request) {
     const goals = await getJamesGoals(undefined, 12);
     const globalCandidates = await getGlobalCandidates(12);
 
+    // Autonomous Brain heartbeat:
+    // consolidate reusable experiences even when no user is currently chatting
+    // with James. This keeps James learning from verified task outcomes instead
+    // of requiring a fresh conversation to trigger consolidation.
+    const supabase = await getAutonomousDb();
+
     let funZoneRuns: any[] = [];
     if (supabase) {
       const { data } = await supabase
@@ -51,11 +57,6 @@ export async function POST(request: Request) {
       funZoneRuns = data || [];
     }
 
-    // Autonomous Brain heartbeat:
-    // consolidate reusable experiences even when no user is currently chatting
-    // with James. This keeps James learning from verified task outcomes instead
-    // of requiring a fresh conversation to trigger consolidation.
-    const supabase = await getAutonomousDb();
     let experienceUsers: string[] = [];
     if (supabase) {
       const { data } = await supabase
