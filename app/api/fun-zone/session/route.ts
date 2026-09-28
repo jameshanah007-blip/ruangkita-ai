@@ -56,9 +56,24 @@ export async function GET() {
 
     if (error) throw error;
 
+    const decoded = decodeLabState(data?.source);
+    let gameHtml = decoded?.gameHtml || "";
+
+    if (!gameHtml && data?.game_html_path) {
+      const downloaded = await db.storage
+        .from("fun-zone-games")
+        .download(data.game_html_path);
+
+      if (!downloaded.error && downloaded.data) {
+        gameHtml = await downloaded.data.text();
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      session: decodeLabState(data?.source),
+      session: decoded,
+      gameHtml,
+      gameHtmlPath: data?.game_html_path || null,
     });
   } catch (error) {
     console.error("Fun Zone cloud session read error:", error);
