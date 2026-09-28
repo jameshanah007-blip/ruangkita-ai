@@ -250,7 +250,7 @@ function getTerminalLines(
 
       lines.push({
         text:
-          `[DESIGN] Mechanics: ${blueprint.mechanics.join(
+          `[DESIGN] Mechanics: ${(Array.isArray(blueprint.mechanics) ? blueprint.mechanics : []).join(
             ", "
           )}`,
       });
@@ -693,7 +693,7 @@ const handleTestReport =
           updatedAt: new Date().toISOString(),
           error: report.passed
             ? undefined
-            : report.hardFailures.join(" ") || previous.error,
+            : (Array.isArray(report.hardFailures) ? report.hardFailures : []).join(" ") || previous.error,
         };
 
         void persistLabSession(next);
@@ -706,7 +706,7 @@ const handleTestReport =
         return;
       }
 
-      if (report.hardFailures.length > 0) {
+      if (Array.isArray(report.hardFailures) && report.hardFailures.length > 0) {
         setError(
           report.hardFailures.join(" ")
         );
@@ -1548,7 +1548,7 @@ onError={
 
                   <div className="mt-3 flex flex-wrap gap-2">
 
-                    {blueprint.mechanics.map(
+                    {(Array.isArray(blueprint.mechanics) ? blueprint.mechanics : []).map(
                       (
                         mechanic
                       ) => (
@@ -1577,7 +1577,7 @@ onError={
 
                   <div className="mt-3 space-y-1.5">
 
-                    {blueprint.controls.map(
+                    {(Array.isArray(blueprint.controls) ? blueprint.controls : []).map(
                       (
                         control
                       ) => (
