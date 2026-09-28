@@ -47,6 +47,17 @@ type BuilderResponse = {
   error?: string;
 };
 
+function normalizeBlueprintArrays(blueprint: GameBlueprint): GameBlueprint {
+  return {
+    ...blueprint,
+    mechanics: Array.isArray(blueprint.mechanics) ? blueprint.mechanics : [],
+    playerActions: Array.isArray(blueprint.playerActions) ? blueprint.playerActions : [],
+    controls: Array.isArray(blueprint.controls) ? blueprint.controls : [],
+    mobileNotes: Array.isArray(blueprint.mobileNotes) ? blueprint.mobileNotes : [],
+    testRequirements: Array.isArray(blueprint.testRequirements) ? blueprint.testRequirements : [],
+  };
+}
+
 async function persistCloudSession(session: LabSession, gameHtml: string) {
   try {
     const store = await cookies();
@@ -330,10 +341,12 @@ export async function POST(
       );
     }
 
+    const normalizedBlueprint = normalizeBlueprintArrays(director.blueprint);
+
     session =
       markDirectorCompleted(
         session,
-        director.blueprint
+        normalizedBlueprint
       );
 
     /*
@@ -354,7 +367,7 @@ export async function POST(
       builder =
         await callBuilder(
           request,
-          director.blueprint
+          normalizedBlueprint
         );
     } catch (error) {
       const message =
@@ -415,7 +428,7 @@ export async function POST(
 
     const artifact =
       createArtifactFromBuilder(
-        director.blueprint,
+        normalizedBlueprint,
         builder
       );
 
@@ -447,7 +460,7 @@ export async function POST(
       session,
 
       blueprint:
-        director.blueprint,
+        normalizedBlueprint,
 
       artifact,
 
