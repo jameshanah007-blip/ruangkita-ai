@@ -6,14 +6,17 @@ const USER_COOKIE = "ruangkita-session-user";
 const CONVERSATION_COOKIE = "ruangkita-session-conversation";
 const MAX_AGE = 60 * 60 * 24 * 365;
 
-function validUuid(value: string | undefined) {
-  return typeof value === "string" && /^[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}$/.test(value);
+function validUuid(value: string | undefined): value is string {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}$/.test(value)
+  );
 }
 
 function buildSessionResponse(userId: string, conversationId: string) {
   const memoryAvailable = Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.SUPABASE_SECRET_KEY
+      process.env.SUPABASE_SECRET_KEY
   );
 
   const response = NextResponse.json({
@@ -48,11 +51,16 @@ function buildSessionResponse(userId: string, conversationId: string) {
 export async function GET() {
   const store = await cookies();
 
-  let userId = store.get(USER_COOKIE)?.value;
-  let conversationId = store.get(CONVERSATION_COOKIE)?.value;
+  const storedUserId = store.get(USER_COOKIE)?.value;
+  const storedConversationId = store.get(CONVERSATION_COOKIE)?.value;
 
-  if (!validUuid(userId)) userId = crypto.randomUUID();
-  if (!validUuid(conversationId)) conversationId = crypto.randomUUID();
+  const userId = validUuid(storedUserId)
+    ? storedUserId
+    : crypto.randomUUID();
+
+  const conversationId = validUuid(storedConversationId)
+    ? storedConversationId
+    : crypto.randomUUID();
 
   return buildSessionResponse(userId, conversationId);
 }
@@ -60,9 +68,11 @@ export async function GET() {
 export async function POST() {
   try {
     const store = await cookies();
-    let userId = store.get(USER_COOKIE)?.value;
+    const storedUserId = store.get(USER_COOKIE)?.value;
 
-    if (!validUuid(userId)) userId = crypto.randomUUID();
+    const userId = validUuid(storedUserId)
+      ? storedUserId
+      : crypto.randomUUID();
 
     // Hanya membuat percakapan baru. Data percakapan lama tetap tersimpan di Supabase.
     const conversationId = crypto.randomUUID();
