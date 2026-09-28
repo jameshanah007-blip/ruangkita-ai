@@ -12,6 +12,7 @@ import AIGameSandbox from "./engine/AIGameSandbox";
 
 import type {
   GameBlueprint,
+  LabSession,
   TestReport,
 } from "./laboratory/types";
 
@@ -421,6 +422,9 @@ export default function FunZonePage() {
     useState<TestReport | null>(
       null
     );
+
+  const [labSession, setLabSession] =
+    useState<LabSession | null>(null);
 
   const currentStageIndex =
     getStageIndex(stage);
