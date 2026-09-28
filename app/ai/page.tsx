@@ -115,6 +115,34 @@ export default function AIExecutor() {
     );
   }
 
+  async function startNewConversation() {
+    if (loading || !memoryReady) return;
+
+    try {
+      setError("");
+      const response = await fetch("/api/ai/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.userId || !data.conversationId) {
+        throw new Error(data.error || "Percakapan baru gagal dibuat.");
+      }
+
+      setUserId(data.userId);
+      setConversationId(data.conversationId);
+      setMessages([]);
+      setRequest("");
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Percakapan baru James gagal dibuat."
+      );
+    }
+  }
+
   async function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
 
@@ -376,6 +404,21 @@ export default function AIExecutor() {
 
       <section className="mx-auto flex min-h-[calc(100vh-64px)] w-full max-w-5xl flex-col px-3 pb-4 pt-4 sm:px-6 sm:pt-6">
         <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
+          <div className="mb-3 flex items-center justify-between px-1 sm:px-2">
+            <div>
+              <p className="text-sm font-semibold text-slate-200">Tanya Saya</p>
+              <p className="text-[11px] text-slate-600">Percakapan tersimpan online</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void startNewConversation()}
+              disabled={!memoryReady || loading}
+              className="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-cyan-400/30 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              ＋ Percakapan Baru
+            </button>
+          </div>
+
           <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-4 sm:px-2">
             <div className="space-y-7 sm:space-y-9">
               {messages.map((message) => (
