@@ -73,6 +73,27 @@ export async function getAuthenticatedUser(): Promise<User | null> {
     refresh_token: refreshToken,
   });
 
+  if (refreshed.data.user && refreshed.data.session) {
+    store.set({
+      name: AUTH_ACCESS_COOKIE,
+      value: refreshed.data.session.access_token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60,
+    });
+    store.set({
+      name: AUTH_REFRESH_COOKIE,
+      value: refreshed.data.session.refresh_token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  }
+
   return refreshed.data.user || null;
 }
 
