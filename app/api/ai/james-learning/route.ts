@@ -459,15 +459,6 @@ async function runJamesSleepReflection(input: {
         applied_to_growth: false,
       });
 
-      await input.supabase.from("james_sleep_cycles").insert({
-        cycle_type: "daily",
-        provider: result.provider,
-        summary,
-        what_improved: whatImproved,
-        what_failed: whatFailed,
-        next_focus: nextFocus,
-        goal_updates: 0,
-      });
     }
 
     const actions = Array.isArray(parsed.goal_actions) ? parsed.goal_actions : [];
@@ -494,6 +485,22 @@ async function runJamesSleepReflection(input: {
         .eq("id", existing.id);
 
       if (!error) goalUpdates += 1;
+    }
+
+    if (input.supabase) {
+      const whatImproved = cleanList(parsed.what_improved);
+      const whatFailed = cleanList(parsed.what_failed);
+      const nextFocus = cleanList(parsed.next_focus);
+
+      await input.supabase.from("james_sleep_cycles").insert({
+        cycle_type: "daily",
+        provider: result.provider,
+        summary,
+        what_improved: whatImproved,
+        what_failed: whatFailed,
+        next_focus: nextFocus,
+        goal_updates: goalUpdates,
+      });
     }
 
     return {
