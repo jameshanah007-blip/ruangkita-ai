@@ -83,8 +83,14 @@ async function persistCloudSession(session: LabSession, gameHtml: string) {
       ? null
       : filePath;
 
+    const laboratorySessionId = userId + ":" + session.id;
+    const source = "lab:" + JSON.stringify({
+      session,
+      gameHtml: upload.error ? gameHtml : "",
+    });
+
     await supabase.from("fun_sessions").upsert({
-      session_id: userId,
+      session_id: laboratorySessionId,
       game_title: session.artifact?.title || session.blueprint?.title || "AI Game Laboratory",
       game_theme: session.blueprint?.theme || null,
       game_genre: session.blueprint?.genre || null,
