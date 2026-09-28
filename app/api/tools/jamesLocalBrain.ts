@@ -1,4 +1,4 @@
-import { getJamesCapabilities } from "./jamesAutonomousBrain";
+import { createClient } from "@supabase/supabase-js";
 
 type LocalBrainResult = {
   available: boolean;
@@ -80,12 +80,33 @@ export async function generateWithJamesLocalBrain(
  * Only validated capabilities are treated as learned abilities.
  */
 export async function buildJamesLocalCapabilityContext() {
-  const capabilities = await getJamesCapabilities(40);
-  const validated = capabilities.filter(
-    (item: any) => item.status === "validated" && Number(item.success_rate || 0) >= 0.8
-  );
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
 
-  return validated.map((item: any) => ({
+  if (!url || !key) return [];
+
+  const supabase = createClient(url, key, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
+
+  const { data, error } = await supabase
+    .from("james_capabilities")
+    .select("name, description, domain, skills, strategy, limitations, success_rate, status")
+    .eq("status", "validated")
+    .gte("success_rate", 0.8)
+    .order("success_rate", { ascending: false })
+    .limit(40);
+
+  if (error) {
+    console.warn("James capability context unavailable:", error.message);
+    return [];
+  }
+
+  return (data || []).map((item) => ({
     name: item.name,
     description: item.description,
     domain: item.domain,
