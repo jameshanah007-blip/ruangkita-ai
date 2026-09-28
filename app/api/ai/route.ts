@@ -34,6 +34,7 @@ import { formatJamesConsolidationContext, formatJamesExperienceContext, learnJam
 import { getJamesAgentTask } from "../tools/jamesAgentState";
 import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
+import { runJamesLocalFirst } from "../tools/jamesLocalBrain";
 import { evaluateJamesMetaStrategies, learnJamesMetaStrategy, retrieveJamesMetaStrategiesByCapabilities } from "../tools/jamesMetaLearning";
 
 type Intent =
@@ -197,6 +198,14 @@ async function callJamesAI(
   userInput: string,
   systemInstruction?: string
 ): Promise<string> {
+  if (process.env.JAMES_LOCAL_BRAIN_ENABLED === "true") {
+    const local = await runJamesLocalFirst(
+      userInput,
+      systemInstruction || buildJamesSystemInstruction()
+    );
+    if (local.available && local.text) return local.text;
+  }
+
   const result = await generateWithAIRouter({
     prompt: userInput,
     systemInstruction: systemInstruction || buildJamesSystemInstruction(),
