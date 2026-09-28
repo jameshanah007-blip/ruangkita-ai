@@ -53,16 +53,19 @@ function normalizeActions(parsed: Record<string, unknown>): JamesTaskAction[] {
         ? value.dependsOn.filter((item): item is string => typeof item === "string").slice(0, 8)
         : [];
 
+      const goal = clean(value.goal, 300);
+      const input = clean(value.input, 700);
+      if (!goal || !input) return null;
       return {
         id: clean(value.id, 40) || "step-" + (index + 1),
-        goal: clean(value.goal, 300),
+        goal,
         capability,
-        input: clean(value.input, 700),
+        input,
         dependsOn: dependencies,
         status: "pending" as const,
       };
     })
-    .filter((item): item is JamesTaskAction => Boolean(item?.goal && item.input))
+    .filter((item): item is JamesTaskAction => item !== null)
     .slice(0, 8);
 }
 
