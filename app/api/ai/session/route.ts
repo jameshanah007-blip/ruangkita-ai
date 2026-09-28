@@ -1,4 +1,5 @@
-import { resolveLegacyUserId } from "../auth/cloudIdentity";\nimport { NextResponse } from "next/server";
+import { resolveLegacyUserId } from "../auth/cloudIdentity";
+import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
 
@@ -7,16 +8,12 @@ const CONVERSATION_COOKIE = "ruangkita-session-conversation";
 const MAX_AGE = 60 * 60 * 24 * 365;
 
 function validUuid(value: string | undefined): value is string {
-  return (
-    typeof value === "string" &&
-    /^[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}$/.test(value)
-  );
+  return typeof value === "string" && /^[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}$/.test(value);
 }
 
 function buildSessionResponse(userId: string, conversationId: string) {
   const memoryAvailable = Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.SUPABASE_SECRET_KEY
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SECRET_KEY
   );
 
   const response = NextResponse.json({
@@ -49,15 +46,9 @@ function buildSessionResponse(userId: string, conversationId: string) {
 }
 
 export async function GET() {
+  const userId = await resolveLegacyUserId();
   const store = await cookies();
-
-  const storedUserId = store.get(USER_COOKIE)?.value;
   const storedConversationId = store.get(CONVERSATION_COOKIE)?.value;
-
-  const userId = validUuid(storedUserId)
-    ? storedUserId
-    : crypto.randomUUID();
-
   const conversationId = validUuid(storedConversationId)
     ? storedConversationId
     : crypto.randomUUID();
@@ -67,16 +58,8 @@ export async function GET() {
 
 export async function POST() {
   try {
-    const store = await cookies();
-    const storedUserId = store.get(USER_COOKIE)?.value;
-
-    const userId = validUuid(storedUserId)
-      ? storedUserId
-      : crypto.randomUUID();
-
-    // Hanya membuat percakapan baru. Data percakapan lama tetap tersimpan di Supabase.
+    const userId = await resolveLegacyUserId();
     const conversationId = crypto.randomUUID();
-
     return buildSessionResponse(userId, conversationId);
   } catch (error) {
     console.error("James new conversation session error:", error);
@@ -85,4 +68,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-}async function getUserId() {\n  return resolveLegacyUserId();\n}
+}
