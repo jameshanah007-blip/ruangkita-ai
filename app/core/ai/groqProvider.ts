@@ -76,7 +76,7 @@ class GroqProvider implements AIProvider {
         reasoning_effort: "low",
         include_reasoning: false,
         temperature: request.temperature ?? 0.7,
-        max_completion_tokens: request.maxOutputTokens ?? 12000,
+        // Groq currently exposes an 8k TPM limit for this organization/model.\n        // Keep a conservative completion cap so prompt tokens + completion tokens\n        // do not immediately push the request over the TPM window.\n        max_completion_tokens: Math.min(request.maxOutputTokens ?? 5000, 5000),
         stream: false,
       }),
     });
