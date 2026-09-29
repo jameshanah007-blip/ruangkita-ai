@@ -1367,6 +1367,45 @@ export async function recordJamesCoreSkillLineage(
   return lineage;
 }
 
+export function arbitrateJamesEvidence(
+  candidates: Array<{
+    source: string;
+    quality: number;
+    trust: number;
+    passed: boolean;
+    context?: string | null;
+    recordedAt?: string | null;
+  }>,
+) {
+  const ranked = candidates
+    .map((candidate) => {
+      const quality = Math.max(0, Math.min(1, candidate.quality));
+      const trust = Math.max(0.1, Math.min(0.99, candidate.trust));
+      const recency = candidate.recordedAt
+        ? Math.max(0, Math.min(1, 1 - Math.max(0, Date.now() - Date.parse(candidate.recordedAt)) / (90 * 86400000)))
+        : 0.5;
+      const corroboration = candidate.context ? 1 : 0.5;
+      const score = trust * 0.45 + quality * 0.3 + recency * 0.15 + corroboration * 0.1;
+      return { ...candidate, score: Number(score.toFixed(3)) };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const winner = ranked[0] || null;
+  const averageQuality = ranked.length
+    ? ranked.reduce((sum, item) => sum + item.quality, 0) / ranked.length
+    : 0;
+
+  return {
+    winner,
+    ranked,
+    consensusQuality: Number(averageQuality.toFixed(3)),
+    conflict: ranked.length > 1 && Math.abs(ranked[0].quality - ranked[1].quality) >= 0.2,
+    reason: winner
+      ? "Evidence ranked by trust, quality, recency, and contextual corroboration."
+      : "No evidence candidates available.",
+  };
+}
+
 export async function resolveJamesCoreSkillConflict(
   capabilityKey: string,
   observed: { competence: number; confidence: number; passed: boolean; quality: number; evidence: number },
