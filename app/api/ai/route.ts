@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { cookies } from "next/headers";
 import { calculate } from "../tools/calculator";
 import { webSearch } from "../tools/webSearch";
@@ -200,13 +200,15 @@ function detectIntent(request: string): Intent {
 
 async function callJamesAI(
   userInput: string,
-  systemInstruction?: string
+  systemInstruction?: string,
+  context?: string
 ): Promise<string> {
-  const result = await runJamesBrainWithSharedKnowledge({
-    surface: "tanya_saya",
-    mode: "chat",
+  // Fast path: the request has already loaded James' memory/knowledge in this
+  // route. Do not query the same shared knowledge tables a second time.
+  const result = await runJamesBrainChat({
     prompt: userInput,
     systemInstruction: systemInstruction || buildJamesSystemInstruction(),
+    context,
     temperature: 0.7,
     maxOutputTokens: 4000,
   });
@@ -871,7 +873,7 @@ async function saveActivity(
   }
 }
 
-async function saveJames(
+function saveJames(
   userId: string,
   conversationId: string,
   userRequest: string,
@@ -879,18 +881,22 @@ async function saveJames(
   intent: Intent,
   tool: string
 ) {
-  try {
-    await saveJamesTurn({
-      userId,
-      conversationId,
-      userMessage: userRequest,
-      assistantMessage: result,
-      intent,
-      tool,
-    });
-  } catch (error) {
-    console.error("Gagal menyimpan memori James:", error);
-  }
+  // Persistence must not block the user's first visible response.
+  // Next.js after() keeps the write alive after the response is sent.
+  after(async () => {
+    try {
+      await saveJamesTurn({
+        userId,
+        conversationId,
+        userMessage: userRequest,
+        assistantMessage: result,
+        intent,
+        tool,
+      });
+    } catch (error) {
+      console.error("Gagal menyimpan memori James:", error);
+    }
+  });
 }
 
 function sanitizeResearchFallback(text: string, researchAvailable: boolean): string {
@@ -1335,7 +1341,13 @@ Jangan menyebut reasoning internal.`
     }
 
 
-    const intelligencePlan = await planJamesIntelligenceWithAI(userRequest, jamesKnowledgeContext);
+    // Fast path: simple requests do not need a second LLM call just to classify
+    // them. The deterministic planner already handles chat/calculator/search/
+    // document/planner. Semantic planning is reserved for true multi-capability
+    // tasks, where the extra reasoning step adds value.
+    const intelligencePlan = deterministicIntelligencePlan.capabilities.length > 1
+      ? await planJamesIntelligenceWithAI(userRequest, jamesKnowledgeContext)
+      : deterministicIntelligencePlan;
     intent = intelligencePlan.primary;
     const verifiedIdentityContext = omantoVerified
       ? "\\nIDENTITAS TERVERIFIKASI: Pengguna telah melewati verifikasi server sebagai Omanto. Kamu boleh memperlakukan identitas Omanto sebagai terverifikasi untuk percakapan ini.\\n"
@@ -1759,7 +1771,8 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
 
     const resultText = await callJamesAI(
       chatPrompt,
-      rememberInstruction
+      rememberInstruction,
+      jamesKnowledgeContext
     );
 
     await saveActivity(userRequest, intent, "gemini", resultText);

@@ -16,9 +16,9 @@ type ProviderError = Error & {
   retryAfterMs?: number;
 };
 
-const PROVIDER_TIMEOUT_MS = 20_000;
-const MAX_TRANSIENT_RETRIES = 1;
-const DEFAULT_TRANSIENT_RETRY_MS = 1_000;
+const PROVIDER_TIMEOUT_MS = 12_000;
+const MAX_TRANSIENT_RETRIES = 0;
+const DEFAULT_TRANSIENT_RETRY_MS = 750;
 const MAX_TRANSIENT_RETRY_MS = 4_000;
 
 // Best-effort cooldown for warm serverless instances.
