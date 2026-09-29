@@ -1463,6 +1463,47 @@ export async function resolveJamesCoreSkillConflict(
   };
 }
 
+export async function getJamesSkillsNeedingCorroboration(limit = 6) {
+  const client = db();
+  if (!client) return [];
+
+  const { data, error } = await client
+    .from("james_self_model")
+    .select("capability_key,capability_name,competence,confidence,evidence_count,last_evidence,status")
+    .eq("user_id", SYSTEM_USER_ID)
+    .like("capability_key", "fun-zone-core:%")
+    .neq("status", "blocked")
+    .order("confidence", { ascending: true })
+    .limit(20);
+
+  if (error) {
+    console.warn("James corroboration retrieval failed:", error.message);
+    return [];
+  }
+
+  return (data || []).filter((skill) => {
+    const evidence = skill.last_evidence && typeof skill.last_evidence === "object"
+      ? skill.last_evidence as Record<string, unknown>
+      : {};
+    const history = Array.isArray(evidence.history) ? evidence.history : [];
+    const contexts = new Set(
+      history
+        .map((item) => item && typeof item === "object" ? String((item as Record<string, unknown>).context || "") : "")
+        .filter(Boolean),
+    );
+    return Number(skill.evidence_count || 0) < 5 || contexts.size < 2 || Number(skill.confidence || 0) < 0.7;
+  }).slice(0, limit).map((skill) => ({
+    capabilityKey: skill.capability_key,
+    capabilityName: skill.capability_name,
+    competence: Number(skill.competence || 0),
+    confidence: Number(skill.confidence || 0),
+    evidenceCount: Number(skill.evidence_count || 0),
+    reason: Number(skill.evidence_count || 0) < 5
+      ? "insufficient-evidence"
+      : "insufficient-context-corroboration",
+  }));
+}
+
 export async function revalidateJamesCoreSkills(limit = 12) {
   const client = db();
   if (!client) return [];
