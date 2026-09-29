@@ -1182,43 +1182,55 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
 
 
     const deterministicIntelligencePlan = planJamesIntelligence(userRequest);
+    const needsExperienceContext =
+      deterministicIntelligencePlan.primary !== "chat" ||
+      deterministicIntelligencePlan.capabilities.length > 1 ||
+      isRuangKitaProjectQuestion(userRequest);
 
-    const [experiences, consolidations, metaStrategies] = await Promise.all([
-      retrieveJamesExperiences({
-        userId,
+    let experienceContext = "";
+    if (needsExperienceContext) {
+      const [experiences, consolidations, metaStrategies] = await Promise.all([
+        retrieveJamesExperiences({
+          userId,
+          request: userRequest,
+          capabilities: deterministicIntelligencePlan.capabilities,
+          limit: 4,
+        }),
+        retrieveJamesConsolidations(userId, userRequest, 3),
+        retrieveJamesMetaStrategiesByCapabilities(
+          deterministicIntelligencePlan.capabilities,
+          4
+        ),
+      ]);
+
+      const experienceConflict = await resolveJamesExperienceConflict({
         request: userRequest,
+        experiences,
+        consolidations,
         capabilities: deterministicIntelligencePlan.capabilities,
-        limit: 4,
-      }),
-      retrieveJamesConsolidations(userId, userRequest, 3),
-      retrieveJamesMetaStrategiesByCapabilities(deterministicIntelligencePlan.capabilities, 4),
-    ]);
-    const experienceConflict = await resolveJamesExperienceConflict({
-      request: userRequest,
-      experiences,
-      consolidations,
-      capabilities: deterministicIntelligencePlan.capabilities,
-    });
-    const experienceContext = [
-      formatJamesExperienceContext(experiences),
-      formatJamesConsolidationContext(consolidations),
-      experienceConflict.context,
-      metaStrategies.length
-        ? [
-            "ACTIVE JAMES META STRATEGIES:",
-            ...metaStrategies.map((item, index) => [
-              "META STRATEGY " + (index + 1),
-              "Task class: " + item.task_class,
-              "Strategy: " + item.strategy,
-              "Evidence: " + item.evidence_count,
-              "Confidence: " + Number(item.confidence).toFixed(2),
-              "Relevance: " + Number(item.relevance).toFixed(2),
-            ].join("\n")),
-            "",
-            "Gunakan meta strategy hanya sebagai pola kerja yang dapat diuji kembali; jangan menganggapnya sebagai aturan mutlak.",
-          ].join("\n")
-        : "ACTIVE JAMES META STRATEGIES: none.",
-    ].join("\n\n");
+      });
+
+      experienceContext = [
+        formatJamesExperienceContext(experiences),
+        formatJamesConsolidationContext(consolidations),
+        experienceConflict.context,
+        metaStrategies.length
+          ? [
+              "ACTIVE JAMES META STRATEGIES:",
+              ...metaStrategies.map((item, index) => [
+                "META STRATEGY " + (index + 1),
+                "Task class: " + item.task_class,
+                "Strategy: " + item.strategy,
+                "Evidence: " + item.evidence_count,
+                "Confidence: " + Number(item.confidence).toFixed(2),
+                "Relevance: " + Number(item.relevance).toFixed(2),
+              ].join("\n")),
+              "",
+              "Gunakan meta strategy hanya sebagai pola kerja yang dapat diuji kembali; jangan menganggapnya sebagai aturan mutlak.",
+            ].join("\n")
+          : "ACTIVE JAMES META STRATEGIES: none.",
+      ].join("\n\n");
+    }
 
     const projectKnowledgeContext = isRuangKitaProjectQuestion(userRequest)
       ? [
