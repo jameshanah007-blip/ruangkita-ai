@@ -802,17 +802,48 @@ export function applyJamesGameMastery(
   };
 }
 
+export async function getJamesRecoveryDirectives(limit = 4) {
+  const client = db();
+  if (!client) return [];
+
+  const { data, error } = await client
+    .from("james_experiences")
+    .select("pattern, strategy, confidence, success_count, failure_count, capabilities, updated_at")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("status", "active")
+    .like("pattern", "fun-zone:queue:stale-runner-recovery%")
+    .order("updated_at", { ascending: false })
+    .limit(Math.max(1, Math.min(10, limit)));
+
+  if (error) {
+    console.warn("James recovery directive retrieval failed:", error.message);
+    return [];
+  }
+
+  return (data || []).map((item) => ({
+    pattern: item.pattern,
+    strategy: item.strategy,
+    confidence: Number(item.confidence || 0),
+    successCount: Number(item.success_count || 0),
+    failureCount: Number(item.failure_count || 0),
+    capabilities: Array.isArray(item.capabilities) ? item.capabilities.filter((v): v is string => typeof v === "string") : [],
+  }));
+}
+
 export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
 
-  const { data, error } = await client
-    .from("james_self_model")
-    .select("capability_key, capability_name, competence, confidence, evidence_count, next_learning_action, status")
-    .eq("user_id", SYSTEM_USER_ID)
-    .order("competence", { ascending: true })
-    .order("confidence", { ascending: true })
-    .limit(7);
+  const [{ data, error }, recoveryDirectives] = await Promise.all([
+    client
+      .from("james_self_model")
+      .select("capability_key, capability_name, competence, confidence, evidence_count, next_learning_action, status")
+      .eq("user_id", SYSTEM_USER_ID)
+      .order("competence", { ascending: true })
+      .order("confidence", { ascending: true })
+      .limit(7),
+    getJamesRecoveryDirectives(4),
+  ]);
 
   if (error) {
     console.warn("James experiment planning failed:", error.message);
@@ -824,12 +855,22 @@ export async function createJamesGameExperimentPlan() {
     item.status !== "strong",
   ) || (data || [])[0];
 
+  const recoveryDirective = recoveryDirectives[0];
+  const recoveryContext = recoveryDirective
+    ? " Recovery directive from previous abandoned runners: " +
+      recoveryDirective.strategy +
+      " Capabilities implicated: " +
+      recoveryDirective.capabilities.join(", ") +
+      ". Do not repeat the previous runner/game execution pattern; make the experiment materially simpler, observable, and restartable."
+    : "";
+
   if (!target) {
     return {
       status: "no-gap",
       title: "Game Brain verification",
-      prompt: "Create a small deterministic game experiment that verifies all core runtime contracts.",
+      prompt: "Create a small deterministic game experiment that verifies all core runtime contracts." + recoveryContext,
       targetCapability: null,
+      recoveryDirective: recoveryDirective || null,
     };
   }
 
@@ -852,7 +893,7 @@ export async function createJamesGameExperimentPlan() {
   return {
     status: "experiment",
     title: "James Game Brain experiment: " + String(target.capability_name),
-    prompt: capabilityPrompt,
+    prompt: capabilityPrompt + recoveryContext,
     targetCapability: {
       key,
       name: target.capability_name,
@@ -861,6 +902,7 @@ export async function createJamesGameExperimentPlan() {
       evidenceCount: Number(target.evidence_count || 0),
       nextLearningAction: target.next_learning_action,
     },
+    recoveryDirective: recoveryDirective || null,
   };
 }
 
