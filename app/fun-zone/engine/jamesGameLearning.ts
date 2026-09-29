@@ -964,6 +964,60 @@ export function selectJamesLearningMode(input: {
   };
 }
 
+export async function getJamesContextualLearningMemory(
+  world: string,
+  genre: string,
+  mechanics: string[],
+) {
+  const client = db();
+  if (!client) return [];
+
+  const contextTokens = [world, genre, ...mechanics.slice(0, 6)].map((v) => String(v).toLowerCase());
+  const { data, error } = await client
+    .from("james_experiences")
+    .select("pattern,strategy,confidence,success_count,failure_count,capabilities,status")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("status", "active")
+    .like("pattern", "fun-zone:%")
+    .order("confidence", { ascending: false })
+    .limit(40);
+
+  if (error) {
+    console.warn("James contextual memory retrieval failed:", error.message);
+    return [];
+  }
+
+  return (data || [])
+    .map((row) => {
+      const pattern = String(row.pattern || "").toLowerCase();
+      const strategy = String(row.strategy || "").toLowerCase();
+      const capabilities = Array.isArray(row.capabilities) ? row.capabilities : [];
+      const contextHits = contextTokens.filter((token) =>
+        token && (pattern.includes(token) || strategy.includes(token) || capabilities.some((capability) => String(capability).toLowerCase().includes(token))),
+      ).length;
+      const success = Number(row.success_count || 0);
+      const failure = Number(row.failure_count || 0);
+      const total = success + failure;
+      const successRate = total ? success / total : 0;
+      const relevance = contextTokens.length ? contextHits / contextTokens.length : 0;
+      return {
+        pattern: row.pattern,
+        strategy: row.strategy,
+        confidence: Number(row.confidence || 0),
+        successRate: Number(successRate.toFixed(3)),
+        relevance: Number(relevance.toFixed(3)),
+        capabilities,
+      };
+    })
+    .filter((row) => row.relevance > 0)
+    .sort((a, b) =>
+      (b.relevance - a.relevance) ||
+      (b.successRate - a.successRate) ||
+      (b.confidence - a.confidence),
+    )
+    .slice(0, 6);
+}
+
 export async function getJamesLearningModeMemory() {
   const client = db();
   if (!client) return null;
