@@ -834,11 +834,20 @@ export async function getJamesStrategyExploration() {
   const client = db();
   if (!client) return null;
 
-  const { data, error } = await client
-    .from("james_game_experiments")
-    .select("status,blueprint,attempt,created_at")
-    .order("created_at", { ascending: false })
-    .limit(12);
+  const [{ data: experiments, error }, { data: strategies }] = await Promise.all([
+    client
+      .from("james_game_experiments")
+      .select("status,blueprint,attempt,created_at")
+      .order("created_at", { ascending: false })
+      .limit(12),
+    client
+      .from("james_experiences")
+      .select("strategy,success_count,failure_count,confidence,status,updated_at")
+      .eq("user_id", SYSTEM_USER_ID)
+      .like("pattern", "fun-zone:exploration:%")
+      .order("updated_at", { ascending: false })
+      .limit(20),
+  ]);
 
   if (error) {
     console.warn("James strategy exploration retrieval failed:", error.message);
@@ -847,8 +856,7 @@ export async function getJamesStrategyExploration() {
 
   const recentMechanics = new Set<string>();
   const recentPatterns = new Set<string>();
-
-  for (const row of data || []) {
+  for (const row of experiments || []) {
     const blueprint = row.blueprint && typeof row.blueprint === "object"
       ? row.blueprint as Record<string, unknown>
       : {};
@@ -862,16 +870,47 @@ export async function getJamesStrategyExploration() {
   }
 
   const alternatives = ["puzzle", "rescue", "stealth", "collect", "explore", "survival", "racing", "dialogue"];
-  const novelMechanic = alternatives.find((mechanic) => !recentMechanics.has(mechanic)) || null;
-  const evidenceCount = (data || []).length;
-  const shouldExplore = evidenceCount >= 3 && Boolean(novelMechanic);
+  const candidates = alternatives.map((mechanic) => {
+    const related = (strategies || []).filter((row) =>
+      typeof row.strategy === "string" && row.strategy.includes(mechanic),
+    );
+    const success = related.reduce((sum, row) => sum + Number(row.success_count || 0), 0);
+    const failure = related.reduce((sum, row) => sum + Number(row.failure_count || 0), 0);
+    const total = success + failure;
+    const rate = total ? success / total : 0;
+    const confidence = related.length
+      ? Math.max(...related.map((row) => Number(row.confidence || 0)))
+      : 0;
+    const blocked = related.some((row) => row.status === "blocked");
+    return {
+      mechanic,
+      success,
+      failure,
+      total,
+      rate,
+      confidence,
+      blocked,
+      novelty: recentMechanics.has(mechanic) ? 0 : 1,
+    };
+  }).filter((candidate) => !candidate.blocked)
+    .sort((a, b) =>
+      (b.novelty - a.novelty) ||
+      (a.rate - b.rate) ||
+      (a.confidence - b.confidence),
+    );
+
+  const selected = candidates[0] || null;
+  const evidenceCount = (experiments || []).length;
+  const shouldExplore = evidenceCount >= 3 && Boolean(selected);
 
   return {
     shouldExplore,
-    novelMechanic,
+    novelMechanic: selected?.mechanic || null,
     recentExperimentCount: evidenceCount,
     recentMechanics: Array.from(recentMechanics).slice(0, 12),
     recentContexts: Array.from(recentPatterns).slice(0, 8),
+    candidate: selected,
+    strategyMemoryCount: (strategies || []).length,
   };
 }
 
