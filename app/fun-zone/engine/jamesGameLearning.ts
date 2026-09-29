@@ -855,11 +855,24 @@ export async function createJamesGameExperimentPlan() {
     item.status !== "strong",
   ) || (data || [])[0];
 
-  const recoveryDirective = recoveryDirectives[0];
+  const scoredRecoveryDirectives = recoveryDirectives
+    .map((directive) => {
+      const total = directive.successCount + directive.failureCount;
+      const empiricalRate = total > 0 ? directive.successCount / total : 0;
+      const score = empiricalRate * 0.6 + directive.confidence * 0.3 + Math.min(0.1, total * 0.01);
+      return { ...directive, empiricalRate, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const recoveryDirective = scoredRecoveryDirectives[0];
   const recoveryContext = recoveryDirective
-    ? " Recovery directive from previous abandoned runners: " +
+    ? " Recovery directive selected from James experience memory: " +
       recoveryDirective.strategy +
-      " Capabilities implicated: " +
+      " Empirical success rate: " +
+      recoveryDirective.empiricalRate.toFixed(3) +
+      ", confidence: " +
+      recoveryDirective.confidence.toFixed(3) +
+      ". Capabilities implicated: " +
       recoveryDirective.capabilities.join(", ") +
       ". Do not repeat the previous runner/game execution pattern; make the experiment materially simpler, observable, and restartable."
     : "";
@@ -870,7 +883,11 @@ export async function createJamesGameExperimentPlan() {
       title: "Game Brain verification",
       prompt: "Create a small deterministic game experiment that verifies all core runtime contracts." + recoveryContext,
       targetCapability: null,
-      recoveryDirective: recoveryDirective || null,
+      recoveryDirective: recoveryDirective ? {
+        ...recoveryDirective,
+        empiricalRate: recoveryDirective.empiricalRate,
+        selectionScore: recoveryDirective.score,
+      } : null,
     };
   }
 
