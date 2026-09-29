@@ -1001,14 +1001,14 @@ function createJamesChatStreamResponse(input: {
           after(async () => {
             await Promise.allSettled([
               saveActivity(input.userRequest, input.intent, provider, resultText),
-              saveJames(
-                input.userId,
-                input.conversationId,
-                input.userRequest,
-                resultText,
-                input.intent,
-                provider
-              ),
+              saveJamesTurn({
+                userId: input.userId,
+                conversationId: input.conversationId,
+                userMessage: input.userRequest,
+                assistantMessage: resultText,
+                intent: input.intent,
+                tool: provider,
+              }),
               evolveJames({
                 userId: input.userId,
                 conversationId: input.conversationId,
