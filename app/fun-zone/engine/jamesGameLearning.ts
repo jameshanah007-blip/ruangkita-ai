@@ -2201,6 +2201,18 @@ export async function getJamesGeneralizedCoreSkills(limit = 12) {
   }));
 }
 
+export function chooseJamesStrategyMutation(input: {
+  compositionScore: number;
+  confidence: number;
+  failureCount?: number;
+}) {
+  const failureCount = input.failureCount || 0;
+  if (failureCount >= 3) return "change-one-component-and-add-regression-check";
+  if (input.compositionScore < 0.65) return "simplify-composition-and-test-one-new-component";
+  if (input.confidence >= 0.8) return "small-contextual-variation";
+  return "bounded-parameter-variation";
+}
+
 export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
