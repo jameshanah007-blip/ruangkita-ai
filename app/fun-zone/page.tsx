@@ -891,7 +891,7 @@ const handleSandboxGameHtmlChange =
       void persistLabSession(previous, html);
       return previous;
     });
-  }, []);  
+  }, [blueprint, experimentId, experimentClaimToken, autonomousRepairAttempts]);  
 
   function resumeSavedGame() {
     if (!savedLabSession) return;
