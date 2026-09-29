@@ -1228,6 +1228,64 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
   return results.slice(0, limit);
 }
 
+export async function recordJamesStrategyLineage(input: {
+  parentStrategy: string;
+  childStrategy: string;
+  targetContext: string;
+  mutation: string;
+  outcome?: "success" | "failure" | "candidate";
+}) {
+  const client = db();
+  if (!client) return null;
+
+  const pattern = "fun-zone:strategy-lineage:" + clean(input.targetContext, 160);
+  const strategy = "Parent: " + input.parentStrategy + " -> Child: " + input.childStrategy;
+  const { data: existing } = await client
+    .from("james_experiences")
+    .select("id,success_count,failure_count,confidence")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("pattern", pattern)
+    .eq("strategy", strategy)
+    .maybeSingle();
+
+  const successCount = Number(existing?.success_count || 0) + (input.outcome === "success" ? 1 : 0);
+  const failureCount = Number(existing?.failure_count || 0) + (input.outcome === "failure" ? 1 : 0);
+  const total = successCount + failureCount;
+  const confidence = Math.min(0.99, Math.max(0.1, total
+    ? successCount / total * 0.7 + Number(existing?.confidence || 0.5) * 0.3
+    : 0.5));
+
+  const memory = {
+    user_id: SYSTEM_USER_ID,
+    pattern,
+    strategy,
+    confidence,
+    success_count: successCount,
+    failure_count: failureCount,
+    capabilities: ["fun-zone-strategy-lineage"],
+    status: "active",
+    last_evidence: {
+      parentStrategy: input.parentStrategy,
+      childStrategy: input.childStrategy,
+      mutation: input.mutation,
+      targetContext: input.targetContext,
+      outcome: input.outcome || "candidate",
+      recordedAt: new Date().toISOString(),
+    },
+  };
+
+  const result = existing?.id
+    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
+    : await client.from("james_experiences").insert(memory);
+
+  if (result.error) {
+    console.warn("James strategy lineage recording failed:", result.error.message);
+    return null;
+  }
+
+  return { pattern, confidence: Number(confidence.toFixed(3)), successCount, failureCount };
+}
+
 export async function evolveJamesComposedStrategy(input: {
   strategy: string;
   sources: string[];
