@@ -99,7 +99,7 @@ async function createSandbox() {
   const snapshotId = process.env.AGENT_BROWSER_SNAPSHOT_ID;
   return snapshotId
     ? SandboxRuntime.create({...credentials(),source:{type:"snapshot",snapshotId},timeout:120_000})
-    : Sandbox.create({...credentials(),runtime:"node24",timeout:120_000});
+    : SandboxRuntime.create({...credentials(),runtime:"node24",timeout:120_000,networkPolicy:"allow-all"});
 }
 
 export async function verifyGameInBrowser(gameHtml:string, blueprint:GameBlueprint, attempt:number):Promise<TestReport>{
