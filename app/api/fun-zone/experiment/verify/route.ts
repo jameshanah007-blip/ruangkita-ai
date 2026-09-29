@@ -65,18 +65,20 @@ export async function POST(request: Request) {
     const evolved = await evolveJamesStrategyMemory(blueprint, report);
 
     const verified = report.passed === true;
+    const attempt = Number(report.attempt || experiment.attempt || 0);
+    const terminalFailure = !verified && attempt >= 5;
 
     const { error: updateError } = await client
       .from("james_game_experiments")
       .update({
-        status: verified ? "verified" : "failed",
+        status: verified ? "verified" : terminalFailure ? "failed" : "pending_verification",
         test_report: report,
         learning_result: {
           learning,
           brainEvidence,
           evolved,
         },
-        attempt: Number(report.attempt || experiment.attempt || 0),
+        attempt,
         verified_at: verified ? new Date().toISOString() : null,
       })
       .eq("id", experimentId);
@@ -86,7 +88,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       experimentId,
-      status: verified ? "verified" : "failed",
+      status: verified ? "verified" : terminalFailure ? "failed" : "pending_verification",
       learning,
       brainEvidence,
       evolved,
