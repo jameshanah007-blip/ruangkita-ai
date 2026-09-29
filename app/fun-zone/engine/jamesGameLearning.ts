@@ -782,9 +782,56 @@ export function applyJamesFailedStrategyAvoidance(
 
   const failedPatterns = relevant.map((item) => item.pattern || "unknown").join(" | ");
   const failedStrategiesText = relevant.map((item) => item.strategy).join(" | ");
+  const mechanics = [...blueprint.mechanics];
+  const actions = [...blueprint.playerActions];
+  const controls = [...blueprint.controls];
+  const add = (list: string[], value: string) => {
+    if (!list.includes(value)) list.push(value);
+  };
+
+  const failedCapabilities = [...new Set(
+    relevant.flatMap((item) => Array.isArray(item.capabilities) ? item.capabilities : []),
+  )];
+
+  // Make avoidance concrete: when a failed experience involved a capability,
+  // deliberately introduce a different interaction/mechanic path for the next build.
+  for (const capability of failedCapabilities) {
+    if (capability.includes("input")) {
+      add(actions, "move");
+      add(controls, "touch + keyboard movement");
+      add(blueprint.testRequirements, "Test an alternate input path before objective progression");
+    } else if (capability.includes("objective")) {
+      add(actions, "interact");
+      add(mechanics, "explore");
+      add(blueprint.testRequirements, "Test objective progression through exploration instead of the previous interaction path");
+    } else if (capability.includes("gameplay-state")) {
+      add(mechanics, "collect");
+      add(actions, "interact");
+      add(blueprint.testRequirements, "Test state transition through a different mechanic");
+    } else if (capability.includes("restart")) {
+      add(actions, "restart");
+      add(controls, "restart");
+      add(blueprint.testRequirements, "Test restart after a different state-changing sequence");
+    }
+  }
+
+  const failedMechanics = new Set(
+    relevant
+      .flatMap((item) => String(item.pattern || "").split(":"))
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const alternativeMechanics = ["explore", "collect", "puzzle", "rescue", "survival", "stealth"];
+  const alternative = alternativeMechanics.find((mechanic) =>
+    !failedMechanics.has(mechanic) && !mechanics.includes(mechanic),
+  );
+  if (alternative) add(mechanics, alternative);
 
   return {
     ...blueprint,
+    mechanics: mechanics.slice(0, 12),
+    playerActions: actions.slice(0, 16),
+    controls: controls.slice(0, 12),
     progression: clean(
       blueprint.progression +
         " James failure memory: do not repeat these previously failed strategies: " +
@@ -793,10 +840,7 @@ export function applyJamesFailedStrategyAvoidance(
         ". Use a materially different implementation approach and verify the affected capability.",
       1400,
     ),
-    testRequirements: Array.from(new Set([
-      ...blueprint.testRequirements,
-      "Verify the new implementation does not reproduce a previously failed strategy",
-    ])).slice(0, 24),
+    testRequirements: Array.from(new Set(blueprint.testRequirements)).slice(0, 24),
   };
 }
 
