@@ -212,6 +212,83 @@ export async function recordJamesGameBrainEvidence(
     console.warn("James game self-evaluation persistence failed:", selfEvaluation.error.message);
   }
 
+  // Feed verified game evidence into James's durable capability self-model.
+  // This keeps Game Brain provider-free while allowing future builds to use empirical mastery.
+  const capabilityNames: Record<string, string> = {
+    "fun-zone-runtime-observability": "Runtime observability",
+    "fun-zone-rendering": "Rendering reliability",
+    "fun-zone-input-reliability": "Input reliability",
+    "fun-zone-gameplay-state": "Gameplay state integrity",
+    "fun-zone-objective-progression": "Objective progression",
+    "fun-zone-player-state": "Player state integrity",
+    "fun-zone-restart-integrity": "Restart integrity",
+  };
+
+  for (const item of evidence) {
+    const { data: prior } = await client
+      .from("james_self_model")
+      .select("id, competence, confidence, evidence_count, success_count, failure_count")
+      .eq("user_id", SYSTEM_USER_ID)
+      .eq("capability_key", item.capability)
+      .maybeSingle();
+
+    const oldEvidence = Number(prior?.evidence_count || 0);
+    const oldCompetence = Number(prior?.competence ?? 0.5);
+    const oldConfidence = Number(prior?.confidence ?? 0.2);
+    const currentSignal = item.passed ? 1 : 0;
+    const nextEvidence = oldEvidence + 1;
+    const nextCompetence = Math.max(0, Math.min(1,
+      oldEvidence === 0 ? (item.passed ? 0.75 : 0.25) : oldCompetence * 0.35 + currentSignal * 0.65,
+    ));
+    const nextConfidence = Math.max(0.1, Math.min(0.99,
+      Math.min(0.95, 0.2 + Math.log2(nextEvidence + 1) * 0.18) * 0.65 + oldConfidence * 0.35,
+    ));
+    const successCount = Number(prior?.success_count || 0) + (item.passed ? 1 : 0);
+    const failureCount = Number(prior?.failure_count || 0) + (item.passed ? 0 : 1);
+    const status = nextEvidence >= 12 && nextCompetence >= 0.85
+      ? "strong"
+      : nextEvidence >= 5 && nextCompetence >= 0.70
+        ? "competent"
+        : nextEvidence < 2
+          ? "unknown"
+          : "developing";
+    const nextLearningAction = status === "strong"
+      ? "monitor-and-verify"
+      : status === "competent"
+        ? "increase-diversity-and-test"
+        : "improve-and-retest";
+
+    const payload = {
+      user_id: SYSTEM_USER_ID,
+      capability_key: item.capability,
+      capability_name: capabilityNames[item.capability] || item.capability,
+      competence: nextCompetence,
+      confidence: nextConfidence,
+      evidence_count: nextEvidence,
+      success_count: successCount,
+      failure_count: failureCount,
+      teacher_providers: ["james-autonomous"],
+      active_models: ["game-brain-v2"],
+      last_evidence: {
+        source: "fun-zone",
+        attempt,
+        passed: item.passed,
+        quality,
+        weight: item.weight,
+        blueprint: blueprintFingerprint(blueprint),
+      },
+      next_learning_action: nextLearningAction,
+      status,
+    };
+
+    const { error: selfModelError } = await client
+      .from("james_self_model")
+      .upsert(payload, { onConflict: "user_id,capability_key" });
+    if (selfModelError) {
+      console.warn("James game self-model persistence failed:", selfModelError.message);
+    }
+  }
+
   const existing = await client
     .from("james_experiences")
     .select("id, success_count, failure_count, confidence, capabilities")
