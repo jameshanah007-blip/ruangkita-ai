@@ -2317,6 +2317,26 @@ export async function getJamesStrategyBranches(targetContext?: string, limit = 3
   return selectJamesStrategyBranches(lineage, limit);
 }
 
+export async function getJamesTournamentDirective(targetContext?: string) {
+  const tournament = await evaluateJamesStrategyTournament(targetContext, 5);
+  if (tournament.status !== "tournament-ready" || !tournament.winner) {
+    return { status: "unavailable", directive: "No tournament winner is available; use normal bounded strategy selection." };
+  }
+
+  const winner = tournament.winner;
+  return {
+    status: "available",
+    winnerStrategy: winner.strategy,
+    winnerScore: winner.score,
+    winnerSuccessRate: winner.successRate,
+    winnerConfidence: winner.confidence,
+    directive:
+      winner.successRate >= 0.75
+        ? "Prefer the tournament-leading strategy as the primary candidate, while preserving alternatives for contextual verification."
+        : "Use the tournament leader only as a candidate; require fresh verification before treating it as a preferred strategy.",
+  };
+}
+
 export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
