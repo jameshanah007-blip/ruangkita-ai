@@ -9,6 +9,7 @@ import { decideJamesBrainStrategy } from "./jamesDecisionEngine";
 import { decideJamesModelLearning } from "./jamesModelLearningPolicy";
 import { distillJamesKnowledge, syncJamesModelLearningJobs } from "./jamesModelLearning";
 import { createJamesAutonomousGoal } from "./jamesAutonomousGoals";
+import { createJamesGameExperimentJob, createJamesGameExperimentPlan, revalidateJamesCoreSkills } from "../fun-zone/engine/jamesGameLearning";
 
 export type JamesAutonomyMode = "supervised" | "bounded" | "autonomous";
 
@@ -492,12 +493,32 @@ export async function runJamesAutonomousBrain(input: {
   if (mode === "autonomous" && verified) {
     const nextRun = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     try {
+      const revalidatedCoreSkills = await revalidateJamesCoreSkills(12);
+      const experiment = await createJamesGameExperimentPlan();
+      const experimentJob = experiment?.status === "experiment"
+        ? await createJamesGameExperimentJob({
+            userId: input.userId,
+            conversationId: input.conversationId,
+          })
+        : null;
+      const experimentGoal = experimentJob?.status === "pending-verification"
+        ? [
+            "Run a bounded autonomous Fun Zone experiment for James Game Brain.",
+            "Target capability: " + String(experiment.targetCapability?.name || "unknown"),
+            "Experiment prompt: " + experiment.prompt,
+            "Experiment job ID: " + String(experimentJob.experimentId || "not-persisted") + ". Open the Fun Zone sandbox runner to verify it.",
+            "Use the result as evidence. Do not treat the experiment as successful until sandbox tests pass.",
+            "Core skill revalidation results: " + JSON.stringify(revalidatedCoreSkills).slice(0, 4000),
+          ].join("\n")
+        : null;
+
       await createJamesAutonomousGoal({
         userId: input.userId,
         conversationId: input.conversationId,
         title: "James Autonomous Learning Cycle",
         goal: [
           "Continue autonomous self-improvement for James.",
+          ...(experimentGoal ? [experimentGoal] : []),
           "Review the latest verified experience and provider evidence.",
           "Distill useful knowledge from Gemini, OpenAI, OpenRouter, and Groq when the model-learning policy allows it.",
           "Evaluate whether a provider-supported model adaptation is justified.",

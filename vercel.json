@@ -7,6 +7,10 @@
     {
       "path": "/api/ai/autonomous/heartbeat",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/fun-zone/experiment/watchdog",
+      "schedule": "0 * * * *"
     }
   ]
 }
