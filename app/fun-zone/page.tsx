@@ -541,9 +541,9 @@ export default function FunZonePage() {
     }
   }
 
-  async function buildGame() {
+  async function buildGame(promptOverride?: string) {
     const trimmedPrompt =
-      prompt.trim();
+      (promptOverride ?? prompt).trim();
 
     if (!trimmedPrompt) {
       setError(
@@ -781,8 +781,7 @@ const handleSandboxGameHtmlChange =
   function chooseCatalogGame(game: FunZoneGameIdea) {
     setPrompt(game.prompt);
     setError("");
-    setStage("idle");
-    window.setTimeout(() => buildGame(), 0);
+    void buildGame(game.prompt);
   }
 
   function refreshGameCatalog() {
