@@ -55,6 +55,25 @@ export async function createJamesAutonomousGoal(input: {
   return data as JamesAutonomousGoal;
 }
 
+export async function claimJamesAutonomousGoal() {
+  const client = db();
+  if (!client) throw new Error("Supabase secret configuration is missing.");
+
+  const { data, error } = await client
+    .rpc("claim_james_autonomous_goal")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error("Gagal melakukan atomic claim autonomous goal: " + error.message);
+  }
+
+  if (!data) {
+    throw new Error("Tidak ada autonomous goal yang berhasil di-claim.");
+  }
+
+  return data as JamesAutonomousGoal;
+}
+
 export async function getDueJamesAutonomousGoals(limit = 1) {
   const client = db();
   if (!client) return [];
