@@ -1,4 +1,4 @@
-import type { GameBlueprint } from "./laboratory/types";
+import type { GameBlueprint } from "../laboratory/types";
 
 function inferGenre(prompt: string): string {
   const p = prompt.toLowerCase();
