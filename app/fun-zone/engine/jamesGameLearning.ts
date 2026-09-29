@@ -1228,6 +1228,42 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
   return results.slice(0, limit);
 }
 
+export function composeJamesKnowledgeStrategies(
+  knowledge: Array<{ strategy: string; confidence: number; relevance: number; successRate: number }>,
+  limit = 3,
+) {
+  const selected = knowledge
+    .filter((item) => item.relevance > 0 || item.confidence >= 0.8)
+    .sort((a, b) =>
+      (b.relevance * 0.5 + b.confidence * 0.3 + b.successRate * 0.2) -
+      (a.relevance * 0.5 + a.confidence * 0.3 + a.successRate * 0.2),
+    )
+    .slice(0, Math.max(1, Math.min(5, limit)));
+
+  if (!selected.length) {
+    return {
+      strategy: null,
+      sources: [],
+      confidence: 0,
+      compositionScore: 0,
+    };
+  }
+
+  const compositionScore = selected.reduce(
+    (sum, item) => sum + item.relevance * 0.5 + item.confidence * 0.3 + item.successRate * 0.2,
+    0,
+  ) / selected.length;
+
+  return {
+    strategy: selected.map((item, index) => "Component " + (index + 1) + ": " + item.strategy).join(" | "),
+    sources: selected.map((item) => item.strategy),
+    confidence: Number(
+      Math.min(0.99, selected.reduce((sum, item) => sum + item.confidence, 0) / selected.length).toFixed(3),
+    ),
+    compositionScore: Number(Math.min(0.99, compositionScore).toFixed(3)),
+  };
+}
+
 export async function retrieveJamesRelevantKnowledge(input: { world: string; genre: string; mechanics: string[]; capabilityKey?: string; limit?: number }) {
   const client = db();
   if (!client) return [];
