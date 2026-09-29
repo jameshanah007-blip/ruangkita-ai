@@ -1146,6 +1146,40 @@ export async function evaluateJamesRecoveryDirectiveImpact(
   const improvement = Number((currentQuality - baselineQuality).toFixed(4));
   const directiveEffective = improvement > 0 && report.passed === true;
 
+  const strategyPattern = "fun-zone:recovery-directive";
+  const strategy = "Apply recovery directive only when it improves comparable experiment quality without repeating stale-runner execution failures.";
+  const { data: existing } = await client
+    .from("james_experiences")
+    .select("id,success_count,failure_count,confidence")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("pattern", strategyPattern)
+    .eq("strategy", strategy)
+    .maybeSingle();
+
+  const successCount = Number(existing?.success_count || 0) + (directiveEffective ? 1 : 0);
+  const failureCount = Number(existing?.failure_count || 0) + (directiveEffective ? 0 : 1);
+  const total = successCount + failureCount;
+  const rate = total ? successCount / total : 0;
+  const confidence = Math.min(0.99, Math.max(0.1, 0.45 + rate * 0.45 + Math.min(0.1, total * 0.01)));
+  const status = rate < 0.4 && failureCount >= 3 ? "blocked" : "active";
+
+  const memory = {
+    user_id: SYSTEM_USER_ID,
+    pattern: strategyPattern,
+    strategy,
+    confidence,
+    success_count: successCount,
+    failure_count: failureCount,
+    capabilities: ["fun-zone-runtime-observability", "fun-zone-restart-integrity"],
+    status,
+  };
+
+  if (existing?.id) {
+    await client.from("james_experiences").update(memory).eq("id", existing.id);
+  } else {
+    await client.from("james_experiences").insert(memory);
+  }
+
   return {
     influenced: true,
     evaluated: true,
@@ -1156,6 +1190,13 @@ export async function evaluateJamesRecoveryDirectiveImpact(
     improvement,
     directiveEffective,
     comparisonBasis: "same-world-genre-mechanics-pattern",
+    directiveMemory: {
+      successCount,
+      failureCount,
+      successRate: Number(rate.toFixed(3)),
+      confidence: Number(confidence.toFixed(3)),
+      status,
+    },
   };
 }
 
