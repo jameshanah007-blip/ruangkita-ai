@@ -1399,6 +1399,16 @@ export async function getJamesPendingExperiment(input: { userId?: string | null 
   return data;
 }
 
+export async function claimJamesGameExperiment(input: { userId?: string | null }) {
+  const client = db();
+  if (!client) return null;
+  const { data, error } = await client.rpc("claim_james_game_experiment", {
+    p_user_id: input.userId ?? null,
+  });
+  if (error) throw new Error("Game experiment claim failed: " + error.message);
+  return data;
+}
+
 export async function createJamesGameExperimentJob(input: {
   userId?: string | null;
   conversationId?: string | null;
