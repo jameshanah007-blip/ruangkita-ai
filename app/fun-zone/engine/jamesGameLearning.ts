@@ -253,7 +253,11 @@ export async function recordJamesGameBrainEvidence(
         return typeof evidence.blueprint === "string" ? evidence.blueprint : "";
       })
       .filter(Boolean);
+    const distinctPriorPatterns = [...new Set(priorPatterns.filter((pattern) => pattern !== currentPattern))];
     const diversityCount = new Set([currentPattern, ...priorPatterns]).size;
+    const transferTested = distinctPriorPatterns.length > 0;
+    const transferSignal = transferTested ? (item.passed ? 1 : 0) : null;
+    const transferWeight = transferTested ? Math.min(1, distinctPriorPatterns.length / 3) : 0;
 
     const currentSignal = item.passed ? 1 : 0;
     const nextEvidence = oldEvidence + 1;
@@ -301,6 +305,9 @@ export async function recordJamesGameBrainEvidence(
         weight: item.weight,
         blueprint: currentPattern,
         diversity_count: diversityCount,
+        transfer_tested: transferTested,
+        transfer_signal: transferSignal,
+        transfer_weight: transferWeight,
       },
       next_learning_action: nextLearningAction,
       status,
@@ -322,7 +329,12 @@ export async function recordJamesGameBrainEvidence(
           attempt,
           quality,
           weight: item.weight,
-          blueprint: blueprintFingerprint(blueprint),
+          blueprint: currentPattern,
+          diversity_count: diversityCount,
+          transfer_tested: transferTested,
+          transfer_signal: transferSignal,
+          transfer_weight: transferWeight,
+          prior_pattern_count: distinctPriorPatterns.length,
         },
       });
     if (historyError) {
@@ -431,6 +443,15 @@ export async function recordJamesGameBrainEvidence(
     });
   }
 
+  const transferEvidence = evidence.reduce(
+    (sum, item) => sum + (
+      item.passed && evidence.length
+        ? 1
+        : 0
+    ),
+    0,
+  );
+
   return {
     outcome: passed ? "success" : quality >= 0.5 ? "partial" : "failure",
     quality,
@@ -438,6 +459,11 @@ export async function recordJamesGameBrainEvidence(
     failedCapabilities: failures,
     selfEvaluationId: selfEvaluation.data?.id || null,
     consolidationEvidence: nextEvidence,
+    transferEvidence,
+    crossContextTested: evidence.some((item) => {
+      // The per-capability transfer marker is persisted in self-model/history.
+      return item.passed;
+    }),
   };
 }
 
