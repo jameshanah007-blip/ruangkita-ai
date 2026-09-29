@@ -830,6 +830,51 @@ export async function getJamesRecoveryDirectives(limit = 4) {
   }));
 }
 
+export async function getJamesStrategyExploration() {
+  const client = db();
+  if (!client) return null;
+
+  const { data, error } = await client
+    .from("james_game_experiments")
+    .select("status,blueprint,attempt,created_at")
+    .order("created_at", { ascending: false })
+    .limit(12);
+
+  if (error) {
+    console.warn("James strategy exploration retrieval failed:", error.message);
+    return null;
+  }
+
+  const recentMechanics = new Set<string>();
+  const recentPatterns = new Set<string>();
+
+  for (const row of data || []) {
+    const blueprint = row.blueprint && typeof row.blueprint === "object"
+      ? row.blueprint as Record<string, unknown>
+      : {};
+    const mechanics = Array.isArray(blueprint.mechanics)
+      ? blueprint.mechanics.filter((value): value is string => typeof value === "string")
+      : [];
+    mechanics.forEach((mechanic) => recentMechanics.add(mechanic));
+    if (blueprint.world && blueprint.genre) {
+      recentPatterns.add(String(blueprint.world) + ":" + String(blueprint.genre));
+    }
+  }
+
+  const alternatives = ["puzzle", "rescue", "stealth", "collect", "explore", "survival", "racing", "dialogue"];
+  const novelMechanic = alternatives.find((mechanic) => !recentMechanics.has(mechanic)) || null;
+  const evidenceCount = (data || []).length;
+  const shouldExplore = evidenceCount >= 3 && Boolean(novelMechanic);
+
+  return {
+    shouldExplore,
+    novelMechanic,
+    recentExperimentCount: evidenceCount,
+    recentMechanics: Array.from(recentMechanics).slice(0, 12),
+    recentContexts: Array.from(recentPatterns).slice(0, 8),
+  };
+}
+
 export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
