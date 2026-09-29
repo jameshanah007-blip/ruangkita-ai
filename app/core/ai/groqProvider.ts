@@ -2,6 +2,7 @@ import type {
   AIProvider,
   AIGenerateRequest,
   AIGenerateResponse,
+  readSSEText,
 } from "./aiProvider";
 
 const GROQ_URL =
@@ -191,6 +192,65 @@ class GroqProvider implements AIProvider {
           ? data.model
           : GROQ_MODEL,
     };
+
+  async *generateStream(
+    request: AIGenerateRequest
+  ): AsyncGenerator<string, void, unknown> {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error("GROQ_API_KEY belum dikonfigurasi.");
+
+    const combinedInput = [request.systemInstruction, request.prompt].join("\n\n");
+    const inputTokens = estimateTokens(combinedInput);
+    const compactedInput = compactForGroq(combinedInput, GROQ_INPUT_TOKEN_BUDGET);
+    const systemBudget = Math.floor(GROQ_INPUT_TOKEN_BUDGET * 0.55);
+    const promptBudget = GROQ_INPUT_TOKEN_BUDGET - systemBudget;
+    const compactedSystem = compactForGroq(request.systemInstruction, systemBudget);
+    const compactedPrompt = compactedInput === combinedInput ? request.prompt : compactForGroq(request.prompt, promptBudget);
+    const outputBudget = Math.min(
+      request.maxOutputTokens ?? GROQ_OUTPUT_TOKEN_BUDGET,
+      GROQ_OUTPUT_TOKEN_BUDGET,
+      Math.max(512, GROQ_TPM_BUDGET - Math.min(inputTokens, GROQ_INPUT_TOKEN_BUDGET) - 400)
+    );
+    const response = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [
+          { role: "system", content: compactedSystem },
+          { role: "user", content: compactedPrompt },
+        ],
+        reasoning_effort: "low",
+        include_reasoning: false,
+        temperature: request.temperature ?? 0.7,
+        max_completion_tokens: outputBudget,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok || !response.body) {
+      const raw = await response.text().catch(() => "");
+      let message = "Groq streaming gagal.";
+      try {
+        const data = JSON.parse(raw);
+        message = data?.error?.message || data?.message || message;
+      } catch {}
+      const error = new Error(message) as Error & { provider?: string; status?: number };
+      error.provider = "groq";
+      error.status = response.status;
+      throw error;
+    }
+
+    yield* readSSEText(response.body, (data) => {
+      const delta = data?.choices?.[0]?.delta;
+      if (typeof delta?.content === "string") return delta.content;
+      return undefined;
+    });
+  }
   }
 }
 
