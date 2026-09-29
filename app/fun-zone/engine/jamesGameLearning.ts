@@ -1225,6 +1225,62 @@ export async function getJamesLearningModeMemory() {
   return result;
 }
 
+export async function revalidateJamesCoreSkills(limit = 12) {
+  const client = db();
+  if (!client) return [];
+
+  const { data, error } = await client
+    .from("james_self_model")
+    .select("id,capability_key,competence,confidence,evidence_count,success_count,failure_count,status,last_evidence,next_learning_action,updated_at")
+    .eq("user_id", SYSTEM_USER_ID)
+    .like("capability_key", "fun-zone-core:%")
+    .neq("status", "blocked")
+    .order("updated_at", { ascending: true })
+    .limit(Math.max(1, Math.min(30, limit)));
+
+  if (error) {
+    console.warn("James core skill revalidation retrieval failed:", error.message);
+    return [];
+  }
+
+  const now = Date.now();
+  const results = [];
+  for (const skill of data || []) {
+    const updatedAt = Date.parse(String(skill.updated_at || ""));
+    const ageDays = Number.isFinite(updatedAt) ? Math.max(0, (now - updatedAt) / 86400000) : 0;
+    if (ageDays < 7) continue;
+
+    const decay = Math.min(0.12, 0.02 + Math.floor(ageDays / 30) * 0.02);
+    const competence = Math.max(0.1, Number(skill.competence || 0) - decay * 0.5);
+    const confidence = Math.max(0.1, Number(skill.confidence || 0) - decay);
+    const status = competence >= 0.85 && confidence >= 0.8 ? "strong" : competence >= 0.7 ? "competent" : "developing";
+
+    const result = await client.from("james_self_model").update({
+      competence,
+      confidence,
+      status,
+      next_learning_action: "Revalidate this generalized skill in a fresh context; restore confidence only with new evidence.",
+      last_evidence: {
+        source: "core-skill-revalidation",
+        ageDays: Number(ageDays.toFixed(1)),
+        decay: Number(decay.toFixed(3)),
+      },
+    }).eq("id", skill.id);
+
+    if (!result.error) {
+      results.push({
+        capabilityKey: skill.capability_key,
+        ageDays: Number(ageDays.toFixed(1)),
+        competence: Number(competence.toFixed(3)),
+        confidence: Number(confidence.toFixed(3)),
+        status,
+      });
+    }
+  }
+
+  return results;
+}
+
 export async function getJamesGeneralizedCoreSkills(limit = 12) {
   const client = db();
   if (!client) return [];
