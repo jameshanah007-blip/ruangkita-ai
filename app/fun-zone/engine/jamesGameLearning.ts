@@ -169,6 +169,21 @@ export async function recordJamesGameBrainEvidence(
     700,
   );
 
+  const capabilityPatterns = new Map<string, {
+    failed: boolean;
+    transferTested: boolean;
+    transferPassed: boolean;
+    priorFailures: number;
+  }>();
+  for (const item of evidence) {
+    capabilityPatterns.set(item.capability, {
+      failed: !item.passed,
+      transferTested: false,
+      transferPassed: item.passed,
+      priorFailures: 0,
+    });
+  }
+
   const selfEvaluation = await client
     .from("james_self_evaluations")
     .insert({
@@ -277,6 +292,20 @@ export async function recordJamesGameBrainEvidence(
     const transferSuccessRate = transferTests
       ? (priorTransferSuccesses + (item.passed && transferTested ? 1 : 0)) / transferTests
       : null;
+    const transferFailure = transferTested && !item.passed;
+    const adaptationDirective = transferFailure
+      ? "transfer failed; next build must alter implementation strategy for " + item.capability
+      : transferTested && Number(transferSuccessRate || 0) < 0.75
+        ? "transfer is unstable; vary context and strengthen " + item.capability
+        : null;
+    if (adaptationDirective) {
+      capabilityPatterns.set(item.capability, {
+        failed: !item.passed,
+        transferTested: true,
+        transferPassed: item.passed,
+        priorFailures: priorTransferRows.length - priorTransferSuccesses,
+      });
+    }
     if (transferTested) {
       transferTests += 1;
       if (item.passed) transferSuccesses += 1;
@@ -334,6 +363,7 @@ export async function recordJamesGameBrainEvidence(
         transfer_weight: transferWeight,
         transfer_tests: transferTests,
         transfer_success_rate: transferSuccessRate,
+        adaptation_directive: adaptationDirective,
       },
       next_learning_action: nextLearningAction,
       status,
@@ -363,6 +393,7 @@ export async function recordJamesGameBrainEvidence(
           prior_pattern_count: distinctPriorPatterns.length,
           transfer_tests: transferTests,
           transfer_success_rate: transferSuccessRate,
+          adaptation_directive: adaptationDirective,
         },
       });
     if (historyError) {
@@ -376,6 +407,11 @@ export async function recordJamesGameBrainEvidence(
       console.warn("James game self-model persistence failed:", selfModelError.message);
     }
   }
+
+  const adaptationPlan = [...capabilityPatterns.entries()]
+    .filter(([, value]) => value.transferTested && !value.transferPassed)
+    .map(([capability]) => "Adapt next game strategy for " + capability)
+    .slice(0, 8);
 
   const existing = await client
     .from("james_experiences")
@@ -484,6 +520,7 @@ export async function recordJamesGameBrainEvidence(
     consolidationEvidence: nextEvidence,
     transferEvidence,
     crossContextTested: transferTests > 0,
+    adaptationPlan,
   };
 }
 
