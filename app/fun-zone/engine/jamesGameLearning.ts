@@ -1379,6 +1379,26 @@ export function applyJamesGameLessons(
 }
 
 
+export async function getJamesPendingExperiment(input: { userId?: string | null }) {
+  const client = db();
+  if (!client) return null;
+
+  let query = client
+    .from("james_game_experiments")
+    .select("id,user_id,conversation_id,capability_key,capability_name,prompt,blueprint,game_html,status,attempt,test_report,learning_result,created_at,verified_at")
+    .eq("status", "pending_verification")
+    .order("created_at", { ascending: true })
+    .limit(1);
+
+  if (input.userId) {
+    query = query.eq("user_id", input.userId);
+  }
+
+  const { data, error } = await query.maybeSingle();
+  if (error) throw new Error("Pending experiment lookup failed: " + error.message);
+  return data;
+}
+
 export async function createJamesGameExperimentJob(input: {
   userId?: string | null;
   conversationId?: string | null;
