@@ -12,6 +12,7 @@ import type {
 } from "../../../fun-zone/laboratory/types";
 import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
+import { applyJamesGameLessons, getJamesGameLessons } from "../../../fun-zone/engine/jamesGameLearning";
 
 const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
 
@@ -316,11 +317,13 @@ export async function POST(
 
     const blueprint = director.blueprint ?? createLocalGameBlueprint(prompt);
     const normalizedBlueprint = normalizeBlueprintArrays(blueprint);
+    const learnedGameLessons = await getJamesGameLessons(8);
+    const learnedBlueprint = applyJamesGameLessons(normalizedBlueprint, learnedGameLessons);
 
     session =
       markDirectorCompleted(
         session,
-        normalizedBlueprint
+        learnedBlueprint
       );
 
     /*
@@ -342,7 +345,7 @@ export async function POST(
 
     if (PROVIDER_ENHANCEMENT_ENABLED) {
       try {
-        builder = await callBuilder(request, normalizedBlueprint);
+        builder = await callBuilder(request, learnedBlueprint);
         builderProvider = builder.provider || "provider-enhanced";
       } catch (error) {
         console.warn("Provider Builder unavailable; using James autonomous compiler.", error);
@@ -350,7 +353,7 @@ export async function POST(
           success: true,
           provider: "james-autonomous",
           model: "autonomous-game-compiler-v1",
-          gameHtml: buildAutonomousGameHtml(normalizedBlueprint),
+          gameHtml: buildAutonomousGameHtml(learnedBlueprint),
           validation: {
             valid: true,
             errors: [],
