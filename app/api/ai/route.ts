@@ -967,7 +967,7 @@ function createJamesChatStreamResponse(input: {
   const encoder = new TextEncoder();
 
   const encodeEvent = (payload: Record<string, unknown>) =>
-    encoder.encode(`data: ${JSON.stringify(payload)}\\n\\n`);
+    encoder.encode(`data: ${JSON.stringify(payload)}\n\n`);
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
