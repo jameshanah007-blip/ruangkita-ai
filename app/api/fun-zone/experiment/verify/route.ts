@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../../../../fun-zone/laboratory/types";
-import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, evolveJamesStrategyMemory, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict } from "../../../../fun-zone/engine/jamesGameLearning";
+import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, evolveJamesStrategyMemory, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict, recordJamesCoreSkillLineage } from "../../../../fun-zone/engine/jamesGameLearning";
 
 export const runtime = "nodejs";
 
@@ -48,7 +48,19 @@ export async function POST(request: Request) {
         quality: gameQuality(report),
         evidence: 1,
       });
-      if (conflict) coreSkillConflicts.push(conflict);
+      if (conflict) {
+        coreSkillConflicts.push(conflict);
+        await recordJamesCoreSkillLineage(skill.capabilityKey, {
+          source: "fun-zone-experiment-verification",
+          quality: gameQuality(report),
+          passed: report.passed === true,
+          context: String(blueprint.world) + ":" + String(blueprint.genre) + ":" + blueprint.mechanics.slice(0, 4).join("+"),
+          previousCompetence: conflict.previousCompetence,
+          newCompetence: conflict.competence,
+          newConfidence: conflict.confidence,
+          reason: conflict.conflict ? "Conflicting evidence detected." : "Evidence reinforced generalized skill.",
+        });
+      }
     }
     const verified = report.passed === true;
     const terminalFailure = !verified && attempt >= 5;
