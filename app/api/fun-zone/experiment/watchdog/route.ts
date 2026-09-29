@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
     const { data: stale, error: findError } = await client
       .from("james_game_experiments")
-      .select("id,user_id,capability_key,capability_name,attempt,started_at")
+      .select("id,user_id,capability_key,capability_name,attempt,started_at,test_report,learning_result")
       .eq("status", "running")
       .lt("started_at", cutoff)
       .order("started_at", { ascending: true })
@@ -46,6 +46,23 @@ export async function GET(request: Request) {
     }
 
     const ids = stale.map((job) => job.id);
+
+    const recoveredPatterns = stale.map((job) => {
+      const report = job.test_report as Record<string, unknown> | null;
+      const failures = Array.isArray(report?.hardFailures) ? report.hardFailures : [];
+      const warnings = Array.isArray(report?.softWarnings) ? report.softWarnings : [];
+      return {
+        id: job.id,
+        capability: job.capability_key || "unknown",
+        failures: failures.slice(0, 5),
+        warnings: warnings.slice(0, 5),
+        attempt: Number(job.attempt || 0),
+      };
+    });
+
+    const repeatedFailureCapabilities = Array.from(new Set(
+      recoveredPatterns.filter((item) => item.failures.length > 0).map((item) => item.capability),
+    ));
     const { error: recoverError } = await client
       .from("james_game_experiments")
       .update({ status: "pending_verification", runner_token: null, started_at: null })
@@ -56,7 +73,9 @@ export async function GET(request: Request) {
     if (recoverError) throw recoverError;
 
     const pattern = "fun-zone:queue:stale-runner-recovery";
-    const strategy = "Recover abandoned experiment runners after a 10-minute lease timeout and return the job to the verification queue.";
+    const strategy = repeatedFailureCapabilities.length
+      ? "Recover stale runners and strengthen the next experiment around recurring failed capabilities: " + repeatedFailureCapabilities.join(", ") + "."
+      : "Recover abandoned experiment runners after a 10-minute lease timeout and return the job to the verification queue.";
     const { data: existing } = await client
       .from("james_experiences")
       .select("id,success_count,failure_count,confidence")
@@ -74,7 +93,7 @@ export async function GET(request: Request) {
       confidence,
       success_count: successCount,
       failure_count: Number(existing?.failure_count || 0),
-      capabilities: ["fun-zone-runtime-observability", "fun-zone-restart-integrity"],
+      capabilities: Array.from(new Set(["fun-zone-runtime-observability", "fun-zone-restart-integrity", ...repeatedFailureCapabilities])),
       status: "active",
     };
 
@@ -93,6 +112,11 @@ export async function GET(request: Request) {
         recorded: true,
         pattern,
         strategy,
+        repeatedFailureCapabilities,
+        recoveredPatterns,
+        directive: repeatedFailureCapabilities.length
+          ? "Do not repeat the failed runner pattern; target the recurring capability gaps in the next experiment."
+          : "Keep runner leases bounded and recover abandoned jobs automatically.",
       },
     });
   } catch (error) {
