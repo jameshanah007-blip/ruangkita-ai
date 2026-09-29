@@ -233,8 +233,9 @@ export async function recordJamesGameBrainEvidence(
       .maybeSingle();
 
     const oldEvidence = Number(prior?.evidence_count || 0);
-    const oldCompetence = Number(prior?.competence ?? 0.5);
-    const oldConfidence = Number(prior?.confidence ?? 0.2);
+    const previousCompetence = Number(prior?.competence ?? 0.5);
+    const previousConfidence = Number(prior?.confidence ?? 0.2);
+
     const currentSignal = item.passed ? 1 : 0;
     const nextEvidence = oldEvidence + 1;
     const nextCompetence = Math.max(0, Math.min(1,
@@ -280,6 +281,29 @@ export async function recordJamesGameBrainEvidence(
       next_learning_action: nextLearningAction,
       status,
     };
+
+    const { error: historyError } = await client
+      .from("james_capability_mastery_history")
+      .insert({
+        user_id: SYSTEM_USER_ID,
+        capability_key: item.capability,
+        previous_competence: previousCompetence,
+        competence: nextCompetence,
+        previous_confidence: previousConfidence,
+        confidence: nextConfidence,
+        evidence_count: nextEvidence,
+        outcome: item.passed ? "success" : "failure",
+        source: "fun-zone",
+        evidence: {
+          attempt,
+          quality,
+          weight: item.weight,
+          blueprint: blueprintFingerprint(blueprint),
+        },
+      });
+    if (historyError) {
+      console.warn("James mastery history persistence failed:", historyError.message);
+    }
 
     const { error: selfModelError } = await client
       .from("james_self_model")
