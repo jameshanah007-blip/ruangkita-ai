@@ -1225,6 +1225,26 @@ export async function getJamesLearningModeMemory() {
   return result;
 }
 
+export function calculateJamesEvidenceWeight(input: {
+  quality: number;
+  passed: boolean;
+  evidenceCount?: number;
+  contextCount?: number;
+  isTransfer?: boolean;
+  isGeneralized?: boolean;
+}) {
+  const quality = Math.max(0, Math.min(1, input.quality));
+  const evidenceCount = Math.max(1, input.evidenceCount || 1);
+  const contextCount = Math.max(1, input.contextCount || 1);
+  let weight = 0.25 + quality * 0.5;
+  if (input.passed) weight += 0.1;
+  if (evidenceCount >= 3) weight += 0.05;
+  if (contextCount >= 2) weight += 0.05;
+  if (input.isTransfer) weight += 0.05;
+  if (input.isGeneralized) weight += 0.1;
+  return Number(Math.min(1, weight).toFixed(3));
+}
+
 export async function recordJamesCoreSkillLineage(
   capabilityKey: string,
   evidence: {
