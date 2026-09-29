@@ -113,9 +113,27 @@ export default function AIExecutor() {
     setLoading(true);
 
     try {
+      const assistantId = makeId();
+
+      setMessages((current) => [
+        ...current,
+        {
+          id: assistantId,
+          role: "assistant",
+          content: "",
+          citations: [],
+          feedback: null,
+          feedbackNote: "",
+          feedbackNoteSubmitted: false,
+        },
+      ]);
+
       const response = await fetch("/api/ai", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        },
         body: JSON.stringify({
           request: trimmedRequest,
           userId,
@@ -123,38 +141,126 @@ export default function AIExecutor() {
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
         throw new Error(data.error || "Terjadi kesalahan.");
       }
 
-      if (data.identityVerificationRequired) {
-        setVerificationOpen(true);
-        setVerificationCode("");
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("text/event-stream") || !response.body) {
+        const data = await response.json().catch(() => ({}));
+
+        if (data.identityVerificationRequired) {
+          setVerificationOpen(true);
+          setVerificationCode("");
+        }
+
+        if (data.userId && data.userId !== userId) setUserId(data.userId);
+        if (data.conversationId && data.conversationId !== conversationId) {
+          setConversationId(data.conversationId);
+        }
+
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === assistantId
+              ? {
+                  ...message,
+                  content: data.result || data.error || "James belum dapat memberikan jawaban.",
+                  citations: Array.isArray(data.citations) ? data.citations : [],
+                }
+              : message
+          )
+        );
+
+        if (!response.ok) {
+          throw new Error(data.error || "Terjadi kesalahan.");
+        }
+
+        return;
       }
 
-      if (data.userId && data.userId !== userId) {
-        setUserId(data.userId);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      const applyStreamEvent = (event: {
+        type?: string;
+        text?: string;
+        result?: string;
+        error?: string;
+        userId?: string;
+        conversationId?: string;
+        citations?: unknown;
+      }) => {
+        if (event.type === "delta" && event.text) {
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === assistantId
+                ? { ...message, content: message.content + event.text }
+                : message
+            )
+          );
+          return;
+        }
+
+        if (event.type === "done") {
+          if (event.userId && event.userId !== userId) setUserId(event.userId);
+          if (event.conversationId && event.conversationId !== conversationId) {
+            setConversationId(event.conversationId);
+          }
+
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === assistantId
+                ? {
+                    ...message,
+                    content: event.result || message.content || "James belum dapat memberikan jawaban.",
+                    citations: Array.isArray(event.citations) ? event.citations : [],
+                  }
+                : message
+            )
+          );
+          return;
+        }
+
+        if (event.type === "error") {
+          throw new Error(event.error || "Streaming James gagal.");
+        }
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split(/\r?\n\r?\n/);
+        buffer = frames.pop() || "";
+
+        for (const frame of frames) {
+          const dataLine = frame
+            .split(/\r?\n/)
+            .find((line) => line.startsWith("data:"));
+          if (!dataLine) continue;
+
+          try {
+            applyStreamEvent(JSON.parse(dataLine.slice(5).trim()));
+          } catch (frameError) {
+            if (frameError instanceof Error && frameError.message !== "Unexpected end of JSON input") {
+              throw frameError;
+            }
+          }
+        }
       }
 
-      if (data.conversationId && data.conversationId !== conversationId) {
-        setConversationId(data.conversationId);
-        
+      buffer += decoder.decode();
+      if (buffer.trim()) {
+        const dataLine = buffer
+          .split(/\r?\n/)
+          .find((line) => line.startsWith("data:"));
+        if (dataLine) {
+          applyStreamEvent(JSON.parse(dataLine.slice(5).trim()));
+        }
       }
-
-      setMessages((current) => [
-        ...current,
-        {
-          id: makeId(),
-          role: "assistant",
-          content: data.result || "James belum dapat memberikan jawaban.",
-          citations: Array.isArray(data.citations) ? data.citations : [],
-          feedback: null,
-          feedbackNote: "",
-          feedbackNoteSubmitted: false,
-        },
-      ]);
     } catch (error) {
       setError(
         error instanceof Error

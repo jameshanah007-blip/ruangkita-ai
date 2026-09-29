@@ -7,9 +7,8 @@ import { learnJamesMetaStrategy } from "./jamesMetaLearning";
 import { detectJamesImprovementGoal, evolveJamesImprovementGoal, queueJamesCapabilityGap, executeJamesLearningGoal, normalizeJamesCapability } from "./jamesImprovementEngine";
 import { decideJamesBrainStrategy } from "./jamesDecisionEngine";
 import { decideJamesModelLearning } from "./jamesModelLearningPolicy";
-import { distillJamesKnowledge, startJamesModelAdaptation, syncJamesModelLearningJobs } from "./jamesModelLearning";
+import { distillJamesKnowledge, syncJamesModelLearningJobs } from "./jamesModelLearning";
 import { createJamesAutonomousGoal } from "./jamesAutonomousGoals";
-import { tryJamesCandidateCanary } from "./jamesModelRouting";
 
 export type JamesAutonomyMode = "supervised" | "bounded" | "autonomous";
 
@@ -253,19 +252,6 @@ export async function runJamesAutonomousBrain(input: {
     });
 
     try {
-      // Give validated adapted models a small, bounded canary opportunity.
-      // The four primary providers remain the normal routing backbone.
-      const canary = await tryJamesCandidateCanary({
-        userId: input.userId,
-        task: "autonomous",
-        request: {
-          systemInstruction: "Return only the final answer. No chain-of-thought.",
-          prompt: workingGoal,
-          temperature: 0.2,
-          maxOutputTokens: 3000,
-        },
-      });
-
       const agent: JamesAgentResult = await runJamesAgentLoop({
         request: workingGoal,
         initialPlan: plan,
@@ -274,10 +260,6 @@ export async function runJamesAutonomousBrain(input: {
         conversationId: input.conversationId,
         resume: true,
       });
-
-      if (canary?.text?.trim()) {
-        cycleRecord.decision += " | canary:" + canary.candidateId;
-      }
 
       await recordCapabilityEvidence(input.userId, workingGoal, agent.verified, plan.confidence, brainDecision.rankedProviders);
 
@@ -413,24 +395,12 @@ export async function runJamesAutonomousBrain(input: {
           cycleRecord.modelLearningStatus =
             distilled.sampleCount > 0 ? "dataset_ready" : "failed";
 
-          if (
-            modelLearning.shouldAdapt &&
-            distilled.jobId &&
-            modelLearning.targetProvider &&
-            modelLearning.baseModel
-          ) {
-            const adapted = await startJamesModelAdaptation({
-              userId: input.userId,
-              distillationJobId: distilled.jobId,
-              targetProvider: modelLearning.targetProvider,
-              baseModel: modelLearning.baseModel,
-            });
-
-            cycleRecord.modelLearningJobId = adapted.jobId;
-            cycleRecord.modelLearningStatus = adapted.status;
-            cycleRecord.adaptedProvider = adapted.provider;
-            cycleRecord.decision +=
-              " | adaptation:" + adapted.provider;
+          // Direct model adaptation is intentionally disabled by the
+          // autonomous-safe learning policy. James learns through
+          // provider-output distillation plus verification instead.
+          if (modelLearning.shouldAdapt) {
+            cycleRecord.modelLearningStatus = "adaptation_disabled";
+            cycleRecord.decision += " | adaptation:disabled-by-policy";
           }
         }
       }

@@ -23,7 +23,14 @@ export interface AIProvider {
   generate(
     request: AIGenerateRequest
   ): Promise<AIGenerateResponse>;
+  generateStream?(
+    request: AIGenerateRequest
+  ): AsyncGenerator<string, void, unknown>;
 }
+
+export type AIStreamEvent =
+  | { type: "delta"; text: string }
+  | { type: "done"; provider: AIProviderName; model: string; text: string; attempts: string[] };
 
 const GEMINI_MODEL = "gemini-3.6-flash";
 const OPENAI_MODEL = "gpt-5.6-luna";
@@ -31,6 +38,76 @@ const OPENAI_URL = "https://api.openai.com/v1/responses";
 
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/interactions";
+
+export async function* readSSEText(
+  body: ReadableStream<Uint8Array>,
+  extractText: (data: any) => string | undefined
+): AsyncGenerator<string, void, unknown> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const events = buffer.split(/\r?\n\r?\n/);
+      buffer = events.pop() ?? "";
+
+      for (const event of events) {
+        const dataLine = event
+          .split(/\r?\n/)
+          .find((line) => line.startsWith("data:"));
+        if (!dataLine) continue;
+
+        const raw = dataLine.slice(5).trim();
+        if (!raw || raw === "[DONE]") continue;
+
+        try {
+          const data = JSON.parse(raw);
+          const text = extractText(data);
+          if (text) yield text;
+        } catch {
+          // Ignore incomplete/non-JSON SSE frames.
+        }
+      }
+    }
+
+    buffer += decoder.decode();
+    const dataLine = buffer
+      .split(/\r?\n/)
+      .find((line) => line.startsWith("data:"));
+    if (dataLine) {
+      const raw = dataLine.slice(5).trim();
+      if (raw && raw !== "[DONE]") {
+        try {
+          const text = extractText(JSON.parse(raw));
+          if (text) yield text;
+        } catch {
+          // Ignore malformed final SSE frame.
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function createProviderError(
+  provider: AIProviderName,
+  status: number,
+  message: string
+) {
+  const error = new Error(message) as Error & {
+    provider?: string;
+    status?: number;
+  };
+  error.provider = provider;
+  error.status = status;
+  return error;
+}
 
 function extractText(data: any): string {
   if (!Array.isArray(data?.steps)) {
@@ -137,6 +214,47 @@ class GeminiProvider implements AIProvider {
       provider: "gemini",
       model: GEMINI_MODEL,
     };
+  }
+
+  async *generateStream(
+    request: AIGenerateRequest
+  ): AsyncGenerator<string, void, unknown> {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error("GEMINI_API_KEY belum dikonfigurasi.");
+
+    const response = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        model: GEMINI_MODEL,
+        input: request.prompt,
+        system_instruction: request.systemInstruction,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok || !response.body) {
+      let message = "Gemini streaming gagal.";
+      try {
+        const data = await response.json();
+        message = data?.error?.message || message;
+      } catch {}
+      throw createProviderError("gemini", response.status, message);
+    }
+
+    yield* readSSEText(response.body, (data) => {
+      if (
+        data?.event_type === "step.delta" &&
+        data?.delta?.type === "text" &&
+        typeof data.delta.text === "string"
+      ) {
+        return data.delta.text;
+      }
+      return undefined;
+    });
   }
 }
 

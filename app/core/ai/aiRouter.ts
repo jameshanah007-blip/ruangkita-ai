@@ -2,6 +2,7 @@ import {
   aiProviders,
   type AIGenerateRequest,
   type AIGenerateResponse,
+  type AIStreamEvent,
 } from "./aiProvider";
 import { openRouterProvider } from "./openRouterProvider";
 import { groqProvider } from "./groqProvider";
@@ -229,6 +230,105 @@ export async function generateWithAIRouter(
     `Semua AI provider gagal. ${attempts.join(" | ")}`
   ) as ProviderError;
 
+  error.provider = "ai-router";
+  throw error;
+}
+
+
+export async function* streamWithAIRouter(
+  request: AIGenerateRequest
+): AsyncGenerator<AIStreamEvent, void, unknown> {
+  const providers = [...aiProviders, openRouterProvider, groqProvider];
+  const availableProviders = providers.filter((provider) => provider.isAvailable());
+  if (!availableProviders.length) {
+    throw new Error("Tidak ada AI provider yang tersedia. Periksa konfigurasi API key.");
+  }
+
+  const attempts: string[] = [];
+
+  for (const provider of availableProviders) {
+    const cooldownUntil = providerCooldownUntil.get(provider.name) ?? 0;
+    if (cooldownUntil > Date.now()) {
+      attempts.push(
+        `${provider.name}: cooldown aktif sampai ${new Date(cooldownUntil).toISOString()}`
+      );
+      continue;
+    }
+
+    let emitted = false;
+    let fullText = "";
+
+    try {
+      console.log(`AI Router streaming mencoba provider: ${provider.name}`);
+      const startedAt = Date.now();
+
+      if (provider.generateStream) {
+        for await (const chunk of provider.generateStream(request)) {
+          if (!chunk) continue;
+          emitted = true;
+          fullText += chunk;
+          yield { type: "delta", text: chunk };
+        }
+      } else {
+        const result = await provider.generate(request);
+        if (result.text) {
+          emitted = true;
+          fullText = result.text;
+          yield { type: "delta", text: result.text };
+        }
+      }
+
+      if (!fullText.trim()) {
+        throw new Error(`${provider.name} tidak menghasilkan output teks.`);
+      }
+
+      providerCooldownUntil.delete(provider.name);
+      console.log(
+        `AI Router streaming berhasil menggunakan: ${provider.name} (${Date.now() - startedAt}ms)`
+      );
+
+      const model =
+        provider.name === "gemini"
+          ? "gemini-3.6-flash"
+          : provider.name === "groq"
+            ? "openai/gpt-oss-20b"
+            : provider.name === "openrouter"
+              ? "openrouter/free"
+              : "unknown";
+
+      yield {
+        type: "done",
+        provider: provider.name,
+        model,
+        text: fullText,
+        attempts,
+      };
+      return;
+    } catch (error) {
+      const message = getErrorMessage(error);
+      const status = getErrorStatus(error);
+      const detail = status
+        ? `${provider.name}: HTTP ${status} - ${message}`
+        : `${provider.name}: ${message}`;
+      attempts.push(detail);
+
+      console.error(`AI provider streaming ${provider.name} gagal:`, {
+        message,
+        status,
+        emitted,
+      });
+
+      if (isDailyQuotaError(error)) {
+        providerCooldownUntil.set(provider.name, Date.now() + 24 * 60 * 60 * 1000);
+      }
+
+      if (emitted) throw error;
+    }
+  }
+
+  const error = new Error(
+    `Semua AI provider gagal. ${attempts.join(" | ")}`
+  ) as ProviderError;
   error.provider = "ai-router";
   throw error;
 }
