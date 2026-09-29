@@ -485,7 +485,39 @@ export default function FunZonePage() {
     );
 
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("experimentId");
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("experimentId");
+
+    if (!id && params.get("autonomous") === "1") {
+      fetch("/api/fun-zone/experiment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (!data?.success || !data?.experimentId) return;
+          window.history.replaceState(
+            {},
+            "",
+            "/fun-zone?experimentId=" + encodeURIComponent(data.experimentId),
+          );
+          setExperimentId(data.experimentId);
+          setBlueprint(data.blueprint as GameBlueprint);
+          setGameHtml(data.gameHtml || "");
+          setTitle(data.blueprint?.title || "James Experiment");
+          setGenre(data.blueprint?.genre || "AI Game");
+          setProvider(data.provider || "james-autonomous");
+          setModel(data.model || "game-brain-experiment-v1");
+          setStage("testing");
+        })
+        .catch((error) => {
+          console.warn("James autonomous experiment bootstrap failed:", error);
+        });
+      return;
+    }
+
+    if (!id) return;
     if (!id) return;
 
     setExperimentId(id);
