@@ -914,6 +914,42 @@ export async function getJamesStrategyExploration() {
   };
 }
 
+export function selectJamesLearningMode(input: {
+  competence: number;
+  confidence: number;
+  evidenceCount: number;
+  explorationAvailable: boolean;
+  explorationRate?: number;
+}) {
+  const competence = Math.max(0, Math.min(1, input.competence));
+  const confidence = Math.max(0, Math.min(1, input.confidence));
+  const evidence = Math.max(0, input.evidenceCount);
+  const explorationRate = Math.max(0, Math.min(1, input.explorationRate ?? 0));
+
+  // Early learning favors exploration. As evidence and confidence grow,
+  // James increasingly exploits proven strategies, while retaining a
+  // bounded exploration probability so the strategy can still improve.
+  const maturity = Math.min(1, (evidence / 12) * 0.5 + competence * 0.3 + confidence * 0.2);
+  const explorationPressure = input.explorationAvailable
+    ? Math.max(0.15, 0.65 - maturity * 0.45 + (1 - explorationRate) * 0.1)
+    : 0;
+  const exploitPressure = Math.max(0, 1 - explorationPressure);
+
+  const mode = input.explorationAvailable && explorationPressure > exploitPressure
+    ? "explore"
+    : "exploit";
+
+  return {
+    mode,
+    maturity: Number(maturity.toFixed(3)),
+    explorationPressure: Number(explorationPressure.toFixed(3)),
+    exploitPressure: Number(exploitPressure.toFixed(3)),
+    reason: mode === "explore"
+      ? "Evidence is still developing; test a novel strategy while preserving measurable runtime contracts."
+      : "Evidence and confidence are sufficient to reuse proven strategies while retaining bounded exploration.",
+  };
+}
+
 export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
