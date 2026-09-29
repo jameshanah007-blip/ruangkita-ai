@@ -3327,7 +3327,22 @@ export async function createJamesGameExperimentJob(input: {
     blueprint,
     gameHtml,
   };
-}export function chooseJamesStrategyRecovery(lineage: Array<{ successCount: number; failureCount: number; confidence: number }>) {
+}export function selectJamesStrategyBranches(
+  strategies: Array<{ strategy: string; confidence: number; successCount: number; failureCount: number }>,
+  branchLimit = 3,
+) {
+  return [...strategies]
+    .map((item) => {
+      const total = item.successCount + item.failureCount;
+      const successRate = total ? item.successCount / total : 0;
+      const score = successRate * 0.55 + item.confidence * 0.35 + Math.min(0.1, total * 0.01);
+      return { ...item, successRate, branchScore: Number(score.toFixed(4)) };
+    })
+    .sort((a, b) => b.branchScore - a.branchScore)
+    .slice(0, Math.max(1, Math.min(5, branchLimit)));
+}
+
+export function chooseJamesStrategyRecovery(lineage: Array<{ successCount: number; failureCount: number; confidence: number }>) {
   const best = [...lineage].sort((a, b) =>
     (b.successCount - a.successCount) ||
     (b.confidence - a.confidence),
