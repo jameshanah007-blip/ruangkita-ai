@@ -1262,7 +1262,7 @@ export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
 
-  const [{ data, error }, recoveryDirectives, exploration, modeMemory, transferKnowledge] = await Promise.all([
+  const [{ data, error }, recoveryDirectives, exploration, modeMemory, transferKnowledge, coreSkills] = await Promise.all([
     client
       .from("james_self_model")
       .select("capability_key, capability_name, competence, confidence, evidence_count, next_learning_action, status")
@@ -1274,6 +1274,7 @@ export async function createJamesGameExperimentPlan() {
     getJamesStrategyExploration(),
     getJamesLearningModeMemory(),
     consolidateJamesTransferKnowledge(8),
+    getJamesGeneralizedCoreSkills(8),
   ]);
 
   if (error) {
@@ -1337,6 +1338,10 @@ export async function createJamesGameExperimentPlan() {
   const contextualMemory = await getJamesContextualLearningMemory("unknown", String(target.capability_name), []);
   const transferCandidate = contextualMemory[0] || null;
   const generalizedTransfer = (transferKnowledge || []).find((item) => item.transferable) || null;
+  const strongestCoreSkill = coreSkills[0] || null;
+  const coreSkillContext = strongestCoreSkill
+    ? " Core skill memory: apply proven generalized skill \"" + String(strongestCoreSkill.name) + "\" with competence " + Number(strongestCoreSkill.competence).toFixed(3) + " and confidence " + Number(strongestCoreSkill.confidence).toFixed(3) + ", then verify it in this context."
+    : "";
   const contextualContext = contextualMemory.length
     ? " Contextual memory: prefer strategies whose historical evidence matches this capability/context; do not generalize unrelated contexts blindly."
     : "";
@@ -1366,7 +1371,7 @@ export async function createJamesGameExperimentPlan() {
   return {
     status: "experiment",
     title: "James Game Brain experiment: " + String(target.capability_name),
-    prompt: capabilityPrompt + contextualContext + transferContext + recoveryContext +
+    prompt: capabilityPrompt + coreSkillContext + contextualContext + transferContext + recoveryContext +
       (learningMode.mode === "explore" && exploration?.novelMechanic
         ? " Exploration directive: deliberately test the novel mechanic \""+ exploration.novelMechanic + "\" instead of repeating the most recent proven mechanic set. Compare its evidence against the current strategy."
         : " Exploitation directive: reuse proven strategy components first, while preserving regression checks and measurable evidence."),
@@ -1384,6 +1389,7 @@ export async function createJamesGameExperimentPlan() {
     contextualMemory,
     transferCandidate,
     generalizedTransfer,
+    coreSkills,
   };
 }
 
