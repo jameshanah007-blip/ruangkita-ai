@@ -879,7 +879,7 @@ export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
 
-  const [{ data, error }, recoveryDirectives] = await Promise.all([
+  const [{ data, error }, recoveryDirectives, exploration] = await Promise.all([
     client
       .from("james_self_model")
       .select("capability_key, capability_name, competence, confidence, evidence_count, next_learning_action, status")
@@ -888,6 +888,7 @@ export async function createJamesGameExperimentPlan() {
       .order("confidence", { ascending: true })
       .limit(7),
     getJamesRecoveryDirectives(4),
+    getJamesStrategyExploration(),
   ]);
 
   if (error) {
@@ -955,7 +956,10 @@ export async function createJamesGameExperimentPlan() {
   return {
     status: "experiment",
     title: "James Game Brain experiment: " + String(target.capability_name),
-    prompt: capabilityPrompt + recoveryContext,
+    prompt: capabilityPrompt + recoveryContext +
+      (exploration?.shouldExplore && exploration.novelMechanic
+        ? " Exploration directive: deliberately test the novel mechanic \""+ exploration.novelMechanic + "\" instead of repeating the most recent proven mechanic set. Compare its evidence against the current strategy."
+        : ""),
     targetCapability: {
       key,
       name: target.capability_name,
@@ -965,6 +969,7 @@ export async function createJamesGameExperimentPlan() {
       nextLearningAction: target.next_learning_action,
     },
     recoveryDirective: recoveryDirective || null,
+    exploration: exploration || null,
   };
 }
 
