@@ -1139,6 +1139,43 @@ export async function evaluateJamesContextTransfer(
   };
 }
 
+export async function getJamesKnowledgeVersions(limit = 12) {
+  const client = db();
+  if (!client) return [];
+
+  const { data, error } = await client
+    .from("james_experiences")
+    .select("pattern,strategy,confidence,success_count,failure_count,last_evidence,status")
+    .eq("user_id", SYSTEM_USER_ID)
+    .like("pattern", "fun-zone:knowledge-version:%")
+    .eq("status", "active")
+    .order("updated_at", { ascending: false })
+    .limit(Math.max(1, Math.min(30, limit)));
+
+  if (error) {
+    console.warn("James knowledge version retrieval failed:", error.message);
+    return [];
+  }
+
+  return (data || []).map((row) => {
+    const evidence = row.last_evidence && typeof row.last_evidence === "object"
+      ? row.last_evidence as Record<string, unknown>
+      : {};
+    return {
+      pattern: row.pattern,
+      version: Number(evidence.version || 1),
+      previousVersion: Number(evidence.previousVersion || 0),
+      knowledgeKey: evidence.knowledgeKey || row.pattern,
+      confidence: Number(row.confidence || 0),
+      successCount: Number(row.success_count || 0),
+      failureCount: Number(row.failure_count || 0),
+      principle: evidence.principle || row.strategy,
+      contexts: Array.isArray(evidence.contexts) ? evidence.contexts : [],
+      recordedAt: evidence.recordedAt || null,
+    };
+  });
+}
+
 export async function versionJamesConsolidatedKnowledge(limit = 8) {
   const client = db();
   if (!client) return [];
