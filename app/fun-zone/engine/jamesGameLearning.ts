@@ -1166,7 +1166,7 @@ export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
 
-  const [{ data, error }, recoveryDirectives, exploration, modeMemory] = await Promise.all([
+  const [{ data, error }, recoveryDirectives, exploration, modeMemory, transferKnowledge] = await Promise.all([
     client
       .from("james_self_model")
       .select("capability_key, capability_name, competence, confidence, evidence_count, next_learning_action, status")
@@ -1177,6 +1177,7 @@ export async function createJamesGameExperimentPlan() {
     getJamesRecoveryDirectives(4),
     getJamesStrategyExploration(),
     getJamesLearningModeMemory(),
+    consolidateJamesTransferKnowledge(8),
   ]);
 
   if (error) {
@@ -1239,10 +1240,16 @@ export async function createJamesGameExperimentPlan() {
   const key = String(target.capability_key);
   const contextualMemory = await getJamesContextualLearningMemory("unknown", String(target.capability_name), []);
   const transferCandidate = contextualMemory[0] || null;
+  const generalizedTransfer = (transferKnowledge || []).find((item) => item.transferable) || null;
   const contextualContext = contextualMemory.length
     ? " Contextual memory: prefer strategies whose historical evidence matches this capability/context; do not generalize unrelated contexts blindly."
     : "";
-  const transferContext = transferCandidate
+  const transferContext = generalizedTransfer
+    ? " Generalized transfer knowledge: this capability pattern has succeeded across multiple contexts. Reuse its core principle, but still verify the target context."
+    : transferCandidate
+    ? " Generalized transfer knowledge: none yet. Transfer candidate: test the strategy from source pattern \"" + String(transferCandidate.pattern) + "\" in the new experiment. Treat transfer as unproven until runtime evidence confirms it."
+    : null;
+  const legacyTransferContext = transferCandidate
     ? " Transfer candidate: test the strategy from source pattern \"" + String(transferCandidate.pattern) + "\" in the new experiment. Treat transfer as unproven until runtime evidence confirms it."
     : "";
   const capabilityPrompt =
@@ -1280,6 +1287,7 @@ export async function createJamesGameExperimentPlan() {
     learningMode,
     contextualMemory,
     transferCandidate,
+    generalizedTransfer,
   };
 }
 
