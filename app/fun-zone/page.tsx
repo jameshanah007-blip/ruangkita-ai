@@ -843,7 +843,7 @@ const handleTestReport =
         );
       }
     },
-    [autonomousRepairAttempts, blueprint]
+    [autonomousRepairAttempts, blueprint, experimentId]
   );
 
 const handleSandboxGameHtmlChange =
@@ -882,6 +882,7 @@ const handleSandboxGameHtmlChange =
 
 
   function createAnotherGame() {
+    setExperimentId(null);
     setStage(
       "idle"
     );
