@@ -456,7 +456,7 @@ export async function POST(
      * ke client bersama session.
      */
 
-    await persistCloudSession(session, builder.gameHtml);
+    await persistCloudSession(session, builder.gameHtml);\n\n    const providerChain = [directorProvider, builderProvider].filter(Boolean).join(" → ");
 
     return NextResponse.json({
       success: true,
