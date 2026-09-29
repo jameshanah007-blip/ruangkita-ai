@@ -518,7 +518,6 @@ export default function FunZonePage() {
     }
 
     if (!id) return;
-    if (!id) return;
 
     setExperimentId(id);
 
