@@ -2,8 +2,8 @@ import type {
   AIProvider,
   AIGenerateRequest,
   AIGenerateResponse,
-  readSSEText,
 } from "./aiProvider";
+import { readSSEText } from "./aiProvider";
 
 const OPENROUTER_URL =
   "https://openrouter.ai/api/v1/chat/completions";
