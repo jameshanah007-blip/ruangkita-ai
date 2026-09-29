@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../../../../fun-zone/laboratory/types";
-import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, evolveJamesStrategyMemory, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict, recordJamesCoreSkillLineage } from "../../../../fun-zone/engine/jamesGameLearning";
+import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, evolveJamesStrategyMemory, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict, recordJamesCoreSkillLineage, recordJamesKnowledgeContradiction } from "../../../../fun-zone/engine/jamesGameLearning";
 
 export const runtime = "nodejs";
 
@@ -50,6 +50,15 @@ export async function POST(request: Request) {
       });
       if (conflict) {
         coreSkillConflicts.push(conflict);
+        if (conflict.conflict) {
+          await recordJamesKnowledgeContradiction({
+            capabilityKey: skill.capabilityKey,
+            previousQuality: conflict.previousCompetence,
+            observedQuality: conflict.observedQuality,
+            observedContext: String(blueprint.world) + ":" + String(blueprint.genre),
+            resolution: conflict.nextAction,
+          });
+        }
         await recordJamesCoreSkillLineage(skill.capabilityKey, {
           source: "fun-zone-experiment-verification",
           quality: gameQuality(report),
