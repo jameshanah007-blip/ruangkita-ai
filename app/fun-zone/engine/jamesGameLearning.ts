@@ -802,6 +802,68 @@ export function applyJamesGameMastery(
   };
 }
 
+export async function createJamesGameExperimentPlan() {
+  const client = db();
+  if (!client) return null;
+
+  const { data, error } = await client
+    .from("james_self_model")
+    .select("capability_key, capability_name, competence, confidence, evidence_count, next_learning_action, status")
+    .eq("user_id", SYSTEM_USER_ID)
+    .order("competence", { ascending: true })
+    .order("confidence", { ascending: true })
+    .limit(7);
+
+  if (error) {
+    console.warn("James experiment planning failed:", error.message);
+    return null;
+  }
+
+  const target = (data || []).find((item) =>
+    String(item.capability_key).startsWith("fun-zone-") &&
+    item.status !== "strong",
+  ) || (data || [])[0];
+
+  if (!target) {
+    return {
+      status: "no-gap",
+      title: "Game Brain verification",
+      prompt: "Create a small deterministic game experiment that verifies all core runtime contracts.",
+      targetCapability: null,
+    };
+  }
+
+  const key = String(target.capability_key);
+  const capabilityPrompt =
+    key.includes("input")
+      ? "Create a small game focused on reliable keyboard and touch movement with an alternate input path."
+      : key.includes("objective")
+        ? "Create a small game focused on clear objective progression through interaction and collection."
+        : key.includes("gameplay-state")
+          ? "Create a small game focused on deterministic gameplay state transitions."
+          : key.includes("restart")
+            ? "Create a small game focused on restart integrity and restoring initial state."
+            : key.includes("rendering")
+              ? "Create a small game focused on non-blank rendering and visible state changes."
+              : key.includes("runtime")
+                ? "Create a small game focused on runtime loop, observability hooks, and stable frame progression."
+                : "Create a small game experiment that strengthens the weakest Game Brain capability.";
+
+  return {
+    status: "experiment",
+    title: "James Game Brain experiment: " + String(target.capability_name),
+    prompt: capabilityPrompt,
+    targetCapability: {
+      key,
+      name: target.capability_name,
+      competence: Number(target.competence || 0),
+      confidence: Number(target.confidence || 0),
+      evidenceCount: Number(target.evidence_count || 0),
+      nextLearningAction: target.next_learning_action,
+    },
+  };
+}
+
 export async function getJamesEffectiveStrategies(limit = 8) {
   const client = db();
   if (!client) return [];
