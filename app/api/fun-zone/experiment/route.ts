@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { claimJamesGameExperiment, createJamesGameExperimentJob, getJamesPendingExperiment } from "../../../fun-zone/engine/jamesGameLearning";
+import { claimJamesGameExperiment, createJamesGameExperimentJob, getJamesPendingExperiment, revalidateJamesCoreSkills } from "../../../fun-zone/engine/jamesGameLearning";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -27,6 +27,11 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const userId = typeof body?.userId === "string" ? body.userId : null;
+
+    if (body?.mode === "revalidate") {
+      const result = await revalidateJamesCoreSkills(12);
+      return NextResponse.json({ success: true, mode: "revalidate", skills: result, provider: "james-autonomous", model: "game-brain-experiment-v1" });
+    }
 
     if (body?.mode === "claim") {
       const claimed = await claimJamesGameExperiment({ userId });
