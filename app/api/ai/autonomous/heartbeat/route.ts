@@ -4,7 +4,7 @@ import {
   updateJamesAutonomousGoal,
 } from "../../../tools/jamesAutonomousGoals";
 import { runJamesAutonomousBrain } from "../../../tools/jamesAutonomousBrain";
-import { createJamesGameExperimentJob, getJamesPendingExperiment } from "../../../fun-zone/engine/jamesGameLearning";
+import { createJamesGameExperimentJob, getJamesPendingExperiment } from "../../../../fun-zone/engine/jamesGameLearning";
 
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET || process.env.JAMES_AUTONOMY_CRON_SECRET;
