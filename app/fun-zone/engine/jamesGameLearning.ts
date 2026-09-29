@@ -3449,6 +3449,14 @@ export async function claimJamesGameExperiment(input: { userId?: string | null }
   return data;
 }
 
+export async function applyJamesAutonomousMutationToExperimentBlueprint(blueprint: any, targetContext?: string) {
+  const directive = await getJamesMutationDirective(targetContext);
+  return {
+    directive,
+    blueprint: applyJamesMutationDirectiveToBlueprint(blueprint, directive),
+  };
+}
+
 export async function createJamesGameExperimentJob(input: {
   userId?: string | null;
   conversationId?: string | null;
