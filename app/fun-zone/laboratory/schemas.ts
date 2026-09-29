@@ -170,6 +170,11 @@ export const TestReportSchema: z.ZodType<TestReport> =
 
     performanceTest: z.boolean(),
 
+    stateChanged: z.boolean(),
+    objectiveChanged: z.boolean(),
+    playerChanged: z.boolean(),
+    restartVerified: z.boolean(),
+
     frameCount: z.number().int().min(0),
 
     gameAnimationFrames: z.number().int().min(0),
