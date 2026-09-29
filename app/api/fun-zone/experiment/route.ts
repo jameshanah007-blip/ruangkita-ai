@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createJamesGameExperimentPlan } from "../../../fun-zone/engine/jamesGameLearning";
+import { createJamesGameExperimentJob, createJamesGameExperimentPlan } from "../../../fun-zone/engine/jamesGameLearning";
 import { createAutonomousGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
 
@@ -53,72 +53,28 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const userId = typeof body?.userId === "string" ? body.userId : null;
-    const conversationId = typeof body?.conversationId === "string" ? body.conversationId : null;
-    const plan = await createJamesGameExperimentPlan();
+    const result = await createJamesGameExperimentJob({
+      userId: typeof body?.userId === "string" ? body.userId : null,
+      conversationId: typeof body?.conversationId === "string" ? body.conversationId : null,
+    });
 
-    if (!plan || plan.status !== "experiment") {
-      return NextResponse.json({
-        success: true,
-        status: "no-gap",
-        provider: "james-autonomous",
-        model: "game-brain-experiment-planner-v1",
-        plan,
-      });
-    }
-
-    const blueprint = createAutonomousGameBlueprint(plan.prompt);
-    const gameHtml = buildAutonomousGameHtml(blueprint);
-    let experimentId: string | null = null;
-
-    const client = db();
-    if (client) {
-      const { data, error } = await client
-        .from("james_game_experiments")
-        .insert({
-          user_id: userId,
-          conversation_id: conversationId,
-          capability_key: plan.targetCapability?.key || null,
-          capability_name: plan.targetCapability?.name || null,
-          prompt: plan.prompt,
-          blueprint,
-          game_html: gameHtml,
-          status: "pending_verification",
-          attempt: 0,
-        })
-        .select("id")
-        .single();
-
-      if (error) {
-        console.warn("James Game Brain experiment persistence failed:", error.message);
-      } else {
-        experimentId = data?.id || null;
-      }
+    if (result.status === "no-gap") {
+      return NextResponse.json({ success: true, status: "no-gap", provider: "james-autonomous", model: "game-brain-experiment-planner-v1", plan: result.plan });
     }
 
     return NextResponse.json({
       success: true,
-      status: "pending-verification",
-      experimentId,
+      status: result.status,
+      experimentId: result.experimentId,
       provider: "james-autonomous",
       model: "game-brain-experiment-v1",
-      plan,
-      blueprint,
-      gameHtml,
-      verification: {
-        verified: false,
-        reason:
-          "Artifact generated successfully, but Game Brain learning must wait for a real sandbox TestReport.",
-      },
+      plan: result.plan,
+      blueprint: result.blueprint,
+      gameHtml: result.gameHtml,
+      verification: { verified: false, reason: "Artifact awaits a real sandbox TestReport." },
     });
   } catch (error) {
     console.error("James Game Brain experiment execution failed:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Experiment execution failed.",
-      },
-      { status: 500 },
-    );
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Experiment execution failed." }, { status: 500 });
   }
 }
