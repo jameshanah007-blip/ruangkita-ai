@@ -258,9 +258,25 @@ export async function recordJamesGameBrainEvidence(
       .filter(Boolean);
     const distinctPriorPatterns = [...new Set(priorPatterns.filter((pattern) => pattern !== currentPattern))];
     const diversityCount = new Set([currentPattern, ...priorPatterns]).size;
+    const priorTransferRows = (priorHistory || []).filter((row) => {
+      const evidence = row.evidence && typeof row.evidence === "object"
+        ? row.evidence as Record<string, unknown>
+        : {};
+      return evidence.transfer_tested === true;
+    });
+    const priorTransferSuccesses = priorTransferRows.filter((row) => {
+      const evidence = row.evidence && typeof row.evidence === "object"
+        ? row.evidence as Record<string, unknown>
+        : {};
+      return evidence.transfer_signal === 1;
+    }).length;
     const transferTested = distinctPriorPatterns.length > 0;
     const transferSignal = transferTested ? (item.passed ? 1 : 0) : null;
     const transferWeight = transferTested ? Math.min(1, distinctPriorPatterns.length / 3) : 0;
+    const transferTests = priorTransferRows.length + (transferTested ? 1 : 0);
+    const transferSuccessRate = transferTests
+      ? (priorTransferSuccesses + (item.passed && transferTested ? 1 : 0)) / transferTests
+      : null;
     if (transferTested) {
       transferTests += 1;
       if (item.passed) transferSuccesses += 1;
@@ -280,7 +296,8 @@ export async function recordJamesGameBrainEvidence(
     ));
     const successCount = Number(prior?.success_count || 0) + (item.passed ? 1 : 0);
     const failureCount = Number(prior?.failure_count || 0) + (item.passed ? 0 : 1);
-    const status = nextEvidence >= 12 && diversityCount >= 3 && nextCompetence >= 0.85
+    const generalizedTransfer = transferTests >= 3 && Number(transferSuccessRate || 0) >= 0.75;
+    const status = nextEvidence >= 12 && diversityCount >= 3 && nextCompetence >= 0.85 && generalizedTransfer
       ? "strong"
       : nextEvidence >= 5 && diversityCount >= 2 && nextCompetence >= 0.70
         ? "competent"
@@ -315,6 +332,8 @@ export async function recordJamesGameBrainEvidence(
         transfer_tested: transferTested,
         transfer_signal: transferSignal,
         transfer_weight: transferWeight,
+        transfer_tests: transferTests,
+        transfer_success_rate: transferSuccessRate,
       },
       next_learning_action: nextLearningAction,
       status,
@@ -342,6 +361,8 @@ export async function recordJamesGameBrainEvidence(
           transfer_signal: transferSignal,
           transfer_weight: transferWeight,
           prior_pattern_count: distinctPriorPatterns.length,
+          transfer_tests: transferTests,
+          transfer_success_rate: transferSuccessRate,
         },
       });
     if (historyError) {
