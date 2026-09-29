@@ -1497,3 +1497,272 @@ const handleSandboxError =
                       Game dijalankan dalam
                       isolated sandbox.
                     </p>
+
+                  </div>
+
+                  <span
+                    className={`rounded-full border px-3 py-1 font-mono text-[10px] ${
+                      stage ===
+                      "ready"
+                        ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-400"
+                        : "border-cyan-400/20 bg-cyan-400/5 text-cyan-400"
+                    }`}
+                  >
+                    {stage ===
+                    "ready"
+                      ? "READY"
+                      : "LIVE RUNTIME"}
+                  </span>
+
+                </div>
+
+                <AIGameSandbox
+                  gameHtml={
+                    gameHtml
+                  }
+
+                  title={
+                    title ||
+                    blueprint?.title ||
+                    "AI Generated Game"
+                  }
+
+                  genre={
+                    genre ||
+                    blueprint?.genre ||
+                    "AI Game"
+                  }
+
+                  blueprint={
+                    blueprint ||
+                    undefined
+                  }
+
+onTestReport={
+  handleTestReport
+}
+
+onReady={
+  handleSandboxReady
+}
+
+onDebuggingChange={
+  handleSandboxDebugging
+}
+
+onGameHtmlChange={
+  handleSandboxGameHtmlChange
+}
+
+onError={
+  handleSandboxError
+}                  
+
+                />
+
+              </div>
+            )}
+
+            {blueprint && (
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+
+                  <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
+                    Objective
+                  </p>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    {
+                      blueprint.objective
+                    }
+                  </p>
+
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+
+                  <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
+                    Core Loop
+                  </p>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    {
+                      blueprint.coreLoop
+                    }
+                  </p>
+
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+
+                  <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
+                    Mechanics
+                  </p>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+
+                    {(Array.isArray(blueprint.mechanics) ? blueprint.mechanics : []).map(
+                      (
+                        mechanic
+                      ) => (
+                        <span
+                          key={
+                            mechanic
+                          }
+                          className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] text-slate-400"
+                        >
+                          {
+                            mechanic
+                          }
+                        </span>
+                      )
+                    )}
+
+                  </div>
+
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+
+                  <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
+                    Controls
+                  </p>
+
+                  <div className="mt-3 space-y-1.5">
+
+                    {(Array.isArray(blueprint.controls) ? blueprint.controls : []).map(
+                      (
+                        control
+                      ) => (
+                        <p
+                          key={
+                            control
+                          }
+                          className="text-xs text-slate-400"
+                        >
+                          •{" "}
+                          {
+                            control
+                          }
+                        </p>
+                      )
+                    )}
+
+                  </div>
+
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+
+                  <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
+                    Win Condition
+                  </p>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    {
+                      blueprint.winCondition
+                    }
+                  </p>
+
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+
+                  <p className="text-xs font-semibold uppercase tracking-wider text-red-400">
+                    Lose Condition
+                  </p>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    {
+                      blueprint.loseCondition
+                    }
+                  </p>
+
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:col-span-2">
+
+                  <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
+                    Replayability
+                  </p>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    {
+                      blueprint.replayability
+                    }
+                  </p>
+
+                </div>
+
+              </div>
+            )}
+
+            {seed && (
+              <p className="mt-5 text-center text-xs text-slate-700">
+                Session seed:{" "}
+                {seed}
+              </p>
+            )}
+
+            {stage ===
+              "ready" && (
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+
+                <div className="rounded-full border border-emerald-400/20 bg-emerald-400/5 px-5 py-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  ✓ GAME READY
+                </div>
+
+                <button
+                  type="button"
+                  onClick={
+                    createAnotherGame
+                  }
+                  className="rounded-xl border border-white/10 px-5 py-2 text-sm text-slate-300 transition hover:bg-white/[0.05]"
+                >
+                  ↻ Buat Game Lain
+                </button>
+
+              </div>
+            )}
+
+          </div>
+        )}
+
+        {stage === "error" && (
+          <div className="mx-auto max-w-2xl text-center">
+
+            <div className="rounded-3xl border border-red-400/20 bg-red-400/5 p-8 md:p-10">
+
+              <div className="text-5xl">
+                ⚠️
+              </div>
+
+              <h2 className="mt-5 text-2xl font-bold">
+                Laboratory mengalami
+                masalah
+              </h2>
+
+              <p className="mt-4 leading-7 text-red-100/70">
+                {error ||
+                  "Terjadi kesalahan saat menjalankan AI Game Laboratory."}
+              </p>
+
+              <button
+                type="button"
+                onClick={
+                  createAnotherGame
+                }
+                className="mt-7 rounded-2xl bg-cyan-500 px-6 py-3 font-bold text-slate-950 transition hover:bg-cyan-400"
+              >
+                ← Coba Lagi
+              </button>
+
+            </div>
+          </div>
+        )}
+
+      </section>
+    </main>
+  );
+}
