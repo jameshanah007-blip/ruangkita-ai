@@ -2393,6 +2393,28 @@ export async function getJamesTournamentMemory(targetContext?: string, limit = 6
   }));
 }
 
+export async function getJamesMutationDirective(targetContext?: string) {
+  const tournament = await evaluateJamesTournamentWithMemory(targetContext, 5);
+  if (!tournament.winner) {
+    return {
+      action: "open-new-branch",
+      reason: "No tournament evidence is available.",
+      winner: null,
+    };
+  }
+
+  const winner = tournament.winner;
+  const decision = chooseJamesMutationStrategy({
+    tournamentScore: Number(winner.tournamentScore || 0),
+    successRate: Number(winner.empiricalSuccessRate || 0),
+    confidence: Number(winner.confidence || 0),
+    memoryRate: Number(winner.tournamentMemoryRate || 0),
+    failureCount: Number(winner.failureCount || 0),
+  });
+
+  return { ...decision, winner };
+}
+
 export async function getJamesTournamentDirective(targetContext?: string) {
   const tournament = await evaluateJamesStrategyTournament(targetContext, 5);
   if (tournament.status !== "tournament-ready" || !tournament.winner) {
