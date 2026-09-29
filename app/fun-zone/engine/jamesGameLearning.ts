@@ -1228,6 +1228,37 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
   return results.slice(0, limit);
 }
 
+export async function getJamesStrategyLineage(targetContext?: string, limit = 12) {
+  const client = db();
+  if (!client) return [];
+
+  let query = client
+    .from("james_experiences")
+    .select("pattern,strategy,confidence,success_count,failure_count,last_evidence,status")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("status", "active")
+    .eq("capabilities", ["fun-zone-strategy-lineage"])
+    .order("confidence", { ascending: false })
+    .limit(Math.max(1, Math.min(30, limit)));
+
+  if (targetContext) query = query.like("pattern", "fun-zone:strategy-lineage:" + clean(targetContext, 160));
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn("James strategy lineage retrieval failed:", error.message);
+    return [];
+  }
+
+  return (data || []).map((row) => ({
+    pattern: row.pattern,
+    strategy: row.strategy,
+    confidence: Number(row.confidence || 0),
+    successCount: Number(row.success_count || 0),
+    failureCount: Number(row.failure_count || 0),
+    evidence: row.last_evidence,
+  }));
+}
+
 export async function recordJamesStrategyLineage(input: {
   parentStrategy: string;
   childStrategy: string;
