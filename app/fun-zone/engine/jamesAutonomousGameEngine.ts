@@ -1,4 +1,5 @@
 import type { GameBlueprint } from "../laboratory/types";
+import { mechanicKnowledge, worldKnowledge } from "./jamesGameKnowledge";
 
 /**
  * James Autonomous Game Engine
@@ -345,7 +346,7 @@ function buildGenome(b: GameBlueprint): GameGenome {
     objective: clean(b.objective, 240),
     winCondition: clean(b.winCondition, 220),
     loseCondition: clean(b.loseCondition, 220),
-    visualStyle: clean(b.visualStyle, 180),
+    visualStyle: clean(b.visualStyle + " · " + worldKnowledge(world).landmark + " · " + mechanics.map((m) => mechanicKnowledge(m).action).join(" · "), 180),
   };
 }
 
@@ -511,28 +512,53 @@ function drawBackground(){
   ctx.restore();
 }
 function drawWorldDecor(c){
-  var step=90;
+  var knowledge=worldKnowledge(G.world), step=90;
   ctx.strokeStyle=c.light+"10";ctx.lineWidth=1;
   for(var x=0;x<G.level.width;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,G.level.height);ctx.stroke()}
   for(var y=0;y<G.level.height;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(G.level.width,y);ctx.stroke()}
-  var world=G.world;
-  for(var i=0;i<G.level.rooms;i++){var rx=120+seeded(i+500)*(G.level.width-240),ry=160+seeded(i+530)*(G.level.height-320);ctx.globalAlpha=.35;ctx.fillStyle=c.accent;ctx.beginPath();ctx.arc(rx,ry,55+seeded(i+550)*45,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
-  ctx.fillStyle=c.light+"88";ctx.font="bold 14px system-ui";ctx.fillText(world.toUpperCase()+" // JAMES GENERATED WORLD",30,35);
+  ctx.fillStyle=c.light+"88";ctx.font="bold 14px system-ui";ctx.fillText(knowledge.world.toUpperCase()+" // JAMES AUTONOMOUS WORLD",30,35);
+  for(var i=0;i<G.level.rooms;i++){
+    var rx=120+seeded(i+500)*(G.level.width-240),ry=160+seeded(i+530)*(G.level.height-320);
+    ctx.save();ctx.translate(rx,ry);ctx.globalAlpha=.45;ctx.strokeStyle=knowledge.accent;
+    if(G.world==="hospital"){ctx.strokeRect(-42,-28,84,56);ctx.fillStyle=knowledge.accent;ctx.fillRect(-5,-22,10,44)}
+    else if(G.world==="forest"){ctx.beginPath();ctx.moveTo(0,-45);ctx.lineTo(25,20);ctx.lineTo(-25,20);ctx.closePath();ctx.stroke();ctx.fillStyle=knowledge.accent;ctx.beginPath();ctx.arc(0,-28,28,0,Math.PI*2);ctx.fill()}
+    else if(G.world==="ocean"||G.world==="island"){ctx.beginPath();for(var wv=-45;wv<=45;wv+=10){ctx.lineTo(wv,Math.sin(wv*.16)*10)}ctx.stroke()}
+    else if(G.world==="space"){ctx.beginPath();ctx.arc(0,0,34,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.ellipse(0,0,50,13,.3,0,Math.PI*2);ctx.stroke()}
+    else if(G.world==="castle"){ctx.fillRect(-25,-30,50,60);ctx.strokeRect(-25,-30,50,60)}
+    else if(G.world==="laboratory"){ctx.strokeRect(-34,-34,68,68);ctx.beginPath();ctx.arc(0,0,20,0,Math.PI*2);ctx.stroke()}
+    else if(G.world==="desert"){ctx.beginPath();ctx.arc(0,20,48,Math.PI,Math.PI*2);ctx.stroke()}
+    else if(G.world==="village"){ctx.beginPath();ctx.moveTo(-35,15);ctx.lineTo(0,-25);ctx.lineTo(35,15);ctx.stroke();ctx.strokeRect(-25,15,50,35)}
+    else{ctx.strokeRect(-30,-30,60,60)}
+    ctx.restore();
+  }
 }
 function drawItem(x,y,c,i){
+  var k=worldKnowledge(G.world);
   ctx.save();ctx.translate(x,y);ctx.rotate((i%4)*.2+state.time*.2);ctx.fillStyle=c;
-  ctx.beginPath();ctx.moveTo(0,-12);ctx.lineTo(11,0);ctx.lineTo(0,12);ctx.lineTo(-11,0);ctx.closePath();ctx.fill();
-  ctx.fillStyle="#fff";ctx.globalAlpha=.7;ctx.fillRect(-2,-5,4,10);ctx.restore();
+  if(G.world==="hospital"){ctx.fillRect(-12,-8,24,16);ctx.fillStyle="#fff";ctx.fillRect(-3,-8,6,16);ctx.fillRect(-12,-3,24,6)}
+  else if(G.world==="forest"){ctx.beginPath();ctx.arc(0,0,12,0,Math.PI*2);ctx.fill();ctx.fillStyle="#14532d";ctx.fillRect(-2,-15,4,8)}
+  else if(G.world==="ocean"||G.world==="island"){ctx.fillRect(-15,-8,30,16);ctx.strokeStyle="#fff";ctx.strokeRect(-15,-8,30,16)}
+  else if(G.world==="space"){ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.globalAlpha=.8;ctx.beginPath();ctx.arc(0,0,18,0,Math.PI*2);ctx.stroke()}
+  else if(G.world==="desert"){ctx.beginPath();ctx.moveTo(0,-14);ctx.lineTo(12,10);ctx.lineTo(-12,10);ctx.closePath();ctx.fill()}
+  else{ctx.beginPath();ctx.moveTo(0,-13);ctx.lineTo(11,0);ctx.lineTo(0,13);ctx.lineTo(-11,0);ctx.closePath();ctx.fill()}
+  ctx.globalAlpha=.45;ctx.strokeStyle=k.accent;ctx.stroke();ctx.restore();
 }
 function drawEnemy(x,y,c){
-  ctx.save();ctx.translate(x,y);ctx.fillStyle=c;ctx.beginPath();ctx.arc(0,0,15,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle="#fff";ctx.fillRect(-7,-4,4,4);ctx.fillRect(3,-4,4,4);ctx.fillStyle="#111";ctx.fillRect(-5,-2,2,2);ctx.fillRect(5,-2,2,2);ctx.restore();
+  ctx.save();ctx.translate(x,y);ctx.fillStyle=c;
+  if(G.world==="hospital"){ctx.fillRect(-13,-17,26,34);ctx.fillStyle="#111";ctx.fillRect(-7,-7,5,5);ctx.fillRect(2,-7,5,5)}
+  else if(G.world==="forest"){ctx.beginPath();ctx.moveTo(0,-18);ctx.lineTo(16,14);ctx.lineTo(-16,14);ctx.closePath();ctx.fill()}
+  else if(G.world==="space"||G.world==="laboratory"){ctx.fillRect(-14,-14,28,28);ctx.fillStyle="#fff";ctx.fillRect(-5,-4,10,8)}
+  else if(G.world==="ocean"){ctx.beginPath();ctx.arc(0,0,17,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.fillRect(-20,-2,8,4);ctx.fillRect(12,-2,8,4)}
+  else{ctx.beginPath();ctx.arc(0,0,15,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.fillRect(-7,-4,4,4);ctx.fillRect(3,-4,4,4)}
+  ctx.restore();
 }
 function drawPlayer(x,y,c,a){
   ctx.save();ctx.translate(x,y);ctx.fillStyle=c;
-  if(G.player.kind==="vehicle"){ctx.fillRect(-20,-10,40,20);ctx.fillStyle=a;ctx.fillRect(-10,-7,20,7)}
-  else if(G.player.kind==="ship"){ctx.beginPath();ctx.moveTo(0,-22);ctx.lineTo(18,18);ctx.lineTo(0,10);ctx.lineTo(-18,18);ctx.closePath();ctx.fill();ctx.fillStyle=a;ctx.fillRect(-4,-3,8,10)}
-  else if(G.player.kind==="diver"){ctx.beginPath();ctx.arc(0,0,14,0,Math.PI*2);ctx.fill();ctx.fillStyle=a;ctx.fillRect(9,-5,16,5)}
+  if(G.player.kind==="vehicle"){ctx.fillRect(-22,-11,44,22);ctx.fillStyle=a;ctx.fillRect(-9,-8,18,8);ctx.fillStyle="#111";ctx.beginPath();ctx.arc(-14,11,5,0,Math.PI*2);ctx.arc(14,11,5,0,Math.PI*2);ctx.fill()}
+  else if(G.player.kind==="ship"){ctx.beginPath();ctx.moveTo(0,-24);ctx.lineTo(20,18);ctx.lineTo(0,10);ctx.lineTo(-20,18);ctx.closePath();ctx.fill();ctx.fillStyle=a;ctx.fillRect(-4,-3,8,10)}
+  else if(G.player.kind==="diver"){ctx.beginPath();ctx.arc(0,0,15,0,Math.PI*2);ctx.fill();ctx.fillStyle=a;ctx.fillRect(8,-5,18,5);ctx.strokeStyle=a;ctx.strokeRect(-17,-8,12,16)}
+  else if(G.player.kind==="robot"){ctx.fillRect(-15,-15,30,30);ctx.fillStyle=a;ctx.fillRect(-8,-5,5,5);ctx.fillRect(3,-5,5,5)}
+  else if(G.player.kind==="animal"){ctx.beginPath();ctx.ellipse(0,2,17,11,0,0,Math.PI*2);ctx.fill();ctx.fillStyle=a;ctx.beginPath();ctx.moveTo(-12,-7);ctx.lineTo(-17,-18);ctx.lineTo(-5,-10);ctx.fill()}
   else{ctx.beginPath();ctx.arc(0,0,15,0,Math.PI*2);ctx.fill();ctx.fillStyle=a;ctx.fillRect(-7,-3,14,6)}
   ctx.restore();
 }
