@@ -1228,6 +1228,41 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
   return results.slice(0, limit);
 }
 
+export async function getJamesActiveKnowledge(limit = 10) {
+  const client = db();
+  if (!client) return [];
+
+  const { data, error } = await client
+    .from("james_experiences")
+    .select("pattern,strategy,confidence,last_evidence,status")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("status", "active")
+    .like("pattern", "fun-zone:knowledge-supersession:%")
+    .order("confidence", { ascending: false })
+    .limit(Math.max(1, Math.min(20, limit)));
+
+  if (error) {
+    console.warn("James active knowledge retrieval failed:", error.message);
+    return [];
+  }
+
+  return (data || []).map((row) => {
+    const evidence = row.last_evidence && typeof row.last_evidence === "object"
+      ? row.last_evidence as Record<string, unknown>
+      : {};
+    return {
+      knowledgeKey: evidence.knowledgeKey || row.pattern,
+      latestVersion: Number(evidence.latestVersion || 1),
+      priorVersion: evidence.priorVersion ? Number(evidence.priorVersion) : null,
+      supersedes: Boolean(evidence.supersedes),
+      coexist: Boolean(evidence.coexist),
+      contextOverlap: Number(evidence.contextOverlap || 0),
+      reason: evidence.reason || row.strategy,
+      confidence: Number(row.confidence || 0),
+    };
+  });
+}
+
 export async function getJamesKnowledgeVersions(limit = 12) {
   const client = db();
   if (!client) return [];
