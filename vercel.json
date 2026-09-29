@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/fun-zone/experiment/watchdog",
-      "schedule": "0 * * * *"
+      "schedule": "0 5 * * *"
     }
   ]
 }
