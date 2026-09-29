@@ -1,0 +1,25 @@
+create extension if not exists pgcrypto;
+
+create table if not exists public.james_model_learning_jobs (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  mode text not null check (mode in ('distillation','fine_tuning','lora_registration')),
+  teacher_providers jsonb not null default '[]'::jsonb,
+  target_provider text,
+  base_model text,
+  dataset jsonb not null default '[]'::jsonb,
+  dataset_hash text,
+  job_id text,
+  fine_tuned_model text,
+  status text not null default 'proposed'
+    check (status in ('proposed','dataset_ready','submitted','running','completed','failed','blocked')),
+  evidence jsonb not null default '{}'::jsonb,
+  error_message text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists james_model_learning_jobs_user_idx
+  on public.james_model_learning_jobs(user_id, created_at desc);
+
+alter table public.james_model_learning_jobs enable row level security;
