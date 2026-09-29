@@ -764,6 +764,42 @@ function selectTransferAdaptation<T extends {
     });
 }
 
+export function applyJamesFailedStrategyAvoidance(
+  blueprint: GameBlueprint,
+  failedStrategies: Array<{
+    pattern?: string | null;
+    strategy?: string | null;
+    confidence?: number | null;
+    failure_count?: number | null;
+    capabilities?: string[];
+  }>,
+): GameBlueprint {
+  const relevant = failedStrategies
+    .filter((item) => typeof item.strategy === "string" && item.strategy)
+    .slice(0, 5);
+
+  if (!relevant.length) return blueprint;
+
+  const failedPatterns = relevant.map((item) => item.pattern || "unknown").join(" | ");
+  const failedStrategiesText = relevant.map((item) => item.strategy).join(" | ");
+
+  return {
+    ...blueprint,
+    progression: clean(
+      blueprint.progression +
+        " James failure memory: do not repeat these previously failed strategies: " +
+        failedStrategiesText +
+        ". Failed patterns: " + failedPatterns +
+        ". Use a materially different implementation approach and verify the affected capability.",
+      1400,
+    ),
+    testRequirements: Array.from(new Set([
+      ...blueprint.testRequirements,
+      "Verify the new implementation does not reproduce a previously failed strategy",
+    ])).slice(0, 24),
+  };
+}
+
 export function applyJamesGameAdaptations(
   blueprint: GameBlueprint,
   adaptations: Array<{
