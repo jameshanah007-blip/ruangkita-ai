@@ -887,60 +887,67 @@ export function applyJamesEffectiveStrategies(
     strengths?: string[];
   }>,
 ): GameBlueprint {
-  const currentCapabilities = new Set<string>();
-  // Prefer a small portfolio of proven strategies with complementary
-  // capabilities rather than blindly copying the highest-scoring strategy.
+  // Synthesize concrete components from proven fingerprints. This is intentionally
+  // deterministic: James can reuse learned implementation knowledge without a provider.
   const useful = [...strategies]
     .filter((item) => Array.isArray(item.strengths) && item.strengths.length && item.strategy_fingerprint)
     .sort((a, b) => Number(b.quality || 0) - Number(a.quality || 0))
-    .reduce<typeof strategies>((selected, candidate) => {
-      const candidateCapabilities = new Set(candidate.strengths || []);
-      const addsNewCapability = selected.every((existing) =>
-        (existing.strengths || []).every((capability) => !candidateCapabilities.has(capability)),
-      );
-      if (selected.length === 0 || addsNewCapability || selected.length < 2) {
-        selected.push(candidate);
-      }
-      return selected;
-    }, [])
     .slice(0, 3);
-
-  for (const item of useful) {
-    for (const capability of item.strengths || []) currentCapabilities.add(capability);
-  }
 
   if (!useful.length) return blueprint;
 
+  const mechanics = [...blueprint.mechanics];
+  const actions = [...blueprint.playerActions];
+  const controls = [...blueprint.controls];
   const tests = [...blueprint.testRequirements];
   const add = (list: string[], value: string) => {
-    if (!list.includes(value)) list.push(value);
+    if (value && !list.includes(value)) list.push(value);
   };
+  const knownMechanics = new Set([
+    "explore", "collect", "combat", "survival", "stealth", "racing",
+    "puzzle", "rescue", "farming", "shooting", "escort", "dialogue",
+  ]);
+  const knownActions = new Set([
+    "move", "interact", "collect", "attack", "dodge", "hide",
+    "shoot", "jump", "drive", "swim", "talk", "farm", "rescue",
+  ]);
 
-  for (const capability of currentCapabilities) {
-    if (capability.includes("input")) {
-      add(tests, "Regression-check proven input reliability strategy");
-    } else if (capability.includes("objective")) {
-      add(tests, "Regression-check proven objective progression strategy");
-    } else if (capability.includes("gameplay-state")) {
-      add(tests, "Regression-check proven gameplay state strategy");
-    } else if (capability.includes("restart")) {
-      add(tests, "Regression-check proven restart strategy");
-    }
+  for (const strategy of useful) {
+    const parts = String(strategy.strategy_fingerprint).split(" | ");
+    const provenMechanics = (parts[2] || "").split("+").filter((value) => knownMechanics.has(value));
+    const provenActions = (parts[3] || "").split("+").filter((value) => knownActions.has(value));
+    const provenControls = (parts[4] || "").split("+").filter(Boolean);
+
+    // Reuse only components that are compatible with the current blueprint.
+    // Never replace the current world/genre/theme with a prior game's context.
+    for (const value of provenMechanics) add(mechanics, value);
+    for (const value of provenActions) add(actions, value);
+    for (const value of provenControls) add(controls, value);
+
+    const quality = Number(strategy.quality || 0).toFixed(2);
+    add(tests, "Validate synthesized strategy component set (quality " + quality + ")");
+  }
+
+  for (const capability of new Set(useful.flatMap((item) => item.strengths || []))) {
+    if (capability.includes("input")) add(tests, "Regression-check synthesized input strategy");
+    if (capability.includes("objective")) add(tests, "Regression-check synthesized objective strategy");
+    if (capability.includes("gameplay-state")) add(tests, "Regression-check synthesized gameplay-state strategy");
+    if (capability.includes("restart")) add(tests, "Regression-check synthesized restart strategy");
+    if (capability.includes("rendering")) add(tests, "Regression-check synthesized rendering strategy");
   }
 
   return {
     ...blueprint,
+    mechanics: Array.from(new Set(mechanics)).slice(0, 12),
+    playerActions: Array.from(new Set(actions)).slice(0, 12),
+    controls: Array.from(new Set(controls)).slice(0, 8),
     progression: clean(
       blueprint.progression +
-        " James strategy synthesis: combine complementary proven patterns instead of copying one prior game. " +
-        "Preserve the current world's mechanics and player experience. " +
-        "Selected evidence qualities: " +
-        useful.map((item) => Number(item.quality || 0).toFixed(2)).join(", ") +
-        ". Strategy components: " +
-        useful.map((item) => item.strategy_fingerprint).join(" || "),
-      1800,
+        " James synthesized concrete components from " + useful.length +
+        " proven strategies. These components must be validated in the current game context.",
+      1600,
     ),
-    testRequirements: Array.from(new Set(tests)).slice(0, 24),
+    testRequirements: Array.from(new Set(tests)).slice(0, 28),
   };
 }
 
