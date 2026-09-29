@@ -2,6 +2,7 @@ import type {
   AIProvider,
   AIGenerateRequest,
   AIGenerateResponse,
+  readSSEText,
 } from "./aiProvider";
 
 const OPENROUTER_URL =
@@ -150,6 +151,54 @@ class OpenRouterProvider implements AIProvider {
           ? data.model
           : OPENROUTER_MODEL,
     };
+
+  async *generateStream(
+    request: AIGenerateRequest
+  ): AsyncGenerator<string, void, unknown> {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error("OPENROUTER_API_KEY belum dikonfigurasi.");
+
+    const response = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer":
+          process.env.NEXT_PUBLIC_SITE_URL ||
+          (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"),
+        "X-Title": "RuangKita AI",
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        messages: [
+          { role: "system", content: request.systemInstruction },
+          { role: "user", content: request.prompt },
+        ],
+        temperature: request.temperature ?? 0.7,
+        max_tokens: request.maxOutputTokens ?? 4000,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok || !response.body) {
+      const raw = await response.text().catch(() => "");
+      let message = "OpenRouter streaming gagal.";
+      try {
+        const data = JSON.parse(raw);
+        message = data?.error?.message || data?.message || message;
+      } catch {}
+      const error = new Error(message) as Error & { provider?: string; status?: number };
+      error.provider = "openrouter";
+      error.status = response.status;
+      throw error;
+    }
+
+    yield* readSSEText(response.body, (data) => {
+      const delta = data?.choices?.[0]?.delta;
+      if (typeof delta?.content === "string") return delta.content;
+      return undefined;
+    });
+  }
   }
 }
 
