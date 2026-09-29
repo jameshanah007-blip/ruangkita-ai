@@ -1225,6 +1225,30 @@ export async function getJamesLearningModeMemory() {
   return result;
 }
 
+export async function calculateJamesEvidenceTrust(input: {
+  source: string;
+  quality: number;
+  passed: boolean;
+  contextCount?: number;
+  evidenceCount?: number;
+}) {
+  const reliability = await getJamesEvidenceReliability(input.source);
+  const quality = Math.max(0, Math.min(1, input.quality));
+  const corroboration = Math.min(1, Math.max(0, (input.contextCount || 1) / 3));
+  const repetition = Math.min(1, Math.max(0, (input.evidenceCount || 1) / 5));
+  const trust = quality * 0.35 +
+    reliability.reliability * 0.35 +
+    corroboration * 0.15 +
+    repetition * 0.15;
+
+  return {
+    trust: Number(Math.max(0.1, Math.min(0.99, trust)).toFixed(3)),
+    sourceReliability: reliability.reliability,
+    corroboration: Number(corroboration.toFixed(3)),
+    repetition: Number(repetition.toFixed(3)),
+  };
+}
+
 export async function getJamesEvidenceReliability(source: string) {
   const client = db();
   if (!client) return { reliability: 0.5, evidenceCount: 0 };
