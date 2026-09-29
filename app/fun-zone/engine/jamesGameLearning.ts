@@ -2305,8 +2305,15 @@ export async function createJamesGameExperimentPlan() {
   const generalizedTransfer = (transferKnowledge || []).find((item) => item.transferable) || null;
   const strongestCoreSkill = coreSkills[0] || null;
   const composedKnowledge = composeJamesKnowledgeStrategies(relevantKnowledge, 3);
+  const mutation = chooseJamesStrategyMutation({
+    compositionScore: composedKnowledge.compositionScore,
+    confidence: composedKnowledge.confidence,
+  });
+  const evolvedComposition = composedKnowledge.strategy
+    ? " Proposed bounded strategy evolution: " + mutation + "."
+    : "";
   const relevantKnowledgeContext = composedKnowledge.strategy
-    ? " Composed knowledge strategy: " + composedKnowledge.strategy + ". This is a new composition; keep source knowledge unchanged and verify the composition with evidence."
+    ? " Composed knowledge strategy: " + composedKnowledge.strategy + ". This is a new composition; keep source knowledge unchanged and verify the composition with evidence." + evolvedComposition
     : "";
   const knowledgeContext = consolidatedKnowledge.length
     ? " Consolidated knowledge: apply compatible principles from proven capability combinations, but keep provisional principles under verification."
