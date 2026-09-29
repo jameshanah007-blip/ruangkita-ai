@@ -9,7 +9,6 @@ import {
   useState,
 } from "react";
 import AIGameSandbox from "./engine/AIGameSandbox";
-import type { FunZoneGameIdea } from "./engine/gameCatalog";
 
 import type {
   GameBlueprint,
@@ -406,11 +405,6 @@ export default function FunZonePage() {
   const [prompt, setPrompt] =
     useState("");
 
-  const [gameCatalog, setGameCatalog] =
-    useState<FunZoneGameIdea[]>([]);
-
-  const [catalogSeed, setCatalogSeed] =
-    useState(() => crypto.randomUUID());
 
   const [stage, setStage] =
     useState<LabStage>("idle");
@@ -778,15 +772,6 @@ const handleSandboxGameHtmlChange =
     else setStage(savedGameHtml ? "testing" : "idle");
   }
 
-  function chooseCatalogGame(game: FunZoneGameIdea) {
-    setPrompt(game.prompt);
-    setError("");
-    void buildGame(game.prompt);
-  }
-
-  function refreshGameCatalog() {
-    setCatalogSeed(crypto.randomUUID());
-  }
 
   function createAnotherGame() {
     setStage(
@@ -921,50 +906,16 @@ const handleSandboxError =
 
             </div>
 
-            <div className="mx-auto mt-10 max-w-6xl">
-              <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-400">James Game Universe</p>
-                  <h2 className="mt-2 text-2xl font-black md:text-3xl">Pilih dunia game yang berbeda</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                    James mencampur genre, mood, mekanik, dan tingkat kesulitan. Katalog dapat berubah setiap sesi.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={refreshGameCatalog}
-                  className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.06]"
-                >
-                  ↻ Game lain
-                </button>
+            <div className="mx-auto mt-10 max-w-4xl">
+              <div className="rounded-3xl border border-cyan-400/15 bg-cyan-400/[0.035] p-6 text-center md:p-8">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-2xl">✦</div>
+                <h2 className="mt-5 text-2xl font-black md:text-3xl">Bicara langsung dengan James</h2>
+                <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-400">
+                  Tidak ada daftar genre yang harus kamu pilih. Tulis saja game yang kamu bayangkan,
+                  bahkan jika idenya belum lengkap. James akan memahami maksudmu, menentukan desain game,
+                  memilih mekanik yang sesuai, lalu membangunnya dengan sumber daya yang tersedia dan bantuan provider AI.
+                </p>
               </div>
-
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {gameCatalog.map((game) => (
-                  <button
-                    key={game.id}
-                    type="button"
-                    onClick={() => chooseCatalogGame(game)}
-                    className="group rounded-2xl border border-white/10 bg-white/[0.035] p-5 text-left transition hover:-translate-y-1 hover:border-cyan-400/40 hover:bg-cyan-400/[0.05]"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="rounded-full bg-cyan-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
-                        {game.genre}
-                      </span>
-                      <span className="text-[10px] uppercase text-slate-500">{game.difficulty}</span>
-                    </div>
-                    <h3 className="mt-4 text-lg font-bold text-white group-hover:text-cyan-300">{game.title}</h3>
-                    <p className="mt-2 text-xs leading-5 text-slate-400">{game.mood} · {game.mechanics.slice(0, 3).join(" · ")}</p>
-                    <span className="mt-5 inline-block text-xs font-bold text-slate-500 group-hover:text-cyan-300">Buat game ini →</span>
-                  </button>
-                ))}
-              </div>
-
-              {gameCatalog.length === 0 && (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">
-                  Menyiapkan pilihan game James...
-                </div>
-              )}
             </div>
 
             <div className="mx-auto mt-12 max-w-4xl">
@@ -999,17 +950,14 @@ const handleSandboxError =
                   }
                   maxLength={3000}
                   rows={6}
-                  placeholder="Contoh: Buat game survival horror di rumah sakit tua. Pemain harus mencari 3 kunci sambil menghindari monster. Jika semua kunci ditemukan, pemain harus mencapai pintu keluar."
+                  placeholder="Ceritakan game yang ada di pikiranmu. Contoh: Aku ingin game tentang penyelamatan di laut saat badai, dengan kapal yang harus mencari korban dan kembali ke pelabuhan. Kamu boleh menulis ide sederhana atau sangat detail."
                   className="w-full resize-none rounded-2xl border border-white/10 bg-slate-950/70 px-5 py-4 text-base leading-7 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
                 />
 
                 <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
 
                   <span>
-                    Bebas. AI akan
-                    menentukan genre,
-                    mekanik, kontrol,
-                    dan gameplay.
+                    Bebas. Tidak perlu memilih genre. James akan menentukan genre, mekanik, kontrol, dunia, objective, dan cara terbaik untuk membangunnya.
                   </span>
 
                   <span>
