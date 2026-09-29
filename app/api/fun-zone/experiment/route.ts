@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createJamesGameExperimentJob, createJamesGameExperimentPlan } from "../../../fun-zone/engine/jamesGameLearning";
+import { createJamesGameExperimentJob, getJamesPendingExperiment } from "../../../fun-zone/engine/jamesGameLearning";
 import { createAutonomousGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
 
@@ -53,18 +53,43 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
+    const userId = typeof body?.userId === "string" ? body.userId : null;
+
+    const pending = await getJamesPendingExperiment({ userId });
+    if (pending) {
+      return NextResponse.json({
+        success: true,
+        status: "pending-verification",
+        source: "existing-queue",
+        experimentId: pending.id,
+        provider: "james-autonomous",
+        model: "game-brain-experiment-v1",
+        experiment: pending,
+        blueprint: pending.blueprint,
+        gameHtml: pending.game_html,
+        verification: { verified: false, reason: "Existing pending experiment returned for sandbox verification." },
+      });
+    }
+
     const result = await createJamesGameExperimentJob({
-      userId: typeof body?.userId === "string" ? body.userId : null,
+      userId,
       conversationId: typeof body?.conversationId === "string" ? body.conversationId : null,
     });
 
     if (result.status === "no-gap") {
-      return NextResponse.json({ success: true, status: "no-gap", provider: "james-autonomous", model: "game-brain-experiment-planner-v1", plan: result.plan });
+      return NextResponse.json({
+        success: true,
+        status: "no-gap",
+        provider: "james-autonomous",
+        model: "game-brain-experiment-planner-v1",
+        plan: result.plan,
+      });
     }
 
     return NextResponse.json({
       success: true,
       status: result.status,
+      source: "new-queue-job",
       experimentId: result.experimentId,
       provider: "james-autonomous",
       model: "game-brain-experiment-v1",
@@ -75,6 +100,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("James Game Brain experiment execution failed:", error);
-    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Experiment execution failed." }, { status: 500 });
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : "Experiment execution failed.",
+    }, { status: 500 });
   }
 }
