@@ -879,6 +879,58 @@ function selectTransferAdaptation<T extends {
     });
 }
 
+export function applyJamesEffectiveStrategies(
+  blueprint: GameBlueprint,
+  strategies: Array<{
+    strategy_fingerprint?: string | null;
+    quality?: number | null;
+    strengths?: string[];
+  }>,
+): GameBlueprint {
+  const currentCapabilities = new Set<string>();
+  const useful = strategies
+    .filter((item) => Array.isArray(item.strengths) && item.strengths.length)
+    .sort((a, b) => Number(b.quality || 0) - Number(a.quality || 0))
+    .filter((item) => item.strategy_fingerprint)
+    .slice(0, 4);
+
+  for (const item of useful) {
+    for (const capability of item.strengths || []) currentCapabilities.add(capability);
+  }
+
+  if (!useful.length) return blueprint;
+
+  const tests = [...blueprint.testRequirements];
+  const add = (list: string[], value: string) => {
+    if (!list.includes(value)) list.push(value);
+  };
+
+  for (const capability of currentCapabilities) {
+    if (capability.includes("input")) {
+      add(tests, "Regression-check proven input reliability strategy");
+    } else if (capability.includes("objective")) {
+      add(tests, "Regression-check proven objective progression strategy");
+    } else if (capability.includes("gameplay-state")) {
+      add(tests, "Regression-check proven gameplay state strategy");
+    } else if (capability.includes("restart")) {
+      add(tests, "Regression-check proven restart strategy");
+    }
+  }
+
+  return {
+    ...blueprint,
+    progression: clean(
+      blueprint.progression +
+        " James reusable strategy memory: reuse proven implementation patterns when compatible, " +
+        "while preserving the current game's world, mechanics and player experience. " +
+        "Proven strategy qualities: " +
+        useful.map((item) => Number(item.quality || 0).toFixed(2)).join(", ") + ".",
+      1400,
+    ),
+    testRequirements: Array.from(new Set(tests)).slice(0, 24),
+  };
+}
+
 export function applyJamesFailedStrategyAvoidance(
   blueprint: GameBlueprint,
   failedStrategies: Array<{
