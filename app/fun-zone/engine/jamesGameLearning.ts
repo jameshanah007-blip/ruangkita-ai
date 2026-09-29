@@ -1228,6 +1228,44 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
   return results.slice(0, limit);
 }
 
+export async function evolveJamesComposedStrategy(input: {
+  strategy: string;
+  sources: string[];
+  targetContext: string;
+  mutation: string;
+}) {
+  const client = db();
+  if (!client) return null;
+
+  const basePattern = "fun-zone:composed-strategy:" + clean(input.targetContext, 160);
+  const strategy = input.strategy + " Mutation: " + input.mutation;
+  const { data: prior } = await client
+    .from("james_experiences")
+    .select("id,confidence,success_count,failure_count")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("pattern", basePattern)
+    .eq("strategy", strategy)
+    .maybeSingle();
+
+  const successCount = Number(prior?.success_count || 0);
+  const failureCount = Number(prior?.failure_count || 0);
+  const total = successCount + failureCount;
+  const confidence = Math.min(
+    0.99,
+    Math.max(0.1, 0.45 + (total ? successCount / total : 0.5) * 0.45 + Math.min(0.1, total * 0.01)),
+  );
+
+  return {
+    pattern: basePattern,
+    strategy,
+    sources: input.sources,
+    mutation: input.mutation,
+    confidence: Number(confidence.toFixed(3)),
+    evidenceCount: total,
+    status: prior && failureCount >= 3 && successCount / Math.max(1, total) < 0.4 ? "blocked" : "candidate",
+  };
+}
+
 export async function promoteJamesComposedStrategy(
   composition: { strategy: string | null; sources: string[]; confidence: number; compositionScore: number },
   targetContext: string,
