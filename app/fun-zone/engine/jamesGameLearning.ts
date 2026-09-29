@@ -302,9 +302,10 @@ export async function recordJamesGameBrainEvidence(
 
   if (passed && synthesisApplied) {
     const synthesizedStrategy = clean(
-      "Synthesize proven game capabilities into a compatible blueprint: " +
+      "fingerprint::" + strategyFingerprint +
+        "::strategy::Synthesize proven game capabilities into a compatible blueprint: " +
         capabilities.join(", "),
-      700,
+      1000,
     );
     const { data: existingStrategy } = await client
       .from("james_experiences")
@@ -805,19 +806,32 @@ export async function getJamesEffectiveStrategies(limit = 8) {
   const client = db();
   if (!client) return [];
 
-  const { data, error } = await client
-    .from("james_self_evaluations")
-    .select("quality_score, outcome, strengths, evidence")
-    .eq("outcome", "success")
-    .order("quality_score", { ascending: false })
-    .limit(Math.max(1, Math.min(20, limit * 3)));
+  const max = Math.max(1, Math.min(20, limit));
+  const [evaluations, experiences] = await Promise.all([
+    client
+      .from("james_self_evaluations")
+      .select("quality_score, outcome, strengths, evidence")
+      .eq("outcome", "success")
+      .order("quality_score", { ascending: false })
+      .limit(max * 3),
+    client
+      .from("james_experiences")
+      .select("pattern, strategy, confidence, success_count, failure_count, capabilities")
+      .eq("status", "active")
+      .gt("success_count", 0)
+      .order("confidence", { ascending: false })
+      .order("success_count", { ascending: false })
+      .limit(max * 3),
+  ]);
 
-  if (error) {
-    console.warn("James effective-strategy retrieval failed:", error.message);
-    return [];
+  if (evaluations.error) {
+    console.warn("James effective self-evaluation retrieval failed:", evaluations.error.message);
+  }
+  if (experiences.error) {
+    console.warn("James effective experience retrieval failed:", experiences.error.message);
   }
 
-  return (data || [])
+  const learned = (evaluations.data || [])
     .map((row) => {
       const evidence = row.evidence && typeof row.evidence === "object"
         ? row.evidence as Record<string, unknown>
@@ -837,8 +851,51 @@ export async function getJamesEffectiveStrategies(limit = 8) {
           : [],
       };
     })
-    .filter((item) => item.strategy_fingerprint)
-    .slice(0, Math.max(1, Math.min(20, limit)));
+    .filter((item) => item.strategy_fingerprint);
+
+  // Reuse strategies that survived promotion into durable Experience memory.
+  // The fingerprint is stored inside the strategy record so it remains provider-free
+  // and can reconstruct concrete mechanics/actions/controls on future builds.
+  const experienceStrategies = (experiences.data || [])
+    .map((row) => {
+      const strategy = typeof row.strategy === "string" ? row.strategy : "";
+      const fingerprintMatch = strategy.match(/fingerprint::([^]+?)\s*::strategy::/);
+      const fingerprint = fingerprintMatch?.[1] || null;
+      const successCount = Number(row.success_count || 0);
+      const failureCount = Number(row.failure_count || 0);
+      const quality = successCount + failureCount > 0
+        ? successCount / (successCount + failureCount)
+        : Number(row.confidence || 0);
+      return {
+        strategy_fingerprint: fingerprint,
+        quality,
+        strengths: Array.isArray(row.capabilities)
+          ? row.capabilities.filter((value): value is string => typeof value === "string")
+          : [],
+      };
+    })
+    .filter((item) => item.strategy_fingerprint && item.quality >= 0.75);
+
+  const deduped = new Map<string, {
+    strategy_fingerprint: string;
+    quality: number;
+    strengths: string[];
+  }>();
+  for (const item of [...learned, ...experienceStrategies]) {
+    if (!item.strategy_fingerprint) continue;
+    const previous = deduped.get(item.strategy_fingerprint);
+    if (!previous || item.quality > previous.quality) {
+      deduped.set(item.strategy_fingerprint, {
+        strategy_fingerprint: item.strategy_fingerprint,
+        quality: item.quality,
+        strengths: item.strengths || [],
+      });
+    }
+  }
+
+  return [...deduped.values()]
+    .sort((a, b) => b.quality - a.quality)
+    .slice(0, max);
 }
 
 export async function getJamesFailedStrategies(limit = 8) {
