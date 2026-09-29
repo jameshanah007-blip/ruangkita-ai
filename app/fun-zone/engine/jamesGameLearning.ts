@@ -1139,6 +1139,82 @@ export async function evaluateJamesContextTransfer(
   };
 }
 
+export async function consolidateJamesGameKnowledge(limit = 8) {
+  const client = db();
+  if (!client) return [];
+
+  const { data, error } = await client
+    .from("james_experiences")
+    .select("pattern,strategy,confidence,success_count,failure_count,capabilities,status,updated_at")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("status", "active")
+    .like("pattern", "fun-zone:%")
+    .order("updated_at", { ascending: false })
+    .limit(60);
+
+  if (error) {
+    console.warn("James knowledge consolidation retrieval failed:", error.message);
+    return [];
+  }
+
+  const groups = new Map<string, {
+    evidence: number;
+    success: number;
+    failure: number;
+    confidence: number[];
+    strategies: string[];
+    patterns: string[];
+  }>();
+
+  for (const row of data || []) {
+    const capabilities = Array.isArray(row.capabilities)
+      ? row.capabilities.filter((value): value is string => typeof value === "string")
+      : [];
+    const key = capabilities.sort().slice(0, 6).join("+") || String(row.pattern);
+    const group = groups.get(key) || {
+      evidence: 0,
+      success: 0,
+      failure: 0,
+      confidence: [],
+      strategies: [],
+      patterns: [],
+    };
+    group.success += Number(row.success_count || 0);
+    group.failure += Number(row.failure_count || 0);
+    group.evidence += Number(row.success_count || 0) + Number(row.failure_count || 0);
+    group.confidence.push(Number(row.confidence || 0));
+    group.strategies.push(String(row.strategy || ""));
+    group.patterns.push(String(row.pattern || ""));
+    groups.set(key, group);
+  }
+
+  const knowledge = Array.from(groups.entries()).map(([key, group]) => {
+    const total = group.evidence;
+    const successRate = total ? group.success / total : 0;
+    const confidence = group.confidence.length
+      ? group.confidence.reduce((sum, value) => sum + value, 0) / group.confidence.length
+      : 0;
+    return {
+      knowledgeKey: clean("fun-zone-knowledge:" + key, 220),
+      capabilities: key.split("+").filter(Boolean),
+      evidenceCount: total,
+      successRate: Number(successRate.toFixed(3)),
+      confidence: Number(confidence.toFixed(3)),
+      strategyCount: new Set(group.strategies.filter(Boolean)).size,
+      contexts: Array.from(new Set(group.patterns)).slice(0, 8),
+      principle: successRate >= 0.75
+        ? "Prefer this capability combination when context evidence is compatible."
+        : "Treat this capability combination as provisional and require more contextual evidence.",
+    };
+  }).sort((a, b) =>
+    b.confidence - a.confidence ||
+    b.successRate - a.successRate ||
+    b.evidenceCount - a.evidenceCount,
+  );
+
+  return knowledge.slice(0, Math.max(1, Math.min(20, limit)));
+}
+
 export async function getJamesContradictionMemory(limit = 6) {
   const client = db();
   if (!client) return [];
