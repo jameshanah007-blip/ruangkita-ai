@@ -1167,7 +1167,8 @@ export async function evaluateJamesRecoveryDirectiveImpact(
   if (!client) return null;
 
   const influenced = typeof experimentPrompt === "string" &&
-    experimentPrompt.includes("Recovery directive from previous abandoned runners");
+    (experimentPrompt.includes("Recovery directive from previous abandoned runners") ||
+      experimentPrompt.includes("Recovery directive selected from James experience memory:"));
   if (!influenced) {
     return {
       influenced: false,
@@ -1264,6 +1265,66 @@ export async function evaluateJamesRecoveryDirectiveImpact(
       confidence: Number(confidence.toFixed(3)),
       status,
     },
+  };
+}
+
+export async function promoteJamesExplorationResult(
+  experimentPrompt: string | null | undefined,
+  blueprint: GameBlueprint,
+  report: TestReport,
+) {
+  const client = db();
+  if (!client || typeof experimentPrompt !== "string" || !experimentPrompt.includes("Exploration directive:")) {
+    return { explored: false, promoted: false };
+  }
+
+  const pattern = clean(
+    "fun-zone:exploration:" + blueprint.world + ":" + blueprint.genre,
+    300,
+  );
+  const mechanics = blueprint.mechanics.slice(0, 6).join("+");
+  const strategy = "Exploration strategy: test novel mechanic set " + mechanics + " and promote it only when runtime evidence passes.";
+  const { data: existing } = await client
+    .from("james_experiences")
+    .select("id,success_count,failure_count,confidence")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("pattern", pattern)
+    .eq("strategy", strategy)
+    .maybeSingle();
+
+  const successCount = Number(existing?.success_count || 0) + (report.passed ? 1 : 0);
+  const failureCount = Number(existing?.failure_count || 0) + (report.passed ? 0 : 1);
+  const total = successCount + failureCount;
+  const successRate = total ? successCount / total : 0;
+  const confidence = Math.min(0.99, Math.max(0.1, 0.45 + successRate * 0.45 + Math.min(0.1, total * 0.01)));
+  const status = successRate < 0.4 && failureCount >= 3 ? "blocked" : "active";
+
+  const memory = {
+    user_id: SYSTEM_USER_ID,
+    pattern,
+    strategy,
+    confidence,
+    success_count: successCount,
+    failure_count: failureCount,
+    capabilities: blueprint.mechanics.slice(0, 6).map((mechanic) => "fun-zone-mechanic:" + mechanic),
+    status,
+  };
+
+  const result = existing?.id
+    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
+    : await client.from("james_experiences").insert(memory);
+
+  if (result.error) {
+    console.warn("James exploration promotion failed:", result.error.message);
+    return { explored: true, promoted: false, successRate };
+  }
+
+  return {
+    explored: true,
+    promoted: report.passed,
+    successRate: Number(successRate.toFixed(3)),
+    confidence: Number(confidence.toFixed(3)),
+    status,
   };
 }
 
