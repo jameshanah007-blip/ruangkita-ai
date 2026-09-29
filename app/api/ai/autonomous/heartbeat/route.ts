@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   getDueJamesAutonomousGoals,
+  createJamesAutonomousGoal,
   updateJamesAutonomousGoal,
 } from "../../../tools/jamesAutonomousGoals";
 import { runJamesAutonomousBrain } from "../../../tools/jamesAutonomousBrain";
@@ -17,13 +18,18 @@ export async function GET(request: Request) {
   }
 
   try {
-    const goals = await getDueJamesAutonomousGoals(1);
+    let goals = await getDueJamesAutonomousGoals(1);
     if (!goals.length) {
-      return NextResponse.json({
-        brain: "James Autonomous AI Brain",
-        status: "idle",
-        message: "Tidak ada autonomous goal yang jatuh tempo.",
+      const bootstrap = await createJamesAutonomousGoal({
+        userId: "system",
+        conversationId: "system-autonomous",
+        title: "Autonomous learning cycle",
+        goal: "Pelajari satu capability yang paling membutuhkan peningkatan berdasarkan self-model James. Bandingkan hasil provider, verifikasi evidence, simpan pembelajaran tervalidasi, lalu tentukan langkah belajar berikutnya. Jangan mengubah production code atau konfigurasi deployment.",
+        priority: 100,
+        maxCycles: 2,
+        nextRunAt: new Date().toISOString(),
       });
+      goals = [bootstrap];
     }
 
     const goal = goals[0];
