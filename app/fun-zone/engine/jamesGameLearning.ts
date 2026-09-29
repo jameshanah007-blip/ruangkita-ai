@@ -1091,6 +1091,74 @@ function selectTransferAdaptation<T extends {
     });
 }
 
+export async function evaluateJamesRecoveryDirectiveImpact(
+  experimentPrompt: string | null | undefined,
+  blueprint: GameBlueprint,
+  report: TestReport,
+) {
+  const client = db();
+  if (!client) return null;
+
+  const influenced = typeof experimentPrompt === "string" &&
+    experimentPrompt.includes("Recovery directive from previous abandoned runners");
+  if (!influenced) {
+    return {
+      influenced: false,
+      evaluated: false,
+      reason: "Experiment was not marked as recovery-directive influenced.",
+    };
+  }
+
+  const currentQuality = gameQuality(report);
+  const currentOutcome = report.passed ? "success" : currentQuality >= 0.5 ? "partial" : "failure";
+  const { data: prior } = await client
+    .from("james_self_evaluations")
+    .select("quality_score,outcome,evidence,created_at")
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  const pattern = clean(
+    "fun-zone:" + blueprint.world + ":" + blueprint.genre + ":" + blueprint.mechanics.slice(0, 4).join("+"),
+    300,
+  );
+
+  const baseline = (prior || []).find((row) => {
+    const evidence = row.evidence && typeof row.evidence === "object"
+      ? row.evidence as Record<string, unknown>
+      : {};
+    return evidence.pattern === pattern;
+  });
+
+  if (!baseline) {
+    return {
+      influenced: true,
+      evaluated: false,
+      currentQuality,
+      currentOutcome,
+      baselineQuality: null,
+      improvement: null,
+      directiveEffective: null,
+      reason: "No comparable pre-directive experiment exists yet.",
+    };
+  }
+
+  const baselineQuality = Number(baseline.quality_score || 0);
+  const improvement = Number((currentQuality - baselineQuality).toFixed(4));
+  const directiveEffective = improvement > 0 && report.passed === true;
+
+  return {
+    influenced: true,
+    evaluated: true,
+    currentQuality,
+    currentOutcome,
+    baselineQuality,
+    baselineOutcome: baseline.outcome,
+    improvement,
+    directiveEffective,
+    comparisonBasis: "same-world-genre-mechanics-pattern",
+  };
+}
+
 export async function evolveJamesStrategyMemory(
   blueprint: GameBlueprint,
   report: TestReport,
