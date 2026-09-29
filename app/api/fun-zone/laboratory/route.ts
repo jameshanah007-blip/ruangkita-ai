@@ -366,7 +366,7 @@ export async function POST(
         success: true,
         provider: "james-autonomous",
         model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(normalizedBlueprint),
+        gameHtml: buildAutonomousGameHtml(learnedBlueprint),
         validation: {
           valid: true,
           errors: [],
@@ -392,7 +392,7 @@ export async function POST(
 
     const artifact =
       createArtifactFromBuilder(
-        normalizedBlueprint,
+        learnedBlueprint,
         builder
       );
 
@@ -414,7 +414,7 @@ export async function POST(
      * ke client bersama session.
      */
 
-    const gameHtml = builder.gameHtml ?? buildAutonomousGameHtml(normalizedBlueprint);
+    const gameHtml = builder.gameHtml ?? buildAutonomousGameHtml(learnedBlueprint);
     await persistCloudSession(session, gameHtml);
 
 
@@ -426,7 +426,7 @@ export async function POST(
       session,
 
       blueprint:
-        normalizedBlueprint,
+        learnedBlueprint,
 
       artifact,
 
