@@ -223,7 +223,7 @@ function createArtifactFromBuilder(
     buildAttempts: 1,
 
     source:
-      "ai-builder",
+      result.provider === "local" ? "local-game-factory" : "ai-builder",
 
     version: 1,
   });
