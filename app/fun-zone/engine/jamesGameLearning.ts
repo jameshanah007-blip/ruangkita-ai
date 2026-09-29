@@ -964,6 +964,63 @@ export function selectJamesLearningMode(input: {
   };
 }
 
+export async function evaluateJamesContextTransfer(
+  source: { pattern?: string; strategy?: string; confidence?: number; successRate?: number },
+  target: { world: string; genre: string; mechanics: string[] },
+  report: TestReport,
+) {
+  const client = db();
+  if (!client) return null;
+
+  const targetPattern = clean(
+    "fun-zone:" + target.world + ":" + target.genre + ":" + target.mechanics.slice(0, 4).join("+"),
+    300,
+  );
+  const currentQuality = gameQuality(report);
+  const transferable = report.passed === true && currentQuality >= 0.75;
+  const pattern = "fun-zone:transfer:" + clean(targetPattern, 240);
+  const strategy = "Transfer strategy from " + String(source.pattern || "unknown") +
+    " into target context " + targetPattern + " and keep it only when evidence passes.";
+
+  const { data: existing } = await client
+    .from("james_experiences")
+    .select("id,success_count,failure_count,confidence")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("pattern", pattern)
+    .eq("strategy", strategy)
+    .maybeSingle();
+
+  const successCount = Number(existing?.success_count || 0) + (transferable ? 1 : 0);
+  const failureCount = Number(existing?.failure_count || 0) + (transferable ? 0 : 1);
+  const total = successCount + failureCount;
+  const successRate = total ? successCount / total : 0;
+  const confidence = Math.min(0.99, Math.max(0.1, 0.45 + successRate * 0.45 + Math.min(0.1, total * 0.01)));
+  const status = successRate < 0.4 && failureCount >= 3 ? "blocked" : "active";
+  const memory = {
+    user_id: SYSTEM_USER_ID,
+    pattern,
+    strategy,
+    confidence,
+    success_count: successCount,
+    failure_count: failureCount,
+    capabilities: target.mechanics.slice(0, 6).map((mechanic) => "fun-zone-mechanic:" + mechanic),
+    status,
+  };
+
+  if (existing?.id) await client.from("james_experiences").update(memory).eq("id", existing.id);
+  else await client.from("james_experiences").insert(memory);
+
+  return {
+    sourcePattern: source.pattern || null,
+    targetPattern,
+    currentQuality,
+    transferable,
+    successRate: Number(successRate.toFixed(3)),
+    confidence: Number(confidence.toFixed(3)),
+    status,
+  };
+}
+
 export async function getJamesContextualLearningMemory(
   world: string,
   genre: string,
