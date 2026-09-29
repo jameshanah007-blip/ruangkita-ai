@@ -65,7 +65,9 @@ export async function POST(request: Request) {
       );
       result.blueprint = mutated.blueprint;
       result.gameHtml = buildAutonomousGameHtml(result.blueprint);
-      result.plan = { ...result.plan, mutationDirective: mutated.directive };
+      const planWithMutation = result.plan
+        ? { ...result.plan, mutationDirective: mutated.directive }
+        : result.plan;
       if (result.experimentId) {
         const client = db();
         if (client) {
@@ -75,6 +77,15 @@ export async function POST(request: Request) {
             status: "pending_verification",
           }).eq("id", result.experimentId);
         }
+      }
+      if (result.status !== "no-gap") {
+        return NextResponse.json({
+          success: true, status: result.status, source: "new-queue-job",
+          experimentId: result.experimentId, provider: "james-autonomous",
+          model: "game-brain-experiment-v1", plan: planWithMutation,
+          blueprint: result.blueprint, gameHtml: result.gameHtml,
+          verification: { verified: false, reason: "Artifact awaits a real sandbox TestReport." },
+        });
       }
     }
 
