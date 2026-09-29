@@ -27,7 +27,10 @@ import {
   generateWithAllAIProviders,
 } from "../../core/ai/aiRouter";
 import { addGlobalCandidate, getGlobalGrowth } from "../tools/jamesGlobalLearning";
-import { runJamesBrainChat } from "../../core/james/jamesBrain";
+import {
+  runJamesBrainChat,
+  streamJamesBrainChat,
+} from "../../core/james/jamesBrain";
 import { runJamesBrainWithSharedKnowledge } from "../../core/james/jamesSharedKnowledge";
 import { buildJamesContext } from "../tools/jamesContext";
 import { planJamesIntelligence, planJamesIntelligenceWithAI } from "../tools/jamesIntelligence";
@@ -949,6 +952,111 @@ function validUuid(value: unknown): value is string {
     /^[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}$/.test(value);
 }
 
+
+function createJamesChatStreamResponse(input: {
+  userRequest: string;
+  userId: string;
+  conversationId: string;
+  intent: Intent;
+  rememberInstruction: string;
+  jamesKnowledgeContext: string;
+  memoryAvailable: boolean;
+  evolutionVersion: number;
+}) {
+  const encoder = new TextEncoder();
+
+  const encodeEvent = (payload: Record<string, unknown>) =>
+    encoder.encode(`data: ${JSON.stringify(payload)}\\n\\n`);
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let resultText = "";
+      let provider = "ai-router";
+      let model = "";
+
+      try {
+        const brainStream = streamJamesBrainChat({
+          prompt: input.userRequest,
+          systemInstruction: input.rememberInstruction,
+          context: input.jamesKnowledgeContext,
+          temperature: 0.7,
+          maxOutputTokens: 4000,
+        });
+
+        for await (const event of brainStream) {
+          if (event.type === "delta") {
+            resultText += event.text;
+            controller.enqueue(encodeEvent({
+              type: "delta",
+              text: event.text,
+            }));
+            continue;
+          }
+
+          provider = event.provider;
+          model = event.model;
+          resultText = event.text;
+
+          after(async () => {
+            await Promise.allSettled([
+              saveActivity(input.userRequest, input.intent, provider, resultText),
+              saveJames(
+                input.userId,
+                input.conversationId,
+                input.userRequest,
+                resultText,
+                input.intent,
+                provider
+              ),
+              evolveJames({
+                userId: input.userId,
+                conversationId: input.conversationId,
+                userRequest: input.userRequest,
+                assistantResult: resultText,
+              }),
+            ]);
+          });
+
+          controller.enqueue(encodeEvent({
+            type: "done",
+            result: resultText,
+            intent: input.intent,
+            tool: provider,
+            model,
+            citations: [],
+            userId: input.userId,
+            conversationId: input.conversationId,
+            memoryAvailable: input.memoryAvailable,
+            evolutionVersion: input.evolutionVersion,
+          }));
+        }
+
+        controller.enqueue(encodeEvent({ type: "complete" }));
+        controller.close();
+      } catch (error) {
+        console.error("James streaming API error:", error);
+        controller.enqueue(encodeEvent({
+          type: "error",
+          error: error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat streaming James.",
+        }));
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -1774,6 +1882,19 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
       rememberInstruction,
       jamesKnowledgeContext
     );
+
+    if (request.headers.get("accept")?.includes("text/event-stream")) {
+      return createJamesChatStreamResponse({
+        userRequest,
+        userId,
+        conversationId,
+        intent,
+        rememberInstruction,
+        jamesKnowledgeContext,
+        memoryAvailable: memory.available,
+        evolutionVersion: growth.evolution_version,
+      });
+    }
 
     await saveActivity(userRequest, intent, "gemini", resultText);
     await saveJames(userId, conversationId, userRequest, resultText, intent, "gemini");
