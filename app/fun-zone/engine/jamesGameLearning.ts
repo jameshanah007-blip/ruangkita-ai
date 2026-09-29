@@ -986,6 +986,13 @@ export async function createJamesGameExperimentPlan() {
     .sort((a, b) => b.score - a.score);
 
   const recoveryDirective = scoredRecoveryDirectives[0];
+  const learningMode = selectJamesLearningMode({
+    competence: Number(target?.competence || 0),
+    confidence: Number(target?.confidence || 0),
+    evidenceCount: Number(target?.evidence_count || 0),
+    explorationAvailable: Boolean(exploration?.shouldExplore),
+    explorationRate: exploration?.candidate?.rate,
+  });
   const recoveryContext = recoveryDirective
     ? " Recovery directive selected from James experience memory: " +
       recoveryDirective.strategy +
@@ -1032,9 +1039,9 @@ export async function createJamesGameExperimentPlan() {
     status: "experiment",
     title: "James Game Brain experiment: " + String(target.capability_name),
     prompt: capabilityPrompt + recoveryContext +
-      (exploration?.shouldExplore && exploration.novelMechanic
+      (learningMode.mode === "explore" && exploration?.novelMechanic
         ? " Exploration directive: deliberately test the novel mechanic \""+ exploration.novelMechanic + "\" instead of repeating the most recent proven mechanic set. Compare its evidence against the current strategy."
-        : ""),
+        : " Exploitation directive: reuse proven strategy components first, while preserving regression checks and measurable evidence."),
     targetCapability: {
       key,
       name: target.capability_name,
@@ -1045,6 +1052,7 @@ export async function createJamesGameExperimentPlan() {
     },
     recoveryDirective: recoveryDirective || null,
     exploration: exploration || null,
+    learningMode,
   };
 }
 
