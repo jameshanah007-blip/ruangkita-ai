@@ -378,26 +378,26 @@ export function buildAutonomousGameHtml(blueprint: GameBlueprint): string {
 
   const config = js(g);
 
-  return \`<!doctype html>
+  return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>\${g.title}</title>
+<title>${g.title}</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:\${bg};color:\${light};font-family:system-ui,sans-serif}
-body{display:flex;justify-content:center}#root{position:relative;width:min(100vw,820px);height:100dvh;min-height:520px;overflow:hidden;background:\${bg}}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:${bg};color:${light};font-family:system-ui,sans-serif}
+body{display:flex;justify-content:center}#root{position:relative;width:min(100vw,820px);height:100dvh;min-height:520px;overflow:hidden;background:${bg}}
 canvas{display:block;width:100%;height:100%;touch-action:none}
 #hud{position:absolute;inset:10px 10px auto;display:flex;justify-content:space-between;gap:8px;pointer-events:none}
-.panel{max-width:58%;background:\${panel}e8;border:1px solid \${light}22;border-radius:14px;padding:8px 11px;font-size:11px;line-height:1.35;backdrop-filter:blur(5px)}
-#objective{position:absolute;left:50%;top:66px;transform:translateX(-50%);max-width:82%;padding:6px 10px;border-radius:999px;background:\${panel}cc;border:1px solid \${accent}55;font-size:10px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.panel{max-width:58%;background:${panel}e8;border:1px solid ${light}22;border-radius:14px;padding:8px 11px;font-size:11px;line-height:1.35;backdrop-filter:blur(5px)}
+#objective{position:absolute;left:50%;top:66px;transform:translateX(-50%);max-width:82%;padding:6px 10px;border-radius:999px;background:${panel}cc;border:1px solid ${accent}55;font-size:10px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #controls{position:absolute;left:0;right:0;bottom:12px;display:flex;justify-content:space-between;padding:0 13px;pointer-events:none}
 .pad,.actions{display:flex;gap:8px;pointer-events:auto}
-button{width:54px;height:54px;border-radius:16px;border:1px solid \${light}30;background:\${panel}ee;color:\${light};font-size:18px;font-weight:900;touch-action:none}
-button:active{transform:scale(.96);background:\${accent}66}
-#message{display:none;position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);width:min(86%,360px);padding:22px;border-radius:22px;background:\${bg}f2;border:1px solid \${accent}66;text-align:center;box-shadow:0 20px 80px #000b}
-#message h2{margin:0 0 8px;font-size:22px}#message p{margin:0;color:\${light}aa;font-size:12px;line-height:1.6}
-#restart{margin-top:14px;width:auto;height:auto;padding:10px 18px;background:\${accent};color:\${bg};border:0}
+button{width:54px;height:54px;border-radius:16px;border:1px solid ${light}30;background:${panel}ee;color:${light};font-size:18px;font-weight:900;touch-action:none}
+button:active{transform:scale(.96);background:${accent}66}
+#message{display:none;position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);width:min(86%,360px);padding:22px;border-radius:22px;background:${bg}f2;border:1px solid ${accent}66;text-align:center;box-shadow:0 20px 80px #000b}
+#message h2{margin:0 0 8px;font-size:22px}#message p{margin:0;color:${light}aa;font-size:12px;line-height:1.6}
+#restart{margin-top:14px;width:auto;height:auto;padding:10px 18px;background:${accent};color:${bg};border:0}
 </style>
 </head>
 <body>
@@ -413,7 +413,7 @@ button:active{transform:scale(.96);background:\${accent}66}
 <script>
 (function(){
 "use strict";
-var G=\${config};
+var G=${config};
 var canvas=document.getElementById("gameCanvas"),ctx=canvas.getContext("2d");
 var root=document.getElementById("root");
 var titleEl=document.getElementById("title"),statsEl=document.getElementById("stats"),modeEl=document.getElementById("mode"),objectiveEl=document.getElementById("objective");
@@ -613,5 +613,5 @@ resize();addEventListener("resize",resize);reset();window.__RK_GAME_READY__=true
 })();
 </script>
 </body>
-</html>\`;
+</html>`;
 }
