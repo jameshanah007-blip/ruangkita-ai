@@ -9,7 +9,7 @@ import { decideJamesBrainStrategy } from "./jamesDecisionEngine";
 import { decideJamesModelLearning } from "./jamesModelLearningPolicy";
 import { distillJamesKnowledge, syncJamesModelLearningJobs } from "./jamesModelLearning";
 import { createJamesAutonomousGoal } from "./jamesAutonomousGoals";
-import { createJamesGameExperimentJob, createJamesGameExperimentPlan, revalidateJamesCoreSkills } from "../fun-zone/engine/jamesGameLearning";
+import { createJamesGameExperimentJob, createJamesGameExperimentPlan, revalidateJamesCoreSkills } from "../../fun-zone/engine/jamesGameLearning";
 
 export type JamesAutonomyMode = "supervised" | "bounded" | "autonomous";
 
