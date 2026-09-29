@@ -312,7 +312,8 @@ export async function POST(
       directorProvider = director.provider;
     }
 
-    const normalizedBlueprint = normalizeBlueprintArrays(director.blueprint);
+    const blueprint = director.blueprint ?? createLocalGameBlueprint(prompt);
+    const normalizedBlueprint = normalizeBlueprintArrays(blueprint);
 
     session =
       markDirectorCompleted(
@@ -394,7 +395,8 @@ export async function POST(
      * ke client bersama session.
      */
 
-    await persistCloudSession(session, builder.gameHtml);
+    const gameHtml = builder.gameHtml ?? buildLocalGameHtml(normalizedBlueprint);
+    await persistCloudSession(session, gameHtml);
 
 
     return NextResponse.json({
@@ -409,8 +411,7 @@ export async function POST(
 
       artifact,
 
-      gameHtml:
-        builder.gameHtml,
+      gameHtml,
 
       validation:
         builder.validation || null,
