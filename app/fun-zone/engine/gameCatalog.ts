@@ -1,4 +1,4 @@
-export type FunZoneGameIdea = {
+export type FunZoneCatalogResponse = {\n  success: true;\n  seed: string;\n  games: FunZoneGameIdea[];\n};\n\nexport type FunZoneGameIdea = {
   id: string;
   title: string;
   genre: string;
