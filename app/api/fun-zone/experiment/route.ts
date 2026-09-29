@@ -44,6 +44,40 @@ export async function GET() {
   }
 }
 
+export async function GET(request: Request) {
+  const experimentId = new URL(request.url).searchParams.get("experimentId") || "";
+  if (!experimentId) {
+    return NextResponse.json({ success: false, error: "experimentId wajib diberikan." }, { status: 400 });
+  }
+
+  const client = db();
+  if (!client) {
+    return NextResponse.json({ success: false, error: "Supabase secret configuration is missing." }, { status: 503 });
+  }
+
+  const { data, error } = await client
+    .from("james_game_experiments")
+    .select("id,user_id,conversation_id,capability_key,capability_name,prompt,blueprint,game_html,status,attempt,test_report,learning_result,created_at,verified_at")
+    .eq("id", experimentId)
+    .maybeSingle();
+
+  if (error) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+
+  if (!data) {
+    return NextResponse.json({ success: false, error: "Experiment job tidak ditemukan." }, { status: 404 });
+  }
+
+  return NextResponse.json({
+    success: true,
+    status: data.status,
+    experiment: data,
+    provider: "james-autonomous",
+    model: "game-brain-experiment-v1",
+  });
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
