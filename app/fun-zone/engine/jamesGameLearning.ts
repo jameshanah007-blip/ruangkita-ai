@@ -430,8 +430,56 @@ export function applyJamesGameMastery(
 
   if (!relevant.length) return blueprint;
 
-  const strong = relevant.filter((item) => Number(item.competence || 0) >= 0.75);
+  const competence = (key: string) =>
+    Number(relevant.find((item) => item.capability_key === key)?.competence ?? 0.75);
   const developing = relevant.filter((item) => Number(item.competence || 0) < 0.75);
+  const strong = relevant.filter((item) => Number(item.competence || 0) >= 0.75);
+
+  const mechanics = [...blueprint.mechanics];
+  const actions = [...blueprint.playerActions];
+  const controls = [...blueprint.controls];
+  const tests = [...blueprint.testRequirements];
+
+  const add = (list: string[], value: string) => {
+    if (!list.includes(value)) list.push(value);
+  };
+
+  // Mastery changes concrete architecture decisions, not just explanatory text.
+  if (competence("fun-zone-input-reliability") < 0.75) {
+    add(actions, "move");
+    add(controls, "touch + keyboard movement");
+    add(tests, "Verify input changes player state");
+  }
+
+  if (competence("fun-zone-objective-progression") < 0.75) {
+    add(mechanics, "collect");
+    add(actions, "interact");
+    add(tests, "Verify objective progress changes after interaction");
+  }
+
+  if (competence("fun-zone-gameplay-state") < 0.75) {
+    add(mechanics, "explore");
+    add(tests, "Verify gameplay state changes after player action");
+  }
+
+  if (competence("fun-zone-player-state") < 0.75) {
+    add(actions, "move");
+    add(tests, "Verify player position or state changes");
+  }
+
+  if (competence("fun-zone-restart-integrity") < 0.75) {
+    add(actions, "restart");
+    add(controls, "restart");
+    add(tests, "Verify restart restores initial gameplay state");
+  }
+
+  if (competence("fun-zone-rendering") < 0.75) {
+    add(tests, "Verify non-blank canvas and visible state changes");
+  }
+
+  if (competence("fun-zone-runtime-observability") < 0.75) {
+    add(tests, "Verify runtime hooks, frame advancement and observable game state");
+  }
 
   const masteryContext = relevant.map((item) =>
     (item.capability_name || item.capability_key || "unknown") +
@@ -446,17 +494,19 @@ export function applyJamesGameMastery(
 
   return {
     ...blueprint,
+    mechanics: mechanics.slice(0, 12),
+    playerActions: actions.slice(0, 16),
+    controls: controls.slice(0, 12),
     progression: clean(
       blueprint.progression +
       " James capability mastery: " + masteryContext + "." +
       learningDirective,
       1400,
     ),
-    testRequirements: Array.from(new Set([
-      ...blueprint.testRequirements,
-      ...developing.map((item) => "Verify " + (item.capability_name || item.capability_key)),
-      ...strong.map((item) => "Regression-check " + (item.capability_name || item.capability_key)),
-    ])).slice(0, 20),
+    testRequirements: Array.from(new Set(tests.concat(
+      developing.map((item) => "Verify " + (item.capability_name || item.capability_key)),
+      strong.map((item) => "Regression-check " + (item.capability_name || item.capability_key)),
+    ))).slice(0, 24),
   };
 }
 
