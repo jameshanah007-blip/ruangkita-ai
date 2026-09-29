@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import AIGameSandbox from "./engine/AIGameSandbox";
+import type { FunZoneGameIdea } from "./engine/gameCatalog";
 
 import type {
   GameBlueprint,
@@ -405,6 +406,12 @@ export default function FunZonePage() {
   const [prompt, setPrompt] =
     useState("");
 
+  const [gameCatalog, setGameCatalog] =
+    useState<FunZoneGameIdea[]>([]);
+
+  const [catalogSeed, setCatalogSeed] =
+    useState(() => crypto.randomUUID());
+
   const [stage, setStage] =
     useState<LabStage>("idle");
 
@@ -476,6 +483,17 @@ export default function FunZonePage() {
         model,
       ]
     );
+
+  useEffect(() => {
+    fetch(`/api/fun-zone/catalog?seed=${encodeURIComponent(catalogSeed)}&count=8`, { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => {
+        if (Array.isArray(data?.games)) {
+          setGameCatalog(data.games);
+        }
+      })
+      .catch(() => {});
+  }, [catalogSeed]);
 
   useEffect(() => {
     fetch("/api/fun-zone/session", { cache: "no-store" })
@@ -760,6 +778,17 @@ const handleSandboxGameHtmlChange =
     else setStage(savedGameHtml ? "testing" : "idle");
   }
 
+  function chooseCatalogGame(game: FunZoneGameIdea) {
+    setPrompt(game.prompt);
+    setError("");
+    setStage("idle");
+    window.setTimeout(() => buildGame(), 0);
+  }
+
+  function refreshGameCatalog() {
+    setCatalogSeed(crypto.randomUUID());
+  }
+
   function createAnotherGame() {
     setStage(
       "idle"
@@ -891,6 +920,52 @@ const handleSandboxError =
                 dan memperbaikinya.
               </p>
 
+            </div>
+
+            <div className="mx-auto mt-10 max-w-6xl">
+              <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-400">James Game Universe</p>
+                  <h2 className="mt-2 text-2xl font-black md:text-3xl">Pilih dunia game yang berbeda</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                    James mencampur genre, mood, mekanik, dan tingkat kesulitan. Katalog dapat berubah setiap sesi.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={refreshGameCatalog}
+                  className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.06]"
+                >
+                  ↻ Game lain
+                </button>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {gameCatalog.map((game) => (
+                  <button
+                    key={game.id}
+                    type="button"
+                    onClick={() => chooseCatalogGame(game)}
+                    className="group rounded-2xl border border-white/10 bg-white/[0.035] p-5 text-left transition hover:-translate-y-1 hover:border-cyan-400/40 hover:bg-cyan-400/[0.05]"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="rounded-full bg-cyan-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
+                        {game.genre}
+                      </span>
+                      <span className="text-[10px] uppercase text-slate-500">{game.difficulty}</span>
+                    </div>
+                    <h3 className="mt-4 text-lg font-bold text-white group-hover:text-cyan-300">{game.title}</h3>
+                    <p className="mt-2 text-xs leading-5 text-slate-400">{game.mood} · {game.mechanics.slice(0, 3).join(" · ")}</p>
+                    <span className="mt-5 inline-block text-xs font-bold text-slate-500 group-hover:text-cyan-300">Buat game ini →</span>
+                  </button>
+                ))}
+              </div>
+
+              {gameCatalog.length === 0 && (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">
+                  Menyiapkan pilihan game James...
+                </div>
+              )}
             </div>
 
             <div className="mx-auto mt-12 max-w-4xl">
