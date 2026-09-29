@@ -9,7 +9,7 @@ import { decideJamesBrainStrategy } from "./jamesDecisionEngine";
 import { decideJamesModelLearning } from "./jamesModelLearningPolicy";
 import { distillJamesKnowledge, syncJamesModelLearningJobs } from "./jamesModelLearning";
 import { createJamesAutonomousGoal } from "./jamesAutonomousGoals";
-import { createJamesGameExperimentJob, createJamesGameExperimentPlan } from "../fun-zone/engine/jamesGameLearning";
+import { createJamesGameExperimentJob, createJamesGameExperimentPlan, revalidateJamesCoreSkills } from "../fun-zone/engine/jamesGameLearning";
 
 export type JamesAutonomyMode = "supervised" | "bounded" | "autonomous";
 
@@ -493,6 +493,7 @@ export async function runJamesAutonomousBrain(input: {
   if (mode === "autonomous" && verified) {
     const nextRun = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     try {
+      const revalidatedCoreSkills = await revalidateJamesCoreSkills(12);
       const experiment = await createJamesGameExperimentPlan();
       const experimentJob = experiment?.status === "experiment"
         ? await createJamesGameExperimentJob({
@@ -507,6 +508,7 @@ export async function runJamesAutonomousBrain(input: {
             "Experiment prompt: " + experiment.prompt,
             "Experiment job ID: " + String(experimentJob.experimentId || "not-persisted") + ". Open the Fun Zone sandbox runner to verify it.",
             "Use the result as evidence. Do not treat the experiment as successful until sandbox tests pass.",
+            "Core skill revalidation results: " + JSON.stringify(revalidatedCoreSkills).slice(0, 4000),
           ].join("\n")
         : null;
 
