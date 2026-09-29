@@ -1351,6 +1351,96 @@ export async function evaluateJamesRecoveryDirectiveImpact(
   };
 }
 
+export async function evaluateJamesExploreExploitImpact(
+  experimentPrompt: string | null | undefined,
+  blueprint: GameBlueprint,
+  report: TestReport,
+) {
+  const client = db();
+  if (!client || typeof experimentPrompt !== "string") return null;
+
+  const mode = experimentPrompt.includes("Exploration directive:")
+    ? "explore"
+    : experimentPrompt.includes("Exploitation directive:")
+      ? "exploit"
+      : null;
+  if (!mode) return null;
+
+  const currentQuality = gameQuality(report);
+  const { data: prior } = await client
+    .from("james_self_evaluations")
+    .select("quality_score,outcome,evidence,created_at")
+    .order("created_at", { ascending: false })
+    .limit(40);
+
+  const pattern = clean(
+    "fun-zone:" + blueprint.world + ":" + blueprint.genre + ":" + blueprint.mechanics.slice(0, 4).join("+"),
+    300,
+  );
+  const comparable = (prior || []).filter((row) => {
+    const evidence = row.evidence && typeof row.evidence === "object"
+      ? row.evidence as Record<string, unknown>
+      : {};
+    return evidence.pattern === pattern;
+  });
+
+  const baseline = comparable[0];
+  if (!baseline) {
+    return {
+      mode,
+      evaluated: false,
+      currentQuality,
+      reason: "No comparable prior experiment exists for Explore/Exploit comparison.",
+    };
+  }
+
+  const baselineQuality = Number(baseline.quality_score || 0);
+  const improvement = Number((currentQuality - baselineQuality).toFixed(4));
+  const better = report.passed === true && improvement > 0;
+
+  const strategyPattern = "fun-zone:learning-mode:" + mode;
+  const strategy = "Use " + mode + " mode when its measured experiment quality improves over the comparable prior strategy.";
+  const { data: existing } = await client
+    .from("james_experiences")
+    .select("id,success_count,failure_count")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("pattern", strategyPattern)
+    .eq("strategy", strategy)
+    .maybeSingle();
+
+  const successCount = Number(existing?.success_count || 0) + (better ? 1 : 0);
+  const failureCount = Number(existing?.failure_count || 0) + (better ? 0 : 1);
+  const total = successCount + failureCount;
+  const successRate = total ? successCount / total : 0;
+  const confidence = Math.min(0.99, Math.max(0.1, 0.45 + successRate * 0.45 + Math.min(0.1, total * 0.01)));
+  const status = successRate < 0.4 && failureCount >= 3 ? "blocked" : "active";
+  const memory = {
+    user_id: SYSTEM_USER_ID,
+    pattern: strategyPattern,
+    strategy,
+    confidence,
+    success_count: successCount,
+    failure_count: failureCount,
+    capabilities: ["fun-zone-strategy-selection"],
+    status,
+  };
+
+  if (existing?.id) await client.from("james_experiences").update(memory).eq("id", existing.id);
+  else await client.from("james_experiences").insert(memory);
+
+  return {
+    mode,
+    evaluated: true,
+    currentQuality,
+    baselineQuality,
+    improvement,
+    better,
+    successRate: Number(successRate.toFixed(3)),
+    confidence: Number(confidence.toFixed(3)),
+    status,
+  };
+}
+
 export async function promoteJamesExplorationResult(
   experimentPrompt: string | null | undefined,
   blueprint: GameBlueprint,
