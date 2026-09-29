@@ -904,11 +904,9 @@ export async function getJamesFailedStrategies(limit = 8) {
 
   const { data, error } = await client
     .from("james_experiences")
-    .select("pattern, strategy, confidence, failure_count, capabilities, updated_at")
+    .select("id, pattern, strategy, confidence, success_count, failure_count, capabilities, status, updated_at")
     .eq("status", "active")
-    .gt("failure_count", 0)
-    .order("confidence", { ascending: true })
-    .order("failure_count", { ascending: false })
+    .order("updated_at", { ascending: false })
     .limit(Math.max(1, Math.min(20, limit)));
 
   if (error) {
@@ -916,13 +914,23 @@ export async function getJamesFailedStrategies(limit = 8) {
     return [];
   }
 
-  return (data || []).map((item) => ({
-    pattern: item.pattern,
-    strategy: item.strategy,
-    confidence: item.confidence,
-    failure_count: item.failure_count,
-    capabilities: Array.isArray(item.capabilities) ? item.capabilities : [],
-  }));
+  return (data || [])
+    .filter((item) => Number(item.success_count || 0) + Number(item.failure_count || 0) > 0)
+    .map((item) => ({
+      id: item.id,
+      pattern: item.pattern,
+      strategy: item.strategy,
+      confidence: item.confidence,
+      success_count: Number(item.success_count || 0),
+      failure_count: Number(item.failure_count || 0),
+      capabilities: Array.isArray(item.capabilities) ? item.capabilities : [],
+      success_rate: (Number(item.success_count || 0) + Number(item.failure_count || 0)) > 0
+        ? Number(item.success_count || 0) /
+          (Number(item.success_count || 0) + Number(item.failure_count || 0))
+        : 0,
+    }))
+    .sort((a, b) => a.success_rate - b.success_rate || b.failure_count - a.failure_count)
+    .slice(0, Math.max(1, Math.min(20, limit)));
 }
 
 export async function getJamesGameAdaptations(limit = 8) {
@@ -977,6 +985,79 @@ function selectTransferAdaptation<T extends {
       const br = Number(b.transfer_success_rate ?? 1);
       return ar - br;
     });
+}
+
+export async function evolveJamesStrategyMemory(
+  blueprint: GameBlueprint,
+  report: TestReport,
+) {
+  const client = db();
+  if (!client) return null;
+
+  const pattern = clean(
+    "fun-zone:" + blueprint.world + ":" + blueprint.genre + ":" + blueprint.mechanics.slice(0, 4).join("+"),
+    300,
+  );
+  const { data: rows, error } = await client
+    .from("james_experiences")
+    .select("id, pattern, strategy, confidence, success_count, failure_count, capabilities")
+    .eq("status", "active")
+    .limit(40);
+
+  if (error) {
+    console.warn("James strategy evolution retrieval failed:", error.message);
+    return null;
+  }
+
+  const relevant = (rows || []).filter((row) => {
+    const capabilities = Array.isArray(row.capabilities) ? row.capabilities : [];
+    const strategy = typeof row.strategy === "string" ? row.strategy : "";
+    return row.pattern === pattern || capabilities.some((capability) =>
+      strategy.includes(capability) ||
+      blueprint.testRequirements.some((test) => test.includes(capability)),
+    );
+  });
+
+  const updates = [];
+  for (const row of relevant) {
+    const success = Number(row.success_count || 0);
+    const failure = Number(row.failure_count || 0);
+    const total = success + failure;
+    if (!total) continue;
+
+    const rate = success / total;
+    // Confidence follows repeated empirical evidence, not a single success.
+    const confidence = Math.max(
+      0.1,
+      Math.min(0.99, 0.45 + rate * 0.45 + Math.min(0.1, total * 0.01)),
+    );
+    const status = rate >= 0.8 && total >= 3
+      ? "active"
+      : rate < 0.4 && failure >= 3
+        ? "blocked"
+        : "active";
+
+    const result = await client
+      .from("james_experiences")
+      .update({ confidence, status })
+      .eq("id", row.id);
+
+    if (!result.error) {
+      updates.push({
+        id: row.id,
+        pattern: row.pattern,
+        successRate: Number(rate.toFixed(3)),
+        confidence: Number(confidence.toFixed(3)),
+        status,
+      });
+    }
+  }
+
+  return {
+    pattern,
+    currentOutcome: report.passed ? "success" : "failure",
+    evolvedStrategies: updates,
+  };
 }
 
 export function applyJamesEffectiveStrategies(
