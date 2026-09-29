@@ -289,7 +289,7 @@ export async function recordJamesGameBrainEvidence(
           playerChanged: report.playerChanged,
           restartVerified: report.restartVerified,
           hardFailures: failures.slice(0, 8),
-          softWarnings: softWarnings.slice(0, 8),
+          softWarnings: [],
         },
       },
     })
@@ -3700,5 +3700,6 @@ export function chooseJamesStrategyRecovery(lineage: Array<{ successCount: numbe
         reason: "Lineage evidence supports continuing bounded strategy evolution.",
       };
 }
+
 
 

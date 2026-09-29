@@ -91,15 +91,16 @@ export async function POST(request: Request) {
       model: "game-brain-experiment-planner-v1", plan: result.plan,
     });
 
-    return NextResponse.json({
-      success: true, status: result.status, source: "new-queue-job",
-      experimentId: result.experimentId, provider: "james-autonomous",
-      model: "game-brain-experiment-v1", plan: result.plan,
-      blueprint: result.blueprint, gameHtml: result.gameHtml,
-      verification: { verified: false, reason: "Artifact awaits a real sandbox TestReport." },
-    });
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unexpected Game Brain experiment result state.",
+      },
+      { status: 500 },
+    );
   } catch (error) {
     console.error("James Game Brain experiment execution failed:", error);
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Experiment execution failed." }, { status: 500 });
   }
 }
+
