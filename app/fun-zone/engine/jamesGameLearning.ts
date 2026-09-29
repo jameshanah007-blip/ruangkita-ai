@@ -404,7 +404,7 @@ export async function recordJamesGameBrainEvidence(
     const transferTested = distinctPriorPatterns.length > 0;
     const transferSignal = transferTested ? (item.passed ? 1 : 0) : null;
     const transferWeight = transferTested ? Math.min(1, distinctPriorPatterns.length / 3) : 0;
-    const transferTests = priorTransferRows.length + (transferTested ? 1 : 0);
+    let transferTests = priorTransferRows.length + (transferTested ? 1 : 0);
     const transferSuccessRate = transferTests
       ? (priorTransferSuccesses + (item.passed && transferTested ? 1 : 0)) / transferTests
       : null;
