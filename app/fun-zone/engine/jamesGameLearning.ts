@@ -2302,6 +2302,37 @@ export function chooseJamesStrategyMutation(input: {
   return "bounded-parameter-variation";
 }
 
+export function chooseJamesMutationStrategy(input: {
+  tournamentScore: number;
+  successRate: number;
+  confidence: number;
+  memoryRate: number;
+  failureCount: number;
+}) {
+  if (input.failureCount >= 3 && input.successRate < 0.5) {
+    return {
+      action: "rollback-and-open-new-branch",
+      reason: "Repeated failures outweigh current evidence; preserve the parent and explore a materially different branch.",
+    };
+  }
+  if (input.tournamentScore >= 0.82 && input.successRate >= 0.8) {
+    return {
+      action: "preserve-and-make-small-mutation",
+      reason: "Strong tournament evidence supports exploitation with a bounded contextual variation.",
+    };
+  }
+  if (input.memoryRate >= 0.75 && input.confidence >= 0.75) {
+    return {
+      action: "reuse-with-contextual-mutation",
+      reason: "Historical tournament memory supports reuse, but the new context should still be verified.",
+    };
+  }
+  return {
+    action: "open-new-branch",
+    reason: "Evidence is not strong enough for aggressive exploitation; create a bounded alternative and compare it.",
+  };
+}
+
 export async function evaluateJamesTournamentWithMemory(targetContext?: string, limit = 5) {
   const branches = await getJamesStrategyBranches(targetContext, Math.max(limit, 5));
   const memory = await getJamesTournamentMemory(targetContext, 10);
