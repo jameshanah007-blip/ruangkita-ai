@@ -683,6 +683,33 @@ export function applyJamesGameMastery(
   };
 }
 
+export async function getJamesFailedStrategies(limit = 8) {
+  const client = db();
+  if (!client) return [];
+
+  const { data, error } = await client
+    .from("james_experiences")
+    .select("pattern, strategy, confidence, failure_count, capabilities, updated_at")
+    .eq("status", "active")
+    .gt("failure_count", 0)
+    .order("confidence", { ascending: true })
+    .order("failure_count", { ascending: false })
+    .limit(Math.max(1, Math.min(20, limit)));
+
+  if (error) {
+    console.warn("James failed-strategy retrieval failed:", error.message);
+    return [];
+  }
+
+  return (data || []).map((item) => ({
+    pattern: item.pattern,
+    strategy: item.strategy,
+    confidence: item.confidence,
+    failure_count: item.failure_count,
+    capabilities: Array.isArray(item.capabilities) ? item.capabilities : [],
+  }));
+}
+
 export async function getJamesGameAdaptations(limit = 8) {
   const client = db();
   if (!client) return [];
