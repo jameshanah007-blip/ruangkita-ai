@@ -1,3 +1,16 @@
+const BROWSER_WAIT_MS = 2500;
+
+function credentials() {
+  if (process.env.VERCEL_TOKEN && process.env.VERCEL_TEAM_ID && process.env.VERCEL_PROJECT_ID) {
+    return {
+      token: process.env.VERCEL_TOKEN,
+      teamId: process.env.VERCEL_TEAM_ID,
+      projectId: process.env.VERCEL_PROJECT_ID,
+    };
+  }
+  return {};
+}
+
 const nodeRequire = eval("require") as NodeRequire;
 const { Sandbox: SandboxRuntime } = nodeRequire("@vercel/sandbox") as {
   Sandbox: {
