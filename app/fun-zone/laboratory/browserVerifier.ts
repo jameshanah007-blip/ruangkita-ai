@@ -14,7 +14,9 @@ function credentials() {
   return {};
 }
 
-const nodeRequire = eval("require") as NodeRequire;
+import { createRequire } from "node:module";
+
+const nodeRequire = createRequire(import.meta.url);
 const { Sandbox: SandboxRuntime } = nodeRequire("@vercel/sandbox") as {
   Sandbox: {
     create: (...args: any[]) => Promise<any>;
