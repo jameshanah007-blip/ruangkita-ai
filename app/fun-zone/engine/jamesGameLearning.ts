@@ -540,6 +540,25 @@ export function applyJamesGameMastery(
     add(tests, "Verify runtime hooks, frame advancement and observable game state");
   }
 
+  const contextWorlds = [
+    "hospital", "forest", "ocean", "space", "city", "castle", "laboratory", "desert", "village", "island",
+  ];
+  const contextMechanics = [
+    "explore", "collect", "combat", "survival", "stealth", "racing", "puzzle", "rescue", "farming", "shooting", "escort", "dialogue",
+  ];
+  const currentWorld = String(blueprint.world || "").toLowerCase();
+  const currentMechanics = new Set(mechanics.map((value) => value.toLowerCase()));
+  const alternateWorld = contextWorlds.find((world) => world !== currentWorld) || "forest";
+  const alternateMechanic = contextMechanics.find((mechanic) => !currentMechanics.has(mechanic)) || "explore";
+  const contextualTargets = contextual
+    .map((item) => item.capability_name || item.capability_key || "unknown")
+    .slice(0, 4);
+  const crossContextPlan = contextualTargets.length
+    ? " James next-context plan: keep the current proven contract, then deliberately vary " +
+      "world to " + alternateWorld + " and introduce mechanic " + alternateMechanic +
+      " to test " + contextualTargets.join(", ") + "."
+    : " James next-context plan: introduce one new world or mechanic while regression-checking generalized capabilities.";
+
   const masteryContext = relevant.map((item) =>
     (item.capability_name || item.capability_key || "unknown") +
     "=" + Number(item.competence || 0).toFixed(2) +
@@ -565,12 +584,17 @@ export function applyJamesGameMastery(
     progression: clean(
       blueprint.progression +
       " James capability mastery: " + masteryContext + "." +
-      learningDirective + generalizationDirective,
+      learningDirective + generalizationDirective +
+      crossContextPlan,
       1400,
     ),
+    world: contextualTargets.length && alternateWorld !== currentWorld
+      ? alternateWorld
+      : blueprint.world,
     testRequirements: Array.from(new Set(tests.concat(
       developing.map((item) => "Verify " + (item.capability_name || item.capability_key)),
-      contextual.map((item) => "Cross-context test " + (item.capability_name || item.capability_key)),
+      contextual.map((item) => "Cross-context test " + (item.capability_name || item.capability_key) +
+        " in " + alternateWorld + " with " + alternateMechanic),
       strong.map((item) => "Regression-check " + (item.capability_name || item.capability_key)),
     ))).slice(0, 24),
   };
