@@ -458,6 +458,9 @@ export default function FunZonePage() {
   const [savedGameHtml, setSavedGameHtml] =
     useState("");
 
+  const [experimentId, setExperimentId] =
+    useState<string | null>(null);
+
   const currentStageIndex =
     getStageIndex(stage);
 
@@ -480,6 +483,31 @@ export default function FunZonePage() {
         model,
       ]
     );
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("experimentId");
+    if (!id) return;
+
+    setExperimentId(id);
+
+    fetch("/api/fun-zone/experiment?experimentId=" + encodeURIComponent(id), { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => {
+        const experiment = data?.experiment;
+        if (!experiment?.game_html || !experiment?.blueprint) return;
+
+        setBlueprint(experiment.blueprint as GameBlueprint);
+        setGameHtml(experiment.game_html);
+        setTitle(experiment.blueprint.title || "James Experiment");
+        setGenre(experiment.blueprint.genre || "AI Game");
+        setProvider("james-autonomous");
+        setModel("game-brain-experiment-v1");
+        setStage("testing");
+      })
+      .catch((error) => {
+        console.warn("James experiment load failed:", error);
+      });
+  }, []);
 
   useEffect(() => {
     fetch("/api/fun-zone/session", { cache: "no-store" })
@@ -708,6 +736,23 @@ const handleTestReport =
         }).catch((error) => {
           console.warn("James Game Brain learning request failed:", error);
         });
+      }
+
+      if (experimentId && blueprint) {
+        void fetch("/api/fun-zone/experiment/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ experimentId, blueprint, report }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (!data?.success) {
+              console.warn("James experiment verification failed:", data?.error);
+            }
+          })
+          .catch((error) => {
+            console.warn("James experiment verification request failed:", error);
+          });
       }
 
       if (report.passed) {
