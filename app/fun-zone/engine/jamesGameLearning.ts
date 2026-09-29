@@ -316,6 +316,73 @@ export async function recordJamesGameBrainEvidence(
   };
 }
 
+
+export async function getJamesGameMastery(limit = 12) {
+  const client = db();
+  if (!client) return [];
+
+  const { data, error } = await client
+    .from("james_self_model")
+    .select("capability_key, capability_name, competence, confidence, evidence_count, success_count, failure_count, status, next_learning_action")
+    .eq("user_id", SYSTEM_USER_ID)
+    .order("competence", { ascending: false })
+    .limit(Math.max(1, Math.min(20, limit)));
+
+  if (error) {
+    console.warn("James game mastery retrieval failed:", error.message);
+    return [];
+  }
+
+  return data || [];
+}
+
+export function applyJamesGameMastery(
+  blueprint: GameBlueprint,
+  mastery: Array<{
+    capability_key?: string | null;
+    capability_name?: string | null;
+    competence?: number | null;
+    confidence?: number | null;
+    evidence_count?: number | null;
+    status?: string | null;
+  }>,
+): GameBlueprint {
+  const relevant = mastery
+    .filter((item) => typeof item.capability_key === "string" && item.capability_key.startsWith("fun-zone-"))
+    .slice(0, 8);
+
+  if (!relevant.length) return blueprint;
+
+  const strong = relevant.filter((item) => Number(item.competence || 0) >= 0.75);
+  const developing = relevant.filter((item) => Number(item.competence || 0) < 0.75);
+
+  const masteryContext = relevant.map((item) =>
+    (item.capability_name || item.capability_key || "unknown") +
+    "=" + Number(item.competence || 0).toFixed(2) +
+    " confidence=" + Number(item.confidence || 0).toFixed(2)
+  ).join(" | ");
+
+  const learningDirective = developing.length
+    ? " Prioritize verification and robust implementation for developing capabilities: " +
+      developing.map((item) => item.capability_name || item.capability_key).join(", ") + "."
+    : " Maintain verified runtime contracts while exploring new mechanics.";
+
+  return {
+    ...blueprint,
+    progression: clean(
+      blueprint.progression +
+      " James capability mastery: " + masteryContext + "." +
+      learningDirective,
+      1400,
+    ),
+    testRequirements: Array.from(new Set([
+      ...blueprint.testRequirements,
+      ...developing.map((item) => "Verify " + (item.capability_name || item.capability_key)),
+      ...strong.map((item) => "Regression-check " + (item.capability_name || item.capability_key)),
+    ])).slice(0, 20),
+  };
+}
+
 export async function getJamesGameLessons(limit = 8) {
   const client = db();
   if (!client) return [];
