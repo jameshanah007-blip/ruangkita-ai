@@ -758,6 +758,46 @@ export function applyJamesGameMastery(
   };
 }
 
+export async function getJamesEffectiveStrategies(limit = 8) {
+  const client = db();
+  if (!client) return [];
+
+  const { data, error } = await client
+    .from("james_self_evaluations")
+    .select("quality_score, outcome, strengths, evidence")
+    .eq("outcome", "success")
+    .order("quality_score", { ascending: false })
+    .limit(Math.max(1, Math.min(20, limit * 3)));
+
+  if (error) {
+    console.warn("James effective-strategy retrieval failed:", error.message);
+    return [];
+  }
+
+  return (data || [])
+    .map((row) => {
+      const evidence = row.evidence && typeof row.evidence === "object"
+        ? row.evidence as Record<string, unknown>
+        : {};
+      return {
+        strategy_fingerprint:
+          typeof evidence.strategy_fingerprint === "string"
+            ? evidence.strategy_fingerprint
+            : null,
+        strategy_comparison:
+          evidence.strategy_comparison && typeof evidence.strategy_comparison === "object"
+            ? evidence.strategy_comparison as Record<string, unknown>
+            : null,
+        quality: Number(row.quality_score || 0),
+        strengths: Array.isArray(row.strengths)
+          ? row.strengths.filter((value): value is string => typeof value === "string")
+          : [],
+      };
+    })
+    .filter((item) => item.strategy_fingerprint)
+    .slice(0, Math.max(1, Math.min(20, limit)));
+}
+
 export async function getJamesFailedStrategies(limit = 8) {
   const client = db();
   if (!client) return [];
