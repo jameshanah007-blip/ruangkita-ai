@@ -209,16 +209,32 @@ export async function recordJamesGameBrainEvidence(
     })
     .filter((row) => row.strategyFingerprint && row.strategyFingerprint !== strategyFingerprint);
 
+  const currentCapabilitySet = new Set(capabilities);
   const bestPriorStrategy = priorStrategies
-    .sort((a, b) => b.quality - a.quality)[0] || null;
+    .map((row) => {
+      const evidence = (priorEvaluations || []).find((candidate) => {
+        const candidateEvidence = candidate.evidence && typeof candidate.evidence === "object"
+          ? candidate.evidence as Record<string, unknown>
+          : {};
+        return candidateEvidence.strategy_fingerprint === row.strategyFingerprint;
+      });
+      const strengths = evidence && Array.isArray(evidence.strengths)
+        ? evidence.strengths.filter((value): value is string => typeof value === "string")
+        : [];
+      const overlap = strengths.filter((value) => currentCapabilitySet.has(value)).length;
+      return { ...row, overlap };
+    })
+    .sort((a, b) => b.overlap - a.overlap || b.quality - a.quality)[0] || null;
   const strategyComparison = bestPriorStrategy
     ? {
         previousQuality: bestPriorStrategy.quality,
         currentQuality: quality,
         delta: Number((quality - bestPriorStrategy.quality).toFixed(4)),
         previousOutcome: bestPriorStrategy.outcome,
+        capabilityOverlap: bestPriorStrategy.overlap,
         improved: quality > bestPriorStrategy.quality,
         strategyChanged: true,
+        comparisonBasis: "closest-capability-strategy",
       }
     : {
         previousQuality: null,
@@ -227,6 +243,7 @@ export async function recordJamesGameBrainEvidence(
         previousOutcome: null,
         improved: null,
         strategyChanged: false,
+        comparisonBasis: "no-prior-comparable-strategy",
       };
   for (const item of evidence) {
     capabilityPatterns.set(item.capability, {
