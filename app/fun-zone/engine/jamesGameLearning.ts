@@ -964,6 +964,69 @@ export function selectJamesLearningMode(input: {
   };
 }
 
+export async function promoteJamesGeneralizedGameSkills(limit = 8) {
+  const client = db();
+  if (!client) return [];
+
+  const consolidated = await consolidateJamesTransferKnowledge(30);
+  const transferable = (consolidated || []).filter((item) => item.transferable).slice(0, limit);
+  const promoted = [];
+
+  for (const item of transferable) {
+    const capabilityKey = "fun-zone-core:" + clean(item.capabilityKey, 180);
+    const strategy = "Generalized Game Brain skill: reuse proven capabilities across contexts only after contextual verification.";
+    const { data: existing } = await client
+      .from("james_self_model")
+      .select("id,competence,confidence,evidence_count,success_count,failure_count")
+      .eq("user_id", SYSTEM_USER_ID)
+      .eq("capability_key", capabilityKey)
+      .maybeSingle();
+
+    const evidenceCount = Number(existing?.evidence_count || 0) + item.evidenceCount;
+    const successCount = Number(existing?.success_count || 0) + Math.round(item.evidenceCount * item.successRate);
+    const failureCount = Math.max(0, evidenceCount - successCount);
+    const competence = Math.min(0.99, Math.max(0.1, item.successRate));
+    const confidence = Math.min(0.99, Math.max(0.1, item.confidence + Math.min(0.1, item.contextCount * 0.02)));
+    const memory = {
+      user_id: SYSTEM_USER_ID,
+      capability_key: capabilityKey,
+      capability_name: "Generalized Game Brain: " + item.capabilityKey,
+      competence,
+      confidence,
+      evidence_count: evidenceCount,
+      success_count: successCount,
+      failure_count: failureCount,
+      teacher_providers: [],
+      active_models: ["james-autonomous-game-brain"],
+      last_evidence: {
+        source: "cross-context-transfer",
+        contexts: item.contexts,
+        contextCount: item.contextCount,
+        successRate: item.successRate,
+        strategy,
+      },
+      next_learning_action: "Verify this generalized skill in a new context and update competence from evidence.",
+      status: competence >= 0.85 && confidence >= 0.8 ? "strong" : competence >= 0.7 ? "competent" : "developing",
+    };
+
+    const result = existing?.id
+      ? await client.from("james_self_model").update(memory).eq("id", existing.id)
+      : await client.from("james_self_model").insert(memory);
+
+    if (!result.error) {
+      promoted.push({
+        capabilityKey,
+        competence: Number(competence.toFixed(3)),
+        confidence: Number(confidence.toFixed(3)),
+        contextCount: item.contextCount,
+        evidenceCount,
+      });
+    }
+  }
+
+  return promoted;
+}
+
 export async function consolidateJamesTransferKnowledge(limit = 12) {
   const client = db();
   if (!client) return null;
