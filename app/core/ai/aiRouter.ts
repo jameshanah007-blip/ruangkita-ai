@@ -117,10 +117,13 @@ async function generateWithTimeout(
 export async function generateWithAIRouter(
   request: AIGenerateRequest
 ): Promise<AIRouterResult> {
+  // RuangKita's primary provider chain is Gemini -> OpenRouter -> Groq.
+  // OpenAI remains an additional last-resort fallback when configured.
   const providers = [
-    ...aiProviders,
+    ...aiProviders.filter((provider) => provider.name === "gemini"),
     openRouterProvider,
     groqProvider,
+    ...aiProviders.filter((provider) => provider.name === "openai"),
   ];
 
   const availableProviders = providers.filter((provider) =>
@@ -238,7 +241,14 @@ export async function generateWithAIRouter(
 export async function* streamWithAIRouter(
   request: AIGenerateRequest
 ): AsyncGenerator<AIStreamEvent, void, unknown> {
-  const providers = [...aiProviders, openRouterProvider, groqProvider];
+  // RuangKita's primary provider chain is Gemini -> OpenRouter -> Groq.
+  // OpenAI remains an additional last-resort fallback when configured.
+  const providers = [
+    ...aiProviders.filter((provider) => provider.name === "gemini"),
+    openRouterProvider,
+    groqProvider,
+    ...aiProviders.filter((provider) => provider.name === "openai"),
+  ];
   const availableProviders = providers.filter((provider) => provider.isAvailable());
   if (!availableProviders.length) {
     throw new Error("Tidak ada AI provider yang tersedia. Periksa konfigurasi API key.");
