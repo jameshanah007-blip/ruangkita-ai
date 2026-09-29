@@ -6,6 +6,8 @@ import {
 import { runJamesAutonomousBrain } from "../../../tools/jamesAutonomousBrain";
 import { createJamesGameExperimentJob, getJamesPendingExperiment } from "../../../../fun-zone/engine/jamesGameLearning";
 
+export const maxDuration = 300;
+
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET || process.env.JAMES_AUTONOMY_CRON_SECRET;
   if (!secret) return false;
