@@ -80,10 +80,23 @@ export async function GET(request: Request) {
     });
 
     if (pendingExperiment) {
+      const origin = new URL(request.url).origin;
+      const verifyResponse = await fetch(origin + "/api/fun-zone/experiment/auto-verify", {
+        method: "GET",
+        headers: {
+          authorization: request.headers.get("authorization") || "",
+        },
+        cache: "no-store",
+      });
+      const verification = await verifyResponse.json().catch(() => ({
+        success: false,
+        error: "Browser verification returned invalid JSON.",
+      }));
+
       gameExperiment = {
-        status: "pending-verification",
+        status: verification.status || (verifyResponse.ok ? "verified" : "verification-failed"),
         experimentId: pendingExperiment.id,
-        reason: "Existing Game Brain experiment is awaiting verification.",
+        browserVerification: verification,
       };
     } else {
       const experiment = await createJamesGameExperimentJob({
