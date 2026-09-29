@@ -1,6 +1,4 @@
 import { createRequire } from "node:module";
-import type { Sandbox } from "@vercel/sandbox";
-
 const require = createRequire(import.meta.url);
 const { Sandbox: SandboxRuntime } = require("@vercel/sandbox") as typeof import("@vercel/sandbox");
 import type { GameBlueprint, TestReport, SandboxTestEvidence } from "./types";
