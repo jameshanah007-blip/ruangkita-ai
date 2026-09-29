@@ -5,7 +5,14 @@ import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, gameQuality,
 
 export const runtime = "nodejs";
 
+function authorized(request: Request) {
+  const secret = process.env.CRON_SECRET || process.env.JAMES_AUTONOMY_CRON_SECRET;
+  return Boolean(secret) && request.headers.get("authorization") === "Bearer " + secret;
+}
+
 export async function POST(request: Request) {
+  if (!authorized(request)) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
   try {
     const body = await request.json();
     const experimentId = typeof body?.experimentId === "string" ? body.experimentId : "";
