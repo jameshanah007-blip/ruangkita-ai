@@ -115,6 +115,207 @@ export async function recordJamesGameTestLearning(
   return data;
 }
 
+
+type GameCapabilityEvidence = {
+  capability: string;
+  passed: boolean;
+  weight: number;
+};
+
+function gameCapabilities(report: TestReport): GameCapabilityEvidence[] {
+  return [
+    { capability: "fun-zone-runtime-observability", passed: Boolean(report.runtimeOk), weight: 1 },
+    { capability: "fun-zone-rendering", passed: Boolean(report.rendered), weight: 1 },
+    { capability: "fun-zone-input-reliability", passed: Boolean(report.inputTest), weight: 1 },
+    { capability: "fun-zone-gameplay-state", passed: Boolean(report.gameplayTest), weight: 1 },
+    { capability: "fun-zone-objective-progression", passed: Boolean(report.objectiveChanged), weight: 1.2 },
+    { capability: "fun-zone-player-state", passed: Boolean(report.playerChanged), weight: 0.8 },
+    { capability: "fun-zone-restart-integrity", passed: Boolean(report.restartVerified), weight: 1.1 },
+  ];
+}
+
+function gameQuality(report: TestReport) {
+  const evidence = gameCapabilities(report);
+  const total = evidence.reduce((sum, item) => sum + item.weight, 0);
+  const passed = evidence.reduce((sum, item) => sum + (item.passed ? item.weight : 0), 0);
+  return total ? Math.max(0, Math.min(1, passed / total)) : 0;
+}
+
+/**
+ * Converts verified Fun Zone evidence into the same learning layers used by
+ * James's broader brain, without requiring an AI provider.
+ */
+export async function recordJamesGameBrainEvidence(
+  blueprint: GameBlueprint,
+  report: TestReport,
+  attempt: number,
+) {
+  const client = db();
+  if (!client) return null;
+
+  const evidence = gameCapabilities(report);
+  const quality = gameQuality(report);
+  const passed = Boolean(report.passed);
+  const capabilities = evidence.filter((item) => item.passed).map((item) => item.capability);
+  const failures = evidence.filter((item) => !item.passed).map((item) => item.capability);
+  const pattern = clean(
+    "fun-zone:" + blueprint.world + ":" + blueprint.genre + ":" + blueprint.mechanics.slice(0, 4).join("+"),
+    300,
+  );
+  const strategy = clean(
+    passed
+      ? "Generate an observable game contract with verified rendering, loop, controls, state progression, objective progression, and restart."
+      : "Before increasing complexity, repair the failed runtime contract: " + (failures.join(", ") || "unknown"),
+    700,
+  );
+
+  const selfEvaluation = await client
+    .from("james_self_evaluations")
+    .insert({
+      user_id: null,
+      conversation_id: null,
+      task_id: null,
+      outcome: passed ? "success" : quality >= 0.5 ? "partial" : "failure",
+      quality_score: quality,
+      root_cause: failures.length ? "Failed capabilities: " + failures.join(", ") : null,
+      strengths: capabilities,
+      weaknesses: failures,
+      improvements: failures.map((item) => "Improve " + item),
+      provider_observations: [{ provider: "james-autonomous", model: "game-brain-v2", attempt }],
+      evidence: {
+        source: "fun-zone",
+        pattern,
+        blueprint: {
+          world: blueprint.world,
+          genre: blueprint.genre,
+          mechanics: blueprint.mechanics.slice(0, 8),
+          difficulty: blueprint.difficulty,
+        },
+        test: {
+          passed,
+          runtimeOk: report.runtimeOk,
+          rendered: report.rendered,
+          inputTest: report.inputTest,
+          gameplayTest: report.gameplayTest,
+          objectiveChanged: report.objectiveChanged,
+          playerChanged: report.playerChanged,
+          restartVerified: report.restartVerified,
+          hardFailures: failed.slice(0, 8),
+          softWarnings: warnings.slice(0, 8),
+        },
+      },
+    })
+    .select("id, outcome, quality_score, created_at")
+    .maybeSingle();
+
+  if (selfEvaluation.error) {
+    console.warn("James game self-evaluation persistence failed:", selfEvaluation.error.message);
+  }
+
+  const existing = await client
+    .from("james_experiences")
+    .select("id, success_count, failure_count, confidence, capabilities")
+    .eq("pattern", pattern)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (existing.data?.id) {
+    const oldSuccess = Number(existing.data.success_count || 0);
+    const oldFailure = Number(existing.data.failure_count || 0);
+    const successCount = oldSuccess + (passed ? 1 : 0);
+    const failureCount = oldFailure + (passed ? 0 : 1);
+    const total = successCount + failureCount;
+    const confidence = Math.max(0.05, Math.min(0.99, total ? successCount / total : quality));
+
+    await client
+      .from("james_experiences")
+      .update({
+        success_count: successCount,
+        failure_count: failureCount,
+        confidence,
+        capabilities: [...new Set([
+          ...(Array.isArray(existing.data.capabilities) ? existing.data.capabilities : []),
+          ...capabilities,
+        ])].slice(0, 12),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.data.id);
+  } else {
+    const inserted = await client
+      .from("james_experiences")
+      .insert({
+        user_id: null,
+        conversation_id: null,
+        task_id: null,
+        pattern,
+        strategy,
+        capabilities: capabilities.length ? capabilities : ["fun-zone-runtime-observability"],
+        success_count: passed ? 1 : 0,
+        failure_count: passed ? 0 : 1,
+        confidence: quality,
+        status: "active",
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (inserted.error) {
+      console.warn("James game experience persistence failed:", inserted.error.message);
+    }
+  }
+
+  const existingConsolidation = await client
+    .from("james_experience_consolidations")
+    .select("id, evidence_count, confidence, capabilities")
+    .is("user_id", null)
+    .eq("merged_pattern", "fun-zone-game-brain")
+    .eq("status", "active")
+    .maybeSingle();
+
+  const oldEvidence = Number(existingConsolidation.data?.evidence_count || 0);
+  const nextEvidence = oldEvidence + 1;
+  const nextConfidence = Math.max(
+    0.05,
+    Math.min(0.99, Number(existingConsolidation.data?.confidence || 0.5) * 0.35 + quality * 0.65),
+  );
+  const mergedCapabilities = [...new Set([
+    ...(Array.isArray(existingConsolidation.data?.capabilities) ? existingConsolidation.data.capabilities : []),
+    ...capabilities,
+  ])].slice(0, 20);
+
+  if (existingConsolidation.data?.id) {
+    await client
+      .from("james_experience_consolidations")
+      .update({
+        evidence_count: nextEvidence,
+        confidence: nextConfidence,
+        capabilities: mergedCapabilities,
+        merged_strategy: strategy,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existingConsolidation.data.id);
+  } else {
+    await client.from("james_experience_consolidations").insert({
+      user_id: null,
+      source_experience_ids: [],
+      merged_pattern: "fun-zone-game-brain",
+      merged_strategy: strategy,
+      capabilities: mergedCapabilities,
+      confidence: quality,
+      evidence_count: 1,
+      status: "active",
+    });
+  }
+
+  return {
+    outcome: passed ? "success" : quality >= 0.5 ? "partial" : "failure",
+    quality,
+    capabilities,
+    failedCapabilities: failures,
+    selfEvaluationId: selfEvaluation.data?.id || null,
+    consolidationEvidence: nextEvidence,
+  };
+}
+
 export async function getJamesGameLessons(limit = 8) {
   const client = db();
   if (!client) return [];
