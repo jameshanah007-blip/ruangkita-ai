@@ -1752,7 +1752,7 @@ export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
 
-  const [{ data, error }, recoveryDirectives, exploration, modeMemory, transferKnowledge, coreSkills, corroborationTargets] = await Promise.all([
+  const [{ data, error }, recoveryDirectives, exploration, modeMemory, transferKnowledge, coreSkills, corroborationTargets, contradictionMemory] = await Promise.all([
     client
       .from("james_self_model")
       .select("capability_key, capability_name, competence, confidence, evidence_count, next_learning_action, status")
@@ -1766,6 +1766,7 @@ export async function createJamesGameExperimentPlan() {
     consolidateJamesTransferKnowledge(8),
     getJamesGeneralizedCoreSkills(8),
     getJamesSkillsNeedingCorroboration(6),
+    getJamesContradictionMemory(6),
   ]);
 
   if (error) {
@@ -1830,6 +1831,9 @@ export async function createJamesGameExperimentPlan() {
   const transferCandidate = contextualMemory[0] || null;
   const generalizedTransfer = (transferKnowledge || []).find((item) => item.transferable) || null;
   const strongestCoreSkill = coreSkills[0] || null;
+  const contradictionContext = contradictionMemory.length
+    ? " Contradiction memory: prior conflicting evidence exists; do not repeat the same assumption. Require fresh contextual evidence before treating the strategy as general."
+    : "";
   const corroborationContext = corroborationTargets.length
     ? " Corroboration targets: prioritize fresh evidence for " + corroborationTargets.slice(0, 3).map((item) => String(item.capabilityName)).join(", ") + "."
     : "";
@@ -1865,7 +1869,7 @@ export async function createJamesGameExperimentPlan() {
   return {
     status: "experiment",
     title: "James Game Brain experiment: " + String(target.capability_name),
-    prompt: capabilityPrompt + coreSkillContext + corroborationContext + contextualContext + transferContext + recoveryContext +
+    prompt: capabilityPrompt + coreSkillContext + contradictionContext + corroborationContext + contextualContext + transferContext + recoveryContext +
       (learningMode.mode === "explore" && exploration?.novelMechanic
         ? " Exploration directive: deliberately test the novel mechanic \""+ exploration.novelMechanic + "\" instead of repeating the most recent proven mechanic set. Compare its evidence against the current strategy."
         : " Exploitation directive: reuse proven strategy components first, while preserving regression checks and measurable evidence."),
@@ -1885,6 +1889,7 @@ export async function createJamesGameExperimentPlan() {
     generalizedTransfer,
     coreSkills,
     corroborationTargets,
+    contradictionMemory,
   };
 }
 
