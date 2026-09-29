@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyJamesAutonomousMutationToExperimentBlueprint, claimJamesGameExperiment, createJamesGameExperimentJob, getJamesPendingExperiment, revalidateJamesCoreSkills } from "../../../fun-zone/engine/jamesGameLearning";
+import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -63,7 +64,18 @@ export async function POST(request: Request) {
         result.plan?.targetCapability?.key || result.plan?.targetCapability?.name || "fun-zone",
       );
       result.blueprint = mutated.blueprint;
+      result.gameHtml = buildAutonomousGameHtml(result.blueprint);
       result.plan = { ...result.plan, mutationDirective: mutated.directive };
+      if (result.experimentId) {
+        const client = db();
+        if (client) {
+          await client.from("james_game_experiments").update({
+            blueprint: result.blueprint,
+            game_html: result.gameHtml,
+            status: "pending_verification",
+          }).eq("id", result.experimentId);
+        }
+      }
     }
 
     if (result.status === "no-gap") return NextResponse.json({
