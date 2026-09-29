@@ -1427,6 +1427,21 @@ export async function resolveJamesCoreSkillConflict(
   const oldEvidence = Number(current.evidence_count || 0);
   const oldSuccess = Number(current.success_count || 0);
   const oldFailure = Number(current.failure_count || 0);
+  const previousEvidence = current.last_evidence && typeof current.last_evidence === "object"
+    ? current.last_evidence as Record<string, unknown>
+    : {};
+  const previousHistory = Array.isArray(previousEvidence.history) ? previousEvidence.history : [];
+  const historicalCandidates = previousHistory.slice(0, 6).map((item) => {
+    const entry = item && typeof item === "object" ? item as Record<string, unknown> : {};
+    return {
+      source: String(entry.source || "historical"),
+      quality: Number(entry.quality || entry.newCompetence || oldCompetence),
+      trust: Number(entry.evidenceTrust || entry.newConfidence || oldConfidence),
+      passed: Boolean(entry.passed),
+      context: entry.context ? String(entry.context) : null,
+      recordedAt: entry.recordedAt ? String(entry.recordedAt) : null,
+    };
+  });
   const observedQuality = Math.max(0, Math.min(1, observed.quality));
   const evidenceTrust = await calculateJamesEvidenceTrust({
     source: "fun-zone-experiment-verification",
@@ -1435,6 +1450,17 @@ export async function resolveJamesCoreSkillConflict(
     contextCount: 1,
     evidenceCount: observed.evidence,
   });
+  const arbitration = arbitrateJamesEvidence([
+    ...historicalCandidates,
+    {
+      source: "current-observation",
+      quality: observedQuality,
+      trust: evidenceTrust.trust,
+      passed: observed.passed,
+      context: "current-context",
+      recordedAt: new Date().toISOString(),
+    },
+  ]);
   const sourceReliability = { reliability: evidenceTrust.sourceReliability, evidenceCount: 0 };
   const evidenceWeight = calculateJamesEvidenceWeight({
     quality: observedQuality,
@@ -1449,7 +1475,8 @@ export async function resolveJamesCoreSkillConflict(
   const newSuccess = oldSuccess + (observed.passed ? Math.max(1, observed.evidence) : 0);
   const newFailure = oldFailure + (observed.passed ? 0 : Math.max(1, observed.evidence));
   const empiricalRate = newEvidence ? newSuccess / newEvidence : 0;
-  const competence = Math.max(0.1, Math.min(0.99, oldCompetence * (1 - evidenceWeight) + observedQuality * evidenceWeight * 0.65 + empiricalRate * evidenceWeight * 0.35));
+  const arbitrationQuality = arbitration.winner ? Number(arbitration.winner.quality) : observedQuality;
+  const competence = Math.max(0.1, Math.min(0.99, oldCompetence * (1 - evidenceWeight) + arbitrationQuality * evidenceWeight * 0.65 + empiricalRate * evidenceWeight * 0.35));
   const confidence = Math.max(0.1, Math.min(0.99, oldConfidence * 0.4 + Math.min(0.95, 0.2 + newEvidence / 20) * 0.6));
   const status = competence >= 0.85 && confidence >= 0.8 && newEvidence >= 12
     ? "strong"
@@ -1477,6 +1504,8 @@ export async function resolveJamesCoreSkillConflict(
       evidenceWeight,
       sourceReliability: sourceReliability.reliability,
       evidenceTrust: evidenceTrust.trust,
+      arbitrationScore: arbitration.winner?.score ?? null,
+      arbitrationQuality,
       corroboration: evidenceTrust.corroboration,
       sourceEvidenceCount: sourceReliability.evidenceCount,
       empiricalRate: Number(empiricalRate.toFixed(3)),
