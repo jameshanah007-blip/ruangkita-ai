@@ -1259,6 +1259,38 @@ export async function getJamesStrategyLineage(targetContext?: string, limit = 12
   }));
 }
 
+export async function evaluateJamesMutationOutcome(
+  experimentPrompt: string,
+  blueprint: any,
+  report: { passed?: boolean; hardFailures?: string[]; softWarnings?: string[] },
+) {
+  const directive = await getJamesMutationDirective(String(blueprint?.world || "fun-zone"));
+  const passed = report.passed === true;
+  const action = directive.action;
+  const outcome = passed ? "success" : "failure";
+  const mutation = action + " | " + String(experimentPrompt).slice(0, 240);
+
+  const lineage = directive.winner?.strategy
+    ? await recordJamesStrategyLineage({
+        parentStrategy: directive.winner.strategy,
+        childStrategy: mutation,
+        targetContext: String(blueprint?.world || "fun-zone") + ":" + String(blueprint?.genre || "unknown"),
+        mutation: action,
+        outcome,
+      })
+    : null;
+
+  return {
+    action,
+    outcome,
+    shouldPromote: passed,
+    shouldRollback: !passed && action === "rollback-and-open-new-branch",
+    hardFailures: report.hardFailures || [],
+    softWarnings: report.softWarnings || [],
+    lineage,
+  };
+}
+
 export async function recordJamesStrategyLineage(input: {
   parentStrategy: string;
   childStrategy: string;
