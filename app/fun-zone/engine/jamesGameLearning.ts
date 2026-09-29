@@ -2393,6 +2393,40 @@ export async function getJamesTournamentMemory(targetContext?: string, limit = 6
   }));
 }
 
+export function applyJamesMutationDirectiveToBlueprint(
+  blueprint: any,
+  directive: { action: string; winner?: { strategy?: string } | null },
+) {
+  const next = JSON.parse(JSON.stringify(blueprint));
+  const addUnique = (key: string, values: string[], max = 12) => {
+    next[key] = Array.from(new Set([...(Array.isArray(next[key]) ? next[key] : []), ...values])).slice(0, max);
+  };
+
+  switch (directive.action) {
+    case "preserve-and-make-small-mutation":
+      addUnique("testRequirements", ["regression check for winning strategy", "contextual variation verification"]);
+      next.progression = [...(next.progression || []), "James mutation policy: preserve winning strategy and mutate one bounded component."];
+      break;
+    case "reuse-with-contextual-mutation":
+      addUnique("testRequirements", ["cross-context strategy verification", "alternate implementation path"]);
+      addUnique("mechanics", ["explore"]);
+      next.progression = [...(next.progression || []), "James mutation policy: reuse proven strategy with contextual variation."];
+      break;
+    case "rollback-and-open-new-branch":
+      addUnique("mechanics", ["puzzle", "explore"]);
+      addUnique("playerActions", ["interact", "move"]);
+      addUnique("testRequirements", ["failed-strategy regression check", "new branch verification"]);
+      next.progression = [...(next.progression || []), "James mutation policy: abandon repeated-failure child and open a materially different branch."];
+      break;
+    default:
+      addUnique("mechanics", ["explore"]);
+      addUnique("testRequirements", ["new strategy branch verification"]);
+      next.progression = [...(next.progression || []), "James mutation policy: open a bounded alternative branch before exploitation."];
+  }
+
+  return next;
+}
+
 export async function getJamesMutationDirective(targetContext?: string) {
   const tournament = await evaluateJamesTournamentWithMemory(targetContext, 5);
   if (!tournament.winner) {
