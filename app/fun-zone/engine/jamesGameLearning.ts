@@ -964,11 +964,43 @@ export function selectJamesLearningMode(input: {
   };
 }
 
+export async function getJamesLearningModeMemory() {
+  const client = db();
+  if (!client) return null;
+
+  const { data, error } = await client
+    .from("james_experiences")
+    .select("pattern,confidence,success_count,failure_count,status")
+    .eq("user_id", SYSTEM_USER_ID)
+    .like("pattern", "fun-zone:learning-mode:%")
+    .order("updated_at", { ascending: false })
+    .limit(4);
+
+  if (error) {
+    console.warn("James learning mode memory retrieval failed:", error.message);
+    return null;
+  }
+
+  const result: Record<string, { successRate: number; confidence: number; status: string }> = {};
+  for (const row of data || []) {
+    const mode = String(row.pattern).replace("fun-zone:learning-mode:", "");
+    const success = Number(row.success_count || 0);
+    const failure = Number(row.failure_count || 0);
+    const total = success + failure;
+    result[mode] = {
+      successRate: total ? Number((success / total).toFixed(3)) : 0,
+      confidence: Number(row.confidence || 0),
+      status: String(row.status || "active"),
+    };
+  }
+  return result;
+}
+
 export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
 
-  const [{ data, error }, recoveryDirectives, exploration] = await Promise.all([
+  const [{ data, error }, recoveryDirectives, exploration, modeMemory] = await Promise.all([
     client
       .from("james_self_model")
       .select("capability_key, capability_name, competence, confidence, evidence_count, next_learning_action, status")
@@ -978,6 +1010,7 @@ export async function createJamesGameExperimentPlan() {
       .limit(7),
     getJamesRecoveryDirectives(4),
     getJamesStrategyExploration(),
+    getJamesLearningModeMemory(),
   ]);
 
   if (error) {
@@ -1006,6 +1039,10 @@ export async function createJamesGameExperimentPlan() {
     evidenceCount: Number(target?.evidence_count || 0),
     explorationAvailable: Boolean(exploration?.shouldExplore),
     explorationRate: exploration?.candidate?.rate,
+    explorationModeSuccessRate: modeMemory?.explore?.successRate,
+    explorationModeConfidence: modeMemory?.explore?.confidence,
+    exploitModeSuccessRate: modeMemory?.exploit?.successRate,
+    exploitModeConfidence: modeMemory?.exploit?.confidence,
   });
   const recoveryContext = recoveryDirective
     ? " Recovery directive selected from James experience memory: " +
