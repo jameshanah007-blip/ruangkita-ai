@@ -1,4 +1,8 @@
-import { Sandbox } from "@vercel/sandbox";
+import { createRequire } from "node:module";
+import type { Sandbox } from "@vercel/sandbox";
+
+const require = createRequire(import.meta.url);
+const { Sandbox: SandboxRuntime } = require("@vercel/sandbox") as typeof import("@vercel/sandbox");
 import type { GameBlueprint, TestReport, SandboxTestEvidence } from "./types";
 import { testGame } from "./tester";
 
@@ -11,7 +15,7 @@ function credentials() {
   return {};
 }
 
-type BrowserSandbox = Awaited<ReturnType<typeof Sandbox.create>>;
+type BrowserSandbox = Awaited<ReturnType<typeof SandboxRuntime.create>>;
 
 async function command(sandbox: BrowserSandbox, cmd: string, args: string[]) {
   const result = await sandbox.runCommand(cmd, args);
@@ -88,7 +92,7 @@ function buildVerifierHtml(gameHtml: string, actions: string[]) {
 async function createSandbox() {
   const snapshotId = process.env.AGENT_BROWSER_SNAPSHOT_ID;
   return snapshotId
-    ? Sandbox.create({...credentials(),source:{type:"snapshot",snapshotId},timeout:120_000})
+    ? SandboxRuntime.create({...credentials(),source:{type:"snapshot",snapshotId},timeout:120_000})
     : Sandbox.create({...credentials(),runtime:"node24",timeout:120_000});
 }
 
