@@ -1225,6 +1225,39 @@ export async function getJamesLearningModeMemory() {
   return result;
 }
 
+export async function getJamesGeneralizedCoreSkills(limit = 12) {
+  const client = db();
+  if (!client) return [];
+
+  const { data, error } = await client
+    .from("james_self_model")
+    .select("capability_key,capability_name,competence,confidence,evidence_count,success_count,failure_count,status,last_evidence,next_learning_action")
+    .eq("user_id", SYSTEM_USER_ID)
+    .like("capability_key", "fun-zone-core:%")
+    .neq("status", "blocked")
+    .order("competence", { ascending: false })
+    .order("confidence", { ascending: false })
+    .limit(Math.max(1, Math.min(30, limit)));
+
+  if (error) {
+    console.warn("James generalized core skill retrieval failed:", error.message);
+    return [];
+  }
+
+  return (data || []).map((skill) => ({
+    key: skill.capability_key,
+    name: skill.capability_name,
+    competence: Number(skill.competence || 0),
+    confidence: Number(skill.confidence || 0),
+    evidenceCount: Number(skill.evidence_count || 0),
+    successCount: Number(skill.success_count || 0),
+    failureCount: Number(skill.failure_count || 0),
+    status: skill.status,
+    lastEvidence: skill.last_evidence,
+    nextLearningAction: skill.next_learning_action,
+  }));
+}
+
 export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
