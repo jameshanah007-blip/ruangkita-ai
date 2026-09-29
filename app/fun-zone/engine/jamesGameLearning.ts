@@ -2199,8 +2199,9 @@ export async function createJamesGameExperimentPlan() {
   const transferCandidate = contextualMemory[0] || null;
   const generalizedTransfer = (transferKnowledge || []).find((item) => item.transferable) || null;
   const strongestCoreSkill = coreSkills[0] || null;
-  const relevantKnowledgeContext = relevantKnowledge.length
-    ? " Relevant knowledge retrieved for this problem: " + relevantKnowledge.slice(0, 3).map((item) => String(item.strategy)).join(" | ") + "."
+  const composedKnowledge = composeJamesKnowledgeStrategies(relevantKnowledge, 3);
+  const relevantKnowledgeContext = composedKnowledge.strategy
+    ? " Composed knowledge strategy: " + composedKnowledge.strategy + ". This is a new composition; keep source knowledge unchanged and verify the composition with evidence."
     : "";
   const knowledgeContext = consolidatedKnowledge.length
     ? " Consolidated knowledge: apply compatible principles from proven capability combinations, but keep provisional principles under verification."
@@ -2266,6 +2267,7 @@ export async function createJamesGameExperimentPlan() {
     contradictionMemory,
     consolidatedKnowledge,
     relevantKnowledge,
+    composedKnowledge,
   };
 }
 
