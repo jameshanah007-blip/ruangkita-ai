@@ -2317,6 +2317,37 @@ export async function getJamesStrategyBranches(targetContext?: string, limit = 3
   return selectJamesStrategyBranches(lineage, limit);
 }
 
+export async function getJamesTournamentMemory(targetContext?: string, limit = 6) {
+  const client = db();
+  if (!client) return [];
+
+  let query = client
+    .from("james_experiences")
+    .select("pattern,strategy,confidence,success_count,failure_count,last_evidence")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("status", "active")
+    .eq("capabilities", ["fun-zone-strategy-tournament"])
+    .order("confidence", { ascending: false })
+    .limit(Math.max(1, Math.min(20, limit)));
+
+  if (targetContext) query = query.like("pattern", "fun-zone:tournament:" + clean(targetContext, 160));
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn("James tournament memory retrieval failed:", error.message);
+    return [];
+  }
+
+  return (data || []).map((row) => ({
+    pattern: row.pattern,
+    strategy: row.strategy,
+    confidence: Number(row.confidence || 0),
+    successCount: Number(row.success_count || 0),
+    failureCount: Number(row.failure_count || 0),
+    evidence: row.last_evidence,
+  }));
+}
+
 export async function getJamesTournamentDirective(targetContext?: string) {
   const tournament = await evaluateJamesStrategyTournament(targetContext, 5);
   if (tournament.status !== "tournament-ready" || !tournament.winner) {
