@@ -1225,6 +1225,81 @@ export async function getJamesLearningModeMemory() {
   return result;
 }
 
+export async function resolveJamesCoreSkillConflict(
+  capabilityKey: string,
+  observed: { competence: number; confidence: number; passed: boolean; quality: number; evidence: number },
+) {
+  const client = db();
+  if (!client || !capabilityKey.startsWith("fun-zone-core:")) return null;
+
+  const { data: current, error } = await client
+    .from("james_self_model")
+    .select("id,competence,confidence,evidence_count,success_count,failure_count,status,last_evidence")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("capability_key", capabilityKey)
+    .maybeSingle();
+
+  if (error || !current) return null;
+
+  const oldCompetence = Number(current.competence || 0);
+  const oldConfidence = Number(current.confidence || 0);
+  const oldEvidence = Number(current.evidence_count || 0);
+  const oldSuccess = Number(current.success_count || 0);
+  const oldFailure = Number(current.failure_count || 0);
+  const observedQuality = Math.max(0, Math.min(1, observed.quality));
+  const conflict = Math.abs(observedQuality - oldCompetence) >= 0.2;
+  const newEvidence = oldEvidence + Math.max(1, observed.evidence);
+  const newSuccess = oldSuccess + (observed.passed ? Math.max(1, observed.evidence) : 0);
+  const newFailure = oldFailure + (observed.passed ? 0 : Math.max(1, observed.evidence));
+  const empiricalRate = newEvidence ? newSuccess / newEvidence : 0;
+  const competence = Math.max(0.1, Math.min(0.99, oldCompetence * 0.35 + observedQuality * 0.35 + empiricalRate * 0.30));
+  const confidence = Math.max(0.1, Math.min(0.99, oldConfidence * 0.4 + Math.min(0.95, 0.2 + newEvidence / 20) * 0.6));
+  const status = competence >= 0.85 && confidence >= 0.8 && newEvidence >= 12
+    ? "strong"
+    : competence >= 0.7 && newEvidence >= 5
+      ? "competent"
+      : "developing";
+
+  const result = await client.from("james_self_model").update({
+    competence,
+    confidence,
+    evidence_count: newEvidence,
+    success_count: newSuccess,
+    failure_count: newFailure,
+    status,
+    next_learning_action: conflict
+      ? "Resolve conflicting evidence with another fresh contextual experiment before increasing confidence."
+      : "Continue validating this generalized skill in diverse contexts.",
+    last_evidence: {
+      source: "core-skill-conflict-resolution",
+      conflict,
+      previousCompetence: oldCompetence,
+      observedQuality,
+      observedPassed: observed.passed,
+      observedEvidence: observed.evidence,
+      empiricalRate: Number(empiricalRate.toFixed(3)),
+    },
+  }).eq("id", current.id);
+
+  if (result.error) {
+    console.warn("James core skill conflict resolution failed:", result.error.message);
+    return null;
+  }
+
+  return {
+    capabilityKey,
+    conflict,
+    previousCompetence: Number(oldCompetence.toFixed(3)),
+    observedQuality: Number(observedQuality.toFixed(3)),
+    competence: Number(competence.toFixed(3)),
+    confidence: Number(confidence.toFixed(3)),
+    status,
+    nextAction: conflict
+      ? "Run another contextual experiment before increasing confidence."
+      : "Continue diverse contextual validation.",
+  };
+}
+
 export async function revalidateJamesCoreSkills(limit = 12) {
   const client = db();
   if (!client) return [];
