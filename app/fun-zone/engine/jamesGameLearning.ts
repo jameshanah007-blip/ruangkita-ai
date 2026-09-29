@@ -3492,6 +3492,32 @@ export function runJamesStrategyTournament(
   };
 }
 
+export function scoreJamesTournamentWithMemory(
+  branches: Array<{ strategy: string; confidence: number; successCount: number; failureCount: number; branchScore?: number }>,
+  memory: Array<{ strategy: string; confidence: number; successCount: number; failureCount: number }>,
+) {
+  return branches
+    .map((branch) => {
+      const historical = memory.find((item) => item.strategy === "Tournament winner: " + branch.strategy);
+      const total = branch.successCount + branch.failureCount;
+      const empirical = total ? branch.successCount / total : 0;
+      const memoryTotal = historical ? historical.successCount + historical.failureCount : 0;
+      const memoryRate = historical && memoryTotal ? historical.successCount / memoryTotal : 0;
+      const memoryScore = historical
+        ? memoryRate * 0.5 + historical.confidence * 0.5
+        : 0;
+      const score = empirical * 0.45 + branch.confidence * 0.3 + memoryScore * 0.25;
+      return {
+        ...branch,
+        empiricalSuccessRate: empirical,
+        tournamentMemoryRate: memoryRate,
+        tournamentMemoryScore: memoryScore,
+        tournamentScore: Number(score.toFixed(4)),
+      };
+    })
+    .sort((a, b) => b.tournamentScore - a.tournamentScore);
+}
+
 export function selectJamesStrategyBranches(
   strategies: Array<{ strategy: string; confidence: number; successCount: number; failureCount: number }>,
   branchLimit = 3,
