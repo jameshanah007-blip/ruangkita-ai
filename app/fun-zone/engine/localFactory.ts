@@ -20,7 +20,20 @@ function modeFor(b: GameBlueprint): string {
 export function buildLocalGameHtml(b: GameBlueprint): string {
   const title=esc(b.title), objective=esc(b.objective), theme=esc(b.theme);
   const mode=modeFor(b), seed=Math.abs([...b.concept].reduce((n,c)=>(n*31+c.charCodeAt(0))|0,17));
-  const config=JSON.stringify({mode,seed});
+  const text=[b.genre,b.concept,b.objective,b.coreLoop,...b.mechanics,...b.playerActions].join(" ").toLowerCase();
+  const systems={
+    exploration:/(explore|exploration|jelajah|menjelajah|petualangan)/.test(text),
+    combat:/(combat|fight|battle|bertarung|perang|shooter|menembak|musuh|monster)/.test(text),
+    farming:/(farm|farming|bertani|tanam|panen|kebun|resource|craft)/.test(text),
+    stealth:/(stealth|siluman|infiltrat|patrol|mata-mata)/.test(text),
+    puzzle:/(puzzle|teka|logic|match|grid)/.test(text),
+    racing:/(racing|race|balap|mobil|kendaraan)/.test(text),
+    survival:/(survival|bertahan|zombie|monster|horror)/.test(text),
+    strategy:/(strategy|strategi|tower|defense|pertahanan|taktik)/.test(text),
+    collection:/(collect|collection|kumpul|kumpulkan|item|harta|loot)/.test(text),
+    progression:/(level|leveling|upgrade|skill|experience|xp|progres|progression)/.test(text)
+  };
+  const config=JSON.stringify({mode,seed,systems});
   return `<!doctype html><html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>${title}</title><style>
@@ -37,11 +50,11 @@ canvas{display:block;width:100%;height:100%;min-height:480px}#hud{position:absol
 <div id="message"><div id="messageText"></div><button id="restart">RESTART</button></div></div>
 <script>(function(){var C=${config},canvas=document.getElementById("gameCanvas"),ctx=canvas&&canvas.getContext("2d"),w=720,h=900,last=0;
 window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;
-var input={left:false,right:false,up:false,down:false,action:false},state={mode:C.mode,status:"playing",tick:0,score:0,health:100,progress:0,player:{x:110,y:400},items:[],enemies:[]};
+var input={left:false,right:false,up:false,down:false,action:false},state={mode:C.mode,status:"playing",tick:0,score:0,health:100,progress:0,resources:0,xp:0,player:{x:110,y:400},items:[],enemies:[]};
 function rnd(n){var x=Math.sin(C.seed+n*997)*43758.5453;return x-Math.floor(x)}
 function resize(){if(!canvas||!ctx)return;var r=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);w=Math.max(320,r.width);h=Math.max(480,r.height);canvas.width=w*d;canvas.height=h*d;ctx.setTransform(d,0,0,d,0,0)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
-function reset(){state.status="playing";state.tick=0;state.score=0;state.health=100;state.progress=0;state.player={x:110,y:h*.55};state.items=[];state.enemies=[];for(var i=0;i<8;i++)state.items.push({x:70+rnd(i)*Math.max(180,w-110),y:100+rnd(i+20)*(h-250),taken:false});for(var j=0;j<4;j++)state.enemies.push({x:180+rnd(j+40)*(w-210),y:100+rnd(j+60)*(h-250),alive:true,dx:rnd(j+80)>.5?1:-1});updateHud();document.getElementById("message").style.display="none"}
+function reset(){state.status="playing";state.tick=0;state.score=0;state.health=100;state.progress=0;state.resources=0;state.xp=0;state.player={x:110,y:h*.55};state.items=[];state.enemies=[];for(var i=0;i<8;i++)state.items.push({x:70+rnd(i)*Math.max(180,w-110),y:100+rnd(i+20)*(h-250),taken:false});for(var j=0;j<4;j++)state.enemies.push({x:180+rnd(j+40)*(w-210),y:100+rnd(j+60)*(h-250),alive:true,dx:rnd(j+80)>.5?1:-1});updateHud();document.getElementById("message").style.display="none"}
 function setI(a,v){if(a in input)input[a]=v}document.querySelectorAll(".ctrl").forEach(function(b){var a=b.dataset.a;["pointerdown","pointerup","pointercancel","pointerleave"].forEach(function(t){b.addEventListener(t,function(e){e.preventDefault();setI(a,t==="pointerdown")})})});
 var keys={ArrowLeft:"left",a:"left",ArrowRight:"right",d:"right",ArrowUp:"up",w:"up",ArrowDown:"down",s:"down"," ":"action",Enter:"action"};addEventListener("keydown",function(e){var a=keys[e.key];if(a){e.preventDefault();setI(a,true)}});addEventListener("keyup",function(e){var a=keys[e.key];if(a)setI(a,false)});document.getElementById("restart").onclick=reset;
 function move(dt,s){s=s||190*dt;if(input.left)state.player.x-=s;if(input.right)state.player.x+=s;if(input.up)state.player.y-=s;if(input.down)state.player.y+=s;state.player.x=Math.max(20,Math.min(w-20,state.player.x));state.player.y=Math.max(75,Math.min(h-110,state.player.y))}
@@ -55,6 +68,18 @@ else if(m==="stealth"){move(dt);state.items.forEach(function(o){if(!o.taken&&dis
 else if(m==="farming"){move(dt,120*dt);if(input.action&&state.tick%12===0){state.score++;state.progress=state.score}if(state.progress>=8)finish(true)}
 else if(m==="strategy"){move(dt,120*dt);if(input.action&&state.tick%12===0){state.progress++;state.score+=10}if(state.progress>=5)finish(true)}
 else{move(dt);state.items.forEach(function(o){if(!o.taken&&dist(state.player,o)<28){o.taken=true;state.score++}});state.progress=state.score;if(state.progress>=5)finish(true)}
+/* Composite systems run in addition to the primary game mode. This lets a request such as "RPG farming combat" keep exploration, resources, combat and progression together. */
+if(C.systems.collection){
+  state.items.forEach(function(o){if(!o.taken&&dist(state.player,o)<28){o.taken=true;state.score++;state.resources++;state.xp+=5}});
+}
+if(C.systems.farming&&input.action&&state.tick%12===0){
+  state.resources++;state.xp+=8;state.progress=Math.max(state.progress,state.resources);
+}
+if(C.systems.combat&&input.action&&state.tick%8===0){
+  var target=state.enemies.find(function(e){return e.alive&&dist(state.player,e)<130});
+  if(target){target.alive=false;state.score+=25;state.xp+=20;state.progress=Math.max(state.progress,state.enemies.filter(function(e){return !e.alive}).length)}
+}
+if(C.systems.progression){state.level=1+Math.floor(state.xp/50);}
 if(state.health<=0)finish(false);state.tick++;updateHud()}
 function draw(){if(!ctx)return;ctx.clearRect(0,0,w,h);var g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,"#17365d");g.addColorStop(1,"#07111f");ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
 if(C.mode==="puzzle"){for(var y=0;y<5;y++)for(var x=0;x<4;x++){ctx.fillStyle=((x+y+state.progress+C.seed)%3===0)?"#22d3ee":"#334155";ctx.fillRect(w/2-108+x*54,130+y*54,44,44)}ctx.fillStyle="#fff";ctx.font="bold 14px system-ui";ctx.fillText("ACTION = solve next pattern",w/2-100,h*.67)}
