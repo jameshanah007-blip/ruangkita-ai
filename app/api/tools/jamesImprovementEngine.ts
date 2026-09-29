@@ -250,26 +250,7 @@ export async function evolveJamesImprovementGoal(input: {
 
   if (goal.status !== "proposed" && goal.status !== "queued") return goal;
 
-  const proposal = await proposeJamesCodeEvolution({
-    userId: input.userId,
-    conversationId: input.conversationId,
-    request: [
-      "JAMES IMPROVEMENT GOAL:",
-      goal.title,
-      "",
-      "PROBLEM:",
-      goal.problem,
-      "",
-      "TARGET CAPABILITY:",
-      goal.target_capability,
-      "",
-      "EVIDENCE:",
-      JSON.stringify(goal.evidence),
-      "",
-      "Buat perubahan kecil dan terukur. Jangan mengubah security boundary.",
-    ].join("\n"),
-    currentFiles: [],
-  });
+  const proposal = { status: "blocked", proposalId: null };
 
   await client
     .from("james_improvement_goals")
