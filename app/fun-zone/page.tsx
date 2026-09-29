@@ -694,6 +694,22 @@ const handleTestReport =
     async (report: TestReport) => {
       setTestReport(report);
 
+      // Learning is deliberately fire-and-forget: a learning persistence issue
+      // must never turn a playable/testable game into a laboratory failure.
+      if (blueprint) {
+        void fetch("/api/fun-zone/learning", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            blueprint,
+            report,
+            attempt: report.attempt,
+          }),
+        }).catch((error) => {
+          console.warn("James Game Brain learning request failed:", error);
+        });
+      }
+
       if (report.passed) {
         setError("");
         setStage("ready");
