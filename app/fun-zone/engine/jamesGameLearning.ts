@@ -3367,7 +3367,77 @@ export async function createJamesGameExperimentJob(input: {
     blueprint,
     gameHtml,
   };
-}export function runJamesStrategyTournament(
+}export async function recordJamesTournamentMemory(input: {
+  targetContext: string;
+  winnerStrategy: string;
+  winnerScore: number;
+  winnerSuccessRate: number;
+  winnerConfidence: number;
+  rankings: Array<{
+    rank: number;
+    strategy: string;
+    score: number;
+    successRate: number;
+    confidence: number;
+    evidenceCount: number;
+  }>;
+}) {
+  const client = db();
+  if (!client) return null;
+
+  const pattern = "fun-zone:tournament:" + clean(input.targetContext, 160);
+  const strategy = "Tournament winner: " + input.winnerStrategy;
+  const existing = await client
+    .from("james_experiences")
+    .select("id,success_count,failure_count,confidence")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("pattern", pattern)
+    .eq("strategy", strategy)
+    .maybeSingle();
+
+  const successCount = Number(existing.data?.success_count || 0) + (input.winnerSuccessRate >= 0.75 ? 1 : 0);
+  const failureCount = Number(existing.data?.failure_count || 0) + (input.winnerSuccessRate < 0.75 ? 1 : 0);
+  const confidence = Math.min(0.99, Math.max(0.1,
+    Number(input.winnerConfidence) * 0.7 + Number(existing.data?.confidence || input.winnerConfidence) * 0.3,
+  ));
+
+  const memory = {
+    user_id: SYSTEM_USER_ID,
+    pattern,
+    strategy,
+    confidence,
+    success_count: successCount,
+    failure_count: failureCount,
+    capabilities: ["fun-zone-strategy-tournament"],
+    status: "active",
+    last_evidence: {
+      winnerScore: input.winnerScore,
+      winnerSuccessRate: input.winnerSuccessRate,
+      winnerConfidence: input.winnerConfidence,
+      rankings: input.rankings.slice(0, 5),
+      targetContext: input.targetContext,
+      recordedAt: new Date().toISOString(),
+    },
+  };
+
+  const result = existing.data?.id
+    ? await client.from("james_experiences").update(memory).eq("id", existing.data.id)
+    : await client.from("james_experiences").insert(memory);
+
+  if (result.error) {
+    console.warn("James tournament memory recording failed:", result.error.message);
+    return null;
+  }
+
+  return {
+    pattern,
+    confidence: Number(confidence.toFixed(3)),
+    successCount,
+    failureCount,
+  };
+}
+
+export function runJamesStrategyTournament(
   branches: Array<{ strategy: string; confidence: number; successCount: number; failureCount: number; branchScore?: number }>,
 ) {
   const candidates = selectJamesStrategyBranches(branches, Math.min(5, branches.length || 1));
