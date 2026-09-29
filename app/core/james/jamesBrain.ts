@@ -1,5 +1,6 @@
 import {
   generateWithAIRouter,
+  streamWithAIRouter,
   type AIRouterResult,
 } from "../ai/aiRouter";
 import { getGlobalGrowth } from "../../api/tools/jamesGlobalLearning";
@@ -128,4 +129,30 @@ export async function runJamesBrainGameBuilder(input: {
     surface: "fun_zone",
     mode: "game_builder",
   });
+}
+
+
+export async function* streamJamesBrainChat(input: {
+  prompt: string;
+  systemInstruction: string;
+  context?: string;
+  temperature?: number;
+  maxOutputTokens?: number;
+}) {
+  const request: JamesBrainRequest = {
+    ...input,
+    surface: "tanya_saya",
+    mode: "chat",
+  };
+
+  const streamRequest = {
+    prompt: request.prompt,
+    systemInstruction: buildSharedBrainInstruction(request),
+    temperature: request.temperature ?? 0.7,
+    maxOutputTokens: request.maxOutputTokens ?? 4000,
+  };
+
+  for await (const event of streamWithAIRouter(streamRequest)) {
+    yield event;
+  }
 }
