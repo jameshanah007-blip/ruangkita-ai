@@ -11,8 +11,10 @@ function credentials() {
   return {};
 }
 
-async function command(sandbox: InstanceType<typeof Sandbox>, cmd: string, args: string[]) {
-  const result = await sandbox.runCommand({ cmd, args });
+type BrowserSandbox = Awaited<ReturnType<typeof Sandbox.create>>;
+
+async function command(sandbox: BrowserSandbox, cmd: string, args: string[]) {
+  const result = await sandbox.runCommand(cmd, args);
   return result.stdout();
 }
 
@@ -104,6 +106,8 @@ export async function verifyGameInBrowser(gameHtml:string, blueprint:GameBluepri
     await command(sandbox,"agent-browser",["wait",String(BROWSER_WAIT_MS)]);
     const raw=await command(sandbox,"agent-browser",["eval","window.__RK_AUTONOMOUS_FINISH__()"]);
     const evidence=JSON.parse(raw.trim()) as SandboxTestEvidence;
+    evidence.hardFailures = Array.isArray(evidence.hardFailures) ? evidence.hardFailures : [];
+    evidence.softWarnings = Array.isArray(evidence.softWarnings) ? evidence.softWarnings : [];
     return testGame({blueprint,attempt,evidence});
   }finally{
     try{await command(sandbox,"agent-browser",["close"])}catch(_){}
