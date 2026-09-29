@@ -148,8 +148,35 @@ export default function AIExecutor() {
 
       const contentType = response.headers.get("content-type") || "";
       if (!contentType.includes("text/event-stream") || !response.body) {
-        const data = await response.json();
-        throw new Error(data.error || "James tidak mengembalikan stream.");
+        const data = await response.json().catch(() => ({}));
+
+        if (data.identityVerificationRequired) {
+          setVerificationOpen(true);
+          setVerificationCode("");
+        }
+
+        if (data.userId && data.userId !== userId) setUserId(data.userId);
+        if (data.conversationId && data.conversationId !== conversationId) {
+          setConversationId(data.conversationId);
+        }
+
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === assistantId
+              ? {
+                  ...message,
+                  content: data.result || data.error || "James belum dapat memberikan jawaban.",
+                  citations: Array.isArray(data.citations) ? data.citations : [],
+                }
+              : message
+          )
+        );
+
+        if (!response.ok) {
+          throw new Error(data.error || "Terjadi kesalahan.");
+        }
+
+        return;
       }
 
       const reader = response.body.getReader();
