@@ -192,6 +192,7 @@ class GroqProvider implements AIProvider {
           ? data.model
           : GROQ_MODEL,
     };
+  }
 
   async *generateStream(
     request: AIGenerateRequest
@@ -250,7 +251,6 @@ class GroqProvider implements AIProvider {
       if (typeof delta?.content === "string") return delta.content;
       return undefined;
     });
-  }
   }
 }
 
