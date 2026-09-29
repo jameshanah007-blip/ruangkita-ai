@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import {
-  getDueJamesAutonomousGoals,
-  createJamesAutonomousGoal,
+  claimJamesAutonomousGoal,
   updateJamesAutonomousGoal,
 } from "../../../tools/jamesAutonomousGoals";
 import { runJamesAutonomousBrain } from "../../../tools/jamesAutonomousBrain";
@@ -18,27 +17,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    let goals = await getDueJamesAutonomousGoals(1);
-    if (!goals.length) {
-      const bootstrap = await createJamesAutonomousGoal({
-        userId: "system",
-        conversationId: "system-autonomous",
-        title: "Autonomous learning cycle",
-        goal: "Pelajari satu capability yang paling membutuhkan peningkatan berdasarkan self-model James. Bandingkan hasil provider, verifikasi evidence, simpan pembelajaran tervalidasi, lalu tentukan langkah belajar berikutnya. Jangan mengubah production code atau konfigurasi deployment.",
-        priority: 100,
-        maxCycles: 2,
-        nextRunAt: new Date().toISOString(),
-      });
-      goals = [bootstrap];
-    }
-
-    const goal = goals[0];
-    await updateJamesAutonomousGoal(goal.id, {
-      status: "running",
-      last_run_at: new Date().toISOString(),
-      attempts: goal.attempts + 1,
-      last_error: null,
-    });
+    // Claiming is atomic in PostgreSQL, so overlapping heartbeat invocations
+    // cannot process the same pending goal.
+    const goal = await claimJamesAutonomousGoal();
 
     try {
       const result = await runJamesAutonomousBrain({
