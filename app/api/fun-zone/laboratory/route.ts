@@ -12,7 +12,7 @@ import type {
 } from "../../../fun-zone/laboratory/types";
 import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
-import { applyJamesGameLessons, getJamesGameLessons } from "../../../fun-zone/engine/jamesGameLearning";
+import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery } from "../../../fun-zone/engine/jamesGameLearning";
 
 const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
 
@@ -318,7 +318,9 @@ export async function POST(
     const blueprint = director.blueprint ?? createLocalGameBlueprint(prompt);
     const normalizedBlueprint = normalizeBlueprintArrays(blueprint);
     const learnedGameLessons = await getJamesGameLessons(8);
-    const learnedBlueprint = applyJamesGameLessons(normalizedBlueprint, learnedGameLessons);
+    const learnedGameMastery = await getJamesGameMastery(12);
+    const lessonBlueprint = applyJamesGameLessons(normalizedBlueprint, learnedGameLessons);
+    const learnedBlueprint = applyJamesGameMastery(lessonBlueprint, learnedGameMastery);
 
     session =
       markDirectorCompleted(
