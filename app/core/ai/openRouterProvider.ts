@@ -151,6 +151,7 @@ class OpenRouterProvider implements AIProvider {
           ? data.model
           : OPENROUTER_MODEL,
     };
+  }
 
   async *generateStream(
     request: AIGenerateRequest
@@ -198,7 +199,6 @@ class OpenRouterProvider implements AIProvider {
       if (typeof delta?.content === "string") return delta.content;
       return undefined;
     });
-  }
   }
 }
 
