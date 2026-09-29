@@ -236,19 +236,42 @@ export async function recordJamesGameBrainEvidence(
     const previousCompetence = Number(prior?.competence ?? 0.5);
     const previousConfidence = Number(prior?.confidence ?? 0.2);
 
+    const { data: priorHistory } = await client
+      .from("james_capability_mastery_history")
+      .select("evidence")
+      .eq("user_id", SYSTEM_USER_ID)
+      .eq("capability_key", item.capability)
+      .order("created_at", { ascending: false })
+      .limit(24);
+
+    const currentPattern = blueprintFingerprint(blueprint);
+    const priorPatterns = (priorHistory || [])
+      .map((row) => {
+        const evidence = row.evidence && typeof row.evidence === "object"
+          ? row.evidence as Record<string, unknown>
+          : {};
+        return typeof evidence.blueprint === "string" ? evidence.blueprint : "";
+      })
+      .filter(Boolean);
+    const diversityCount = new Set([currentPattern, ...priorPatterns]).size;
+
     const currentSignal = item.passed ? 1 : 0;
     const nextEvidence = oldEvidence + 1;
     const nextCompetence = Math.max(0, Math.min(1,
-      oldEvidence === 0 ? (item.passed ? 0.75 : 0.25) : oldCompetence * 0.35 + currentSignal * 0.65,
+      oldEvidence === 0
+        ? (item.passed ? 0.75 : 0.25)
+        : previousCompetence * 0.35 + currentSignal * 0.65,
     ));
+    const evidenceConfidence = Math.min(0.95, 0.2 + Math.log2(nextEvidence + 1) * 0.18);
+    const diversityConfidence = Math.min(1, diversityCount / 4);
     const nextConfidence = Math.max(0.1, Math.min(0.99,
-      Math.min(0.95, 0.2 + Math.log2(nextEvidence + 1) * 0.18) * 0.65 + oldConfidence * 0.35,
+      evidenceConfidence * 0.5 + previousConfidence * 0.25 + diversityConfidence * 0.25,
     ));
     const successCount = Number(prior?.success_count || 0) + (item.passed ? 1 : 0);
     const failureCount = Number(prior?.failure_count || 0) + (item.passed ? 0 : 1);
-    const status = nextEvidence >= 12 && nextCompetence >= 0.85
+    const status = nextEvidence >= 12 && diversityCount >= 3 && nextCompetence >= 0.85
       ? "strong"
-      : nextEvidence >= 5 && nextCompetence >= 0.70
+      : nextEvidence >= 5 && diversityCount >= 2 && nextCompetence >= 0.70
         ? "competent"
         : nextEvidence < 2
           ? "unknown"
@@ -276,7 +299,8 @@ export async function recordJamesGameBrainEvidence(
         passed: item.passed,
         quality,
         weight: item.weight,
-        blueprint: blueprintFingerprint(blueprint),
+        blueprint: currentPattern,
+        diversity_count: diversityCount,
       },
       next_learning_action: nextLearningAction,
       status,
