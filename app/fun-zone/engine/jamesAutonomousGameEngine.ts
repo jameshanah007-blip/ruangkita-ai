@@ -440,9 +440,12 @@ function objectiveProgress(){
   var defeated=state.world.enemies.filter(function(e){return !e.alive}).length;
   if(G.mechanics.indexOf("racing")>=0)return Math.min(1,state.time/45);
   if(G.mechanics.indexOf("survival")>=0)return Math.min(1,state.time/50);
+  if(G.mechanics.indexOf("escort")>=0)return Math.min(1,state.time/40);
+  if(G.mechanics.indexOf("dialogue")>=0)return Math.min(1,state.time/35);
+  if(G.mechanics.indexOf("farming")>=0)return Math.min(1,state.progress/Math.max(1,G.item.count));
+  if(G.mechanics.indexOf("puzzle")>=0)return Math.min(1,state.progress);
   if(G.mechanics.indexOf("rescue")>=0)return Math.min(1,collected/Math.max(1,G.item.count));
   if(G.mechanics.indexOf("combat")>=0||G.mechanics.indexOf("shooting")>=0)return Math.min(1,defeated/Math.max(1,G.enemy.count));
-  if(G.mechanics.indexOf("puzzle")>=0)return Math.min(1,(state.score%100)/100);
   return Math.min(1,collected/Math.max(1,G.item.count));
 }
 function attack(){
