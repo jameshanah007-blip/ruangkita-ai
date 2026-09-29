@@ -683,6 +683,104 @@ export function applyJamesGameMastery(
   };
 }
 
+export async function getJamesGameAdaptations(limit = 8) {
+  const client = db();
+  if (!client) return [];
+
+  const { data, error } = await client
+    .from("james_self_model")
+    .select("capability_key, capability_name, competence, confidence, last_evidence, next_learning_action")
+    .eq("user_id", SYSTEM_USER_ID)
+    .order("updated_at", { ascending: false })
+    .limit(Math.max(1, Math.min(20, limit)));
+
+  if (error) {
+    console.warn("James game adaptation retrieval failed:", error.message);
+    return [];
+  }
+
+  return (data || [])
+    .map((item) => {
+      const evidence = item.last_evidence && typeof item.last_evidence === "object"
+        ? item.last_evidence as Record<string, unknown>
+        : {};
+      return {
+        capability_key: item.capability_key,
+        capability_name: item.capability_name,
+        competence: item.competence,
+        confidence: item.confidence,
+        next_learning_action: item.next_learning_action,
+        adaptation_directive:
+          typeof evidence.adaptation_directive === "string"
+            ? evidence.adaptation_directive
+            : null,
+        transfer_success_rate:
+          typeof evidence.transfer_success_rate === "number"
+            ? evidence.transfer_success_rate
+            : null,
+      };
+    })
+    .filter((item) => Boolean(item.adaptation_directive))
+    .slice(0, Math.max(1, Math.min(20, limit)));
+}
+
+export function applyJamesGameAdaptations(
+  blueprint: GameBlueprint,
+  adaptations: Array<{
+    capability_key?: string | null;
+    capability_name?: string | null;
+    adaptation_directive?: string | null;
+    transfer_success_rate?: number | null;
+  }>,
+): GameBlueprint {
+  const useful = adaptations
+    .filter((item) => typeof item.adaptation_directive === "string" && item.adaptation_directive)
+    .slice(0, 6);
+
+  if (!useful.length) return blueprint;
+
+  const tests = [...blueprint.testRequirements];
+  const actions = [...blueprint.playerActions];
+  const mechanics = [...blueprint.mechanics];
+  const add = (list: string[], value: string) => {
+    if (!list.includes(value)) list.push(value);
+  };
+
+  for (const item of useful) {
+    const key = String(item.capability_key || "");
+    if (key.includes("input")) {
+      add(actions, "move");
+      add(tests, "Verify input through an alternate interaction path");
+    } else if (key.includes("objective")) {
+      add(actions, "interact");
+      add(mechanics, "collect");
+      add(tests, "Verify objective progression through a different interaction path");
+    } else if (key.includes("gameplay-state")) {
+      add(mechanics, "explore");
+      add(tests, "Verify gameplay state transition under a different mechanic");
+    } else if (key.includes("restart")) {
+      add(actions, "restart");
+      add(tests, "Verify restart after state-changing gameplay");
+    } else {
+      add(tests, "Verify " + (item.capability_name || key) + " under a changed game context");
+    }
+  }
+
+  return {
+    ...blueprint,
+    mechanics: mechanics.slice(0, 12),
+    playerActions: actions.slice(0, 16),
+    testRequirements: Array.from(new Set(tests)).slice(0, 24),
+    progression: clean(
+      blueprint.progression +
+        " James adaptation memory: " +
+        useful.map((item) => item.adaptation_directive).join(" | ") +
+        " Build this game using a changed implementation path rather than repeating the failed transfer pattern.",
+      1400,
+    ),
+  };
+}
+
 export async function getJamesGameLessons(limit = 8) {
   const client = db();
   if (!client) return [];
