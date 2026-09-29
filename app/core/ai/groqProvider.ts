@@ -10,6 +10,29 @@ const GROQ_URL =
 const GROQ_MODEL =
   "openai/gpt-oss-20b";
 
+// Keep Groq requests below a conservative token-per-minute budget.
+// The estimator is intentionally approximate; the server-side limit remains authoritative.
+const GROQ_TPM_BUDGET = 6000;
+const GROQ_INPUT_TOKEN_BUDGET = 4500;
+const GROQ_OUTPUT_TOKEN_BUDGET = 1400;
+
+function estimateTokens(value: string): number {
+  return Math.ceil(value.length / 4);
+}
+
+function compactForGroq(value: string, tokenBudget: number): string {
+  const maxChars = Math.max(1200, tokenBudget * 4);
+  if (value.length <= maxChars) return value;
+
+  const headChars = Math.floor(maxChars * 0.7);
+  const tailChars = maxChars - headChars;
+  return [
+    value.slice(0, headChars),
+    "\n\n[...context dipadatkan untuk memenuhi batas Groq...]\n\n",
+    value.slice(-tailChars),
+  ].join("");
+}
+
 function extractTextFromResponse(data: any): string {
   const choice = data?.choices?.[0];
   const message = choice?.message;
