@@ -1377,3 +1377,56 @@ export function applyJamesGameLessons(
     ),
   };
 }
+
+
+export async function createJamesGameExperimentJob(input: {
+  userId?: string | null;
+  conversationId?: string | null;
+}) {
+  const plan = await createJamesGameExperimentPlan();
+  if (!plan || plan.status !== "experiment") {
+    return { status: "no-gap" as const, plan };
+  }
+
+  const { createAutonomousGameBlueprint } = await import("./localBlueprint");
+  const { buildAutonomousGameHtml } = await import("./jamesAutonomousGameEngine");
+  const blueprint = createAutonomousGameBlueprint(plan.prompt);
+  const gameHtml = buildAutonomousGameHtml(blueprint);
+  const client = db();
+
+  if (!client) {
+    return {
+      status: "pending-verification" as const,
+      experimentId: null,
+      plan,
+      blueprint,
+      gameHtml,
+    };
+  }
+
+  const { data, error } = await client
+    .from("james_game_experiments")
+    .insert({
+      user_id: input.userId ?? null,
+      conversation_id: input.conversationId ?? null,
+      capability_key: plan.targetCapability?.key || null,
+      capability_name: plan.targetCapability?.name || null,
+      prompt: plan.prompt,
+      blueprint,
+      game_html: gameHtml,
+      status: "pending_verification",
+      attempt: 0,
+    })
+    .select("id")
+    .single();
+
+  if (error) throw new Error("Experiment persistence failed: " + error.message);
+
+  return {
+    status: "pending-verification" as const,
+    experimentId: data?.id || null,
+    plan,
+    blueprint,
+    gameHtml,
+  };
+}
