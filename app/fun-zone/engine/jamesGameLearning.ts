@@ -2302,6 +2302,20 @@ export function chooseJamesStrategyMutation(input: {
   return "bounded-parameter-variation";
 }
 
+export async function evaluateJamesTournamentWithMemory(targetContext?: string, limit = 5) {
+  const branches = await getJamesStrategyBranches(targetContext, Math.max(limit, 5));
+  const memory = await getJamesTournamentMemory(targetContext, 10);
+  const rankings = scoreJamesTournamentWithMemory(branches, memory).slice(0, Math.max(1, Math.min(5, limit)));
+  return {
+    status: rankings.length ? "memory-ranked" : "no-candidates",
+    targetContext: targetContext || "global",
+    winner: rankings[0] || null,
+    rankings,
+    memoryCount: memory.length,
+    rule: "Historical tournament memory contributes bounded weight; fresh empirical evidence remains dominant.",
+  };
+}
+
 export async function evaluateJamesStrategyTournament(targetContext?: string, limit = 5) {
   const branches = await getJamesStrategyBranches(targetContext, limit);
   const tournament = runJamesStrategyTournament(branches);
