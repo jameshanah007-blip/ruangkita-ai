@@ -920,33 +920,47 @@ export function selectJamesLearningMode(input: {
   evidenceCount: number;
   explorationAvailable: boolean;
   explorationRate?: number;
+  explorationModeSuccessRate?: number;
+  explorationModeConfidence?: number;
+  exploitModeSuccessRate?: number;
+  exploitModeConfidence?: number;
 }) {
   const competence = Math.max(0, Math.min(1, input.competence));
   const confidence = Math.max(0, Math.min(1, input.confidence));
   const evidence = Math.max(0, input.evidenceCount);
   const explorationRate = Math.max(0, Math.min(1, input.explorationRate ?? 0));
+  const exploreSuccess = Math.max(0, Math.min(1, input.explorationModeSuccessRate ?? 0));
+  const exploitSuccess = Math.max(0, Math.min(1, input.exploitModeSuccessRate ?? 0));
+  const exploreConfidence = Math.max(0, Math.min(1, input.explorationModeConfidence ?? 0));
+  const exploitConfidence = Math.max(0, Math.min(1, input.exploitModeConfidence ?? 0));
 
-  // Early learning favors exploration. As evidence and confidence grow,
-  // James increasingly exploits proven strategies, while retaining a
-  // bounded exploration probability so the strategy can still improve.
   const maturity = Math.min(1, (evidence / 12) * 0.5 + competence * 0.3 + confidence * 0.2);
-  const explorationPressure = input.explorationAvailable
+  const baseExplorationPressure = input.explorationAvailable
     ? Math.max(0.15, 0.65 - maturity * 0.45 + (1 - explorationRate) * 0.1)
     : 0;
-  const exploitPressure = Math.max(0, 1 - explorationPressure);
 
-  const mode = input.explorationAvailable && explorationPressure > exploitPressure
+  // Historical mode memory now changes the policy rather than merely being stored.
+  const exploreEvidence = exploreSuccess * 0.7 + exploreConfidence * 0.3;
+  const exploitEvidence = exploitSuccess * 0.7 + exploitConfidence * 0.3;
+  const historicalDelta = exploreEvidence - exploitEvidence;
+  const adjustedExplorationPressure = Math.max(
+    0.05,
+    Math.min(0.95, baseExplorationPressure + historicalDelta * 0.35),
+  );
+  const exploitPressure = Math.max(0.05, 1 - adjustedExplorationPressure);
+  const mode = input.explorationAvailable && adjustedExplorationPressure > exploitPressure
     ? "explore"
     : "exploit";
 
   return {
     mode,
     maturity: Number(maturity.toFixed(3)),
-    explorationPressure: Number(explorationPressure.toFixed(3)),
+    explorationPressure: Number(adjustedExplorationPressure.toFixed(3)),
     exploitPressure: Number(exploitPressure.toFixed(3)),
+    historicalDelta: Number(historicalDelta.toFixed(3)),
     reason: mode === "explore"
-      ? "Evidence is still developing; test a novel strategy while preserving measurable runtime contracts."
-      : "Evidence and confidence are sufficient to reuse proven strategies while retaining bounded exploration.",
+      ? "Historical exploration evidence supports continued bounded exploration."
+      : "Historical exploitation evidence or maturity supports reuse of proven strategies.",
   };
 }
 
