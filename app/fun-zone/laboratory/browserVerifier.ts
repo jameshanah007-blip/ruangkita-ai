@@ -1,17 +1,9 @@
-import { createRequire } from "node:module";
-const require = createRequire(import.meta.url);
-const { Sandbox: SandboxRuntime } = require("@vercel/sandbox") as typeof import("@vercel/sandbox");
-import type { GameBlueprint, TestReport, SandboxTestEvidence } from "./types";
-import { testGame } from "./tester";
-
-const BROWSER_WAIT_MS = 2500;
-
-function credentials() {
-  if (process.env.VERCEL_TOKEN && process.env.VERCEL_TEAM_ID && process.env.VERCEL_PROJECT_ID) {
-    return { token: process.env.VERCEL_TOKEN, teamId: process.env.VERCEL_TEAM_ID, projectId: process.env.VERCEL_PROJECT_ID };
-  }
-  return {};
-}
+const nodeRequire = eval("require") as NodeRequire;
+const { Sandbox: SandboxRuntime } = nodeRequire("@vercel/sandbox") as {
+  Sandbox: {
+    create: (...args: any[]) => Promise<any>;
+  };
+};
 
 type BrowserSandbox = Awaited<ReturnType<typeof SandboxRuntime.create>>;
 
