@@ -886,11 +886,11 @@ const handleSandboxError =
 
               <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-400">
                 Ceritakan game yang ada
-                di pikiranmu. AI akan
+                di pikiranmu. James akan
                 memahami ide tersebut,
-                membuat blueprint,
-                membangun game, menguji,
-                dan memperbaikinya.
+                membuat blueprint secara mandiri,
+                mengompilasi game, menguji,
+                dan terus memperbaikinya.
               </p>
 
             </div>
@@ -902,7 +902,7 @@ const handleSandboxError =
                 <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-400">
                   Tidak ada daftar genre yang harus kamu pilih. Tulis saja game yang kamu bayangkan,
                   bahkan jika idenya belum lengkap. James akan memahami maksudmu, menentukan desain game,
-                  memilih mekanik yang sesuai, lalu membangunnya dengan sumber daya yang tersedia dan bantuan provider AI.
+                  memilih mekanik yang sesuai, lalu membangunnya dengan James Autonomous Brain. Provider AI hanya menjadi peningkat opsional, bukan ketergantungan.
                 </p>
               </div>
             </div>
@@ -1011,9 +1011,9 @@ const handleSandboxError =
                 </h3>
 
                 <p className="mt-1 text-sm leading-6 text-slate-500">
-                  Mengubah blueprint
-                  menjadi game
-                  playable.
+                  Mengubah blueprint menjadi dunia,
+                  mekanik, aturan, visual, dan
+                  game playable tanpa provider.
                 </p>
 
               </div>
