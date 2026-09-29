@@ -1,3 +1,9 @@
+export type FunZoneCatalogResponse = {
+  success: true;
+  seed: string;
+  games: FunZoneGameIdea[];
+};
+
 export type FunZoneGameIdea = {
   id: string;
   title: string;
