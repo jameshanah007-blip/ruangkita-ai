@@ -3327,4 +3327,28 @@ export async function createJamesGameExperimentJob(input: {
     blueprint,
     gameHtml,
   };
+}export function chooseJamesStrategyRecovery(lineage: Array<{ successCount: number; failureCount: number; confidence: number }>) {
+  const best = [...lineage].sort((a, b) =>
+    (b.successCount - a.successCount) ||
+    (b.confidence - a.confidence),
+  )[0];
+
+  if (!best) return {
+    action: "continue-evolution",
+    reason: "No prior lineage evidence available.",
+  };
+
+  const total = best.successCount + best.failureCount;
+  const rate = total ? best.successCount / total : 0;
+  return rate < 0.4 && best.failureCount >= 2
+    ? {
+        action: "fallback-to-parent",
+        reason: "Child strategy has weak historical lineage evidence; restore the parent strategy before another mutation.",
+      }
+    : {
+        action: "continue-evolution",
+        reason: "Lineage evidence supports continuing bounded strategy evolution.",
+      };
 }
+
+
