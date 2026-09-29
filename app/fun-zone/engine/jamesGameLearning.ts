@@ -1228,6 +1228,61 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
   return results.slice(0, limit);
 }
 
+export async function promoteJamesComposedStrategy(
+  composition: { strategy: string | null; sources: string[]; confidence: number; compositionScore: number },
+  targetContext: string,
+  passed: boolean,
+) {
+  const client = db();
+  if (!client || !composition.strategy) return null;
+
+  const pattern = "fun-zone:composed-strategy:" + clean(targetContext, 180);
+  const strategy = composition.strategy;
+  const { data: existing } = await client
+    .from("james_experiences")
+    .select("id,success_count,failure_count")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("pattern", pattern)
+    .eq("strategy", strategy)
+    .maybeSingle();
+
+  const successCount = Number(existing?.success_count || 0) + (passed ? 1 : 0);
+  const failureCount = Number(existing?.failure_count || 0) + (passed ? 0 : 1);
+  const total = successCount + failureCount;
+  const successRate = total ? successCount / total : 0;
+  const confidence = Math.min(0.99, Math.max(0.1, composition.confidence * 0.7 + successRate * 0.3));
+
+  const memory = {
+    user_id: SYSTEM_USER_ID,
+    pattern,
+    strategy,
+    confidence,
+    success_count: successCount,
+    failure_count: failureCount,
+    capabilities: ["fun-zone-composition", ...composition.sources.slice(0, 5)],
+    status: "active",
+    last_evidence: {
+      source: "knowledge-composition",
+      targetContext,
+      compositionScore: composition.compositionScore,
+      sources: composition.sources,
+      successRate: Number(successRate.toFixed(3)),
+      recordedAt: new Date().toISOString(),
+    },
+  };
+
+  const result = existing?.id
+    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
+    : await client.from("james_experiences").insert(memory);
+
+  if (result.error) {
+    console.warn("James composed strategy promotion failed:", result.error.message);
+    return null;
+  }
+
+  return { pattern, strategy, successRate: Number(successRate.toFixed(3)), confidence: Number(confidence.toFixed(3)) };
+}
+
 export function composeJamesKnowledgeStrategies(
   knowledge: Array<{ strategy: string; confidence: number; relevance: number; successRate: number }>,
   limit = 3,
