@@ -3332,7 +3332,31 @@ export async function createJamesGameExperimentJob(input: {
     blueprint,
     gameHtml,
   };
-}export function selectJamesStrategyBranches(
+}export function runJamesStrategyTournament(
+  branches: Array<{ strategy: string; confidence: number; successCount: number; failureCount: number; branchScore?: number }>,
+) {
+  const candidates = selectJamesStrategyBranches(branches, Math.min(5, branches.length || 1));
+  if (!candidates.length) return { status: "no-candidates", winner: null, rankings: [] };
+
+  const rankings = candidates.map((candidate, index) => ({
+    rank: index + 1,
+    strategy: candidate.strategy,
+    score: candidate.branchScore || 0,
+    successRate: candidate.successRate,
+    confidence: candidate.confidence,
+    evidenceCount: candidate.successCount + candidate.failureCount,
+  }));
+
+  const winner = rankings[0];
+  return {
+    status: "tournament-ready",
+    winner,
+    rankings,
+    rule: "Rank by empirical success, confidence, and repeated evidence; retain non-winning branches for future contextual testing.",
+  };
+}
+
+export function selectJamesStrategyBranches(
   strategies: Array<{ strategy: string; confidence: number; successCount: number; failureCount: number }>,
   branchLimit = 3,
 ) {
