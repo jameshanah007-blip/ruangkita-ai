@@ -1139,6 +1139,95 @@ export async function evaluateJamesContextTransfer(
   };
 }
 
+export async function resolveJamesKnowledgeSupersession(limit = 12) {
+  const client = db();
+  if (!client) return [];
+
+  const versions = await getJamesKnowledgeVersions(30);
+  const groups = new Map<string, typeof versions>();
+  for (const version of versions) {
+    const key = String(version.knowledgeKey);
+    const bucket = groups.get(key) || [];
+    bucket.push(version);
+    groups.set(key, bucket);
+  }
+
+  const results = [];
+  for (const [knowledgeKey, items] of groups.entries()) {
+    const ordered = [...items].sort((a, b) => b.version - a.version);
+    const latest = ordered[0];
+    const prior = ordered.find((item) => item.version < latest.version);
+    if (!latest) continue;
+
+    const latestContexts = new Set(latest.contexts.map((value) => String(value)));
+    const priorContexts = prior ? new Set(prior.contexts.map((value) => String(value))) : new Set<string>();
+    const contextOverlap = prior && latestContexts.size
+      ? [...latestContexts].filter((context) => priorContexts.has(context)).length / latestContexts.size
+      : 0;
+
+    const improved =
+      !prior ||
+      latest.confidence > prior.confidence ||
+      latest.successCount > prior.successCount;
+
+    const supersedes = !prior || contextOverlap >= 0.5;
+    const coexistReason = !supersedes
+      ? "Keep both versions: evidence suggests the newer principle may apply to a different context."
+      : improved
+        ? "Newer version supersedes prior knowledge because evidence/confidence improved in overlapping contexts."
+        : "Retain prior version as historical evidence while the latest remains the active candidate.";
+
+    const pattern = "fun-zone:knowledge-supersession:" + clean(knowledgeKey, 180);
+    const strategy = "Resolve knowledge version supersession using context overlap and evidence improvement.";
+    const { data: existing } = await client
+      .from("james_experiences")
+      .select("id")
+      .eq("user_id", SYSTEM_USER_ID)
+      .eq("pattern", pattern)
+      .eq("strategy", strategy)
+      .maybeSingle();
+
+    const memory = {
+      user_id: SYSTEM_USER_ID,
+      pattern,
+      strategy,
+      confidence: latest.confidence,
+      success_count: improved ? 1 : 0,
+      failure_count: improved ? 0 : 1,
+      capabilities: ["fun-zone-knowledge-supersession"],
+      status: "active",
+      last_evidence: {
+        knowledgeKey,
+        latestVersion: latest.version,
+        priorVersion: prior?.version || null,
+        supersedes,
+        coexist: !supersedes,
+        contextOverlap: Number(contextOverlap.toFixed(3)),
+        reason: coexistReason,
+        resolvedAt: new Date().toISOString(),
+      },
+    };
+
+    const write = existing?.id
+      ? await client.from("james_experiences").update(memory).eq("id", existing.id)
+      : await client.from("james_experiences").insert(memory);
+
+    if (!write.error) {
+      results.push({
+        knowledgeKey,
+        latestVersion: latest.version,
+        priorVersion: prior?.version || null,
+        supersedes,
+        coexist: !supersedes,
+        contextOverlap: Number(contextOverlap.toFixed(3)),
+        reason: coexistReason,
+      });
+    }
+  }
+
+  return results.slice(0, limit);
+}
+
 export async function getJamesKnowledgeVersions(limit = 12) {
   const client = db();
   if (!client) return [];
