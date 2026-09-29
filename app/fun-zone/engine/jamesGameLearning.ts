@@ -288,8 +288,8 @@ export async function recordJamesGameBrainEvidence(
           objectiveChanged: report.objectiveChanged,
           playerChanged: report.playerChanged,
           restartVerified: report.restartVerified,
-          hardFailures: failed.slice(0, 8),
-          softWarnings: warnings.slice(0, 8),
+          hardFailures: failures.slice(0, 8),
+          softWarnings: softWarnings.slice(0, 8),
         },
       },
     })
