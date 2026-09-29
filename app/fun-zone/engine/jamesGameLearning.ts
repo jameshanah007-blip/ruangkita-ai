@@ -1228,6 +1228,31 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
   return results.slice(0, limit);
 }
 
+export async function retrieveJamesRelevantKnowledge(input: { world: string; genre: string; mechanics: string[]; capabilityKey?: string; limit?: number }) {
+  const client = db();
+  if (!client) return [];
+  const tokens = [input.world, input.genre, ...input.mechanics.slice(0, 6), input.capabilityKey || ""].map(String).map((v) => v.toLowerCase()).filter(Boolean);
+  const { data, error } = await client.from("james_experiences")
+    .select("pattern,strategy,confidence,success_count,failure_count,capabilities,status,last_evidence")
+    .eq("user_id", SYSTEM_USER_ID).eq("status", "active").like("pattern", "fun-zone:%").limit(40);
+  if (error) {
+    console.warn("James relevant knowledge retrieval failed:", error.message);
+    return [];
+  }
+  return (data || []).map((row) => {
+    const text = [row.pattern, row.strategy, ...(Array.isArray(row.capabilities) ? row.capabilities : [])].join(" ").toLowerCase();
+    const hits = tokens.filter((token) => text.includes(token)).length;
+    const relevance = tokens.length ? hits / tokens.length : 0;
+    const success = Number(row.success_count || 0);
+    const failure = Number(row.failure_count || 0);
+    const rate = success + failure ? success / (success + failure) : 0;
+    const score = relevance * 0.5 + Number(row.confidence || 0) * 0.3 + rate * 0.2;
+    return { pattern: row.pattern, strategy: row.strategy, confidence: Number(row.confidence || 0), successRate: Number(rate.toFixed(3)), relevance: Number(relevance.toFixed(3)), score: Number(score.toFixed(3)), evidence: row.last_evidence };
+  }).filter((item) => item.relevance > 0 || item.confidence >= 0.8)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, Math.max(1, Math.min(20, input.limit || 8)));
+}
+
 export async function getJamesActiveKnowledge(limit = 10) {
   const client = db();
   if (!client) return [];
