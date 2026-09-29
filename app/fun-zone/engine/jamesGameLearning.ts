@@ -1225,6 +1225,40 @@ export async function getJamesLearningModeMemory() {
   return result;
 }
 
+export async function getJamesEvidenceReliability(source: string) {
+  const client = db();
+  if (!client) return { reliability: 0.5, evidenceCount: 0 };
+
+  const { data, error } = await client
+    .from("james_experiences")
+    .select("strategy,success_count,failure_count,confidence")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("status", "active")
+    .limit(60);
+
+  if (error) {
+    console.warn("James evidence reliability retrieval failed:", error.message);
+    return { reliability: 0.5, evidenceCount: 0 };
+  }
+
+  const normalized = source.toLowerCase();
+  const related = (data || []).filter((row) =>
+    String(row.strategy || "").toLowerCase().includes(normalized),
+  );
+  const success = related.reduce((sum, row) => sum + Number(row.success_count || 0), 0);
+  const failure = related.reduce((sum, row) => sum + Number(row.failure_count || 0), 0);
+  const total = success + failure;
+  const rate = total ? success / total : 0.5;
+  const confidence = related.length
+    ? related.reduce((sum, row) => sum + Number(row.confidence || 0), 0) / related.length
+    : 0.5;
+
+  return {
+    reliability: Number((Math.max(0.1, Math.min(0.99, rate * 0.7 + confidence * 0.3))).toFixed(3)),
+    evidenceCount: total,
+  };
+}
+
 export function calculateJamesEvidenceWeight(input: {
   quality: number;
   passed: boolean;
