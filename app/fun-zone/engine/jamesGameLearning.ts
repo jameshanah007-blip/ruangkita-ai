@@ -1125,6 +1125,10 @@ export async function createJamesGameExperimentPlan() {
   }
 
   const key = String(target.capability_key);
+  const contextualMemory = await getJamesContextualLearningMemory("unknown", String(target.capability_name), []);
+  const contextualContext = contextualMemory.length
+    ? " Contextual memory: prefer strategies whose historical evidence matches this capability/context; do not generalize unrelated contexts blindly."
+    : "";
   const capabilityPrompt =
     key.includes("input")
       ? "Create a small game focused on reliable keyboard and touch movement with an alternate input path."
@@ -1143,7 +1147,7 @@ export async function createJamesGameExperimentPlan() {
   return {
     status: "experiment",
     title: "James Game Brain experiment: " + String(target.capability_name),
-    prompt: capabilityPrompt + recoveryContext +
+    prompt: capabilityPrompt + contextualContext + recoveryContext +
       (learningMode.mode === "explore" && exploration?.novelMechanic
         ? " Exploration directive: deliberately test the novel mechanic \""+ exploration.novelMechanic + "\" instead of repeating the most recent proven mechanic set. Compare its evidence against the current strategy."
         : " Exploitation directive: reuse proven strategy components first, while preserving regression checks and measurable evidence."),
@@ -1158,6 +1162,7 @@ export async function createJamesGameExperimentPlan() {
     recoveryDirective: recoveryDirective || null,
     exploration: exploration || null,
     learningMode,
+    contextualMemory,
   };
 }
 
