@@ -479,17 +479,6 @@ export default function FunZonePage() {
     );
 
   useEffect(() => {
-    fetch(`/api/fun-zone/catalog?seed=${encodeURIComponent(catalogSeed)}&count=8`, { cache: "no-store" })
-      .then((response) => response.json())
-      .then((data) => {
-        if (Array.isArray(data?.games)) {
-          setGameCatalog(data.games);
-        }
-      })
-      .catch(() => {});
-  }, [catalogSeed]);
-
-  useEffect(() => {
     fetch("/api/fun-zone/session", { cache: "no-store" })
       .then((response) => response.json())
       .then((data) => {
@@ -957,7 +946,7 @@ const handleSandboxError =
                 <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
 
                   <span>
-                    Bebas. Tidak perlu memilih genre. James akan menentukan genre, mekanik, kontrol, dunia, objective, dan cara terbaik untuk membangunnya.
+                    Bebas. Tulis dengan bahasamu sendiri. James akan menentukan genre, mekanik, kontrol, dunia, objective, dan cara terbaik untuk membangunnya.
                   </span>
 
                   <span>
