@@ -4,6 +4,7 @@ function text(prompt: string): string { return prompt.toLowerCase(); }
 
 function inferMode(prompt: string): string {
   const p=text(prompt);
+  if (/(rpg|role.?play|quest|petualangan)/.test(p)) return "adventure";
   if (/(runner|endless|lari|running)/.test(p)) return "runner";
   if (/(puzzle|teka|logic|match|grid)/.test(p)) return "puzzle";
   if (/(racing|race|balap|mobil|kendaraan)/.test(p)) return "racing";
@@ -15,6 +16,25 @@ function inferMode(prompt: string): string {
   return "adventure";
 }
 
+function inferMechanics(prompt: string, mode: string): string[] {
+  const p=text(prompt);
+  const mechanics = new Set<string>();
+  const add = (name: string, re: RegExp) => { if (re.test(p)) mechanics.add(name); };
+  add("exploration", /(explore|exploration|jelajah|menjelajah|dunia|map|petualang)/);
+  add("combat", /(combat|fight|battle|berantem|bertarung|perang|shooter|menembak|musuh|monster)/);
+  add("farming", /(farm|farming|bertani|tanam|panen|kebun|resource|craft)/);
+  add("stealth", /(stealth|siluman|infiltrat|patrol|mata-mata|diam-diam)/);
+  add("puzzle", /(puzzle|teka|logic|match|grid|teka-teki)/);
+  add("racing", /(racing|race|balap|mobil|kendaraan|lap)/);
+  add("survival", /(survival|bertahan|zombie|monster|horror|gelombang)/);
+  add("strategy", /(strategy|strategi|tower|defense|pertahanan|taktik)/);
+  add("collection", /(collect|collection|kumpul|kumpulkan|item|harta|loot)/);
+  add("progression", /(level|leveling|upgrade|skill|experience|xp|progres|progression)/);
+  add("dialogue", /(dialog|cerita|story|npc|percakapan|conversation|social)/);
+  if (!mechanics.size) mechanics.add(mode);
+  if (mode === "adventure") mechanics.add("exploration");
+  return [...mechanics];
+}
 function inferDifficulty(prompt: string): string {
   const p=text(prompt);
   if (/(sangat sulit|extreme|hardcore)/.test(p)) return "extreme";
@@ -25,7 +45,7 @@ function inferDifficulty(prompt: string): string {
 
 export function createLocalGameBlueprint(prompt: string): GameBlueprint {
   const clean=prompt.trim().slice(0,1200)||"petualangan interaktif";
-  const mode=inferMode(clean), difficulty=inferDifficulty(clean);
+  const mode=inferMode(clean), difficulty=inferDifficulty(clean), inferredMechanics=inferMechanics(clean, mode);
   const presets: Record<string,{core:string;objective:string;mechanics:string[];actions:string[];win:string;lose:string}> = {
     runner:{core:"lari, hindari rintangan, kumpulkan item, bertahan selama mungkin",objective:"Bertahan dalam lintasan dan mencapai target jarak.",mechanics:["auto-run","obstacles","collection","distance","health"],actions:["move","jump","collect","restart"],win:"Mencapai target jarak.",lose:"HP habis karena menabrak rintangan."},
     puzzle:{core:"amati pola, lakukan aksi, selesaikan rangkaian puzzle",objective:"Menyelesaikan lima pola puzzle.",mechanics:["grid","pattern","actions","progression"],actions:["select","solve","restart"],win:"Lima puzzle terselesaikan.",lose:"Tidak ada kondisi kalah; pemain dapat mencoba lagi."},
@@ -43,7 +63,13 @@ export function createLocalGameBlueprint(prompt: string): GameBlueprint {
     concept:clean, genre:mode, mood:"dynamic", difficulty, theme:clean,
     world:"an original interactive browser game world",
     coreLoop:preset.core, objective:preset.objective,
-    mechanics:preset.mechanics, playerActions:preset.actions,
+    mechanics:[...new Set([...preset.mechanics,...inferredMechanics])], playerActions:[...new Set([...preset.actions,
+      ...(inferredMechanics.includes("combat") ? ["attack","dodge"] : []),
+      ...(inferredMechanics.includes("farming") ? ["plant","harvest"] : []),
+      ...(inferredMechanics.includes("collection") ? ["collect","loot"] : []),
+      ...(inferredMechanics.includes("dialogue") ? ["interact","talk"] : []),
+      ...(inferredMechanics.includes("exploration") ? ["explore"] : [])
+    ])],
     controls:["keyboard","pointer","touch","virtual_buttons"],
     progression:"Progress is represented by real gameplay state and increases through valid player actions.",
     replayability:"Restart the run and try a different strategy or faster route.",
