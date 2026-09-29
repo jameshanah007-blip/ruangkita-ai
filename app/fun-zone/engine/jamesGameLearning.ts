@@ -888,11 +888,22 @@ export function applyJamesEffectiveStrategies(
   }>,
 ): GameBlueprint {
   const currentCapabilities = new Set<string>();
-  const useful = strategies
-    .filter((item) => Array.isArray(item.strengths) && item.strengths.length)
+  // Prefer a small portfolio of proven strategies with complementary
+  // capabilities rather than blindly copying the highest-scoring strategy.
+  const useful = [...strategies]
+    .filter((item) => Array.isArray(item.strengths) && item.strengths.length && item.strategy_fingerprint)
     .sort((a, b) => Number(b.quality || 0) - Number(a.quality || 0))
-    .filter((item) => item.strategy_fingerprint)
-    .slice(0, 4);
+    .reduce<typeof strategies>((selected, candidate) => {
+      const candidateCapabilities = new Set(candidate.strengths || []);
+      const addsNewCapability = selected.every((existing) =>
+        (existing.strengths || []).every((capability) => !candidateCapabilities.has(capability)),
+      );
+      if (selected.length === 0 || addsNewCapability || selected.length < 2) {
+        selected.push(candidate);
+      }
+      return selected;
+    }, [])
+    .slice(0, 3);
 
   for (const item of useful) {
     for (const capability of item.strengths || []) currentCapabilities.add(capability);
@@ -921,11 +932,13 @@ export function applyJamesEffectiveStrategies(
     ...blueprint,
     progression: clean(
       blueprint.progression +
-        " James reusable strategy memory: reuse proven implementation patterns when compatible, " +
-        "while preserving the current game's world, mechanics and player experience. " +
-        "Proven strategy qualities: " +
-        useful.map((item) => Number(item.quality || 0).toFixed(2)).join(", ") + ".",
-      1400,
+        " James strategy synthesis: combine complementary proven patterns instead of copying one prior game. " +
+        "Preserve the current world's mechanics and player experience. " +
+        "Selected evidence qualities: " +
+        useful.map((item) => Number(item.quality || 0).toFixed(2)).join(", ") +
+        ". Strategy components: " +
+        useful.map((item) => item.strategy_fingerprint).join(" || "),
+      1800,
     ),
     testRequirements: Array.from(new Set(tests)).slice(0, 24),
   };
