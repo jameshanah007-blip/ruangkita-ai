@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../../../../fun-zone/laboratory/types";
-import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, evolveJamesStrategyMemory, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict, recordJamesCoreSkillLineage, recordJamesKnowledgeContradiction, consolidateJamesGameKnowledge, versionJamesConsolidatedKnowledge, resolveJamesKnowledgeSupersession } from "../../../../fun-zone/engine/jamesGameLearning";
+import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, evolveJamesStrategyMemory, evaluateJamesMutationOutcome, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict, recordJamesCoreSkillLineage, recordJamesKnowledgeContradiction, consolidateJamesGameKnowledge, versionJamesConsolidatedKnowledge, resolveJamesKnowledgeSupersession } from "../../../../fun-zone/engine/jamesGameLearning";
 
 export const runtime = "nodejs";
 
@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     const learning = await recordJamesGameTestLearning(blueprint, report, attempt);
     const brainEvidence = await recordJamesGameBrainEvidence(blueprint, report, attempt);
     const evolved = await evolveJamesStrategyMemory(blueprint, report);
+    const mutationOutcome = await evaluateJamesMutationOutcome(experiment.prompt, blueprint, report);
     const recoveryImpact = await evaluateJamesRecoveryDirectiveImpact(experiment.prompt, blueprint, report);
     const explorationPromotion = await promoteJamesExplorationResult(experiment.prompt, blueprint, report);
     const learningModeImpact = await evaluateJamesExploreExploitImpact(experiment.prompt, blueprint, report);
@@ -78,24 +79,37 @@ export async function POST(request: Request) {
     const terminalFailure = !verified && attempt >= 5;
 
     const nextStatus = verified ? "verified" : terminalFailure ? "failed" : "pending_verification";
-    const { error: updateError } = await client
+    const updatePayload = {
+      status: nextStatus,
+      test_report: report,
+      learning_result: { learning, brainEvidence, evolved, mutationOutcome, recoveryImpact, explorationPromotion, learningModeImpact, generalizedSkills, coreSkillConflicts, consolidatedKnowledge, knowledgeVersions, knowledgeSupersession },
+      attempt,
+      verified_at: verified ? new Date().toISOString() : null,
+      runner_token: null,
+      started_at: null,
+    };
+
+    // Running jobs are protected by the runner claim token. Pending verification
+    // jobs have no runner token and must be allowed to transition independently.
+    let updateQuery = client
       .from("james_game_experiments")
-      .update({
-        status: nextStatus,
-        test_report: report,
-        learning_result: { learning, brainEvidence, evolved, recoveryImpact, explorationPromotion, learningModeImpact, generalizedSkills, coreSkillConflicts, consolidatedKnowledge, knowledgeVersions, knowledgeSupersession },
-        attempt,
-        verified_at: verified ? new Date().toISOString() : null,
-        runner_token: null,
-        started_at: null,
-      })
-      .eq("id", experimentId)
-      .eq("status", "running")
-      .eq("runner_token", claimToken);
+      .update(updatePayload)
+      .eq("id", experimentId);
+
+    if (experiment.status === "running") {
+      updateQuery = updateQuery.eq("status", "running").eq("runner_token", claimToken);
+    } else {
+      updateQuery = updateQuery.eq("status", "pending_verification");
+    }
+
+    const { data: updatedExperiment, error: updateError } = await updateQuery.select("id,status");
 
     if (updateError) throw updateError;
+    if (!updatedExperiment || updatedExperiment.length !== 1) {
+      return NextResponse.json({ success: false, error: "Experiment verification state changed before persistence." }, { status: 409 });
+    }
 
-    return NextResponse.json({ success: true, experimentId, status: nextStatus, learning, brainEvidence, evolved, recoveryImpact });
+    return NextResponse.json({ success: true, experimentId, status: nextStatus, learning, brainEvidence, evolved, mutationOutcome, recoveryImpact });
   } catch (error) {
     console.error("James Game Brain experiment verification failed:", error);
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Experiment verification failed." }, { status: 500 });
