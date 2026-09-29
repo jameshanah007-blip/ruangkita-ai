@@ -2302,6 +2302,11 @@ export function chooseJamesStrategyMutation(input: {
   return "bounded-parameter-variation";
 }
 
+export async function getJamesStrategyBranches(targetContext?: string, limit = 3) {
+  const lineage = await getJamesStrategyLineage(targetContext, 20);
+  return selectJamesStrategyBranches(lineage, limit);
+}
+
 export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
