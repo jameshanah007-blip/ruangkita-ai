@@ -301,8 +301,26 @@ function buildGenome(b: GameBlueprint): GameGenome {
   const seed = hash(text);
   const random = rng(seed);
   const world = detectWorld(text);
-  const mechanics = detectMechanics(text);
-  const primary = mechanics[0];
+  const detectedMechanics = detectMechanics(text);
+  const masteryText = [
+    b.progression,
+    b.testRequirements.join(" "),
+    b.playerActions.join(" "),
+  ].join(" ").toLowerCase();
+
+  // Capability mastery is allowed to influence implementation strategy,
+  // while the original user-requested mechanics remain authoritative.
+  const mechanics = [...detectedMechanics];
+  if (/objective-progression|objective progression|progression/.test(masteryText) && !mechanics.includes("collect")) {
+    mechanics.push("collect");
+  }
+  if (/gameplay-state|gameplay state/.test(masteryText) && !mechanics.includes("explore")) {
+    mechanics.push("explore");
+  }
+  if (/input-reliability|input reliability/.test(masteryText) && !mechanics.includes("explore")) {
+    mechanics.push("explore");
+  }
+  const primary = mechanics[0] || "explore";
   const difficulty =
     b.difficulty.toLowerCase().includes("extreme") ? 0.95 :
     b.difficulty.toLowerCase().includes("hard") ? 0.78 :
