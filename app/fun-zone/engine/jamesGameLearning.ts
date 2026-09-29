@@ -1389,7 +1389,14 @@ export async function resolveJamesCoreSkillConflict(
   const oldSuccess = Number(current.success_count || 0);
   const oldFailure = Number(current.failure_count || 0);
   const observedQuality = Math.max(0, Math.min(1, observed.quality));
-  const sourceReliability = await getJamesEvidenceReliability("fun-zone-experiment-verification");
+  const evidenceTrust = await calculateJamesEvidenceTrust({
+    source: "fun-zone-experiment-verification",
+    quality: observedQuality,
+    passed: observed.passed,
+    contextCount: 1,
+    evidenceCount: observed.evidence,
+  });
+  const sourceReliability = { reliability: evidenceTrust.sourceReliability, evidenceCount: 0 };
   const evidenceWeight = calculateJamesEvidenceWeight({
     quality: observedQuality,
     passed: observed.passed,
@@ -1397,7 +1404,7 @@ export async function resolveJamesCoreSkillConflict(
     contextCount: 1,
     isTransfer: true,
     isGeneralized: true,
-  }) * sourceReliability.reliability;
+  }) * evidenceTrust.trust;
   const conflict = Math.abs(observedQuality - oldCompetence) >= 0.2;
   const newEvidence = oldEvidence + Math.max(1, observed.evidence);
   const newSuccess = oldSuccess + (observed.passed ? Math.max(1, observed.evidence) : 0);
@@ -1430,6 +1437,8 @@ export async function resolveJamesCoreSkillConflict(
       observedEvidence: observed.evidence,
       evidenceWeight,
       sourceReliability: sourceReliability.reliability,
+      evidenceTrust: evidenceTrust.trust,
+      corroboration: evidenceTrust.corroboration,
       sourceEvidenceCount: sourceReliability.evidenceCount,
       empiricalRate: Number(empiricalRate.toFixed(3)),
     },
