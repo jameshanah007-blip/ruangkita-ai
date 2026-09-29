@@ -1,29 +1,6 @@
-import type { GameBlueprint, TestReport, SandboxTestEvidence } from "./types";
-import { testGame } from "./tester";
+import { Sandbox } from "@vercel/sandbox";
 
-const BROWSER_WAIT_MS = 2500;
-
-function credentials() {
-  if (process.env.VERCEL_TOKEN && process.env.VERCEL_TEAM_ID && process.env.VERCEL_PROJECT_ID) {
-    return {
-      token: process.env.VERCEL_TOKEN,
-      teamId: process.env.VERCEL_TEAM_ID,
-      projectId: process.env.VERCEL_PROJECT_ID,
-    };
-  }
-  return {};
-}
-
-import { createRequire } from "node:module";
-
-const nodeRequire = createRequire(import.meta.url);
-const { Sandbox: SandboxRuntime } = nodeRequire("@vercel/sandbox") as {
-  Sandbox: {
-    create: (...args: any[]) => Promise<any>;
-  };
-};
-
-type BrowserSandbox = Awaited<ReturnType<typeof SandboxRuntime.create>>;
+type BrowserSandbox = Awaited<ReturnType<typeof Sandbox.create>>;
 
 async function command(sandbox: BrowserSandbox, cmd: string, args: string[]) {
   const result = await sandbox.runCommand(cmd, args);
@@ -100,8 +77,8 @@ function buildVerifierHtml(gameHtml: string, actions: string[]) {
 async function createSandbox() {
   const snapshotId = process.env.AGENT_BROWSER_SNAPSHOT_ID;
   return snapshotId
-    ? SandboxRuntime.create({...credentials(),source:{type:"snapshot",snapshotId},timeout:120_000})
-    : SandboxRuntime.create({...credentials(),runtime:"node24",timeout:120_000,networkPolicy:"allow-all"});
+    ? Sandbox.create({...credentials(),source:{type:"snapshot",snapshotId},timeout:120_000})
+    : Sandbox.create({...credentials(),runtime:"node24",timeout:120_000,networkPolicy:"allow-all"});
 }
 
 export async function verifyGameInBrowser(gameHtml:string, blueprint:GameBlueprint, attempt:number):Promise<TestReport>{
