@@ -99,6 +99,7 @@ export async function verifyGameInBrowser(gameHtml:string, blueprint:GameBluepri
       await command(sandbox,"npm",["install","-g","agent-browser"]);
       await command(sandbox,"npx",["agent-browser","install"]);
     }
+    await sandbox.updateNetworkPolicy("deny-all");
     const html=buildVerifierHtml(gameHtml,blueprint.playerActions??[]);
     const encoded=Buffer.from(html,"utf8").toString("base64");
     await command(sandbox,"sh",["-lc",\`echo \${encoded} | base64 -d > /tmp/james-game.html\`]);
