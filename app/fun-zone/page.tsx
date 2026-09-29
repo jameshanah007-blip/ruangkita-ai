@@ -446,6 +446,9 @@ export default function FunZonePage() {
       null
     );
 
+  const [autonomousRepairAttempts, setAutonomousRepairAttempts] =
+    useState(0);
+
   const [labSession, setLabSession] =
     useState<LabSession | null>(null);
 
@@ -545,6 +548,7 @@ export default function FunZonePage() {
     setModel("");
     setSeed("");
     setTestReport(null);
+    setAutonomousRepairAttempts(0);
     setTerminalTick(0);
     setIsGenerating(true);
 
@@ -687,44 +691,98 @@ export default function FunZonePage() {
 
 const handleTestReport =
   useCallback(
-    (report: TestReport) => {
+    async (report: TestReport) => {
       setTestReport(report);
+
+      if (report.passed) {
+        setError("");
+        setStage("ready");
+
+        setLabSession((previous) => {
+          if (!previous) return previous;
+          const next: LabSession = {
+            ...previous,
+            status: "ready",
+            stage: "final",
+            testReports: [...previous.testReports, report],
+            currentAttempt: report.attempt,
+            updatedAt: new Date().toISOString(),
+            error: undefined,
+          };
+          void persistLabSession(next);
+          return next;
+        });
+        return;
+      }
+
+      const nextRepairAttempt = autonomousRepairAttempts + 1;
 
       setLabSession((previous) => {
         if (!previous) return previous;
 
         const next: LabSession = {
           ...previous,
-          status: report.passed ? "ready" : "debugging",
-          stage: report.passed ? "final" : "debugger",
-          testReports: [
-            ...previous.testReports,
-            report,
-          ],
-          currentAttempt: report.attempt,
+          status: nextRepairAttempt <= 3 ? "repairing" : "debugging",
+          stage: nextRepairAttempt <= 3 ? "debugger" : "debugger",
+          testReports: [...previous.testReports, report],
+          currentAttempt: nextRepairAttempt,
           updatedAt: new Date().toISOString(),
-          error: report.passed
-            ? undefined
-            : (Array.isArray(report.hardFailures) ? report.hardFailures : []).join(" ") || previous.error,
+          error: (Array.isArray(report.hardFailures) ? report.hardFailures : []).join(" ") || previous.error,
         };
 
         void persistLabSession(next);
         return next;
       });
 
-      if (report.passed) {
-        setError("");
-        setStage("ready");
+      if (nextRepairAttempt > 3 || !blueprint) {
+        setStage("debugging");
+        setError(
+          (Array.isArray(report.hardFailures) ? report.hardFailures : []).join(" ") ||
+          "James membutuhkan pemeriksaan debugger lebih lanjut."
+        );
         return;
       }
 
-      if (Array.isArray(report.hardFailures) && report.hardFailures.length > 0) {
+      setAutonomousRepairAttempts(nextRepairAttempt);
+      setStage("retesting");
+      setError("James menganalisis hasil test dan mengembangkan game secara mandiri...");
+
+      try {
+        const response = await fetch("/api/fun-zone/autonomous-repair", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            blueprint,
+            report,
+            attempt: nextRepairAttempt,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data?.success || !data?.gameHtml || !data?.blueprint) {
+          throw new Error(data?.error || "James Autonomous Repair gagal.");
+        }
+
+        setBlueprint(data.blueprint);
+        setTitle(data.blueprint.title);
+        setGenre(data.blueprint.genre);
+        setProvider(data.provider || "james-autonomous");
+        setModel(data.model || "autonomous-evolution-engine-v1");
+        setGameHtml(data.gameHtml);
+        setTestReport(null);
+        setStage("testing");
+        setError("");
+      } catch (error) {
+        setStage("debugging");
         setError(
-          report.hardFailures.join(" ")
+          error instanceof Error
+            ? error.message
+            : "James Autonomous Repair gagal."
         );
       }
     },
-    []
+    [autonomousRepairAttempts, blueprint]
   );
 
 const handleSandboxGameHtmlChange =
