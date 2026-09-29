@@ -504,8 +504,8 @@ export async function runJamesAutonomousBrain(input: {
       const experimentGoal = experimentJob?.status === "pending-verification"
         ? [
             "Run a bounded autonomous Fun Zone experiment for James Game Brain.",
-            "Target capability: " + String(experiment.targetCapability?.name || "unknown"),
-            "Experiment prompt: " + experiment.prompt,
+            "Target capability: " + String(experiment?.targetCapability?.name || "unknown"),
+            "Experiment prompt: " + String(experiment?.prompt || "unknown"),
             "Experiment job ID: " + String(experimentJob.experimentId || "not-persisted") + ". Open the Fun Zone sandbox runner to verify it.",
             "Use the result as evidence. Do not treat the experiment as successful until sandbox tests pass.",
             "Core skill revalidation results: " + JSON.stringify(revalidatedCoreSkills).slice(0, 4000),
