@@ -461,6 +461,9 @@ export default function FunZonePage() {
   const [experimentId, setExperimentId] =
     useState<string | null>(null);
 
+  const [experimentClaimToken, setExperimentClaimToken] =
+    useState<string | null>(null);
+
   const currentStageIndex =
     getStageIndex(stage);
 
@@ -492,11 +495,12 @@ export default function FunZonePage() {
       fetch("/api/fun-zone/experiment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ mode: "claim" }),
       })
         .then((response) => response.json())
         .then((data) => {
-          if (!data?.success || !data?.experimentId) return;
+          if (!data?.success || !data?.claimed || !data?.experimentId) return;
+          setExperimentClaimToken(data.claimToken || null);
           window.history.replaceState(
             {},
             "",
@@ -773,7 +777,7 @@ const handleTestReport =
         void fetch("/api/fun-zone/experiment/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ experimentId, blueprint, report }),
+          body: JSON.stringify({ experimentId, claimToken: experimentClaimToken, blueprint, report }),
         })
           .then((response) => response.json())
           .then((data) => {
@@ -914,6 +918,7 @@ const handleSandboxGameHtmlChange =
 
   function createAnotherGame() {
     setExperimentId(null);
+    setExperimentClaimToken(null);
     setStage(
       "idle"
     );
