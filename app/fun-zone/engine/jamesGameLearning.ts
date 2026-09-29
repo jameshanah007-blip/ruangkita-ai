@@ -1139,6 +1139,33 @@ export async function evaluateJamesContextTransfer(
   };
 }
 
+export async function getJamesContradictionMemory(limit = 6) {
+  const client = db();
+  if (!client) return [];
+
+  const { data, error } = await client
+    .from("james_experiences")
+    .select("pattern,strategy,confidence,success_count,failure_count,capabilities,status")
+    .eq("user_id", SYSTEM_USER_ID)
+    .like("pattern", "fun-zone:contradiction:%")
+    .eq("status", "active")
+    .order("confidence", { ascending: false })
+    .limit(Math.max(1, Math.min(20, limit)));
+
+  if (error) {
+    console.warn("James contradiction memory retrieval failed:", error.message);
+    return [];
+  }
+
+  return (data || []).map((row) => ({
+    pattern: row.pattern,
+    strategy: row.strategy,
+    confidence: Number(row.confidence || 0),
+    failureCount: Number(row.failure_count || 0),
+    capabilities: Array.isArray(row.capabilities) ? row.capabilities : [],
+  }));
+}
+
 export async function getJamesContextualLearningMemory(
   world: string,
   genre: string,
