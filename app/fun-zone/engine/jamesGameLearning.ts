@@ -2357,6 +2357,7 @@ export async function createJamesGameExperimentPlan() {
     getJamesSkillsNeedingCorroboration(6),
     getJamesContradictionMemory(6),
     consolidateJamesGameKnowledge(8),
+    getJamesTournamentDirective(),
   ]);
 
   if (error) {
@@ -2379,6 +2380,7 @@ export async function createJamesGameExperimentPlan() {
     .sort((a, b) => b.score - a.score);
 
   const recoveryDirective = scoredRecoveryDirectives[0];
+  const tournamentDirective = await getJamesTournamentDirective();
   const learningMode = selectJamesLearningMode({
     competence: Number(target?.competence || 0),
     confidence: Number(target?.confidence || 0),
@@ -2390,6 +2392,9 @@ export async function createJamesGameExperimentPlan() {
     exploitModeSuccessRate: modeMemory?.exploit?.successRate,
     exploitModeConfidence: modeMemory?.exploit?.confidence,
   });
+  const tournamentContext = tournamentDirective.status === "available"
+    ? " Strategy tournament directive: " + tournamentDirective.directive + " Winner confidence: " + Number(tournamentDirective.winnerConfidence || 0).toFixed(3) + ", success rate: " + Number(tournamentDirective.winnerSuccessRate || 0).toFixed(3) + "."
+    : "";
   const recoveryContext = recoveryDirective
     ? " Recovery directive selected from James experience memory: " +
       recoveryDirective.strategy +
@@ -2480,7 +2485,7 @@ export async function createJamesGameExperimentPlan() {
   return {
     status: "experiment",
     title: "James Game Brain experiment: " + String(target.capability_name),
-    prompt: capabilityPrompt + relevantKnowledgeContext + knowledgeContext + coreSkillContext + contradictionContext + corroborationContext + contextualContext + transferContext + recoveryContext +
+    prompt: capabilityPrompt + relevantKnowledgeContext + knowledgeContext + coreSkillContext + contradictionContext + corroborationContext + contextualContext + transferContext + tournamentContext + recoveryContext +
       (learningMode.mode === "explore" && exploration?.novelMechanic
         ? " Exploration directive: deliberately test the novel mechanic \""+ exploration.novelMechanic + "\" instead of repeating the most recent proven mechanic set. Compare its evidence against the current strategy."
         : " Exploitation directive: reuse proven strategy components first, while preserving regression checks and measurable evidence."),
