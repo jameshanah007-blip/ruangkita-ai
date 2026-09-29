@@ -206,12 +206,12 @@ export default function AIExecutor() {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const frames = buffer.split(/\\r?\\n\\r?\\n/);
+        const frames = buffer.split(/\r?\n\r?\n/);
         buffer = frames.pop() || "";
 
         for (const frame of frames) {
           const dataLine = frame
-            .split(/\\r?\\n/)
+            .split(/\r?\n/)
             .find((line) => line.startsWith("data:"));
           if (!dataLine) continue;
 
@@ -228,7 +228,7 @@ export default function AIExecutor() {
       buffer += decoder.decode();
       if (buffer.trim()) {
         const dataLine = buffer
-          .split(/\\r?\\n/)
+          .split(/\r?\n/)
           .find((line) => line.startsWith("data:"));
         if (dataLine) {
           applyStreamEvent(JSON.parse(dataLine.slice(5).trim()));
