@@ -2,8 +2,8 @@ import type {
   AIProvider,
   AIGenerateRequest,
   AIGenerateResponse,
-  readSSEText,
 } from "./aiProvider";
+import { readSSEText } from "./aiProvider";
 
 const GROQ_URL =
   "https://api.groq.com/openai/v1/chat/completions";
