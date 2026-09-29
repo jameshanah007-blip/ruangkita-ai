@@ -169,6 +169,7 @@ export async function recordJamesGameBrainEvidence(
     700,
   );
 
+  const synthesisApplied = blueprint.progression.includes("James synthesized concrete components");
   const strategyFingerprint = clean(
     [
       blueprint.world,
@@ -297,6 +298,48 @@ export async function recordJamesGameBrainEvidence(
 
   if (selfEvaluation.error) {
     console.warn("James game self-evaluation persistence failed:", selfEvaluation.error.message);
+  }
+
+  if (passed && synthesisApplied) {
+    const synthesizedStrategy = clean(
+      "Synthesize proven game capabilities into a compatible blueprint: " +
+        capabilities.join(", "),
+      700,
+    );
+    const { data: existingStrategy } = await client
+      .from("james_experiences")
+      .select("id, success_count, failure_count, confidence")
+      .eq("pattern", pattern)
+      .eq("strategy", synthesizedStrategy)
+      .maybeSingle();
+
+    const successCount = Number(existingStrategy?.success_count || 0) + 1;
+    const failureCount = Number(existingStrategy?.failure_count || 0);
+    const confidence = Math.min(
+      0.99,
+      Math.max(Number(existingStrategy?.confidence || 0.72), 0.72) +
+        Math.min(0.08, successCount * 0.02),
+    );
+
+    const strategyPayload = {
+      user_id: SYSTEM_USER_ID,
+      pattern,
+      strategy: synthesizedStrategy,
+      confidence,
+      success_count: successCount,
+      failure_count: failureCount,
+      capabilities,
+      status: "active",
+    };
+
+    if (existingStrategy?.id) {
+      await client
+        .from("james_experiences")
+        .update(strategyPayload)
+        .eq("id", existingStrategy.id);
+    } else {
+      await client.from("james_experiences").insert(strategyPayload);
+    }
   }
 
   // Feed verified game evidence into James's durable capability self-model.
