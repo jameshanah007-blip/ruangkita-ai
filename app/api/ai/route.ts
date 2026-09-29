@@ -955,6 +955,7 @@ function validUuid(value: unknown): value is string {
 
 function createJamesChatStreamResponse(input: {
   userRequest: string;
+  prompt: string;
   userId: string;
   conversationId: string;
   intent: Intent;
@@ -976,7 +977,7 @@ function createJamesChatStreamResponse(input: {
 
       try {
         const brainStream = streamJamesBrainChat({
-          prompt: input.userRequest,
+          prompt: input.prompt,
           systemInstruction: input.rememberInstruction,
           context: input.jamesKnowledgeContext,
           temperature: 0.7,
@@ -1877,15 +1878,10 @@ Jangan menampilkan label internal, metadata provider, status safety, reasoning, 
 Berikan hanya jawaban yang memang ditujukan untuk pengguna.
 `;
 
-    const resultText = await callJamesAI(
-      chatPrompt,
-      rememberInstruction,
-      jamesKnowledgeContext
-    );
-
     if (request.headers.get("accept")?.includes("text/event-stream")) {
       return createJamesChatStreamResponse({
         userRequest,
+        prompt: chatPrompt,
         userId,
         conversationId,
         intent,
@@ -1895,6 +1891,12 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
         evolutionVersion: growth.evolution_version,
       });
     }
+
+    const resultText = await callJamesAI(
+      chatPrompt,
+      rememberInstruction,
+      jamesKnowledgeContext
+    );
 
     await saveActivity(userRequest, intent, "gemini", resultText);
     await saveJames(userId, conversationId, userRequest, resultText, intent, "gemini");
