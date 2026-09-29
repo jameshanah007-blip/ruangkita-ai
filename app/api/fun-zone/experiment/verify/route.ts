@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../../../../fun-zone/laboratory/types";
-import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, evolveJamesStrategyMemory } from "../../../../fun-zone/engine/jamesGameLearning";
+import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, evolveJamesStrategyMemory, evaluateJamesRecoveryDirectiveImpact } from "../../../../fun-zone/engine/jamesGameLearning";
 
 export const runtime = "nodejs";
 
@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     const learning = await recordJamesGameTestLearning(blueprint, report, attempt);
     const brainEvidence = await recordJamesGameBrainEvidence(blueprint, report, attempt);
     const evolved = await evolveJamesStrategyMemory(blueprint, report);
+    const recoveryImpact = await evaluateJamesRecoveryDirectiveImpact(experiment.prompt, blueprint, report);
     const verified = report.passed === true;
     const terminalFailure = !verified && attempt >= 5;
 
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
       .update({
         status: nextStatus,
         test_report: report,
-        learning_result: { learning, brainEvidence, evolved },
+        learning_result: { learning, brainEvidence, evolved, recoveryImpact },
         attempt,
         verified_at: verified ? new Date().toISOString() : null,
         runner_token: null,
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
 
     if (updateError) throw updateError;
 
-    return NextResponse.json({ success: true, experimentId, status: nextStatus, learning, brainEvidence, evolved });
+    return NextResponse.json({ success: true, experimentId, status: nextStatus, learning, brainEvidence, evolved, recoveryImpact });
   } catch (error) {
     console.error("James Game Brain experiment verification failed:", error);
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Experiment verification failed." }, { status: 500 });
