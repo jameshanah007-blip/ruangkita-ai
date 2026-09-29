@@ -1,3 +1,6 @@
+import type { GameBlueprint, TestReport, SandboxTestEvidence } from "./types";
+import { testGame } from "./tester";
+
 const BROWSER_WAIT_MS = 2500;
 
 function credentials() {
