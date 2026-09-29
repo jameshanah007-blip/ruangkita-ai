@@ -964,6 +964,61 @@ export function selectJamesLearningMode(input: {
   };
 }
 
+export async function consolidateJamesTransferKnowledge(limit = 12) {
+  const client = db();
+  if (!client) return null;
+
+  const { data, error } = await client
+    .from("james_experiences")
+    .select("pattern,strategy,confidence,success_count,failure_count,capabilities,status")
+    .eq("user_id", SYSTEM_USER_ID)
+    .like("pattern", "fun-zone:transfer:%")
+    .eq("status", "active")
+    .order("confidence", { ascending: false })
+    .limit(Math.max(1, Math.min(30, limit)));
+
+  if (error) {
+    console.warn("James transfer consolidation retrieval failed:", error.message);
+    return null;
+  }
+
+  const groups = new Map<string, { successes: number; failures: number; confidences: number[]; contexts: string[]; capabilities: string[] }>();
+  for (const row of data || []) {
+    const capabilities = Array.isArray(row.capabilities) ? row.capabilities.filter((v): v is string => typeof v === "string") : [];
+    const key = capabilities.sort().join("+") || "general";
+    const bucket = groups.get(key) || { successes: 0, failures: 0, confidences: [], contexts: [], capabilities };
+    bucket.successes += Number(row.success_count || 0);
+    bucket.failures += Number(row.failure_count || 0);
+    bucket.confidences.push(Number(row.confidence || 0));
+    bucket.contexts.push(String(row.pattern));
+    groups.set(key, bucket);
+  }
+
+  const consolidated = Array.from(groups.entries()).map(([capabilityKey, bucket]) => {
+    const total = bucket.successes + bucket.failures;
+    const successRate = total ? bucket.successes / total : 0;
+    const confidence = bucket.confidences.length
+      ? bucket.confidences.reduce((sum, value) => sum + value, 0) / bucket.confidences.length
+      : 0;
+    return {
+      capabilityKey,
+      capabilities: bucket.capabilities,
+      evidenceCount: total,
+      successRate: Number(successRate.toFixed(3)),
+      confidence: Number(confidence.toFixed(3)),
+      contextCount: bucket.contexts.length,
+      contexts: bucket.contexts.slice(0, 8),
+      transferable: bucket.contexts.length >= 2 && successRate >= 0.75,
+    };
+  }).sort((a, b) =>
+    Number(b.transferable) - Number(a.transferable) ||
+    b.successRate - a.successRate ||
+    b.confidence - a.confidence,
+  );
+
+  return consolidated.slice(0, 8);
+}
+
 export async function evaluateJamesContextTransfer(
   source: { pattern?: string; strategy?: string; confidence?: number; successRate?: number },
   target: { world: string; genre: string; mechanics: string[] },
