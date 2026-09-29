@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../../../../fun-zone/laboratory/types";
-import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, evolveJamesStrategyMemory, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult } from "../../../../fun-zone/engine/jamesGameLearning";
+import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, evolveJamesStrategyMemory, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact } from "../../../../fun-zone/engine/jamesGameLearning";
 
 export const runtime = "nodejs";
 
@@ -37,6 +37,7 @@ export async function POST(request: Request) {
     const evolved = await evolveJamesStrategyMemory(blueprint, report);
     const recoveryImpact = await evaluateJamesRecoveryDirectiveImpact(experiment.prompt, blueprint, report);
     const explorationPromotion = await promoteJamesExplorationResult(experiment.prompt, blueprint, report);
+    const learningModeImpact = await evaluateJamesExploreExploitImpact(experiment.prompt, blueprint, report);
     const verified = report.passed === true;
     const terminalFailure = !verified && attempt >= 5;
 
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
       .update({
         status: nextStatus,
         test_report: report,
-        learning_result: { learning, brainEvidence, evolved, recoveryImpact, explorationPromotion },
+        learning_result: { learning, brainEvidence, evolved, recoveryImpact, explorationPromotion, learningModeImpact },
         attempt,
         verified_at: verified ? new Date().toISOString() : null,
         runner_token: null,
