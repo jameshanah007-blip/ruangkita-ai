@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { claimJamesGameExperiment, createJamesGameExperimentJob, getJamesPendingExperiment, revalidateJamesCoreSkills } from "../../../fun-zone/engine/jamesGameLearning";
+import { applyJamesAutonomousMutationToExperimentBlueprint, claimJamesGameExperiment, createJamesGameExperimentJob, getJamesPendingExperiment, revalidateJamesCoreSkills } from "../../../fun-zone/engine/jamesGameLearning";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -56,6 +56,15 @@ export async function POST(request: Request) {
       userId,
       conversationId: typeof body?.conversationId === "string" ? body.conversationId : null,
     });
+
+    if (result.status !== "no-gap" && result.blueprint) {
+      const mutated = await applyJamesAutonomousMutationToExperimentBlueprint(
+        result.blueprint,
+        result.plan?.targetCapability?.key || result.plan?.targetCapability?.name || "fun-zone",
+      );
+      result.blueprint = mutated.blueprint;
+      result.plan = { ...result.plan, mutationDirective: mutated.directive };
+    }
 
     if (result.status === "no-gap") return NextResponse.json({
       success: true, status: "no-gap", provider: "james-autonomous",
