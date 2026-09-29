@@ -224,6 +224,9 @@ export async function recordJamesGameBrainEvidence(
     "fun-zone-restart-integrity": "Restart integrity",
   };
 
+  let transferTests = 0;
+  let transferSuccesses = 0;
+
   for (const item of evidence) {
     const { data: prior } = await client
       .from("james_self_model")
@@ -258,6 +261,10 @@ export async function recordJamesGameBrainEvidence(
     const transferTested = distinctPriorPatterns.length > 0;
     const transferSignal = transferTested ? (item.passed ? 1 : 0) : null;
     const transferWeight = transferTested ? Math.min(1, distinctPriorPatterns.length / 3) : 0;
+    if (transferTested) {
+      transferTests += 1;
+      if (item.passed) transferSuccesses += 1;
+    }
 
     const currentSignal = item.passed ? 1 : 0;
     const nextEvidence = oldEvidence + 1;
@@ -443,14 +450,9 @@ export async function recordJamesGameBrainEvidence(
     });
   }
 
-  const transferEvidence = evidence.reduce(
-    (sum, item) => sum + (
-      item.passed && evidence.length
-        ? 1
-        : 0
-    ),
-    0,
-  );
+  const transferEvidence = transferTests
+    ? transferSuccesses / transferTests
+    : null;
 
   return {
     outcome: passed ? "success" : quality >= 0.5 ? "partial" : "failure",
@@ -460,10 +462,7 @@ export async function recordJamesGameBrainEvidence(
     selfEvaluationId: selfEvaluation.data?.id || null,
     consolidationEvidence: nextEvidence,
     transferEvidence,
-    crossContextTested: evidence.some((item) => {
-      // The per-capability transfer marker is persisted in self-model/history.
-      return item.passed;
-    }),
+    crossContextTested: transferTests > 0,
   };
 }
 
