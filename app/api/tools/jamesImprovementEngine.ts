@@ -5,7 +5,6 @@ import { openRouterProvider } from "../../fun-zone/openRouterProvider";
 import { groqProvider } from "../../fun-zone/groqProvider";
 import type { JamesAgentResult } from "./jamesAgentLoop";
 import { evaluateJamesTask } from "./jamesSelfEvaluation";
-import { proposeJamesCodeEvolution } from "./jamesCodeEvolution";
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
