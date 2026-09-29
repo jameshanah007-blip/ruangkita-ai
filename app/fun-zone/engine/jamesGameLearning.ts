@@ -1225,6 +1225,70 @@ export async function getJamesLearningModeMemory() {
   return result;
 }
 
+export async function recordJamesCoreSkillLineage(
+  capabilityKey: string,
+  evidence: {
+    source: string;
+    quality: number;
+    passed: boolean;
+    context?: string;
+    previousCompetence?: number;
+    newCompetence?: number;
+    previousConfidence?: number;
+    newConfidence?: number;
+    reason?: string;
+  },
+) {
+  const client = db();
+  if (!client || !capabilityKey.startsWith("fun-zone-core:")) return null;
+
+  const { data: current } = await client
+    .from("james_self_model")
+    .select("last_evidence")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("capability_key", capabilityKey)
+    .maybeSingle();
+
+  const previous = current?.last_evidence && typeof current.last_evidence === "object"
+    ? current.last_evidence as Record<string, unknown>
+    : {};
+
+  const lineage = {
+    source: evidence.source,
+    quality: Number(Math.max(0, Math.min(1, evidence.quality)).toFixed(3)),
+    passed: evidence.passed,
+    context: evidence.context || null,
+    previousCompetence: evidence.previousCompetence ?? null,
+    newCompetence: evidence.newCompetence ?? null,
+    previousConfidence: evidence.previousConfidence ?? null,
+    newConfidence: evidence.newConfidence ?? null,
+    reason: evidence.reason || null,
+    recordedAt: new Date().toISOString(),
+    previousEvidence: previous,
+  };
+
+  const { error } = await client
+    .from("james_self_model")
+    .update({
+      last_evidence: {
+        source: "evidence-lineage",
+        current: lineage,
+        history: Array.isArray(previous.history)
+          ? [lineage, ...previous.history].slice(0, 12)
+          : [lineage],
+      },
+    })
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("capability_key", capabilityKey);
+
+  if (error) {
+    console.warn("James evidence lineage recording failed:", error.message);
+    return null;
+  }
+
+  return lineage;
+}
+
 export async function resolveJamesCoreSkillConflict(
   capabilityKey: string,
   observed: { competence: number; confidence: number; passed: boolean; quality: number; evidence: number },
