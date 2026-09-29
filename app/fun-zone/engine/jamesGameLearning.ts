@@ -134,7 +134,7 @@ function gameCapabilities(report: TestReport): GameCapabilityEvidence[] {
   ];
 }
 
-function gameQuality(report: TestReport) {
+export function gameQuality(report: TestReport) {
   const evidence = gameCapabilities(report);
   const total = evidence.reduce((sum, item) => sum + item.weight, 0);
   const passed = evidence.reduce((sum, item) => sum + (item.passed ? item.weight : 0), 0);
@@ -345,6 +345,9 @@ export async function recordJamesGameBrainEvidence(
 
   // Feed verified game evidence into James's durable capability self-model.
   // This keeps Game Brain provider-free while allowing future builds to use empirical mastery.
+  const failed = Array.isArray(report.hardFailures) ? report.hardFailures : [];
+  const warnings = Array.isArray(report.softWarnings) ? report.softWarnings : [];
+
   const capabilityNames: Record<string, string> = {
     "fun-zone-runtime-observability": "Runtime observability",
     "fun-zone-rendering": "Rendering reliability",
