@@ -2152,10 +2152,20 @@ export async function createJamesGameExperimentPlan() {
   }
 
   const key = String(target.capability_key);
+  const relevantKnowledge = await retrieveJamesRelevantKnowledge({
+    world: "unknown",
+    genre: String(target.capability_name),
+    mechanics: [],
+    capabilityKey: key,
+    limit: 6,
+  });
   const contextualMemory = await getJamesContextualLearningMemory("unknown", String(target.capability_name), []);
   const transferCandidate = contextualMemory[0] || null;
   const generalizedTransfer = (transferKnowledge || []).find((item) => item.transferable) || null;
   const strongestCoreSkill = coreSkills[0] || null;
+  const relevantKnowledgeContext = relevantKnowledge.length
+    ? " Relevant knowledge retrieved for this problem: " + relevantKnowledge.slice(0, 3).map((item) => String(item.strategy)).join(" | ") + "."
+    : "";
   const knowledgeContext = consolidatedKnowledge.length
     ? " Consolidated knowledge: apply compatible principles from proven capability combinations, but keep provisional principles under verification."
     : "";
@@ -2197,7 +2207,7 @@ export async function createJamesGameExperimentPlan() {
   return {
     status: "experiment",
     title: "James Game Brain experiment: " + String(target.capability_name),
-    prompt: capabilityPrompt + knowledgeContext + coreSkillContext + contradictionContext + corroborationContext + contextualContext + transferContext + recoveryContext +
+    prompt: capabilityPrompt + relevantKnowledgeContext + knowledgeContext + coreSkillContext + contradictionContext + corroborationContext + contextualContext + transferContext + recoveryContext +
       (learningMode.mode === "explore" && exploration?.novelMechanic
         ? " Exploration directive: deliberately test the novel mechanic \""+ exploration.novelMechanic + "\" instead of repeating the most recent proven mechanic set. Compare its evidence against the current strategy."
         : " Exploitation directive: reuse proven strategy components first, while preserving regression checks and measurable evidence."),
@@ -2219,6 +2229,7 @@ export async function createJamesGameExperimentPlan() {
     corroborationTargets,
     contradictionMemory,
     consolidatedKnowledge,
+    relevantKnowledge,
   };
 }
 
