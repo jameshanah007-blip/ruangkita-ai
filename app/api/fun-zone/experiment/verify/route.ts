@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../../../../fun-zone/laboratory/types";
-import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, evolveJamesStrategyMemory, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills } from "../../../../fun-zone/engine/jamesGameLearning";
+import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, evolveJamesStrategyMemory, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict } from "../../../../fun-zone/engine/jamesGameLearning";
 
 export const runtime = "nodejs";
 
@@ -39,6 +39,17 @@ export async function POST(request: Request) {
     const explorationPromotion = await promoteJamesExplorationResult(experiment.prompt, blueprint, report);
     const learningModeImpact = await evaluateJamesExploreExploitImpact(experiment.prompt, blueprint, report);
     const generalizedSkills = await promoteJamesGeneralizedGameSkills(8);
+    const coreSkillConflicts = [];
+    for (const skill of generalizedSkills || []) {
+      const conflict = await resolveJamesCoreSkillConflict(skill.capabilityKey, {
+        competence: skill.competence,
+        confidence: skill.confidence,
+        passed: report.passed === true,
+        quality: gameQuality(report),
+        evidence: 1,
+      });
+      if (conflict) coreSkillConflicts.push(conflict);
+    }
     const verified = report.passed === true;
     const terminalFailure = !verified && attempt >= 5;
 
@@ -48,7 +59,7 @@ export async function POST(request: Request) {
       .update({
         status: nextStatus,
         test_report: report,
-        learning_result: { learning, brainEvidence, evolved, recoveryImpact, explorationPromotion, learningModeImpact, generalizedSkills },
+        learning_result: { learning, brainEvidence, evolved, recoveryImpact, explorationPromotion, learningModeImpact, generalizedSkills, coreSkillConflicts },
         attempt,
         verified_at: verified ? new Date().toISOString() : null,
         runner_token: null,
