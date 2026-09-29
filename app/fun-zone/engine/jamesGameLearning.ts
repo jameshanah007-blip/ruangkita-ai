@@ -1139,6 +1139,68 @@ export async function evaluateJamesContextTransfer(
   };
 }
 
+export async function versionJamesConsolidatedKnowledge(limit = 8) {
+  const client = db();
+  if (!client) return [];
+
+  const knowledge = await consolidateJamesGameKnowledge(30);
+  const results = [];
+
+  for (const item of knowledge.slice(0, limit)) {
+    const pattern = "fun-zone:knowledge-version:" + clean(item.knowledgeKey, 180);
+    const strategy = "Knowledge version: " + item.principle;
+    const { data: existing } = await client
+      .from("james_experiences")
+      .select("id,success_count,failure_count,confidence,last_evidence,capabilities")
+      .eq("user_id", SYSTEM_USER_ID)
+      .eq("pattern", pattern)
+      .eq("strategy", strategy)
+      .maybeSingle();
+
+    const previousVersion = Number(existing?.last_evidence?.version || 0);
+    const version = previousVersion + 1;
+    const memory = {
+      user_id: SYSTEM_USER_ID,
+      pattern,
+      strategy,
+      confidence: item.confidence,
+      success_count: Number(existing?.success_count || 0) + (item.successRate >= 0.75 ? 1 : 0),
+      failure_count: Number(existing?.failure_count || 0) + (item.successRate < 0.75 ? 1 : 0),
+      capabilities: item.capabilities,
+      status: "active",
+      last_evidence: {
+        source: "knowledge-consolidation",
+        version,
+        previousVersion,
+        knowledgeKey: item.knowledgeKey,
+        evidenceCount: item.evidenceCount,
+        successRate: item.successRate,
+        confidence: item.confidence,
+        contexts: item.contexts,
+        principle: item.principle,
+        supersedes: previousVersion > 0 ? pattern + ":v" + previousVersion : null,
+        recordedAt: new Date().toISOString(),
+      },
+    };
+
+    const result = existing?.id
+      ? await client.from("james_experiences").update(memory).eq("id", existing.id)
+      : await client.from("james_experiences").insert(memory);
+
+    if (!result.error) {
+      results.push({
+        knowledgeKey: item.knowledgeKey,
+        version,
+        previousVersion,
+        confidence: item.confidence,
+        successRate: item.successRate,
+      });
+    }
+  }
+
+  return results;
+}
+
 export async function consolidateJamesGameKnowledge(limit = 8) {
   const client = db();
   if (!client) return [];
