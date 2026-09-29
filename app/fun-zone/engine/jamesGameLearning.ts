@@ -1367,6 +1367,66 @@ export async function recordJamesCoreSkillLineage(
   return lineage;
 }
 
+export async function recordJamesKnowledgeContradiction(input: {
+  capabilityKey: string;
+  previousQuality: number;
+  observedQuality: number;
+  previousContext?: string | null;
+  observedContext?: string | null;
+  resolution: string;
+}) {
+  const client = db();
+  if (!client || !input.capabilityKey.startsWith("fun-zone-core:")) return null;
+
+  const pattern = "fun-zone:contradiction:" + clean(input.capabilityKey, 180);
+  const strategy = "Preserve contradiction history and require contextual evidence before resolving conflicting knowledge.";
+  const { data: existing } = await client
+    .from("james_experiences")
+    .select("id,success_count,failure_count,confidence,capabilities")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("pattern", pattern)
+    .eq("strategy", strategy)
+    .maybeSingle();
+
+  const contradictionMagnitude = Math.abs(input.observedQuality - input.previousQuality);
+  const successCount = Number(existing?.success_count || 0);
+  const failureCount = Number(existing?.failure_count || 0) + 1;
+  const total = successCount + failureCount;
+  const confidence = Math.min(0.99, Math.max(0.1, 0.45 + Math.min(0.45, total * 0.05)));
+  const memory = {
+    user_id: SYSTEM_USER_ID,
+    pattern,
+    strategy,
+    confidence,
+    success_count: successCount,
+    failure_count: failureCount,
+    capabilities: [
+      input.capabilityKey,
+      "fun-zone-knowledge-arbitration",
+      "fun-zone-contradiction-memory",
+    ],
+    status: "active",
+  };
+
+  const result = existing?.id
+    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
+    : await client.from("james_experiences").insert(memory);
+
+  if (result.error) {
+    console.warn("James contradiction memory failed:", result.error.message);
+    return null;
+  }
+
+  return {
+    pattern,
+    contradictionMagnitude: Number(contradictionMagnitude.toFixed(3)),
+    previousContext: input.previousContext || null,
+    observedContext: input.observedContext || null,
+    resolution: input.resolution,
+    confidence: Number(confidence.toFixed(3)),
+  };
+}
+
 export function arbitrateJamesEvidence(
   candidates: Array<{
     source: string;
