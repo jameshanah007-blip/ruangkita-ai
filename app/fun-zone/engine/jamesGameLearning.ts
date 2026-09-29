@@ -1331,12 +1331,20 @@ export async function resolveJamesCoreSkillConflict(
   const oldSuccess = Number(current.success_count || 0);
   const oldFailure = Number(current.failure_count || 0);
   const observedQuality = Math.max(0, Math.min(1, observed.quality));
+  const evidenceWeight = calculateJamesEvidenceWeight({
+    quality: observedQuality,
+    passed: observed.passed,
+    evidenceCount: observed.evidence,
+    contextCount: 1,
+    isTransfer: true,
+    isGeneralized: true,
+  });
   const conflict = Math.abs(observedQuality - oldCompetence) >= 0.2;
   const newEvidence = oldEvidence + Math.max(1, observed.evidence);
   const newSuccess = oldSuccess + (observed.passed ? Math.max(1, observed.evidence) : 0);
   const newFailure = oldFailure + (observed.passed ? 0 : Math.max(1, observed.evidence));
   const empiricalRate = newEvidence ? newSuccess / newEvidence : 0;
-  const competence = Math.max(0.1, Math.min(0.99, oldCompetence * 0.35 + observedQuality * 0.35 + empiricalRate * 0.30));
+  const competence = Math.max(0.1, Math.min(0.99, oldCompetence * (1 - evidenceWeight) + observedQuality * evidenceWeight * 0.65 + empiricalRate * evidenceWeight * 0.35));
   const confidence = Math.max(0.1, Math.min(0.99, oldConfidence * 0.4 + Math.min(0.95, 0.2 + newEvidence / 20) * 0.6));
   const status = competence >= 0.85 && confidence >= 0.8 && newEvidence >= 12
     ? "strong"
@@ -1361,6 +1369,7 @@ export async function resolveJamesCoreSkillConflict(
       observedQuality,
       observedPassed: observed.passed,
       observedEvidence: observed.evidence,
+      evidenceWeight,
       empiricalRate: Number(empiricalRate.toFixed(3)),
     },
   }).eq("id", current.id);
