@@ -12,7 +12,7 @@ import type {
 } from "../../../fun-zone/laboratory/types";
 import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
-import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies } from "../../../fun-zone/engine/jamesGameLearning";
+import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies, applyJamesEffectiveStrategies, getJamesEffectiveStrategies } from "../../../fun-zone/engine/jamesGameLearning";
 
 const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
 
@@ -321,10 +321,12 @@ export async function POST(
     const learnedGameMastery = await getJamesGameMastery(12);
     const learnedGameAdaptations = await getJamesGameAdaptations(8);
     const failedGameStrategies = await getJamesFailedStrategies(8);
+    const effectiveGameStrategies = await getJamesEffectiveStrategies(6);
     const lessonBlueprint = applyJamesGameLessons(normalizedBlueprint, learnedGameLessons);
     const masteryBlueprint = applyJamesGameMastery(lessonBlueprint, learnedGameMastery);
     const adaptationBlueprint = applyJamesGameAdaptations(masteryBlueprint, learnedGameAdaptations);
-    const learnedBlueprint = applyJamesFailedStrategyAvoidance(adaptationBlueprint, failedGameStrategies);
+    const avoidanceBlueprint = applyJamesFailedStrategyAvoidance(adaptationBlueprint, failedGameStrategies);
+    const learnedBlueprint = applyJamesEffectiveStrategies(avoidanceBlueprint, effectiveGameStrategies);
 
     session =
       markDirectorCompleted(
