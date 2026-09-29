@@ -448,7 +448,7 @@ export async function getJamesGameMastery(limit = 12) {
 
   const { data, error } = await client
     .from("james_self_model")
-    .select("capability_key, capability_name, competence, confidence, evidence_count, success_count, failure_count, status, next_learning_action")
+    .select("capability_key, capability_name, competence, confidence, evidence_count, success_count, failure_count, status, next_learning_action, last_evidence")
     .eq("user_id", SYSTEM_USER_ID)
     .order("competence", { ascending: false })
     .limit(Math.max(1, Math.min(20, limit)));
@@ -470,6 +470,7 @@ export function applyJamesGameMastery(
     confidence?: number | null;
     evidence_count?: number | null;
     status?: string | null;
+    last_evidence?: Record<string, unknown> | null;
   }>,
 ): GameBlueprint {
   const relevant = mastery
@@ -480,8 +481,18 @@ export function applyJamesGameMastery(
 
   const competence = (key: string) =>
     Number(relevant.find((item) => item.capability_key === key)?.competence ?? 0.75);
-  const developing = relevant.filter((item) => Number(item.competence || 0) < 0.75);
-  const strong = relevant.filter((item) => Number(item.competence || 0) >= 0.75);
+  const diversity = (item: (typeof relevant)[number]) =>
+    Number(item.last_evidence?.diversity_count || 1);
+  const general = relevant.filter((item) =>
+    Number(item.competence || 0) >= 0.75 && diversity(item) >= 3,
+  );
+  const contextual = relevant.filter((item) =>
+    Number(item.competence || 0) >= 0.75 && diversity(item) < 3,
+  );
+  const developing = relevant.filter((item) =>
+    Number(item.competence || 0) < 0.75,
+  );
+  const strong = general;
 
   const mechanics = [...blueprint.mechanics];
   const actions = [...blueprint.playerActions];
@@ -540,6 +551,12 @@ export function applyJamesGameMastery(
       developing.map((item) => item.capability_name || item.capability_key).join(", ") + "."
     : " Maintain verified runtime contracts while exploring new mechanics.";
 
+  const generalizationDirective = contextual.length
+    ? " Treat these capabilities as context-proven rather than generally mastered: " +
+      contextual.map((item) => item.capability_name || item.capability_key).join(", ") +
+      ". Deliberately test them in a different world or mechanic next time."
+    : " Current strong capabilities have evidence across multiple game patterns.";
+
   return {
     ...blueprint,
     mechanics: mechanics.slice(0, 12),
@@ -548,11 +565,12 @@ export function applyJamesGameMastery(
     progression: clean(
       blueprint.progression +
       " James capability mastery: " + masteryContext + "." +
-      learningDirective,
+      learningDirective + generalizationDirective,
       1400,
     ),
     testRequirements: Array.from(new Set(tests.concat(
       developing.map((item) => "Verify " + (item.capability_name || item.capability_key)),
+      contextual.map((item) => "Cross-context test " + (item.capability_name || item.capability_key)),
       strong.map((item) => "Regression-check " + (item.capability_name || item.capability_key)),
     ))).slice(0, 24),
   };
