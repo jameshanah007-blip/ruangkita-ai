@@ -1187,6 +1187,9 @@ export async function createJamesGameExperimentPlan() {
   const contextualContext = contextualMemory.length
     ? " Contextual memory: prefer strategies whose historical evidence matches this capability/context; do not generalize unrelated contexts blindly."
     : "";
+  const transferContext = transferCandidate
+    ? " Transfer candidate: test the strategy from source pattern \"" + String(transferCandidate.pattern) + "\" in the new experiment. Treat transfer as unproven until runtime evidence confirms it."
+    : "";
   const capabilityPrompt =
     key.includes("input")
       ? "Create a small game focused on reliable keyboard and touch movement with an alternate input path."
@@ -1205,7 +1208,7 @@ export async function createJamesGameExperimentPlan() {
   return {
     status: "experiment",
     title: "James Game Brain experiment: " + String(target.capability_name),
-    prompt: capabilityPrompt + contextualContext + recoveryContext +
+    prompt: capabilityPrompt + contextualContext + transferContext + recoveryContext +
       (learningMode.mode === "explore" && exploration?.novelMechanic
         ? " Exploration directive: deliberately test the novel mechanic \""+ exploration.novelMechanic + "\" instead of repeating the most recent proven mechanic set. Compare its evidence against the current strategy."
         : " Exploitation directive: reuse proven strategy components first, while preserving regression checks and measurable evidence."),
