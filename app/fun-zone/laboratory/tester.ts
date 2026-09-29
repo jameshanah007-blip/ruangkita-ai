@@ -587,6 +587,18 @@ export function testGame({
     performanceTest:
       evidence.performanceTest,
 
+    stateChanged:
+      evidence.stateChanged,
+
+    objectiveChanged:
+      evidence.objectiveChanged,
+
+    playerChanged:
+      evidence.playerChanged,
+
+    restartVerified:
+      evidence.restartVerified,
+
     frameCount:
       evidence.frameCount,
 

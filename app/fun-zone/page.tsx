@@ -446,6 +446,9 @@ export default function FunZonePage() {
       null
     );
 
+  const [autonomousRepairAttempts, setAutonomousRepairAttempts] =
+    useState(0);
+
   const [labSession, setLabSession] =
     useState<LabSession | null>(null);
 
@@ -454,6 +457,12 @@ export default function FunZonePage() {
 
   const [savedGameHtml, setSavedGameHtml] =
     useState("");
+
+  const [experimentId, setExperimentId] =
+    useState<string | null>(null);
+
+  const [experimentClaimToken, setExperimentClaimToken] =
+    useState<string | null>(null);
 
   const currentStageIndex =
     getStageIndex(stage);
@@ -477,6 +486,63 @@ export default function FunZonePage() {
         model,
       ]
     );
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("experimentId");
+
+    if (!id && params.get("autonomous") === "1") {
+      fetch("/api/fun-zone/experiment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "claim" }),
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (!data?.success || !data?.claimed || !data?.experimentId) return;
+          setExperimentClaimToken(data.claimToken || null);
+          window.history.replaceState(
+            {},
+            "",
+            "/fun-zone?experimentId=" + encodeURIComponent(data.experimentId),
+          );
+          setExperimentId(data.experimentId);
+          setBlueprint(data.blueprint as GameBlueprint);
+          setGameHtml(data.gameHtml || "");
+          setTitle(data.blueprint?.title || "James Experiment");
+          setGenre(data.blueprint?.genre || "AI Game");
+          setProvider(data.provider || "james-autonomous");
+          setModel(data.model || "game-brain-experiment-v1");
+          setStage("testing");
+        })
+        .catch((error) => {
+          console.warn("James autonomous experiment bootstrap failed:", error);
+        });
+      return;
+    }
+
+    if (!id) return;
+
+    setExperimentId(id);
+
+    fetch("/api/fun-zone/experiment?experimentId=" + encodeURIComponent(id), { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => {
+        const experiment = data?.experiment;
+        if (!experiment?.game_html || !experiment?.blueprint) return;
+
+        setBlueprint(experiment.blueprint as GameBlueprint);
+        setGameHtml(experiment.game_html);
+        setTitle(experiment.blueprint.title || "James Experiment");
+        setGenre(experiment.blueprint.genre || "AI Game");
+        setProvider("james-autonomous");
+        setModel("game-brain-experiment-v1");
+        setStage("testing");
+      })
+      .catch((error) => {
+        console.warn("James experiment load failed:", error);
+      });
+  }, []);
 
   useEffect(() => {
     fetch("/api/fun-zone/session", { cache: "no-store" })
@@ -545,6 +611,7 @@ export default function FunZonePage() {
     setModel("");
     setSeed("");
     setTestReport(null);
+    setAutonomousRepairAttempts(0);
     setTerminalTick(0);
     setIsGenerating(true);
 
@@ -687,44 +754,131 @@ export default function FunZonePage() {
 
 const handleTestReport =
   useCallback(
-    (report: TestReport) => {
+    async (report: TestReport) => {
       setTestReport(report);
+
+      // Learning is deliberately fire-and-forget: a learning persistence issue
+      // must never turn a playable/testable game into a laboratory failure.
+      if (blueprint) {
+        void fetch("/api/fun-zone/learning", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            blueprint,
+            report,
+            attempt: report.attempt,
+          }),
+        }).catch((error) => {
+          console.warn("James Game Brain learning request failed:", error);
+        });
+      }
+
+      if (experimentId && blueprint) {
+        void fetch("/api/fun-zone/experiment/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ experimentId, claimToken: experimentClaimToken, blueprint, report }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (!data?.success) {
+              console.warn("James experiment verification failed:", data?.error);
+            }
+          })
+          .catch((error) => {
+            console.warn("James experiment verification request failed:", error);
+          });
+      }
+
+      if (report.passed) {
+        setError("");
+        setStage("ready");
+
+        setLabSession((previous) => {
+          if (!previous) return previous;
+          const next: LabSession = {
+            ...previous,
+            status: "ready",
+            stage: "final",
+            testReports: [...previous.testReports, report],
+            currentAttempt: report.attempt,
+            updatedAt: new Date().toISOString(),
+            error: undefined,
+          };
+          void persistLabSession(next);
+          return next;
+        });
+        return;
+      }
+
+      const nextRepairAttempt = autonomousRepairAttempts + 1;
 
       setLabSession((previous) => {
         if (!previous) return previous;
 
         const next: LabSession = {
           ...previous,
-          status: report.passed ? "ready" : "debugging",
-          stage: report.passed ? "final" : "debugger",
-          testReports: [
-            ...previous.testReports,
-            report,
-          ],
-          currentAttempt: report.attempt,
+          status: nextRepairAttempt <= 3 ? "repairing" : "debugging",
+          stage: nextRepairAttempt <= 3 ? "debugger" : "debugger",
+          testReports: [...previous.testReports, report],
+          currentAttempt: nextRepairAttempt,
           updatedAt: new Date().toISOString(),
-          error: report.passed
-            ? undefined
-            : (Array.isArray(report.hardFailures) ? report.hardFailures : []).join(" ") || previous.error,
+          error: (Array.isArray(report.hardFailures) ? report.hardFailures : []).join(" ") || previous.error,
         };
 
         void persistLabSession(next);
         return next;
       });
 
-      if (report.passed) {
-        setError("");
-        setStage("ready");
+      if (nextRepairAttempt > 3 || !blueprint) {
+        setStage("debugging");
+        setError(
+          (Array.isArray(report.hardFailures) ? report.hardFailures : []).join(" ") ||
+          "James membutuhkan pemeriksaan debugger lebih lanjut."
+        );
         return;
       }
 
-      if (Array.isArray(report.hardFailures) && report.hardFailures.length > 0) {
+      setAutonomousRepairAttempts(nextRepairAttempt);
+      setStage("retesting");
+      setError("James menganalisis hasil test dan mengembangkan game secara mandiri...");
+
+      try {
+        const response = await fetch("/api/fun-zone/autonomous-repair", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            blueprint,
+            report,
+            attempt: nextRepairAttempt,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data?.success || !data?.gameHtml || !data?.blueprint) {
+          throw new Error(data?.error || "James Autonomous Repair gagal.");
+        }
+
+        setBlueprint(data.blueprint);
+        setTitle(data.blueprint.title);
+        setGenre(data.blueprint.genre);
+        setProvider(data.provider || "james-autonomous");
+        setModel(data.model || "autonomous-evolution-engine-v1");
+        setGameHtml(data.gameHtml);
+        setTestReport(null);
+        setStage("testing");
+        setError("");
+      } catch (error) {
+        setStage("debugging");
         setError(
-          report.hardFailures.join(" ")
+          error instanceof Error
+            ? error.message
+            : "James Autonomous Repair gagal."
         );
       }
     },
-    []
+    [autonomousRepairAttempts, blueprint, experimentId]
   );
 
 const handleSandboxGameHtmlChange =
@@ -737,7 +891,7 @@ const handleSandboxGameHtmlChange =
       void persistLabSession(previous, html);
       return previous;
     });
-  }, []);  
+  }, [blueprint, experimentId, experimentClaimToken, autonomousRepairAttempts]);  
 
   function resumeSavedGame() {
     if (!savedLabSession) return;
@@ -763,6 +917,8 @@ const handleSandboxGameHtmlChange =
 
 
   function createAnotherGame() {
+    setExperimentId(null);
+    setExperimentClaimToken(null);
     setStage(
       "idle"
     );
@@ -886,11 +1042,11 @@ const handleSandboxError =
 
               <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-400">
                 Ceritakan game yang ada
-                di pikiranmu. AI akan
+                di pikiranmu. James akan
                 memahami ide tersebut,
-                membuat blueprint,
-                membangun game, menguji,
-                dan memperbaikinya.
+                membuat blueprint secara mandiri,
+                mengompilasi game, menguji,
+                dan terus memperbaikinya.
               </p>
 
             </div>
@@ -902,7 +1058,7 @@ const handleSandboxError =
                 <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-400">
                   Tidak ada daftar genre yang harus kamu pilih. Tulis saja game yang kamu bayangkan,
                   bahkan jika idenya belum lengkap. James akan memahami maksudmu, menentukan desain game,
-                  memilih mekanik yang sesuai, lalu membangunnya dengan sumber daya yang tersedia dan bantuan provider AI.
+                  memilih mekanik yang sesuai, lalu membangunnya dengan James Autonomous Brain. Provider AI hanya menjadi peningkat opsional, bukan ketergantungan.
                 </p>
               </div>
             </div>
@@ -1011,9 +1167,9 @@ const handleSandboxError =
                 </h3>
 
                 <p className="mt-1 text-sm leading-6 text-slate-500">
-                  Mengubah blueprint
-                  menjadi game
-                  playable.
+                  Mengubah blueprint menjadi dunia,
+                  mekanik, aturan, visual, dan
+                  game playable tanpa provider.
                 </p>
 
               </div>

@@ -147,6 +147,11 @@ export type TestReport = {
   gameplayTest: boolean;
   performanceTest: boolean;
 
+  stateChanged: boolean;
+  objectiveChanged: boolean;
+  playerChanged: boolean;
+  restartVerified: boolean;
+
   frameCount: number;
   gameAnimationFrames: number;
 
