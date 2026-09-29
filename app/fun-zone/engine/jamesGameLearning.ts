@@ -1183,6 +1183,7 @@ export async function createJamesGameExperimentPlan() {
 
   const key = String(target.capability_key);
   const contextualMemory = await getJamesContextualLearningMemory("unknown", String(target.capability_name), []);
+  const transferCandidate = contextualMemory[0] || null;
   const contextualContext = contextualMemory.length
     ? " Contextual memory: prefer strategies whose historical evidence matches this capability/context; do not generalize unrelated contexts blindly."
     : "";
@@ -1220,6 +1221,7 @@ export async function createJamesGameExperimentPlan() {
     exploration: exploration || null,
     learningMode,
     contextualMemory,
+    transferCandidate,
   };
 }
 
