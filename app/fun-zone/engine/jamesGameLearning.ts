@@ -724,6 +724,19 @@ export async function getJamesGameAdaptations(limit = 8) {
     .slice(0, Math.max(1, Math.min(20, limit)));
 }
 
+function selectTransferAdaptation<T extends {
+  capability_key?: string | null;
+  transfer_success_rate?: number | null;
+}>(items: T[]) {
+  return [...items]
+    .filter((item) => typeof item.capability_key === "string")
+    .sort((a, b) => {
+      const ar = Number(a.transfer_success_rate ?? 1);
+      const br = Number(b.transfer_success_rate ?? 1);
+      return ar - br;
+    });
+}
+
 export function applyJamesGameAdaptations(
   blueprint: GameBlueprint,
   adaptations: Array<{
@@ -733,7 +746,7 @@ export function applyJamesGameAdaptations(
     transfer_success_rate?: number | null;
   }>,
 ): GameBlueprint {
-  const useful = adaptations
+  const useful = selectTransferAdaptation(adaptations)
     .filter((item) => typeof item.adaptation_directive === "string" && item.adaptation_directive)
     .slice(0, 6);
 
