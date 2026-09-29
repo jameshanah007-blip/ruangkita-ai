@@ -1667,6 +1667,52 @@ var beforeLost =
     }
            
   /*
+   * Hard failsafe: every sandbox test must emit a result.
+   * If the generated game's diagnostic path crashes or hangs before
+   * sendResult(), the parent must receive a deterministic failure report
+   * so the laboratory can enter the debugger instead of remaining at 82%.
+   */
+  try {
+    setTimeout(function () {
+      if (window.__RK_TEST_RESULT_SENT__) return;
+      sendResult({
+        passed: false,
+        hardFailures: ["Sandbox test timed out before producing diagnostic evidence."],
+        softWarnings: [],
+        runtimeErrors: Array.isArray(window.__RK_TEST_ERRORS__) ? window.__RK_TEST_ERRORS__.slice(0, 5).map(function (error) {
+          return { message: String(error && error.message || "Unknown runtime error"), source: error && error.source ? String(error.source) : undefined, line: error && typeof error.line === "number" ? error.line : null, column: error && typeof error.column === "number" ? error.column : null };
+        }) : [],
+        ready: window.__RK_GAME_READY__ === true,
+        rendered: window.__RK_GAME_RENDERED__ === true,
+        loopStarted: window.__RK_GAME_LOOP_STARTED__ === true,
+        frameAdvanced: false,
+        canvasValid: !!getCanvas(),
+        inputTest: false,
+        gameplayTest: false,
+        gameTestProtocol: !!window.__RK_GAME_TEST__,
+        stateChanged: false,
+        objectiveChanged: false,
+        playerChanged: false,
+        winStateDetected: false,
+        loseStateDetected: false,
+        restartVerified: false,
+        gameTestError: "Sandbox diagnostic timeout.",
+        performanceTest: false,
+        runtimeOk: false,
+        frameCount: window.__RK_TEST_DIAGNOSTIC_RAF__ || 0,
+        gameAnimationFrames: window.__RK_TEST_GAME_RAF__ || 0,
+        inputEvents: window.__RK_TEST_INPUT_EVENTS__ || 0,
+        inputListeners: window.__RK_TEST_INPUT_LISTENERS__ || 0,
+        canvasWidth: 0,
+        canvasHeight: 0,
+        nonBlankPixels: 0,
+        renderChanged: false,
+        elapsedMs: Date.now() - (window.__RK_TEST_STARTED_AT__ || Date.now())
+      });
+    }, ${GAME_TEST_TIMEOUT_MS});
+  } catch (_) {}
+
+  /*
    * Diagnostic heartbeat.
    *
    * Jangan memakai requestAnimationFrame untuk heartbeat
