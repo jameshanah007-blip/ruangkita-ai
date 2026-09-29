@@ -169,12 +169,65 @@ export async function recordJamesGameBrainEvidence(
     700,
   );
 
+  const strategyFingerprint = clean(
+    [
+      blueprint.world,
+      blueprint.genre,
+      blueprint.mechanics.slice(0, 6).join("+"),
+      blueprint.playerActions.slice(0, 6).join("+"),
+      blueprint.controls.slice(0, 4).join("+"),
+    ].join(" | "),
+    700,
+  );
+
   const capabilityPatterns = new Map<string, {
     failed: boolean;
     transferTested: boolean;
     transferPassed: boolean;
     priorFailures: number;
   }>();
+
+  const { data: priorEvaluations } = await client
+    .from("james_self_evaluations")
+    .select("quality_score, outcome, strengths, weaknesses, evidence")
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  const priorStrategies = (priorEvaluations || [])
+    .map((row) => {
+      const evidence = row.evidence && typeof row.evidence === "object"
+        ? row.evidence as Record<string, unknown>
+        : {};
+      return {
+        strategyFingerprint:
+          typeof evidence.strategy_fingerprint === "string"
+            ? evidence.strategy_fingerprint
+            : null,
+        quality: Number(row.quality_score || 0),
+        outcome: typeof row.outcome === "string" ? row.outcome : "unknown",
+      };
+    })
+    .filter((row) => row.strategyFingerprint && row.strategyFingerprint !== strategyFingerprint);
+
+  const bestPriorStrategy = priorStrategies
+    .sort((a, b) => b.quality - a.quality)[0] || null;
+  const strategyComparison = bestPriorStrategy
+    ? {
+        previousQuality: bestPriorStrategy.quality,
+        currentQuality: quality,
+        delta: Number((quality - bestPriorStrategy.quality).toFixed(4)),
+        previousOutcome: bestPriorStrategy.outcome,
+        improved: quality > bestPriorStrategy.quality,
+        strategyChanged: true,
+      }
+    : {
+        previousQuality: null,
+        currentQuality: quality,
+        delta: null,
+        previousOutcome: null,
+        improved: null,
+        strategyChanged: false,
+      };
   for (const item of evidence) {
     capabilityPatterns.set(item.capability, {
       failed: !item.passed,
@@ -200,6 +253,8 @@ export async function recordJamesGameBrainEvidence(
       evidence: {
         source: "fun-zone",
         pattern,
+        strategy_fingerprint: strategyFingerprint,
+        strategy_comparison: strategyComparison,
         blueprint: {
           world: blueprint.world,
           genre: blueprint.genre,
@@ -394,6 +449,8 @@ export async function recordJamesGameBrainEvidence(
           transfer_tests: transferTests,
           transfer_success_rate: transferSuccessRate,
           adaptation_directive: adaptationDirective,
+          strategy_fingerprint: strategyFingerprint,
+          strategy_comparison: strategyComparison,
         },
       });
     if (historyError) {
@@ -521,6 +578,7 @@ export async function recordJamesGameBrainEvidence(
     transferEvidence,
     crossContextTested: transferTests > 0,
     adaptationPlan,
+    strategyComparison,
   };
 }
 
