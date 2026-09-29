@@ -1188,8 +1188,10 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
       isRuangKitaProjectQuestion(userRequest);
 
     let experienceContext = "";
+    let experiences: Awaited<ReturnType<typeof retrieveJamesExperiences>> = [];
+    let metaStrategies: Awaited<ReturnType<typeof retrieveJamesMetaStrategiesByCapabilities>> = [];
     if (needsExperienceContext) {
-      const [experiences, consolidations, metaStrategies] = await Promise.all([
+      const [retrievedExperiences, consolidations, retrievedMetaStrategies] = await Promise.all([
         retrieveJamesExperiences({
           userId,
           request: userRequest,
@@ -1202,6 +1204,9 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
           4
         ),
       ]);
+
+      experiences = retrievedExperiences;
+      metaStrategies = retrievedMetaStrategies;
 
       const experienceConflict = await resolveJamesExperienceConflict({
         request: userRequest,
