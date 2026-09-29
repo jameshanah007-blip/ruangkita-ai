@@ -9,7 +9,7 @@ import { decideJamesBrainStrategy } from "./jamesDecisionEngine";
 import { decideJamesModelLearning } from "./jamesModelLearningPolicy";
 import { distillJamesKnowledge, syncJamesModelLearningJobs } from "./jamesModelLearning";
 import { createJamesAutonomousGoal } from "./jamesAutonomousGoals";
-import { createJamesGameExperimentPlan } from "../fun-zone/engine/jamesGameLearning";
+import { createJamesGameExperimentJob, createJamesGameExperimentPlan } from "../fun-zone/engine/jamesGameLearning";
 
 export type JamesAutonomyMode = "supervised" | "bounded" | "autonomous";
 
@@ -494,11 +494,18 @@ export async function runJamesAutonomousBrain(input: {
     const nextRun = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     try {
       const experiment = await createJamesGameExperimentPlan();
-      const experimentGoal = experiment?.status === "experiment"
+      const experimentJob = experiment?.status === "experiment"
+        ? await createJamesGameExperimentJob({
+            userId: input.userId,
+            conversationId: input.conversationId,
+          })
+        : null;
+      const experimentGoal = experimentJob?.status === "pending-verification"
         ? [
             "Run a bounded autonomous Fun Zone experiment for James Game Brain.",
             "Target capability: " + String(experiment.targetCapability?.name || "unknown"),
             "Experiment prompt: " + experiment.prompt,
+            "Experiment job ID: " + String(experimentJob.experimentId || "not-persisted") + ". Open the Fun Zone sandbox runner to verify it.",
             "Use the result as evidence. Do not treat the experiment as successful until sandbox tests pass.",
           ].join("\n")
         : null;
