@@ -5,6 +5,7 @@ export const maxDuration = 120;
 import { runJamesBrainGameBuilder } from "../../../core/james/jamesBrain";
 import { runJamesBrainWithSharedKnowledge } from "../../../core/james/jamesSharedKnowledge";
 import type { GameBlueprint } from "../../../fun-zone/laboratory/types";
+import { buildLocalGameHtml } from "../../../fun-zone/engine/localFactory";
 
 function extractHtml(text: string): string {
   const cleaned = text
@@ -1341,71 +1342,75 @@ sebelum output limit.
 
 `;
 
-    const result =
-      await runJamesBrainWithSharedKnowledge({
-        surface: "fun_zone",
-        mode: "game_builder",
-        systemInstruction:
-          SYSTEM_INSTRUCTION,
+    try {
+      const result =
+        await runJamesBrainWithSharedKnowledge({
+          surface: "fun_zone",
+          mode: "game_builder",
+          systemInstruction: SYSTEM_INSTRUCTION,
+          prompt: blueprintPrompt,
+          temperature: 0.55,
+          maxOutputTokens: 24000,
+        });
 
-        prompt:
-          blueprintPrompt,
+      const gameHtml = extractHtml(result.text);
+      const validation = validateGameHtml(gameHtml);
 
-        temperature: 0.55,
-
-        maxOutputTokens: 24000,
-      });
-
-    const gameHtml =
-      extractHtml(result.text);
-
-    const validation =
-      validateGameHtml(gameHtml);
-
-    if (!validation.valid) {
-      return NextResponse.json(
-        {
-          success: false,
-
+      if (!validation.valid) {
+        console.warn("AI Builder output failed runtime validation; using local factory fallback.", validation.errors);
+        const localHtml = buildLocalGameHtml(blueprint);
+        return NextResponse.json({
+          success: true,
           stage: "builder",
+          provider: "local",
+          model: "local-canvas-factory-v1",
+          blueprint,
+          gameHtml: localHtml,
+          size: localHtml.length,
+          validation: {
+            valid: true,
+            errors: [],
+            warnings: [
+              "AI artifact did not satisfy the runtime contract.",
+              ...validation.errors,
+              ...validation.warnings,
+              "Local Game Factory fallback used.",
+            ],
+          },
+        });
+      }
 
-          error:
-            "AI Builder menghasilkan HTML game yang belum memenuhi kontrak runtime.",
-
-          validation,
-
-          provider:
-            result.provider,
-
-          model:
-            result.model,
+      return NextResponse.json({
+        success: true,
+        stage: "builder",
+        provider: result.provider,
+        model: result.model,
+        blueprint,
+        gameHtml,
+        size: gameHtml.length,
+        validation,
+      });
+    } catch (error) {
+      console.warn("AI Builder unavailable; using local game factory fallback.", error);
+      const localHtml = buildLocalGameHtml(blueprint);
+      return NextResponse.json({
+        success: true,
+        stage: "builder",
+        provider: "local",
+        model: "local-canvas-factory-v1",
+        blueprint,
+        gameHtml: localHtml,
+        size: localHtml.length,
+        validation: {
+          valid: true,
+          errors: [],
+          warnings: [
+            "AI provider unavailable.",
+            "Local Game Factory fallback used.",
+          ],
         },
-        {
-          status: 422,
-        }
-      );
+      });
     }
-
-    return NextResponse.json({
-      success: true,
-
-      stage: "builder",
-
-      provider:
-        result.provider,
-
-      model:
-        result.model,
-
-      blueprint,
-
-      gameHtml,
-
-      size:
-        gameHtml.length,
-
-      validation,
-    });
   } catch (error) {
     console.error(
       "AI Game Builder error:",
