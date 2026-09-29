@@ -12,3 +12,7 @@ import { createAutonomousGameBlueprint } from "./jamesAutonomousGameEngine";
 export function createLocalGameBlueprint(prompt: string): GameBlueprint {
   return createAutonomousGameBlueprint(prompt);
 }
+
+// Keep the autonomous factory available through the compatibility module.
+// Game Brain jobs dynamically import this module when creating experiments.
+export { createAutonomousGameBlueprint };
