@@ -190,7 +190,7 @@ export async function POST(request: Request) {
 
     const explorationPromotion = afterRecovery.exploration_completed && afterRecovery.exploration_result
       ? afterRecovery.exploration_result
-      : await promoteJamesExplorationResult(experiment.prompt, blueprint, report);
+      : await promoteJamesExplorationResult(experiment.prompt, blueprint, report, `exploration:${experimentId}:${attempt}`);
     if (!afterRecovery.exploration_completed) {
       const { error } = await client.from("james_experiment_verification_ledger").update({
         exploration_completed: true, exploration_result: explorationPromotion, stage: "learning_mode_started", updated_at: new Date().toISOString()
