@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { claimJamesGameExperiment } from "../../../../fun-zone/engine/jamesGameLearning";
-import { verifyGameInBrowser } from "../../../../fun-zone/laboratory/browserVerifier";
+
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -39,44 +39,12 @@ export async function GET(request: Request) {
       }, { status: 500 });
     }
 
-    const attempt = Number(claimed.attempt || 0) + 1;
-    const report = await verifyGameInBrowser(
-      claimed.game_html,
-      claimed.blueprint,
-      attempt,
-    );
-
-    const url = process.env.NEXT_PUBLIC_SITE_URL || request.url;
-    const origin = new URL(url).origin;
-    const verifyResponse = await fetch(origin + "/api/fun-zone/experiment/verify", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: request.headers.get("authorization") || "",
-      },
-      body: JSON.stringify({
-        experimentId: claimed.id,
-        claimToken: claimed.runner_token,
-        report,
-        blueprint: claimed.blueprint,
-      }),
-      cache: "no-store",
-    });
-
-    const verification = await verifyResponse.json().catch(() => ({
-      success: false,
-      error: "Verification endpoint returned invalid JSON.",
-    }));
-
     return NextResponse.json({
-      success: verifyResponse.ok && verification.success !== false,
-      status: verification.status || (report.passed ? "verified" : "pending_verification"),
+      success: false,
+      status: "browser-runner-required",
       experimentId: claimed.id,
-      attempt,
-      report,
-      verification,
-      browser: "vercel-sandbox + agent-browser",
-    }, { status: verifyResponse.ok ? 200 : verifyResponse.status });
+      error: "Browser verification runner is isolated from the Next.js runtime and must execute in the dedicated sandbox worker.",
+    }, { status: 503 });
   } catch (error) {
     console.error("James autonomous browser verification failed:", error);
     return NextResponse.json({
