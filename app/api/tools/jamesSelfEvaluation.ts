@@ -3,6 +3,7 @@ import { generateWithJamesResourceManager } from "./jamesResourceManager";
 import type { JamesAgentResult } from "./jamesAgentLoop";
 import { recordJamesProviderPerformance } from "./jamesProviderPerformance";
 import { recordJamesDecisionMemory } from "./jamesDecisionMemory";
+import { updateJamesCapabilityMastery } from "./jamesCapabilityMastery";
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -98,6 +99,16 @@ export async function evaluateJamesTask(input: {
       parsed.outcome === "partial"
         ? parsed.outcome
         : input.result.verified ? "success" : "partial";
+
+    const capabilityNames = [...new Set(input.result.capabilityResults.map((item) => item.capability).filter(Boolean))].slice(0, 10);
+    for (const capability of capabilityNames) {
+      await updateJamesCapabilityMastery(
+        capability,
+        outcome,
+        Number(parsed.qualityScore ?? 0.5),
+        { verified: input.result.verified, weaknesses: list(parsed.weaknesses), improvements: list(parsed.improvements) },
+      );
+    }
 
     const row = {
       user_id: input.userId,
