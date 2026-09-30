@@ -2528,6 +2528,37 @@ export async function getJamesValidatedMetaStrategies(input?: { taskClass?: stri
     return { strategyId:String(row.id), taskClass:typeof row.task_class==="string"?row.task_class:null, strategy:String(row.strategy||""), confidence,evidenceCount,successCount,failureCount,relevanceScore:Number((confidence*.45+successRate*.35+evidenceWeight*.20).toFixed(4)) };
   }).filter((item)=>item.strategy.length>0);
 }
+export async function getJamesRetiredStrategySynthesisDirective(input: { strategyId?: string | null; taskClass?: string | null } = {}) {
+  const client = db();
+  if (!client) return null;
+  let query = client.from("james_meta_strategy_synthesis")
+    .select("id,task_class,strategy,status,confidence,evidence_count,success_count,failure_count,updated_at")
+    .eq("status", "deprecated").order("updated_at", { ascending: false }).limit(5);
+  if (input.strategyId) query = query.eq("id", input.strategyId);
+  if (input.taskClass) query = query.or("task_class.eq." + input.taskClass + ",task_class.is.null");
+  const { data, error } = await query;
+  if (error) { console.warn("James retired strategy synthesis retrieval failed:", error.message); return null; }
+  const retired = (data || [])[0];
+  if (!retired) return null;
+  const failureCount = Number(retired.failure_count || 0);
+  const evidenceCount = Number(retired.evidence_count || 0);
+  const mutation = chooseJamesStrategyMutation({
+    compositionScore: Math.max(0, Number(retired.confidence || 0) - 0.2),
+    confidence: Number(retired.confidence || 0),
+    failureCount: Math.max(failureCount, 3),
+  });
+  return {
+    retiredStrategyId: String(retired.id),
+    taskClass: typeof retired.task_class === "string" ? retired.task_class : null,
+    strategy: String(retired.strategy || ""),
+    directive: chooseJamesMutationStrategy({
+      tournamentScore: 0, successRate: 0, confidence: Number(retired.confidence || 0),
+      memoryRate: 0, failureCount: Math.max(failureCount, 3),
+    }),
+    synthesisPrompt: "A previous strategy has been terminally retired. Do not resurrect or edit it. Preserve its failure as historical evidence, identify the concrete failure mode, and create a new strategy identity using a materially different branch. Use mutation='" + mutation + "'. Evidence count=" + evidenceCount + ".",
+  };
+}
+
 export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
@@ -2622,6 +2653,7 @@ export async function createJamesGameExperimentPlan() {
   });
   const validatedMetaStrategies = await getJamesValidatedMetaStrategies({ taskClass: key, limit: 5 });
   const selectedMetaStrategy = [...validatedMetaStrategies].sort((a, b) => b.relevanceScore - a.relevanceScore)[0] || null;
+  const retiredStrategyDirective = await getJamesRetiredStrategySynthesisDirective({ taskClass: key });
   const contextualMemory = await getJamesContextualLearningMemory("unknown", String(target.capability_name), []);
   const transferCandidate = contextualMemory[0] || null;
   const generalizedTransfer = (transferKnowledge || []).find((item) => item.transferable) || null;
@@ -2663,6 +2695,9 @@ export async function createJamesGameExperimentPlan() {
   const metaStrategyContext = selectedMetaStrategy
     ? " Validated meta-strategy selected from lifecycle state: \"" + selectedMetaStrategy.strategy + "\". Confidence=" + selectedMetaStrategy.confidence.toFixed(3) + ", success=" + selectedMetaStrategy.successCount + ", failure=" + selectedMetaStrategy.failureCount + ", evidence=" + selectedMetaStrategy.evidenceCount + ". Use as bounded guidance and allow fresh runtime evidence to override it."
     : " No validated meta-strategy is available for this capability; remain exploratory and generate fresh evidence.";
+  const retirementContext = retiredStrategyDirective
+    ? " Retired-strategy synthesis directive: " + retiredStrategyDirective.synthesisPrompt
+    : "";
   const capabilityPrompt =
     key.includes("input")
       ? "Create a small game focused on reliable keyboard and touch movement with an alternate input path."
@@ -2681,7 +2716,7 @@ export async function createJamesGameExperimentPlan() {
   return {
     status: "experiment",
     title: "James Game Brain experiment: " + String(target.capability_name),
-    prompt: capabilityPrompt + relevantKnowledgeContext + knowledgeContext + coreSkillContext + contradictionContext + corroborationContext + contextualContext + transferContext + metaStrategyContext + tournamentContext + recoveryContext +
+    prompt: capabilityPrompt + relevantKnowledgeContext + knowledgeContext + coreSkillContext + contradictionContext + corroborationContext + contextualContext + transferContext + metaStrategyContext + retirementContext + tournamentContext + recoveryContext +
       (learningMode.mode === "explore" && exploration?.novelMechanic
         ? " Exploration directive: deliberately test the novel mechanic \""+ exploration.novelMechanic + "\" instead of repeating the most recent proven mechanic set. Compare its evidence against the current strategy."
         : " Exploitation directive: reuse proven strategy components first, while preserving regression checks and measurable evidence."),
