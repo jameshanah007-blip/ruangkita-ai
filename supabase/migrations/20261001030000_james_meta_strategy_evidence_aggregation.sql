@@ -1,3 +1,29 @@
+create or replace function public.refresh_james_meta_strategy_usage_evidence_trigger()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.refresh_james_meta_strategy_evidence(coalesce(new.strategy_id, old.strategy_id));
+  return coalesce(new, old);
+end;
+$$;
+
+drop trigger if exists james_meta_strategy_evidence_usage_refresh
+on public.james_meta_strategy_usage;
+
+create trigger james_meta_strategy_evidence_usage_refresh
+after insert or update of usage_state, evidence
+on public.james_meta_strategy_usage
+for each row
+execute function public.refresh_james_meta_strategy_usage_evidence_trigger();
+
+revoke all on function public.refresh_james_meta_strategy_usage_evidence_trigger()
+from public, anon, authenticated;
+grant execute on function public.refresh_james_meta_strategy_usage_evidence_trigger()
+to service_role;
+
 -- Evidence aggregation is derived from durable trials, comparisons, and tournament memory.
 -- Lifecycle status is intentionally not changed here.
 
@@ -20,6 +46,11 @@ create table if not exists public.james_meta_strategy_evidence (
   avg_tournament_confidence numeric(6,4) not null default 0,
   confidence numeric(6,4) not null default 0,
   evidence_count integer not null default 0,
+  selected_count integer not null default 0,
+  executed_count integer not null default 0,
+  verified_usage_count integer not null default 0,
+  execution_rate numeric(6,4) not null default 0,
+  verification_rate numeric(6,4) not null default 0,
   evidence jsonb not null default '{}'::jsonb,
   refreshed_at timestamptz not null default now()
 );
@@ -51,6 +82,11 @@ declare
   v_avg_quality numeric := 0;
   v_confidence numeric := 0;
   v_evidence_count integer := 0;
+  v_selected_count integer := 0;
+  v_executed_count integer := 0;
+  v_verified_usage_count integer := 0;
+  v_execution_rate numeric := 0;
+  v_verification_rate numeric := 0;
 begin
   select id, task_class into s
     from public.james_meta_strategies
@@ -121,13 +157,28 @@ begin
   ));
 
   v_evidence_count := coalesce(t.trial_count, 0) + v_tournament_count;
+  select
+    count(*) filter (where usage_state = 'selected')::integer,
+    count(*) filter (where usage_state = 'executed')::integer,
+    count(*) filter (where usage_state = 'verified')::integer
+    into v_selected_count, v_executed_count, v_verified_usage_count
+    from public.james_meta_strategy_usage
+   where strategy_id = p_strategy_id;
+
+  v_execution_rate := case when v_selected_count > 0
+    then greatest(0, least(1, v_executed_count::numeric / v_selected_count))
+    else 0 end;
+  v_verification_rate := case when v_executed_count > 0
+    then greatest(0, least(1, v_verified_usage_count::numeric / v_executed_count))
+    else 0 end;
 
   insert into public.james_meta_strategy_evidence (
     strategy_id, task_class, trial_count, success_count, failure_count,
     partial_count, unknown_count, avg_quality, outcome_rate,
     comparison_count, comparison_improved_count, avg_comparison_improvement,
     tournament_count, tournament_win_count, avg_tournament_score,
-    avg_tournament_confidence, confidence, evidence_count, evidence
+    avg_tournament_confidence, confidence, evidence_count,
+    selected_count, executed_count, verified_usage_count, execution_rate, verification_rate, evidence
   )
   values (
     s.id, s.task_class, coalesce(t.trial_count, 0), coalesce(t.success_count, 0),
@@ -136,6 +187,7 @@ begin
     v_comparison_count, v_comparison_improved, v_avg_improvement,
     v_tournament_count, v_tournament_wins, v_avg_tournament_score,
     v_avg_tournament_confidence, v_confidence, v_evidence_count,
+    v_selected_count, v_executed_count, v_verified_usage_count, v_execution_rate, v_verification_rate,
     jsonb_build_object(
       'strategyId', s.id,
       'taskClass', s.task_class,
@@ -155,7 +207,12 @@ begin
       'avgTournamentConfidence', v_avg_tournament_confidence,
       'confidence', v_confidence,
       'evidenceCount', v_evidence_count,
-      'aggregationVersion', 1,
+      'selectedCount', v_selected_count,
+      'executedCount', v_executed_count,
+      'verifiedUsageCount', v_verified_usage_count,
+      'executionRate', v_execution_rate,
+      'verificationRate', v_verification_rate,
+      'aggregationVersion', 2,
       'refreshedAt', now()
     )
   )
@@ -177,6 +234,11 @@ begin
     avg_tournament_confidence = excluded.avg_tournament_confidence,
     confidence = excluded.confidence,
     evidence_count = excluded.evidence_count,
+    selected_count = excluded.selected_count,
+    executed_count = excluded.executed_count,
+    verified_usage_count = excluded.verified_usage_count,
+    execution_rate = excluded.execution_rate,
+    verification_rate = excluded.verification_rate,
     evidence = excluded.evidence,
     refreshed_at = now();
 
