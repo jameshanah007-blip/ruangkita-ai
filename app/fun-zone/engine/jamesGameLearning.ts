@@ -2820,7 +2820,7 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
   const tournamentMemoryPattern = "fun-zone:tournament:" + String(retired.id) + ":" + String(retired.task_class || input.taskClass || "fun-zone-game-director");
   const { data: tournamentMemoryRows } = await client
     .from("james_experiences")
-    .select("last_evidence,updated_at")
+    .select("last_evidence,confidence,success_count,failure_count,updated_at")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", tournamentMemoryPattern)
     .eq("status", "active")
@@ -2847,12 +2847,12 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
     const outcomeEvents = Array.isArray(evidence.outcomeEvents)
       ? evidence.outcomeEvents
       : [];
-    const successCount = Number(row.last_evidence?.successCount || 0);
-    const failureCount = Number(row.last_evidence?.failureCount || 0);
+    const successCount = Number(row.success_count || 0);
+    const failureCount = Number(row.failure_count || 0);
     return selectedMutation
       ? [{
           strategy: "Tournament winner: " + selectedMutation,
-          confidence: Number(evidence.winnerConfidence || row.confidence || 0),
+          confidence: Number(row.confidence || evidence.winnerConfidence || 0),
           successCount,
           failureCount,
           outcomeEvents,
