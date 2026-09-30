@@ -171,7 +171,8 @@ function createHistoryContext(
 
 async function generateWithGemini(
   mood: string,
-  history: FunZoneHistory[]
+  history: FunZoneHistory[],
+  strategyContext: string,
 ) {
   const apiKey = process.env.GEMINI_API_KEY;
 
@@ -340,7 +341,8 @@ export async function POST(request: Request) {
       const game =
         await generateWithGemini(
           mood,
-          history
+          history,
+          strategyContext,
         );
 
       return NextResponse.json({
