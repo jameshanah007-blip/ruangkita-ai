@@ -3627,6 +3627,31 @@ export async function createJamesGameExperimentJob(input: {
   const gameHtml = buildAutonomousGameHtml(blueprint);
   const client = db();
   const selectedMetaStrategy = plan.selectedMetaStrategy as JamesValidatedMetaStrategy | null;
+  const synthesizedRetiredStrategy = plan.synthesizedRetiredStrategy as {
+    strategyId: string | null;
+    strategyKey: string;
+    taskClass: string;
+    strategy: string;
+    sourcePatterns: string[];
+  } | null;
+  const experimentStrategy = selectedMetaStrategy
+    ? {
+        strategyId: selectedMetaStrategy.strategyId,
+        strategyTaskClass: selectedMetaStrategy.taskClass,
+        strategySelectionScore: selectedMetaStrategy.relevanceScore,
+        strategySelectionEvidenceCount: selectedMetaStrategy.evidenceCount,
+        strategySelectionSource: "validated-meta-strategy-lifecycle",
+      }
+    : synthesizedRetiredStrategy?.strategyId
+      ? {
+          strategyId: synthesizedRetiredStrategy.strategyId,
+          strategyTaskClass: synthesizedRetiredStrategy.taskClass,
+          strategySelectionScore: null,
+          strategySelectionEvidenceCount: 0,
+          strategySelectionSource: "retired-strategy-synthesis",
+          strategyKey: synthesizedRetiredStrategy.strategyKey,
+        }
+      : null;
 
   if (!client) {
     return {
@@ -3650,8 +3675,8 @@ export async function createJamesGameExperimentJob(input: {
       game_html: gameHtml,
       status: "pending_verification",
       attempt: 0,
-      learning_result: selectedMetaStrategy
-        ? { strategyId: selectedMetaStrategy.strategyId, strategyTaskClass: selectedMetaStrategy.taskClass, strategySelectionScore: selectedMetaStrategy.relevanceScore, strategySelectionEvidenceCount: selectedMetaStrategy.evidenceCount, strategySelectionSource: "validated-meta-strategy-lifecycle" }
+      learning_result: experimentStrategy
+        ? experimentStrategy
         : { strategySelectionSource: "no-validated-meta-strategy" },
     })
     .select("id")
@@ -3665,7 +3690,7 @@ export async function createJamesGameExperimentJob(input: {
     plan,
     blueprint,
     gameHtml,
-    strategyId: selectedMetaStrategy?.strategyId || null,
+    strategyId: experimentStrategy?.strategyId || null,
   };
 }export async function recordJamesTournamentMemory(input: {
   targetContext: string;
