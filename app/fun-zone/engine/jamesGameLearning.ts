@@ -1028,8 +1028,10 @@ export async function promoteJamesGeneralizedGameSkills(limit = 8, sourceEventKe
       .eq("capability_key", capabilityKey)
       .maybeSingle();
 
-    const evidenceCount = Number(existing?.evidence_count || 0) + item.evidenceCount;
-    const successCount = Number(existing?.success_count || 0) + Math.round(item.evidenceCount * item.successRate);
+    // Reconcile from the latest cross-context aggregate instead of adding the
+    // cumulative aggregate again on every verification event.
+    const evidenceCount = Math.max(0, Number(item.evidenceCount || 0));
+    const successCount = Math.min(evidenceCount, Math.max(0, Math.round(evidenceCount * item.successRate)));
     const failureCount = Math.max(0, evidenceCount - successCount);
     const competence = Math.min(0.99, Math.max(0.1, item.successRate));
     const confidence = Math.min(0.99, Math.max(0.1, item.confidence + Math.min(0.1, item.contextCount * 0.02)));
@@ -1075,15 +1077,18 @@ export async function promoteJamesGeneralizedGameSkills(limit = 8, sourceEventKe
       ? await client.from("james_self_model").update(memory).eq("id", existing.id)
       : await client.from("james_self_model").insert(memory);
 
-    if (!result.error) {
-      promoted.push({
-        capabilityKey,
-        competence: Number(competence.toFixed(3)),
-        confidence: Number(confidence.toFixed(3)),
-        contextCount: item.contextCount,
-        evidenceCount,
-      });
+    if (result.error) {
+      console.warn("James generalized skill promotion failed:", result.error.message);
+      throw new Error("Generalized skill promotion could not be persisted; verification will resume this stage.");
     }
+
+    promoted.push({
+      capabilityKey,
+      competence: Number(competence.toFixed(3)),
+      confidence: Number(confidence.toFixed(3)),
+      contextCount: item.contextCount,
+      evidenceCount,
+    });
   }
 
   return promoted;
