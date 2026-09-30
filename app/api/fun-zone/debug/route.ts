@@ -179,6 +179,9 @@ function formatTestReport(
   if (!report) {
     return "Tidak ada TestReport.";
   }
+  const hardFailures = Array.isArray(report.hardFailures) ? report.hardFailures : [];
+  const softWarnings = Array.isArray(report.softWarnings) ? report.softWarnings : [];
+  const checks = Array.isArray(report.checks) ? report.checks : [];
 
   return `
 passed: ${report.passed}
@@ -203,17 +206,17 @@ renderChanged: ${report.renderChanged}
 elapsedMs: ${report.elapsedMs}
 
 hardFailures:
-${report.hardFailures.length
+${hardFailures.length
     ? report.hardFailures.map((x) => `- ${x}`).join("\n")
     : "- none"}
 
 softWarnings:
-${report.softWarnings.length
+${softWarnings.length
     ? report.softWarnings.map((x) => `- ${x}`).join("\n")
     : "- none"}
 
 checks:
-${report.checks.length
+${checks.length
     ? report.checks
         .map(
           (check) =>
