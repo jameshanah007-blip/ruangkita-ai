@@ -40,6 +40,25 @@ export async function POST(request: Request) {
     }
 
     const attempt = Number(report.attempt || experiment.attempt || 0);
+
+    // Atomically claim this exact verification callback before any learning
+    // side effects. A duplicate callback with the old runner token is rejected.
+    const { data: processingToken, error: claimError } = await client.rpc(
+      "claim_james_game_experiment_verification",
+      {
+        p_experiment_id: experimentId,
+        p_attempt: attempt,
+        p_runner_token: claimToken,
+      },
+    );
+    if (claimError) throw claimError;
+    if (typeof processingToken !== "string" || !processingToken) {
+      return NextResponse.json({
+        success: false,
+        error: "Experiment verification attempt was already claimed or is no longer active.",
+      }, { status: 409 });
+    }
+
     const learning = await recordJamesGameTestLearning(blueprint, report, attempt);
     const brainEvidence = await recordJamesGameBrainEvidence(blueprint, report, attempt);
     const evolved = await evolveJamesStrategyMemory(blueprint, report);
@@ -105,7 +124,7 @@ export async function POST(request: Request) {
       .eq("id", experimentId);
 
     if (experiment.status === "running") {
-      updateQuery = updateQuery.eq("status", "running").eq("runner_token", claimToken);
+      updateQuery = updateQuery.eq("status", "running").eq("runner_token", processingToken);
     } else {
       updateQuery = updateQuery.eq("status", "pending_verification");
     }
