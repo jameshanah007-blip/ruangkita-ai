@@ -2621,7 +2621,7 @@ export async function createJamesGameExperimentPlan() {
     limit: 6,
   });
   const validatedMetaStrategies = await getJamesValidatedMetaStrategies({ taskClass: key, limit: 5 });
-  const selectedMetaStrategy = validatedMetaStrategies[0] || null;
+  const selectedMetaStrategy = [...validatedMetaStrategies].sort((a, b) => b.relevanceScore - a.relevanceScore)[0] || null;
   const contextualMemory = await getJamesContextualLearningMemory("unknown", String(target.capability_name), []);
   const transferCandidate = contextualMemory[0] || null;
   const generalizedTransfer = (transferKnowledge || []).find((item) => item.transferable) || null;
