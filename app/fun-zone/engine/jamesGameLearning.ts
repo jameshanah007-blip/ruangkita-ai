@@ -2845,6 +2845,9 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
   const successInstruction = successfulMutations.length
     ? " Successful comparison mutations available for controlled reuse: " + Array.from(new Set(successfulMutations)).join(", ") + ". Reuse only with fresh verification."
     : "";
+  const tournamentInstruction = mutationTournament.length
+    ? " Mutation tournament ranking: " + mutationTournament.slice(0, 5).map((entry) => entry.rank + ":" + entry.action + "=" + entry.score.toFixed(3)).join(", ") + "."
+    : "";
 
   const mutationDirective = chooseJamesMutationStrategy({
     tournamentScore: 0, successRate: 0, confidence: Number(retired.confidence || 0),
@@ -2855,7 +2858,7 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
     taskClass: typeof retired.task_class === "string" ? retired.task_class : null,
     strategy: String(retired.strategy || ""),
     directive: { ...mutationDirective, action: mutation },
-    synthesisPrompt: "A previous strategy has been terminally retired. Do not resurrect or edit it. Preserve its failure as historical evidence, identify the concrete failure mode, and create a new strategy identity using a materially different branch. Use mutation='" + mutation + "'. Evidence count=" + evidenceCount + "." + memoryInstruction + successInstruction,
+    synthesisPrompt: "A previous strategy has been terminally retired. Do not resurrect or edit it. Preserve its failure as historical evidence, identify the concrete failure mode, and create a new strategy identity using a materially different branch. Use mutation='" + mutation + "'. Evidence count=" + evidenceCount + "." + memoryInstruction + successInstruction + tournamentInstruction,
     excludedMutations,
     branchFingerprint,
   };
