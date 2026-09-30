@@ -271,7 +271,7 @@ Aturan tambahan:
       model: MODEL,
       input: prompt,
       system_instruction:
-        "Kamu adalah AI Game Director. Selalu ikuti format JSON yang diminta.",
+        "Kamu adalah AI Game Director. Selalu ikuti format JSON yang diminta.\n\n" + strategyContext,
     }),
   });
 
