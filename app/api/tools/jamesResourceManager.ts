@@ -8,7 +8,37 @@ import {
 import { openRouterProvider } from "../../fun-zone/openRouterProvider";
 import { groqProvider } from "../../fun-zone/groqProvider";
 import { getJamesProviderPerformance, scoreJamesProviderPerformance } from "./jamesProviderPerformance";
-import { planJamesLearningPolicy } from "./jamesLearningPolicy";
+import { planJamesLearningPolicy } from "./jamesLearningPolicy";\nimport { retrieveJamesKnowledge, formatJamesKnowledgeContext } from "./jamesKnowledgeRetrieval";
+
+function knowledgeEnabled() {
+  return process.env.JAMES_KNOWLEDGE_INJECTION !== "disabled";
+}
+
+async function injectKnowledge(task: JamesResourceTask, request: AIGenerateRequest): Promise<AIGenerateRequest> {
+  if (!knowledgeEnabled() || task === "chat") return request;
+
+  try {
+    const query = `${request.systemInstruction ?? ""}\n${request.prompt ?? ""}`;
+    const knowledge = await retrieveJamesKnowledge(query, 5);
+    if (!knowledge.length) return request;
+
+    const context = formatJamesKnowledgeContext(knowledge);
+    const systemInstruction = [
+      request.systemInstruction ?? "",
+      "",
+      "JAMES VERIFIED KNOWLEDGE CONTEXT:",
+      context,
+      "",
+      "Use this knowledge as evidence, not as unquestionable truth. If evidence conflicts or confidence is low, preserve uncertainty and verify when appropriate.",
+    ].join("\n");
+
+    return { ...request, systemInstruction };
+  } catch (error) {
+    console.warn("James knowledge injection unavailable:", error);
+    return request;
+  }
+}
+
 
 export type JamesResourceTask =
   | "planning"
@@ -132,7 +162,7 @@ async function generateWithTimeout(
 
   try {
     return await Promise.race([
-      provider.generate(request),
+      provider.generate(enrichedRequest),
       new Promise<never>((_, reject) => {
         timer = setTimeout(
           () => reject(new Error(provider.name + " timeout.")),
@@ -217,7 +247,7 @@ export async function generateWithJamesResourceManager(
   task: JamesResourceTask,
   request: AIGenerateRequest
 ): Promise<JamesResourceResult> {
-  const candidates = await getCandidates(task);
+  const enrichedRequest = await injectKnowledge(task, request);\n  const candidates = await getCandidates(task);
 
   if (!candidates.length) {
     throw new Error(
