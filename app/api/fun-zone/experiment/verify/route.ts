@@ -289,6 +289,10 @@ export async function POST(request: Request) {
               quality: gameQuality(report),
               evidence: 1,
             }, skillLedger.source_event_key);
+        if (!conflict) {
+          throw new Error("Core skill conflict resolution could not be persisted; verification will resume this capability.");
+        }
+
         if (conflict) {
           if (!skillLedger.conflict_completed) {
             const { error: conflictCheckpointError } = await client
