@@ -2759,10 +2759,36 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
       return String(evidence.mutation || "retired-strategy-synthesis");
     });
 
+  const empiricalMutationEvidence = (comparisonMemories || []).map((memory) => {
+    const evidence = memory.last_evidence && typeof memory.last_evidence === "object"
+      ? memory.last_evidence as Record<string, unknown>
+      : {};
+    const candidateQuality = Number(evidence.candidateQuality);
+    const parentQuality = Number(evidence.parentQuality);
+    const improvement = Number.isFinite(candidateQuality) && Number.isFinite(parentQuality)
+      ? Number((candidateQuality - parentQuality).toFixed(4))
+      : null;
+    const diversity = evidence.blueprintDiversity && typeof evidence.blueprintDiversity === "object"
+      ? evidence.blueprintDiversity as Record<string, unknown>
+      : null;
+    return {
+      action: String(evidence.mutation || "retired-strategy-synthesis"),
+      successCount: Number(memory.success_count || 0),
+      failureCount: Number(memory.failure_count || 0),
+      averageQuality: Number.isFinite(candidateQuality) ? candidateQuality : Number(retired.confidence || 0),
+      diversityRate: diversity && typeof diversity.mutationVerified === "boolean"
+        ? (diversity.mutationVerified ? 1 : 0)
+        : null,
+      comparisonImprovement: improvement,
+    };
+  });
+
   let mutation = chooseJamesStrategyMutation({
     compositionScore: Math.max(0, Number(retired.confidence || 0) - 0.2),
     confidence: Number(retired.confidence || 0),
     failureCount: Math.max(failureCount, 3),
+    empiricalEvidence: empiricalMutationEvidence,
+    excludedMutations: failedMutations,
   });
 
   // Force a materially different branch when the previous mutation is known
@@ -2784,14 +2810,15 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
     ? " Successful comparison mutations available for controlled reuse: " + Array.from(new Set(successfulMutations)).join(", ") + ". Reuse only with fresh verification."
     : "";
 
+  const mutationDirective = chooseJamesMutationStrategy({
+    tournamentScore: 0, successRate: 0, confidence: Number(retired.confidence || 0),
+    memoryRate: 0, failureCount: Math.max(failureCount, 3),
+  });
   return {
     retiredStrategyId: String(retired.id),
     taskClass: typeof retired.task_class === "string" ? retired.task_class : null,
     strategy: String(retired.strategy || ""),
-    directive: chooseJamesMutationStrategy({
-      tournamentScore: 0, successRate: 0, confidence: Number(retired.confidence || 0),
-      memoryRate: 0, failureCount: Math.max(failureCount, 3),
-    }),
+    directive: { ...mutationDirective, action: mutation },
     synthesisPrompt: "A previous strategy has been terminally retired. Do not resurrect or edit it. Preserve its failure as historical evidence, identify the concrete failure mode, and create a new strategy identity using a materially different branch. Use mutation='" + mutation + "'. Evidence count=" + evidenceCount + "." + memoryInstruction + successInstruction,
     excludedMutations,
     branchFingerprint,
