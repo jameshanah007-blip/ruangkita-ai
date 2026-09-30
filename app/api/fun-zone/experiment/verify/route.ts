@@ -502,6 +502,7 @@ export async function POST(request: Request) {
             improved: strategyComparison.improved,
             blueprintDiversity,
             experimentId,
+            sourceEventKey,
           });
         }
 
