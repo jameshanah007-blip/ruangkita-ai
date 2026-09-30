@@ -97,7 +97,7 @@ begin
           avg(case when tr.outcome = 'success' then 1 when tr.outcome = 'partial' then 0.5 else 0 end)
         else 0
       end as outcome_rate
-    from public.james_meta_strategy_synthesis m
+    from public.james_meta_strategies m
     left join public.james_meta_strategy_trials tr
       on tr.strategy_id = m.id
     where m.id in (
