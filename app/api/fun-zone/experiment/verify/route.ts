@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../../../../fun-zone/laboratory/types";
+import { reconcileJamesMetaStrategyLifecycle } from "../../../tools/jamesStrategyLifecycleBridge";
 import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, gameQuality, evolveJamesStrategyMemory, evaluateJamesMutationOutcome, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict, recordJamesCoreSkillLineage, recordJamesKnowledgeContradiction, consolidateJamesGameKnowledge, versionJamesConsolidatedKnowledge, resolveJamesKnowledgeSupersession } from "../../../../fun-zone/engine/jamesGameLearning";
 
 export const runtime = "nodejs";
@@ -156,6 +157,10 @@ export async function POST(request: Request) {
       if (strategyTrialError) {
         console.warn("James strategy post-verification feedback unavailable:", strategyTrialError.message);
       } else {
+        // Reconcile promotion/retirement from the newly persisted evidence.
+        // The bridge is fail-open so evidence recording is not blocked if the
+        // lifecycle migration has not reached this deployment yet.
+        await reconcileJamesMetaStrategyLifecycle(strategyId);
         await client.from("james_meta_strategy_revalidation_queue")
           .update({ status: "completed", completed_at: new Date().toISOString(), evidence })
           .eq("id", revalidationJobId)
