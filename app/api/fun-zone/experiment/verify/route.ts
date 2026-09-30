@@ -162,7 +162,7 @@ export async function POST(request: Request) {
 
     const mutationOutcome = afterEvolution.mutation_completed && afterEvolution.mutation_result
       ? afterEvolution.mutation_result
-      : await evaluateJamesMutationOutcome(experiment.prompt, blueprint, report);
+      : await evaluateJamesMutationOutcome(experiment.prompt, blueprint, report, `mutation:${experimentId}:${attempt}`);
     if (!afterEvolution.mutation_completed) {
       const { error } = await client.from("james_experiment_verification_ledger").update({
         mutation_completed: true, mutation_result: mutationOutcome, stage: "recovery_started", updated_at: new Date().toISOString()
@@ -176,7 +176,7 @@ export async function POST(request: Request) {
 
     const recoveryImpact = afterMutation.recovery_completed && afterMutation.recovery_result
       ? afterMutation.recovery_result
-      : await evaluateJamesRecoveryDirectiveImpact(experiment.prompt, blueprint, report);
+      : await evaluateJamesRecoveryDirectiveImpact(experiment.prompt, blueprint, report, `recovery:${experimentId}:${attempt}`);
     if (!afterMutation.recovery_completed) {
       const { error } = await client.from("james_experiment_verification_ledger").update({
         recovery_completed: true, recovery_result: recoveryImpact, stage: "exploration_started", updated_at: new Date().toISOString()
