@@ -306,6 +306,7 @@ export async function POST(request: Request) {
               observedQuality: conflict.observedQuality,
               observedContext: String(blueprint.world) + ":" + String(blueprint.genre),
               resolution: conflict.nextAction,
+              sourceEventKey: skillLedger.source_event_key,
             });
             await client
               .from("james_experiment_core_skill_ledger")
@@ -327,6 +328,7 @@ export async function POST(request: Request) {
             newCompetence: conflict.competence,
             newConfidence: conflict.confidence,
             reason: conflict.conflict ? "Conflicting evidence detected." : "Evidence reinforced generalized skill.",
+            sourceEventKey: skillLedger.source_event_key,
           });
             await client
               .from("james_experiment_core_skill_ledger")
