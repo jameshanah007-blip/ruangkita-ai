@@ -27,7 +27,7 @@ async function command(sandbox: BrowserSandbox, cmd: string, args: string[]) {
 }
 
 function buildVerifierHtml(gameHtml: string, actions: string[]) {
-  const prelude = \`<script>
+  const prelude = `<script>
 (() => {
   window.__RK_AUTONOMOUS = {startedAt:Date.now(),errors:[],inputEvents:0,inputListeners:0,frames:0};
   const s=window.__RK_AUTONOMOUS;
@@ -39,9 +39,9 @@ function buildVerifierHtml(gameHtml: string, actions: string[]) {
   window.requestAnimationFrame=function(cb){return raf.call(window,t=>{s.frames++;cb(t)})};
   window.__RK_AUTONOMOUS_ACTIONS__=__ACTION_PLACEHOLDER__;
 })();
-</script>\`.replace("__ACTION_PLACEHOLDER__", JSON.stringify(actions));
+</script>`.replace("__ACTION_PLACEHOLDER__", JSON.stringify(actions));
 
-  const epilogue = \`<script>
+  const epilogue = `<script>
 (() => {
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const stable=v=>{try{return JSON.stringify(v)}catch(_){return String(v)}};
@@ -88,7 +88,7 @@ function buildVerifierHtml(gameHtml: string, actions: string[]) {
     })
   };
 })();
-</script>\`;
+</script>`;
 
   return prelude + gameHtml + epilogue;
 }
@@ -111,7 +111,7 @@ export async function verifyGameInBrowser(gameHtml:string, blueprint:GameBluepri
     await sandbox.updateNetworkPolicy("deny-all");
     const html=buildVerifierHtml(gameHtml,blueprint.playerActions??[]);
     const encoded=Buffer.from(html,"utf8").toString("base64");
-    await command(sandbox,"sh",["-lc",\`echo \${encoded} | base64 -d > /tmp/james-game.html\`]);
+    await command(sandbox,"sh",["-lc",`echo ${encoded} | base64 -d > /tmp/james-game.html`]);
     await command(sandbox,"agent-browser",["open","file:///tmp/james-game.html"]);
     await command(sandbox,"agent-browser",["wait",String(BROWSER_WAIT_MS)]);
     const raw=await command(sandbox,"agent-browser",["eval","window.__RK_AUTONOMOUS_FINISH__()"]);
