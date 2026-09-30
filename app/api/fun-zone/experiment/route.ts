@@ -71,6 +71,14 @@ export async function POST(request: Request) {
       result.blueprint = mutated.blueprint;
       result.gameHtml = buildAutonomousGameHtml(result.blueprint);
       const mutationDirective = mutated.directive;
+      if (mutated.diversity && !mutated.diversity.mutationVerified) {
+        return NextResponse.json({
+          success: false,
+          error: "Autonomous mutation did not produce a structural blueprint change.",
+          mutationDirective,
+          diversity: mutated.diversity,
+        }, { status: 409 });
+      }
       if (result.experimentId) {
         const client = db();
         if (client) {
