@@ -15,7 +15,8 @@
     "openai": "^7.18.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "zod": "^4.6.5"
+    "zod": "^4.6.5",
+    "@vercel/sandbox": "^3.5.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

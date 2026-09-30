@@ -6,6 +6,8 @@ import {
 import { runJamesAutonomousBrain } from "../../../tools/jamesAutonomousBrain";
 import { createJamesGameExperimentJob, getJamesPendingExperiment } from "../../../../fun-zone/engine/jamesGameLearning";
 
+export const maxDuration = 300;
+
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET || process.env.JAMES_AUTONOMY_CRON_SECRET;
   if (!secret) return false;
@@ -80,10 +82,23 @@ export async function GET(request: Request) {
     });
 
     if (pendingExperiment) {
+      const origin = new URL(request.url).origin;
+      const verifyResponse = await fetch(origin + "/api/fun-zone/experiment/auto-verify", {
+        method: "GET",
+        headers: {
+          authorization: request.headers.get("authorization") || "",
+        },
+        cache: "no-store",
+      });
+      const verification = await verifyResponse.json().catch(() => ({
+        success: false,
+        error: "Browser verification returned invalid JSON.",
+      }));
+
       gameExperiment = {
-        status: "pending-verification",
+        status: verification.status || (verifyResponse.ok ? "verified" : "verification-failed"),
         experimentId: pendingExperiment.id,
-        reason: "Existing Game Brain experiment is awaiting verification.",
+        browserVerification: verification,
       };
     } else {
       const experiment = await createJamesGameExperimentJob({
