@@ -233,15 +233,16 @@ export async function POST(request: Request) {
       .from("james_experiment_verification_ledger").select("*").eq("id", knowledgeStage.id).single();
     if (skillsReloadError) throw skillsReloadError;
 
+    const knowledgeEventKey = `knowledge:${experimentId}:${attempt}`;
     const consolidatedKnowledge = knowledgeAfterSkills.knowledge_completed && knowledgeAfterSkills.knowledge_result
       ? knowledgeAfterSkills.knowledge_result.consolidatedKnowledge
       : await consolidateJamesGameKnowledge(8);
     const knowledgeVersions = knowledgeAfterSkills.knowledge_completed && knowledgeAfterSkills.knowledge_result
       ? knowledgeAfterSkills.knowledge_result.knowledgeVersions
-      : await versionJamesConsolidatedKnowledge(8);
+      : await versionJamesConsolidatedKnowledge(8, knowledgeEventKey);
     const knowledgeSupersession = knowledgeAfterSkills.knowledge_completed && knowledgeAfterSkills.knowledge_result
       ? knowledgeAfterSkills.knowledge_result.knowledgeSupersession
-      : await resolveJamesKnowledgeSupersession(8);
+      : await resolveJamesKnowledgeSupersession(8, knowledgeEventKey);
 
     if (!knowledgeAfterSkills.knowledge_completed) {
       const knowledgeResult = { consolidatedKnowledge, knowledgeVersions, knowledgeSupersession };
