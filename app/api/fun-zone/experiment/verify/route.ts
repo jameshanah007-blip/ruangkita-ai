@@ -59,8 +59,60 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    const learning = await recordJamesGameTestLearning(blueprint, report, attempt);
-    const brainEvidence = await recordJamesGameBrainEvidence(blueprint, report, attempt);
+    const { data: ledgerRow, error: ledgerError } = await client
+      .from("james_experiment_verification_ledger")
+      .upsert({
+        experiment_id: experimentId,
+        attempt,
+        processing_token: processingToken,
+        stage: "learning_started",
+      }, { onConflict: "experiment_id,attempt" })
+      .select("*")
+      .single();
+    if (ledgerError) throw ledgerError;
+
+    const learning = ledgerRow.learning_completed && ledgerRow.learning_result
+      ? ledgerRow.learning_result
+      : await recordJamesGameTestLearning(blueprint, report, attempt);
+
+    if (!ledgerRow.learning_completed) {
+      const { error: checkpointError } = await client
+        .from("james_experiment_verification_ledger")
+        .update({
+          learning_completed: true,
+          learning_result: learning,
+          stage: "brain_evidence_started",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", ledgerRow.id)
+        .eq("finalized", false);
+      if (checkpointError) throw checkpointError;
+    }
+
+    const { data: ledgerAfterLearning, error: ledgerReloadError } = await client
+      .from("james_experiment_verification_ledger")
+      .select("*")
+      .eq("id", ledgerRow.id)
+      .single();
+    if (ledgerReloadError) throw ledgerReloadError;
+
+    const brainEvidence = ledgerAfterLearning.brain_evidence_completed && ledgerAfterLearning.brain_evidence_result
+      ? ledgerAfterLearning.brain_evidence_result
+      : await recordJamesGameBrainEvidence(blueprint, report, attempt);
+
+    if (!ledgerAfterLearning.brain_evidence_completed) {
+      const { error: brainCheckpointError } = await client
+        .from("james_experiment_verification_ledger")
+        .update({
+          brain_evidence_completed: true,
+          brain_evidence_result: brainEvidence,
+          stage: "strategy_memory_started",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", ledgerAfterLearning.id)
+        .eq("finalized", false);
+      if (brainCheckpointError) throw brainCheckpointError;
+    }
     const evolved = await evolveJamesStrategyMemory(blueprint, report);
     const mutationOutcome = await evaluateJamesMutationOutcome(experiment.prompt, blueprint, report);
     const recoveryImpact = await evaluateJamesRecoveryDirectiveImpact(experiment.prompt, blueprint, report);
