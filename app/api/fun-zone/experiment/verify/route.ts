@@ -204,7 +204,7 @@ export async function POST(request: Request) {
 
     const learningModeImpact = afterExploration.learning_mode_completed && afterExploration.learning_mode_result
       ? afterExploration.learning_mode_result
-      : await evaluateJamesExploreExploitImpact(experiment.prompt, blueprint, report);
+      : await evaluateJamesExploreExploitImpact(experiment.prompt, blueprint, report, `learning-mode:${experimentId}:${attempt}`);
     if (!afterExploration.learning_mode_completed) {
       const { error } = await client.from("james_experiment_verification_ledger").update({
         learning_mode_completed: true, learning_mode_result: learningModeImpact, stage: "knowledge_started", updated_at: new Date().toISOString()
