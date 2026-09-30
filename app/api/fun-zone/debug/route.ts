@@ -906,8 +906,6 @@ Output hanya HTML.
       }
     }
 
-    const fixedHtml = extractHtml(result.text);
-
     const validationErrors =
       validateGameHtml(fixedHtml);
 
@@ -915,8 +913,8 @@ Output hanya HTML.
       return NextResponse.json(
         {
           success: false,
-          provider: result.provider,
-          model: result.model,
+          provider,
+          model,
           errors: validationErrors,
           htmlPreview: fixedHtml.slice(0, 1600),
         },
@@ -926,8 +924,8 @@ Output hanya HTML.
 
     return NextResponse.json({
       success: true,
-      provider: result.provider,
-      model: result.model,
+      provider,
+      model,
       gameHtml: fixedHtml,
       size: fixedHtml.length,
       attempt,
