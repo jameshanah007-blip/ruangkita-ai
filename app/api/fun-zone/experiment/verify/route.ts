@@ -59,13 +59,38 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
+    const { data: existingLedger, error: existingLedgerError } = await client
+      .from("james_experiment_verification_ledger")
+      .select("*")
+      .eq("experiment_id", experimentId)
+      .eq("attempt", attempt)
+      .maybeSingle();
+    if (existingLedgerError) throw existingLedgerError;
+
+    if (existingLedger?.finalized && existingLedger.final_payload) {
+      const { data: recoveredExperiment, error: recoveredExperimentError } = await client
+        .from("james_game_experiments")
+        .update(existingLedger.final_payload)
+        .eq("id", experimentId)
+        .eq("status", "running")
+        .eq("runner_token", processingToken)
+        .select("id,status");
+      if (recoveredExperimentError) throw recoveredExperimentError;
+      return NextResponse.json({
+        success: true,
+        experimentId,
+        status: recoveredExperiment?.[0]?.status || existingLedger.final_payload.status,
+        recoveredFromFinalizedLedger: true,
+      });
+    }
+
     const { data: ledgerRow, error: ledgerError } = await client
       .from("james_experiment_verification_ledger")
       .upsert({
         experiment_id: experimentId,
         attempt,
         processing_token: processingToken,
-        stage: "learning_started",
+        stage: existingLedger?.stage || "learning_started",
       }, { onConflict: "experiment_id,attempt" })
       .select("*")
       .single();
