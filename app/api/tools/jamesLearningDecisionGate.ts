@@ -1,5 +1,20 @@
 import { getJamesLowMasteryCapabilities, getJamesRecentRegressions } from "./jamesCapabilityMastery";
-import { getJamesProviderCooldowns } from "./jamesProviderPerformance";
+import { createClient } from "@supabase/supabase-js";
+
+function db() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } });
+}
+
+async function getProviderCooldowns() {
+  const supabase = db();
+  if (!supabase) return {} as Record<string, string | null>;
+  const { data, error } = await supabase.from("james_provider_performance").select("provider, cooldown_until");
+  if (error) return {} as Record<string, string | null>;
+  return Object.fromEntries((data ?? []).map((row) => [String(row.provider), row.cooldown_until as string | null]));
+}
 
 export type JamesLearningDecision = "learn_now" | "defer" | "skip";
 
@@ -20,7 +35,7 @@ export async function decideJamesAutonomousLearning(): Promise<JamesLearningDeci
   const [weak, regressions, cooldowns] = await Promise.all([
     getJamesLowMasteryCapabilities(10),
     getJamesRecentRegressions(10),
-    getJamesProviderCooldowns(),
+    getProviderCooldowns(),
   ]);
 
   const reasons: string[] = [];
