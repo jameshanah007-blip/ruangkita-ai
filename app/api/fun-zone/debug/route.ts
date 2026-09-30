@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 import { runJamesBrain } from "../../../core/james/jamesBrain";
+import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
 import type {
   GameBlueprint,
   RuntimeError,
@@ -844,51 +845,66 @@ export async function POST(request: Request) {
       attempt,
     });
 
-    const result =
-      await runJamesBrain({
-        surface: "fun_zone",
-        mode: "game_debugger",
-        systemInstruction: `
+    let provider = "james-brain";
+    let model = "provider";
+    let fixedHtml = "";
+
+    try {
+      const result =
+        await runJamesBrain({
+          surface: "fun_zone",
+          mode: "game_debugger",
+          systemInstruction: `
 Kamu adalah AI Game Debugger profesional untuk
 laboratorium game RuangKita AI.
 
-Kamu menerima:
-
-- source HTML game
-- blueprint game
-- runtime errors
-- sandbox evidence
-- test report
+Kamu menerima source HTML game, blueprint,
+runtime errors, sandbox evidence, dan test report.
 
 Tugasmu adalah melakukan REPAIR terhadap game
-yang sudah ada.
-
-JANGAN membuat game baru.
-
-Perbaiki akar masalah.
-
-Jika runtime error diberikan, gunakan error tersebut
-sebagai bukti utama.
-
-Jika tidak ada runtime error tetapi tester gagal,
-gunakan bukti Canvas, Rendering, Game Loop, Frame,
-Input, Gameplay, dan Performance.
-
-Jangan memalsukan diagnostic flags.
+yang sudah ada. Jangan membuat game baru.
+Perbaiki akar masalah dan pertahankan gameplay.
 
 Output harus satu HTML lengkap yang langsung
 dapat dijalankan browser.
 
-Tidak boleh ada markdown.
-Tidak boleh ada code fence.
-Tidak boleh ada penjelasan.
-
+Tidak boleh ada markdown, code fence, atau penjelasan.
 Output hanya HTML.
 `,
-        prompt,
-        temperature: 0.1,
-        maxOutputTokens: 16000,
-      });
+          prompt,
+          temperature: 0.1,
+          maxOutputTokens: 16000,
+        });
+
+      provider = result.provider;
+      model = result.model;
+      fixedHtml = extractHtml(result.text);
+    } catch (providerError) {
+      /*
+       * Provider AI tidak boleh membuat Laboratory berhenti
+       * setelah seluruh fallback provider habis.
+       *
+       * Gunakan repair engine deterministik James sebagai
+       * safety net. Ini tetap membangun game dari blueprint
+       * yang sama dan tidak memalsukan TestReport.
+       */
+      console.warn(
+        "AI Game Debugger provider fallback:",
+        providerError instanceof Error
+          ? providerError.message
+          : String(providerError)
+      );
+
+      if (blueprint) {
+        fixedHtml = buildAutonomousGameHtml(
+          normalizeBlueprint(blueprint)!
+        );
+        provider = "james-autonomous-fallback";
+        model = "autonomous-evolution-engine-v1";
+      } else {
+        throw providerError;
+      }
+    }
 
     const fixedHtml = extractHtml(result.text);
 
