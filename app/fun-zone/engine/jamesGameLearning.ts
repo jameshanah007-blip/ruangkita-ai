@@ -2504,6 +2504,30 @@ export async function getJamesTournamentDirective(targetContext?: string) {
   };
 }
 
+export type JamesValidatedMetaStrategy = {
+  strategyId: string; taskClass: string | null; strategy: string; confidence: number;
+  evidenceCount: number; successCount: number; failureCount: number; relevanceScore: number;
+};
+
+export async function getJamesValidatedMetaStrategies(input?: { taskClass?: string | null; limit?: number }) {
+  const client = db(); if (!client) return [];
+  const limit = Math.max(1, Math.min(10, input?.limit ?? 5));
+  let query = client.from("james_meta_strategy_synthesis")
+    .select("id,task_class,strategy,confidence,evidence_count,success_count,failure_count,status,updated_at")
+    .eq("status", "validated").order("confidence", { ascending: false })
+    .order("evidence_count", { ascending: false }).order("updated_at", { ascending: false }).limit(limit);
+  if (input?.taskClass) query = query.or("task_class.eq." + input.taskClass + ",task_class.is.null");
+  const { data, error } = await query;
+  if (error) { console.warn("James validated meta-strategy retrieval failed:", error.message); return []; }
+  return (data || []).map((row) => {
+    const successCount=Number(row.success_count||0), failureCount=Number(row.failure_count||0);
+    const evidenceCount=Number(row.evidence_count||(successCount+failureCount));
+    const confidence=Math.max(0,Math.min(1,Number(row.confidence||0)));
+    const successRate=successCount+failureCount>0?successCount/(successCount+failureCount):0.5;
+    const evidenceWeight=Math.min(1,evidenceCount/10);
+    return { strategyId:String(row.id), taskClass:typeof row.task_class==="string"?row.task_class:null, strategy:String(row.strategy||""), confidence,evidenceCount,successCount,failureCount,relevanceScore:Number((confidence*.45+successRate*.35+evidenceWeight*.20).toFixed(4)) };
+  }).filter((item)=>item.strategy.length>0);
+}
 export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
@@ -2596,6 +2620,8 @@ export async function createJamesGameExperimentPlan() {
     capabilityKey: key,
     limit: 6,
   });
+  const validatedMetaStrategies = await getJamesValidatedMetaStrategies({ taskClass: key, limit: 5 });
+  const selectedMetaStrategy = validatedMetaStrategies[0] || null;
   const contextualMemory = await getJamesContextualLearningMemory("unknown", String(target.capability_name), []);
   const transferCandidate = contextualMemory[0] || null;
   const generalizedTransfer = (transferKnowledge || []).find((item) => item.transferable) || null;
@@ -2634,6 +2660,9 @@ export async function createJamesGameExperimentPlan() {
   const legacyTransferContext = transferCandidate
     ? " Transfer candidate: test the strategy from source pattern \"" + String(transferCandidate.pattern) + "\" in the new experiment. Treat transfer as unproven until runtime evidence confirms it."
     : "";
+  const metaStrategyContext = selectedMetaStrategy
+    ? " Validated meta-strategy selected from lifecycle state: \"" + selectedMetaStrategy.strategy + "\". Confidence=" + selectedMetaStrategy.confidence.toFixed(3) + ", success=" + selectedMetaStrategy.successCount + ", failure=" + selectedMetaStrategy.failureCount + ", evidence=" + selectedMetaStrategy.evidenceCount + ". Use as bounded guidance and allow fresh runtime evidence to override it."
+    : " No validated meta-strategy is available for this capability; remain exploratory and generate fresh evidence.";
   const capabilityPrompt =
     key.includes("input")
       ? "Create a small game focused on reliable keyboard and touch movement with an alternate input path."
@@ -2652,7 +2681,7 @@ export async function createJamesGameExperimentPlan() {
   return {
     status: "experiment",
     title: "James Game Brain experiment: " + String(target.capability_name),
-    prompt: capabilityPrompt + relevantKnowledgeContext + knowledgeContext + coreSkillContext + contradictionContext + corroborationContext + contextualContext + transferContext + tournamentContext + recoveryContext +
+    prompt: capabilityPrompt + relevantKnowledgeContext + knowledgeContext + coreSkillContext + contradictionContext + corroborationContext + contextualContext + transferContext + metaStrategyContext + tournamentContext + recoveryContext +
       (learningMode.mode === "explore" && exploration?.novelMechanic
         ? " Exploration directive: deliberately test the novel mechanic \""+ exploration.novelMechanic + "\" instead of repeating the most recent proven mechanic set. Compare its evidence against the current strategy."
         : " Exploitation directive: reuse proven strategy components first, while preserving regression checks and measurable evidence."),
@@ -2676,6 +2705,8 @@ export async function createJamesGameExperimentPlan() {
     consolidatedKnowledge,
     relevantKnowledge,
     composedKnowledge,
+    selectedMetaStrategy,
+    validatedMetaStrategies: validatedMetaStrategies.slice(0, 5),
   };
 }
 
@@ -3506,6 +3537,7 @@ export async function createJamesGameExperimentJob(input: {
   const blueprint = createAutonomousGameBlueprint(plan.prompt);
   const gameHtml = buildAutonomousGameHtml(blueprint);
   const client = db();
+  const selectedMetaStrategy = plan.selectedMetaStrategy as JamesValidatedMetaStrategy | null;
 
   if (!client) {
     return {
@@ -3529,6 +3561,9 @@ export async function createJamesGameExperimentJob(input: {
       game_html: gameHtml,
       status: "pending_verification",
       attempt: 0,
+      learning_result: selectedMetaStrategy
+        ? { strategyId: selectedMetaStrategy.strategyId, strategyTaskClass: selectedMetaStrategy.taskClass, strategySelectionScore: selectedMetaStrategy.relevanceScore, strategySelectionEvidenceCount: selectedMetaStrategy.evidenceCount, strategySelectionSource: "validated-meta-strategy-lifecycle" }
+        : { strategySelectionSource: "no-validated-meta-strategy" },
     })
     .select("id")
     .single();
@@ -3541,6 +3576,7 @@ export async function createJamesGameExperimentJob(input: {
     plan,
     blueprint,
     gameHtml,
+    strategyId: selectedMetaStrategy?.strategyId || null,
   };
 }export async function recordJamesTournamentMemory(input: {
   targetContext: string;
