@@ -2499,6 +2499,33 @@ export function applyJamesMutationDirectiveToBlueprint(
 }
 
 export async function getJamesMutationDirective(targetContext?: string) {
+  const candidateText = String(targetContext || "").toLowerCase();
+  if (candidateText.includes("candidate-strategy:")) {
+    if (candidateText.includes("rollback-and-open-new-branch") ||
+        candidateText.includes("materially different branch") ||
+        candidateText.includes("repeated failures")) {
+      return {
+        action: "rollback-and-open-new-branch",
+        reason: "The synthesized candidate explicitly requests a materially different branch after terminal failure evidence.",
+        winner: null,
+      };
+    }
+    if (candidateText.includes("change-one-component-and-add-regression-check")) {
+      return {
+        action: "change-one-component-and-add-regression-check",
+        reason: "The synthesized candidate requests a controlled one-component mutation with regression evidence.",
+        winner: null,
+      };
+    }
+    if (candidateText.includes("small-contextual-variation")) {
+      return {
+        action: "preserve-and-make-small-mutation",
+        reason: "The synthesized candidate requests a bounded contextual variation.",
+        winner: null,
+      };
+    }
+  }
+
   const tournament = await evaluateJamesTournamentWithMemory(targetContext, 5);
   if (!tournament.winner) {
     return {
