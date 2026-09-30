@@ -2576,14 +2576,17 @@ async function persistJamesRetiredStrategyCandidate(directive: {
     500,
   );
 
-  const { data: existing } = await client
+  const { data: existingRows } = await client
     .from("james_meta_strategy_synthesis")
-    .select("id,strategy_key,task_class,strategy,status,confidence,evidence_count,success_count,failure_count")
-    .eq("strategy_key", baseKey)
-    .maybeSingle();
+    .select("id,strategy_key,task_class,strategy,status,confidence,evidence_count,success_count,failure_count,created_at")
+    .like("strategy_key", baseKey + "%")
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  const existing = (existingRows || []).find((row) => row.status !== "deprecated") || existingRows?.[0] || null;
 
   // Planner calls are expected to be repeatable. Never rewrite an existing
-  // candidate/validated/retired identity merely because planning ran again.
+  // candidate/validated identity merely because planning ran again.
   if (existing?.id && existing.status !== "deprecated") {
     return {
       strategyId: String(existing.id),
@@ -2597,9 +2600,10 @@ async function persistJamesRetiredStrategyCandidate(directive: {
   }
 
   // A deprecated identity is terminal. Do not edit it or resurrect it.
-  // Create a fresh identity for the next synthesis branch.
-  const branchOrdinal = existing?.status === "deprecated"
-    ? Math.max(1, Number(existing.evidence_count || 0) + Number(existing.failure_count || 0) + 1)
+  // Count prior terminal branches and create a genuinely new identity.
+  const deprecatedBranches = (existingRows || []).filter((row) => row.status === "deprecated");
+  const branchOrdinal = deprecatedBranches.length
+    ? deprecatedBranches.length + 1
     : 0;
   const strategyKey = branchOrdinal
     ? baseKey + ":branch:" + branchOrdinal
