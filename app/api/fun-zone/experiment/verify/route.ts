@@ -116,6 +116,46 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Experiment verification state changed before persistence." }, { status: 409 });
     }
 
+    // Feed autonomous strategy-revalidation experiments back into the strategy loop.
+    // The strategy/job identifiers are carried in learning_result by the sandbox bridge.
+    const strategyMeta = (experiment.learning_result && typeof experiment.learning_result === "object")
+      ? experiment.learning_result as Record<string, unknown>
+      : {};
+    const strategyId = typeof strategyMeta.strategyId === "string" ? strategyMeta.strategyId : "";
+    const revalidationJobId = typeof strategyMeta.revalidationJobId === "string" ? strategyMeta.revalidationJobId : "";
+    if (strategyId && revalidationJobId) {
+      const hardFailures = Array.isArray(report.hardFailures) ? report.hardFailures : [];
+      const softWarnings = Array.isArray(report.softWarnings) ? report.softWarnings : [];
+      const quality = Math.max(0, Math.min(1,
+        verified ? 0.9 : Math.max(0.1, 0.6 - hardFailures.length * 0.12 - softWarnings.length * 0.03)
+      ));
+      const outcome = verified ? "success" : hardFailures.length > 0 ? "failure" : "partial";
+      const evidence = {
+        source: "fun-zone-post-verification-callback",
+        experimentId,
+        revalidationJobId,
+        status: nextStatus,
+        attempt,
+        hardFailures: hardFailures.slice(0, 10),
+        softWarnings: softWarnings.slice(0, 10),
+      };
+      const { error: strategyTrialError } = await client.from("james_meta_strategy_trials").insert({
+        strategy_id: strategyId,
+        scenario_key: "fun-zone-sandbox:" + experimentId,
+        outcome,
+        quality,
+        evidence,
+      });
+      if (strategyTrialError) {
+        console.warn("James strategy post-verification feedback unavailable:", strategyTrialError.message);
+      } else {
+        await client.from("james_meta_strategy_revalidation_queue")
+          .update({ status: "completed", completed_at: new Date().toISOString(), evidence })
+          .eq("id", revalidationJobId)
+          .eq("status", "running");
+      }
+    }
+
     return NextResponse.json({ success: true, experimentId, status: nextStatus, learning, brainEvidence, evolved, mutationOutcome, recoveryImpact });
   } catch (error) {
     console.error("James Game Brain experiment verification failed:", error);
