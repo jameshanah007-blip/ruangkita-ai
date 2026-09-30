@@ -37,6 +37,30 @@ export async function POST(request: Request) {
     if (body?.mode === "claim") {
       const claimed = await claimJamesGameExperiment({ userId });
       if (!claimed) return NextResponse.json({ success: true, claimed: false, message: "Tidak ada experiment pending." });
+      const strategyMeta =
+        claimed.learning_result && typeof claimed.learning_result === "object"
+          ? claimed.learning_result as Record<string, unknown>
+          : {};
+      const claimedStrategyId =
+        typeof strategyMeta.strategyId === "string" ? strategyMeta.strategyId : "";
+      if (claimedStrategyId) {
+        const client = db();
+        if (!client) throw new Error("Supabase secret configuration is missing.");
+        const { error: usageError } = await client.rpc("record_james_meta_strategy_usage", {
+          p_strategy_id: claimedStrategyId,
+          p_experiment_id: claimed.id,
+          p_attempt: Number(claimed.attempt || 0),
+          p_usage_state: "executed",
+          p_evidence: {
+            source: "fun-zone-experiment-claim",
+            executionContextIssued: true,
+            claimTokenPresent: Boolean(claimed.runner_token),
+          },
+        });
+        if (usageError) {
+          throw new Error("Strategy execution receipt could not be persisted: " + usageError.message);
+        }
+      }
       return NextResponse.json({
         success: true, claimed: true, status: "running", experimentId: claimed.id,
         claimToken: claimed.runner_token, experiment: claimed,
