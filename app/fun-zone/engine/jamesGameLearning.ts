@@ -2436,27 +2436,63 @@ export function applyJamesMutationDirectiveToBlueprint(
   const addUnique = (key: string, values: string[], max = 12) => {
     next[key] = Array.from(new Set([...(Array.isArray(next[key]) ? next[key] : []), ...values])).slice(0, max);
   };
+  const appendProgression = (text: string) => {
+    next.progression = clean(String(next.progression || "") + " " + text, 1400);
+  };
+  const appendCoreLoop = (text: string) => {
+    next.coreLoop = clean(String(next.coreLoop || "") + " " + text, 900);
+  };
+  const appendObjective = (text: string) => {
+    next.objective = clean(String(next.objective || "") + " " + text, 700);
+  };
 
-  switch (directive.action) {
-    case "preserve-and-make-small-mutation":
-      addUnique("testRequirements", ["regression check for winning strategy", "contextual variation verification"]);
-      next.progression = [...(next.progression || []), "James mutation policy: preserve winning strategy and mutate one bounded component."];
-      break;
-    case "reuse-with-contextual-mutation":
-      addUnique("testRequirements", ["cross-context strategy verification", "alternate implementation path"]);
+  const action = directive.action;
+  if (action === "rollback-and-open-new-branch") {
+    // Materially change one gameplay branch while preserving the user's core concept.
+    addUnique("mechanics", ["puzzle", "explore"]);
+    addUnique("playerActions", ["interact", "inspect", "move"]);
+    addUnique("controls", ["alternate touch interaction path"]);
+    addUnique("testRequirements", [
+      "failed-strategy regression check",
+      "new branch verification",
+      "compare changed mechanic against retired branch",
+    ]);
+    next.coreLoop = clean("Explore, inspect, interact, and solve a short deterministic branch before the original loop. " + String(next.coreLoop || ""), 900);
+    appendObjective("Complete the alternate branch and demonstrate that the retired failure mode is not reproduced.");
+    appendProgression("Mutation branch: replaced the primary interaction path with an inspect-and-puzzle branch; verify this concrete change.");
+  } else if (action === "change-one-component-and-add-regression-check") {
+    const seed = clean(
+      String(directive.winner?.strategy || "") + "|" +
+      String(next.world || "") + "|" + String(next.genre || "") + "|" +
+      String(next.mechanics || ""),
+      500,
+    );
+    const component = ["objective", "mechanics", "playerActions", "controls"][
+      Math.abs([...seed].reduce((sum, ch) => sum + ch.charCodeAt(0), 0)) % 4
+    ];
+    if (component === "objective") {
+      appendObjective("Use a single explicit intermediate checkpoint before the final win condition.");
+    } else if (component === "mechanics") {
       addUnique("mechanics", ["explore"]);
-      next.progression = [...(next.progression || []), "James mutation policy: reuse proven strategy with contextual variation."];
-      break;
-    case "rollback-and-open-new-branch":
-      addUnique("mechanics", ["puzzle", "explore"]);
-      addUnique("playerActions", ["interact", "move"]);
-      addUnique("testRequirements", ["failed-strategy regression check", "new branch verification"]);
-      next.progression = [...(next.progression || []), "James mutation policy: abandon repeated-failure child and open a materially different branch."];
-      break;
-    default:
-      addUnique("mechanics", ["explore"]);
-      addUnique("testRequirements", ["new strategy branch verification"]);
-      next.progression = [...(next.progression || []), "James mutation policy: open a bounded alternative branch before exploitation."];
+    } else if (component === "playerActions") {
+      addUnique("playerActions", ["inspect"]);
+    } else {
+      addUnique("controls", ["alternate input path"]);
+    }
+    addUnique("testRequirements", ["one-component mutation regression check", "compare mutated component against parent strategy"]);
+    appendProgression("Mutation branch: changed exactly one bounded component (" + component + ") and retained the rest for controlled comparison.");
+  } else if (action === "preserve-and-make-small-mutation") {
+    addUnique("testRequirements", ["regression check for winning strategy", "contextual variation verification"]);
+    appendProgression("Mutation branch: preserve proven components and vary one contextual parameter only.");
+  } else if (action === "reuse-with-contextual-mutation") {
+    addUnique("testRequirements", ["cross-context strategy verification", "alternate implementation path"]);
+    addUnique("mechanics", ["explore"]);
+    appendCoreLoop(" Apply the proven loop in the current context through an alternate implementation path.");
+    appendProgression("Mutation branch: reused the proven principle with a context-specific implementation change.");
+  } else {
+    addUnique("mechanics", ["explore"]);
+    addUnique("testRequirements", ["new strategy branch verification", "compare branch against previous evidence"]);
+    appendProgression("Mutation branch: opened a bounded alternative exploration path before exploitation.");
   }
 
   return next;
