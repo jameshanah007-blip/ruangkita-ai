@@ -132,7 +132,9 @@ export async function POST(request: Request) {
         verified ? 0.9 : Math.max(0.1, 0.6 - hardFailures.length * 0.12 - softWarnings.length * 0.03)
       ));
       const outcome = verified ? "success" : hardFailures.length > 0 ? "failure" : "partial";
-      const sourceEventKey = "strategy-revalidation:" + revalidationJobId + ":experiment:" + experimentId + ":attempt:" + attempt;
+      const sourceEventKey = revalidationJobId
+        ? "strategy-revalidation:" + revalidationJobId + ":experiment:" + experimentId + ":attempt:" + attempt
+        : "strategy-experiment:" + strategyId + ":experiment:" + experimentId + ":attempt:" + attempt;
       const evidence = {
         source: "fun-zone-post-verification-callback",
         sourceEventKey,
