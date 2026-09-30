@@ -1361,6 +1361,7 @@ export async function recordJamesStrategyComparisonMemory(input: {
   candidateQuality: number;
   improvement: number | null;
   improved: boolean | null;
+  blueprintDiversity?: { mutationVerified?: boolean | null; beforeFingerprint?: string | null; afterFingerprint?: string | null } | null;
   experimentId?: string;
 }) {
   const client = db();
@@ -1407,6 +1408,7 @@ export async function recordJamesStrategyComparisonMemory(input: {
       improvement: input.improvement,
       improved: input.improved,
       mutation: input.mutation,
+      blueprintDiversity: input.blueprintDiversity || null,
       targetContext: input.targetContext,
       experimentId: input.experimentId || null,
       outcome,
