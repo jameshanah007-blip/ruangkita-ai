@@ -3719,7 +3719,7 @@ export async function evaluateJamesExploreExploitImpact(
       improvement,
       better,
       successRate: Number((priorTotal ? Number(existing?.success_count || 0) / priorTotal : 0).toFixed(3)),
-      confidence: 0,
+      confidence: Number(existing?.confidence || 0.1),
       duplicate: true,
     };
   }
@@ -3750,8 +3750,14 @@ export async function evaluateJamesExploreExploitImpact(
     },
   };
 
-  if (existing?.id) await client.from("james_experiences").update(memory).eq("id", existing.id);
-  else await client.from("james_experiences").insert(memory);
+  const persistence = existing?.id
+    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
+    : await client.from("james_experiences").insert(memory);
+
+  if (persistence.error) {
+    console.warn("James learning-mode persistence failed:", persistence.error.message);
+    throw new Error("Learning mode impact could not be persisted; verification will resume this stage.");
+  }
 
   return {
     mode,
