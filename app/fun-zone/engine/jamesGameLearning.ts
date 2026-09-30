@@ -2438,6 +2438,14 @@ export async function resolveJamesCoreSkillConflict(
       corroboration: evidenceTrust.corroboration,
       sourceEvidenceCount: sourceReliability.evidenceCount,
       empiricalRate: Number(empiricalRate.toFixed(3)),
+      history: [{
+        source: "core-skill-conflict-resolution",
+        quality: observedQuality,
+        passed: observed.passed,
+        context: "current-context",
+        recordedAt: new Date().toISOString(),
+        sourceEventKey: sourceEventKey || null,
+      }, ...previousHistory].slice(0, 12),
     },
   }).eq("id", current.id);
 
