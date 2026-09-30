@@ -113,11 +113,79 @@ export async function POST(request: Request) {
         .eq("finalized", false);
       if (brainCheckpointError) throw brainCheckpointError;
     }
-    const evolved = await evolveJamesStrategyMemory(blueprint, report);
-    const mutationOutcome = await evaluateJamesMutationOutcome(experiment.prompt, blueprint, report);
-    const recoveryImpact = await evaluateJamesRecoveryDirectiveImpact(experiment.prompt, blueprint, report);
-    const explorationPromotion = await promoteJamesExplorationResult(experiment.prompt, blueprint, report);
-    const learningModeImpact = await evaluateJamesExploreExploitImpact(experiment.prompt, blueprint, report);
+    const { data: stageRow, error: stageReadError } = await client
+      .from("james_experiment_verification_ledger")
+      .select("*")
+      .eq("experiment_id", experimentId)
+      .eq("attempt", attempt)
+      .single();
+    if (stageReadError) throw stageReadError;
+
+    const evolved = stageRow.evolution_completed && stageRow.evolution_result
+      ? stageRow.evolution_result
+      : await evolveJamesStrategyMemory(blueprint, report);
+    if (!stageRow.evolution_completed) {
+      const { error } = await client.from("james_experiment_verification_ledger").update({
+        evolution_completed: true, evolution_result: evolved, stage: "mutation_started", updated_at: new Date().toISOString()
+      }).eq("id", stageRow.id).eq("finalized", false);
+      if (error) throw error;
+    }
+
+    const { data: afterEvolution, error: reloadEvolutionError } = await client
+      .from("james_experiment_verification_ledger").select("*").eq("id", stageRow.id).single();
+    if (reloadEvolutionError) throw reloadEvolutionError;
+
+    const mutationOutcome = afterEvolution.mutation_completed && afterEvolution.mutation_result
+      ? afterEvolution.mutation_result
+      : await evaluateJamesMutationOutcome(experiment.prompt, blueprint, report);
+    if (!afterEvolution.mutation_completed) {
+      const { error } = await client.from("james_experiment_verification_ledger").update({
+        mutation_completed: true, mutation_result: mutationOutcome, stage: "recovery_started", updated_at: new Date().toISOString()
+      }).eq("id", stageRow.id).eq("finalized", false);
+      if (error) throw error;
+    }
+
+    const { data: afterMutation, error: reloadMutationError } = await client
+      .from("james_experiment_verification_ledger").select("*").eq("id", stageRow.id).single();
+    if (reloadMutationError) throw reloadMutationError;
+
+    const recoveryImpact = afterMutation.recovery_completed && afterMutation.recovery_result
+      ? afterMutation.recovery_result
+      : await evaluateJamesRecoveryDirectiveImpact(experiment.prompt, blueprint, report);
+    if (!afterMutation.recovery_completed) {
+      const { error } = await client.from("james_experiment_verification_ledger").update({
+        recovery_completed: true, recovery_result: recoveryImpact, stage: "exploration_started", updated_at: new Date().toISOString()
+      }).eq("id", stageRow.id).eq("finalized", false);
+      if (error) throw error;
+    }
+
+    const { data: afterRecovery, error: reloadRecoveryError } = await client
+      .from("james_experiment_verification_ledger").select("*").eq("id", stageRow.id).single();
+    if (reloadRecoveryError) throw reloadRecoveryError;
+
+    const explorationPromotion = afterRecovery.exploration_completed && afterRecovery.exploration_result
+      ? afterRecovery.exploration_result
+      : await promoteJamesExplorationResult(experiment.prompt, blueprint, report);
+    if (!afterRecovery.exploration_completed) {
+      const { error } = await client.from("james_experiment_verification_ledger").update({
+        exploration_completed: true, exploration_result: explorationPromotion, stage: "learning_mode_started", updated_at: new Date().toISOString()
+      }).eq("id", stageRow.id).eq("finalized", false);
+      if (error) throw error;
+    }
+
+    const { data: afterExploration, error: reloadExplorationError } = await client
+      .from("james_experiment_verification_ledger").select("*").eq("id", stageRow.id).single();
+    if (reloadExplorationError) throw reloadExplorationError;
+
+    const learningModeImpact = afterExploration.learning_mode_completed && afterExploration.learning_mode_result
+      ? afterExploration.learning_mode_result
+      : await evaluateJamesExploreExploitImpact(experiment.prompt, blueprint, report);
+    if (!afterExploration.learning_mode_completed) {
+      const { error } = await client.from("james_experiment_verification_ledger").update({
+        learning_mode_completed: true, learning_mode_result: learningModeImpact, stage: "knowledge_started", updated_at: new Date().toISOString()
+      }).eq("id", stageRow.id).eq("finalized", false);
+      if (error) throw error;
+    }
     const generalizedSkills = await promoteJamesGeneralizedGameSkills(8);
     const consolidatedKnowledge = await consolidateJamesGameKnowledge(8);
     const knowledgeVersions = await versionJamesConsolidatedKnowledge(8);
