@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { reconcileJamesMetaStrategyLifecycle } from "../../../tools/jamesMetaStrategyLifecycle";
 import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../../../../fun-zone/laboratory/types";
 import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, gameQuality, evolveJamesStrategyMemory, evaluateJamesMutationOutcome, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict, recordJamesCoreSkillLineage, recordJamesKnowledgeContradiction, consolidateJamesGameKnowledge, versionJamesConsolidatedKnowledge, resolveJamesKnowledgeSupersession } from "../../../../fun-zone/engine/jamesGameLearning";
@@ -39,6 +40,17 @@ export async function POST(request: Request) {
     }
 
     const attempt = Number(report.attempt || experiment.attempt || 0);
+
+    const strategyMeta =
+      experiment.learning_result && typeof experiment.learning_result === "object"
+        ? experiment.learning_result as Record<string, unknown>
+        : {};
+    const strategyId = typeof strategyMeta.strategyId === "string" ? strategyMeta.strategyId : "";
+    let strategyLifecycle: unknown = null;
+    if (strategyId) {
+      strategyLifecycle = await reconcileJamesMetaStrategyLifecycle(strategyId);
+    }
+
     const learning = await recordJamesGameTestLearning(blueprint, report, attempt);
     const brainEvidence = await recordJamesGameBrainEvidence(blueprint, report, attempt);
     const evolved = await evolveJamesStrategyMemory(blueprint, report);
@@ -89,7 +101,7 @@ export async function POST(request: Request) {
     const updatePayload = {
       status: nextStatus,
       test_report: report,
-      learning_result: { learning, brainEvidence, evolved, mutationOutcome, recoveryImpact, explorationPromotion, learningModeImpact, generalizedSkills, coreSkillConflicts, consolidatedKnowledge, knowledgeVersions, knowledgeSupersession },
+      learning_result: { learning, brainEvidence, evolved, mutationOutcome, recoveryImpact, explorationPromotion, learningModeImpact, generalizedSkills, coreSkillConflicts, consolidatedKnowledge, knowledgeVersions, knowledgeSupersession, strategyLifecycle },
       attempt,
       verified_at: verified ? new Date().toISOString() : null,
       runner_token: null,
@@ -116,7 +128,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Experiment verification state changed before persistence." }, { status: 409 });
     }
 
-    return NextResponse.json({ success: true, experimentId, status: nextStatus, learning, brainEvidence, evolved, mutationOutcome, recoveryImpact });
+    return NextResponse.json({ success: true, experimentId, status: nextStatus, learning, brainEvidence, evolved, mutationOutcome, recoveryImpact, strategyLifecycle });
   } catch (error) {
     console.error("James Game Brain experiment verification failed:", error);
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Experiment verification failed." }, { status: 500 });
