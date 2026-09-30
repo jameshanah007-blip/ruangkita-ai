@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { GameSpecificationSchema } from "../../../fun-zone/engine/gameSchema";
 import { generateLocalGame } from "../../../fun-zone/engine/localGenerator";
+import { formatJamesRuntimeStrategyContext, retrieveJamesRuntimeStrategies } from "../../tools/jamesRuntimeStrategyContext";
 
 const MODEL = "gemini-3.6-flash";
 
@@ -325,6 +326,8 @@ export async function POST(request: Request) {
         : "surprise";
 
     const history = await getHistory();
+    const runtimeStrategies = await retrieveJamesRuntimeStrategies("fun-zone-game-director", 3);
+    const strategyContext = formatJamesRuntimeStrategyContext(runtimeStrategies);
 
     const recentThemes =
       getRecentThemes(history);
