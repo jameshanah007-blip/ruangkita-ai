@@ -2816,7 +2816,30 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
   });
 
   const mutationTournament = runJamesMutationTournament(empiricalMutationEvidence, failedMutations);
-  const tournamentMutation = mutationTournament[0]?.action || null;
+
+  const tournamentMemoryPattern = "fun-zone:tournament:" + String(retired.id) + ":" + String(retired.task_class || input.taskClass || "fun-zone-game-director");
+  const { data: tournamentMemoryRows } = await client
+    .from("james_experiences")
+    .select("last_evidence,updated_at")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("pattern", tournamentMemoryPattern)
+    .eq("status", "active")
+    .order("updated_at", { ascending: false })
+    .limit(3);
+  const rememberedTournamentRankings = (tournamentMemoryRows || [])
+    .flatMap((row) => {
+      const evidence = row.last_evidence && typeof row.last_evidence === "object"
+        ? row.last_evidence as Record<string, unknown>
+        : {};
+      return Array.isArray(evidence.rankings) ? evidence.rankings : [];
+    })
+    .map((item) => item && typeof item === "object" ? item as Record<string, unknown> : {})
+    .filter((item) => typeof item.strategy === "string" && !failedMutations.includes(String(item.strategy)))
+    .sort((a, b) => Number(a.rank || 999) - Number(b.rank || 999));
+  const rememberedTournamentMutation = rememberedTournamentRankings[0]
+    ? String(rememberedTournamentRankings[0].strategy)
+    : null;
+  const tournamentMutation = mutationTournament[0]?.action || rememberedTournamentMutation || null;
 
   if (mutationTournament.length) {
     await recordJamesTournamentMemory({
@@ -2873,7 +2896,9 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
     : "";
   const tournamentInstruction = mutationTournament.length
     ? " Mutation tournament ranking: " + mutationTournament.slice(0, 5).map((entry) => entry.rank + ":" + entry.action + "=" + entry.score.toFixed(3)).join(", ") + "."
-    : "";
+    : rememberedTournamentRankings.length
+      ? " Remembered mutation tournament ranking: " + rememberedTournamentRankings.slice(0, 5).map((entry) => String(entry.rank || "?") + ":" + String(entry.strategy) + "=" + Number(entry.score || 0).toFixed(3)).join(", ") + "."
+      : "";
 
   const mutationDirective = chooseJamesMutationStrategy({
     tournamentScore: 0, successRate: 0, confidence: Number(retired.confidence || 0),
