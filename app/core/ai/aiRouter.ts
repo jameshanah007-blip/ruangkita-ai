@@ -348,15 +348,20 @@ export async function* streamWithAIRouter(
 export async function generateWithAllAIProviders(
   request: AIGenerateRequest
 ): Promise<Array<AIGenerateResponse & { attempts: string[] }>> {
-  const providers = [
+  const allProviders = [
     ...aiProviders,
     openRouterProvider,
     groqProvider,
   ];
-
-  const availableProviders = providers.filter((provider) =>
-    provider.isAvailable()
+  const selectedNames = getJamesProviderOrder(
+    request,
+    allProviders.filter((provider) => provider.isAvailable()).map((provider) => provider.name as "gemini" | "openrouter" | "groq" | "openai")
   );
+  const availableProviders = selectedNames
+    .map((name) => allProviders.find((provider) => provider.name === name))
+    .filter((provider): provider is typeof allProviders[number] => Boolean(provider));
+
+  console.log(`James Cognitive Resource Manager (learning): task=${jamesTaskClassLabel(request)}, providers=${availableProviders.map((provider) => provider.name).join(",") || "none"}`);
 
   if (!availableProviders.length) {
     throw new Error(
