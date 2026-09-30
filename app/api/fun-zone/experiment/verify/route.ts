@@ -98,7 +98,7 @@ export async function POST(request: Request) {
 
     const learning = ledgerRow.learning_completed && ledgerRow.learning_result
       ? ledgerRow.learning_result
-      : await recordJamesGameTestLearning(blueprint, report, attempt);
+      : await recordJamesGameTestLearning(blueprint, report, attempt, `learning:${experimentId}:${attempt}`);
 
     if (!ledgerRow.learning_completed) {
       const { error: checkpointError } = await client
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
 
     const brainEvidence = ledgerAfterLearning.brain_evidence_completed && ledgerAfterLearning.brain_evidence_result
       ? ledgerAfterLearning.brain_evidence_result
-      : await recordJamesGameBrainEvidence(blueprint, report, attempt);
+      : await recordJamesGameBrainEvidence(blueprint, report, attempt, `brain-evidence:${experimentId}:${attempt}`);
 
     if (!ledgerAfterLearning.brain_evidence_completed) {
       const { error: brainCheckpointError } = await client
