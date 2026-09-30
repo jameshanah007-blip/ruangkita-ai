@@ -186,10 +186,45 @@ export async function POST(request: Request) {
       }).eq("id", stageRow.id).eq("finalized", false);
       if (error) throw error;
     }
-    const generalizedSkills = await promoteJamesGeneralizedGameSkills(8);
-    const consolidatedKnowledge = await consolidateJamesGameKnowledge(8);
-    const knowledgeVersions = await versionJamesConsolidatedKnowledge(8);
-    const knowledgeSupersession = await resolveJamesKnowledgeSupersession(8);
+    const { data: knowledgeStage, error: knowledgeStageError } = await client
+      .from("james_experiment_verification_ledger")
+      .select("*")
+      .eq("experiment_id", experimentId)
+      .eq("attempt", attempt)
+      .single();
+    if (knowledgeStageError) throw knowledgeStageError;
+
+    const generalizedSkills = knowledgeStage.skills_completed && knowledgeStage.skills_result
+      ? knowledgeStage.skills_result
+      : await promoteJamesGeneralizedGameSkills(8);
+    if (!knowledgeStage.skills_completed) {
+      const { error } = await client.from("james_experiment_verification_ledger").update({
+        skills_completed: true, skills_result: generalizedSkills, stage: "knowledge_started", updated_at: new Date().toISOString()
+      }).eq("id", knowledgeStage.id).eq("finalized", false);
+      if (error) throw error;
+    }
+
+    const { data: knowledgeAfterSkills, error: skillsReloadError } = await client
+      .from("james_experiment_verification_ledger").select("*").eq("id", knowledgeStage.id).single();
+    if (skillsReloadError) throw skillsReloadError;
+
+    const consolidatedKnowledge = knowledgeAfterSkills.knowledge_completed && knowledgeAfterSkills.knowledge_result
+      ? knowledgeAfterSkills.knowledge_result.consolidatedKnowledge
+      : await consolidateJamesGameKnowledge(8);
+    const knowledgeVersions = knowledgeAfterSkills.knowledge_completed && knowledgeAfterSkills.knowledge_result
+      ? knowledgeAfterSkills.knowledge_result.knowledgeVersions
+      : await versionJamesConsolidatedKnowledge(8);
+    const knowledgeSupersession = knowledgeAfterSkills.knowledge_completed && knowledgeAfterSkills.knowledge_result
+      ? knowledgeAfterSkills.knowledge_result.knowledgeSupersession
+      : await resolveJamesKnowledgeSupersession(8);
+
+    if (!knowledgeAfterSkills.knowledge_completed) {
+      const knowledgeResult = { consolidatedKnowledge, knowledgeVersions, knowledgeSupersession };
+      const { error } = await client.from("james_experiment_verification_ledger").update({
+        knowledge_completed: true, knowledge_result: knowledgeResult, stage: "core_skill_started", updated_at: new Date().toISOString()
+      }).eq("id", knowledgeStage.id).eq("finalized", false);
+      if (error) throw error;
+    }
     const coreSkillConflicts = [];
     for (const skill of generalizedSkills || []) {
       const conflict = await resolveJamesCoreSkillConflict(skill.capabilityKey, {
