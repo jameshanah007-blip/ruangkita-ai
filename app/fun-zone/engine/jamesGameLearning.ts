@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../laboratory/types";
 
-const SYSTEM_USER_ID = "system:fun-zone";
+const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
