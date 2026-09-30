@@ -59,9 +59,14 @@ export async function POST(request: Request) {
     });
 
     if (result.status !== "no-gap" && result.blueprint) {
+      const synthesizedStrategy = result.plan?.synthesizedRetiredStrategy;
+      const mutationContext = [
+        result.plan?.targetCapability?.key || result.plan?.targetCapability?.name || "fun-zone",
+        synthesizedStrategy?.strategy ? "candidate-strategy:" + synthesizedStrategy.strategy : "",
+      ].filter(Boolean).join(" | ");
       const mutated = await applyJamesAutonomousMutationToExperimentBlueprint(
         result.blueprint,
-        result.plan?.targetCapability?.key || result.plan?.targetCapability?.name || "fun-zone",
+        mutationContext,
       );
       result.blueprint = mutated.blueprint;
       result.gameHtml = buildAutonomousGameHtml(result.blueprint);
