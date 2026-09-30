@@ -142,7 +142,7 @@ export async function POST(request: Request) {
     const updatePayload = {
       status: nextStatus,
       test_report: report,
-      learning_result: { learning, brainEvidence, evolved, mutationOutcome, recoveryImpact, explorationPromotion, learningModeImpact, generalizedSkills, coreSkillConflicts, consolidatedKnowledge, knowledgeVersions, knowledgeSupersession, strategyFeedback },
+      learning_result: { learning, brainEvidence, evolved, mutationOutcome, recoveryImpact, explorationPromotion, learningModeImpact, generalizedSkills, coreSkillConflicts, consolidatedKnowledge, knowledgeVersions, knowledgeSupersession, strategyFeedback, strategyId: strategyId || null, strategyComparison: strategyMeta.strategyComparison || null },
       attempt,
       verified_at: verified ? new Date().toISOString() : null,
       runner_token: null,
