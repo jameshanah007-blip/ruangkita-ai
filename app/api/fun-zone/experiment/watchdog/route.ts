@@ -83,16 +83,24 @@ export async function GET(request: Request) {
       .eq("strategy", strategy)
       .maybeSingle();
 
-    const successCount = Number(existing?.success_count || 0) + stale.length;
-    const confidence = Math.min(0.99, Math.max(Number(existing?.confidence || 0.7), 0.7) + 0.02);
+    // A timeout/recovery is operational failure evidence, not a successful
+    // experiment outcome. Keep it separate from verification successes so the
+    // learning loop cannot reward abandoned runners.
+    const successCount = Number(existing?.success_count || 0);
+    const failureCount = Number(existing?.failure_count || 0) + stale.length;
+    const total = successCount + failureCount;
+    const confidence = Math.max(
+      0.05,
+      Math.min(0.95, total ? successCount / total : 0.35),
+    );
 
     const experience = {
-      user_id: "system:fun-zone",
+      user_id: "00000000-0000-0000-0000-000000000001",
       pattern,
       strategy,
       confidence,
       success_count: successCount,
-      failure_count: Number(existing?.failure_count || 0),
+      failure_count: failureCount,
       capabilities: Array.from(new Set(["fun-zone-runtime-observability", "fun-zone-restart-integrity", ...repeatedFailureCapabilities])),
       status: "active",
     };

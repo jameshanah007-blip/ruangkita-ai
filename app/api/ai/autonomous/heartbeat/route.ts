@@ -78,7 +78,7 @@ export async function GET(request: Request) {
     };
 
     const pendingExperiment = await getJamesPendingExperiment({
-      userId: "system:fun-zone",
+      userId: "00000000-0000-0000-0000-000000000001",
     });
 
     if (pendingExperiment) {
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
       };
     } else {
       const experiment = await createJamesGameExperimentJob({
-        userId: "system:fun-zone",
+        userId: "00000000-0000-0000-0000-000000000001",
         conversationId: "autonomous-heartbeat",
       });
 

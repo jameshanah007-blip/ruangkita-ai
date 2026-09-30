@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../../../../fun-zone/laboratory/types";
 import { reconcileJamesMetaStrategyLifecycle } from "../../../tools/jamesStrategyLifecycleBridge";
-import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, gameQuality, evolveJamesStrategyMemory, evaluateJamesMutationOutcome, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict, recordJamesCoreSkillLineage, recordJamesKnowledgeContradiction, consolidateJamesGameKnowledge, versionJamesConsolidatedKnowledge, resolveJamesKnowledgeSupersession } from "../../../../fun-zone/engine/jamesGameLearning";
+import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, gameQuality, evolveJamesStrategyMemory, evaluateJamesMutationOutcome, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict, recordJamesCoreSkillLineage, recordJamesKnowledgeContradiction, consolidateJamesGameKnowledge, versionJamesConsolidatedKnowledge, resolveJamesKnowledgeSupersession, recordJamesTournamentOutcomeFeedback, recordJamesStrategyComparisonMemory } from "../../../../fun-zone/engine/jamesGameLearning";
 
 export const runtime = "nodejs";
 
@@ -40,98 +40,402 @@ export async function POST(request: Request) {
     }
 
     const attempt = Number(report.attempt || experiment.attempt || 0);
-    const learning = await recordJamesGameTestLearning(blueprint, report, attempt);
-    const brainEvidence = await recordJamesGameBrainEvidence(blueprint, report, attempt);
-    const evolved = await evolveJamesStrategyMemory(blueprint, report);
-    const mutationOutcome = await evaluateJamesMutationOutcome(experiment.prompt, blueprint, report);
-    const recoveryImpact = await evaluateJamesRecoveryDirectiveImpact(experiment.prompt, blueprint, report);
-    const explorationPromotion = await promoteJamesExplorationResult(experiment.prompt, blueprint, report);
-    const learningModeImpact = await evaluateJamesExploreExploitImpact(experiment.prompt, blueprint, report);
-    const generalizedSkills = await promoteJamesGeneralizedGameSkills(8);
-    const consolidatedKnowledge = await consolidateJamesGameKnowledge(8);
-    const knowledgeVersions = await versionJamesConsolidatedKnowledge(8);
-    const knowledgeSupersession = await resolveJamesKnowledgeSupersession(8);
-    const coreSkillConflicts = [];
-    for (const skill of generalizedSkills || []) {
-      const conflict = await resolveJamesCoreSkillConflict(skill.capabilityKey, {
-        competence: skill.competence,
-        confidence: skill.confidence,
-        passed: report.passed === true,
-        quality: gameQuality(report),
-        evidence: 1,
+
+    // Atomically claim this exact verification callback before any learning
+    // side effects. A duplicate callback with the old runner token is rejected.
+    const { data: processingToken, error: claimError } = await client.rpc(
+      "claim_james_game_experiment_verification",
+      {
+        p_experiment_id: experimentId,
+        p_attempt: attempt,
+        p_runner_token: claimToken,
+      },
+    );
+    if (claimError) throw claimError;
+    if (typeof processingToken !== "string" || !processingToken) {
+      return NextResponse.json({
+        success: false,
+        error: "Experiment verification attempt was already claimed or is no longer active.",
+      }, { status: 409 });
+    }
+
+    const { data: existingLedger, error: existingLedgerError } = await client
+      .from("james_experiment_verification_ledger")
+      .select("*")
+      .eq("experiment_id", experimentId)
+      .eq("attempt", attempt)
+      .maybeSingle();
+    if (existingLedgerError) throw existingLedgerError;
+
+    if (existingLedger?.finalized && existingLedger.final_payload) {
+      const { data: recoveredExperiment, error: recoveredExperimentError } = await client
+        .from("james_game_experiments")
+        .update(existingLedger.final_payload)
+        .eq("id", experimentId)
+        .eq("status", "running")
+        .eq("runner_token", processingToken)
+        .select("id,status");
+      if (recoveredExperimentError) throw recoveredExperimentError;
+      return NextResponse.json({
+        success: true,
+        experimentId,
+        status: recoveredExperiment?.[0]?.status || existingLedger.final_payload.status,
+        recoveredFromFinalizedLedger: true,
       });
-      if (conflict) {
-        coreSkillConflicts.push(conflict);
-        if (conflict.conflict) {
-          await recordJamesKnowledgeContradiction({
-            capabilityKey: skill.capabilityKey,
-            previousQuality: conflict.previousCompetence,
-            observedQuality: conflict.observedQuality,
-            observedContext: String(blueprint.world) + ":" + String(blueprint.genre),
-            resolution: conflict.nextAction,
-          });
+    }
+
+    const { data: ledgerRow, error: ledgerError } = await client
+      .from("james_experiment_verification_ledger")
+      .upsert({
+        experiment_id: experimentId,
+        attempt,
+        processing_token: processingToken,
+        stage: existingLedger?.stage || "learning_started",
+      }, { onConflict: "experiment_id,attempt" })
+      .select("*")
+      .single();
+    if (ledgerError) throw ledgerError;
+
+    const learning = ledgerRow.learning_completed && ledgerRow.learning_result
+      ? ledgerRow.learning_result
+      : await recordJamesGameTestLearning(blueprint, report, attempt, `learning:${experimentId}:${attempt}`);
+
+    if (!ledgerRow.learning_completed) {
+      const { error: checkpointError } = await client
+        .from("james_experiment_verification_ledger")
+        .update({
+          learning_completed: true,
+          learning_result: learning,
+          stage: "brain_evidence_started",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", ledgerRow.id)
+        .eq("finalized", false);
+      if (checkpointError) throw checkpointError;
+    }
+
+    const { data: ledgerAfterLearning, error: ledgerReloadError } = await client
+      .from("james_experiment_verification_ledger")
+      .select("*")
+      .eq("id", ledgerRow.id)
+      .single();
+    if (ledgerReloadError) throw ledgerReloadError;
+
+    const brainEvidence = ledgerAfterLearning.brain_evidence_completed && ledgerAfterLearning.brain_evidence_result
+      ? ledgerAfterLearning.brain_evidence_result
+      : await recordJamesGameBrainEvidence(blueprint, report, attempt, `brain-evidence:${experimentId}:${attempt}`);
+
+    if (!ledgerAfterLearning.brain_evidence_completed) {
+      const { error: brainCheckpointError } = await client
+        .from("james_experiment_verification_ledger")
+        .update({
+          brain_evidence_completed: true,
+          brain_evidence_result: brainEvidence,
+          stage: "strategy_memory_started",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", ledgerAfterLearning.id)
+        .eq("finalized", false);
+      if (brainCheckpointError) throw brainCheckpointError;
+    }
+    const { data: stageRow, error: stageReadError } = await client
+      .from("james_experiment_verification_ledger")
+      .select("*")
+      .eq("experiment_id", experimentId)
+      .eq("attempt", attempt)
+      .single();
+    if (stageReadError) throw stageReadError;
+
+    const evolved = stageRow.evolution_completed && stageRow.evolution_result
+      ? stageRow.evolution_result
+      : await evolveJamesStrategyMemory(blueprint, report, `strategy-evolution:${experimentId}:${attempt}`);
+    if (!evolved) {
+      throw new Error("Strategy evolution could not be persisted; verification will resume this stage.");
+    }
+    if (!stageRow.evolution_completed) {
+      const { error } = await client.from("james_experiment_verification_ledger").update({
+        evolution_completed: true, evolution_result: evolved, stage: "mutation_started", updated_at: new Date().toISOString()
+      }).eq("id", stageRow.id).eq("finalized", false);
+      if (error) throw error;
+    }
+
+    const { data: afterEvolution, error: reloadEvolutionError } = await client
+      .from("james_experiment_verification_ledger").select("*").eq("id", stageRow.id).single();
+    if (reloadEvolutionError) throw reloadEvolutionError;
+
+    const mutationOutcome = afterEvolution.mutation_completed && afterEvolution.mutation_result
+      ? afterEvolution.mutation_result
+      : await evaluateJamesMutationOutcome(experiment.prompt, blueprint, report, `mutation:${experimentId}:${attempt}`);
+    if (!afterEvolution.mutation_completed) {
+      const { error } = await client.from("james_experiment_verification_ledger").update({
+        mutation_completed: true, mutation_result: mutationOutcome, stage: "recovery_started", updated_at: new Date().toISOString()
+      }).eq("id", stageRow.id).eq("finalized", false);
+      if (error) throw error;
+    }
+
+    const { data: afterMutation, error: reloadMutationError } = await client
+      .from("james_experiment_verification_ledger").select("*").eq("id", stageRow.id).single();
+    if (reloadMutationError) throw reloadMutationError;
+
+    const recoveryImpact = afterMutation.recovery_completed && afterMutation.recovery_result
+      ? afterMutation.recovery_result
+      : await evaluateJamesRecoveryDirectiveImpact(experiment.prompt, blueprint, report, `recovery:${experimentId}:${attempt}`);
+    if (!afterMutation.recovery_completed) {
+      const { error } = await client.from("james_experiment_verification_ledger").update({
+        recovery_completed: true, recovery_result: recoveryImpact, stage: "exploration_started", updated_at: new Date().toISOString()
+      }).eq("id", stageRow.id).eq("finalized", false);
+      if (error) throw error;
+    }
+
+    const { data: afterRecovery, error: reloadRecoveryError } = await client
+      .from("james_experiment_verification_ledger").select("*").eq("id", stageRow.id).single();
+    if (reloadRecoveryError) throw reloadRecoveryError;
+
+    const explorationPromotion = afterRecovery.exploration_completed && afterRecovery.exploration_result
+      ? afterRecovery.exploration_result
+      : await promoteJamesExplorationResult(experiment.prompt, blueprint, report, `exploration:${experimentId}:${attempt}`);
+    if (!afterRecovery.exploration_completed) {
+      const { error } = await client.from("james_experiment_verification_ledger").update({
+        exploration_completed: true, exploration_result: explorationPromotion, stage: "learning_mode_started", updated_at: new Date().toISOString()
+      }).eq("id", stageRow.id).eq("finalized", false);
+      if (error) throw error;
+    }
+
+    const { data: afterExploration, error: reloadExplorationError } = await client
+      .from("james_experiment_verification_ledger").select("*").eq("id", stageRow.id).single();
+    if (reloadExplorationError) throw reloadExplorationError;
+
+    const learningModeImpact = afterExploration.learning_mode_completed && afterExploration.learning_mode_result
+      ? afterExploration.learning_mode_result
+      : await evaluateJamesExploreExploitImpact(experiment.prompt, blueprint, report, `learning-mode:${experimentId}:${attempt}`);
+    if (!afterExploration.learning_mode_completed) {
+      const { error } = await client.from("james_experiment_verification_ledger").update({
+        learning_mode_completed: true, learning_mode_result: learningModeImpact, stage: "knowledge_started", updated_at: new Date().toISOString()
+      }).eq("id", stageRow.id).eq("finalized", false);
+      if (error) throw error;
+    }
+    const { data: knowledgeStage, error: knowledgeStageError } = await client
+      .from("james_experiment_verification_ledger")
+      .select("*")
+      .eq("experiment_id", experimentId)
+      .eq("attempt", attempt)
+      .single();
+    if (knowledgeStageError) throw knowledgeStageError;
+
+    const generalizedSkills = knowledgeStage.skills_completed && knowledgeStage.skills_result
+      ? knowledgeStage.skills_result
+      : await promoteJamesGeneralizedGameSkills(8, `generalized-skills:${experimentId}:${attempt}`);
+    if (!knowledgeStage.skills_completed) {
+      const { error } = await client.from("james_experiment_verification_ledger").update({
+        skills_completed: true, skills_result: generalizedSkills, stage: "knowledge_started", updated_at: new Date().toISOString()
+      }).eq("id", knowledgeStage.id).eq("finalized", false);
+      if (error) throw error;
+    }
+
+    const { data: knowledgeAfterSkills, error: skillsReloadError } = await client
+      .from("james_experiment_verification_ledger").select("*").eq("id", knowledgeStage.id).single();
+    if (skillsReloadError) throw skillsReloadError;
+
+    const knowledgeEventKey = `knowledge:${experimentId}:${attempt}`;
+    const consolidatedKnowledge = knowledgeAfterSkills.knowledge_completed && knowledgeAfterSkills.knowledge_result
+      ? knowledgeAfterSkills.knowledge_result.consolidatedKnowledge
+      : await consolidateJamesGameKnowledge(8);
+    const knowledgeVersions = knowledgeAfterSkills.knowledge_completed && knowledgeAfterSkills.knowledge_result
+      ? knowledgeAfterSkills.knowledge_result.knowledgeVersions
+      : await versionJamesConsolidatedKnowledge(8, knowledgeEventKey);
+    const knowledgeSupersession = knowledgeAfterSkills.knowledge_completed && knowledgeAfterSkills.knowledge_result
+      ? knowledgeAfterSkills.knowledge_result.knowledgeSupersession
+      : await resolveJamesKnowledgeSupersession(8, knowledgeEventKey);
+
+    if (!knowledgeAfterSkills.knowledge_completed) {
+      const knowledgeResult = { consolidatedKnowledge, knowledgeVersions, knowledgeSupersession };
+      const { error } = await client.from("james_experiment_verification_ledger").update({
+        knowledge_completed: true, knowledge_result: knowledgeResult, stage: "core_skill_started", updated_at: new Date().toISOString()
+      }).eq("id", knowledgeStage.id).eq("finalized", false);
+      if (error) throw error;
+    }
+    const coreSkillConflicts = [];
+    const { data: coreStage, error: coreStageError } = await client
+      .from("james_experiment_verification_ledger")
+      .select("*")
+      .eq("experiment_id", experimentId)
+      .eq("attempt", attempt)
+      .single();
+    if (coreStageError) throw coreStageError;
+
+    if (coreStage.core_skill_completed && Array.isArray(coreStage.core_skill_result)) {
+      coreSkillConflicts.push(...coreStage.core_skill_result);
+    } else {
+      for (const skill of generalizedSkills || []) {
+        const sourceEventKey = `core-skill:${experimentId}:${attempt}:${skill.capabilityKey}`;
+        const { data: skillLedger, error: skillLedgerError } = await client
+          .from("james_experiment_core_skill_ledger")
+          .upsert({
+            experiment_id: experimentId,
+            attempt,
+            capability_key: skill.capabilityKey,
+            source_event_key: sourceEventKey,
+          }, { onConflict: "experiment_id,attempt,capability_key" })
+          .select("*")
+          .single();
+        if (skillLedgerError) throw skillLedgerError;
+
+        const conflict = skillLedger.conflict_completed && skillLedger.conflict_result
+          ? skillLedger.conflict_result
+          : await resolveJamesCoreSkillConflict(skill.capabilityKey, {
+              competence: skill.competence,
+              confidence: skill.confidence,
+              passed: report.passed === true,
+              quality: gameQuality(report),
+              evidence: 1,
+            }, skillLedger.source_event_key);
+        if (!conflict) {
+          throw new Error("Core skill conflict resolution could not be persisted; verification will resume this capability.");
         }
-        await recordJamesCoreSkillLineage(skill.capabilityKey, {
-          source: "fun-zone-experiment-verification",
-          quality: gameQuality(report),
-          passed: report.passed === true,
-          context: String(blueprint.world) + ":" + String(blueprint.genre) + ":" + blueprint.mechanics.slice(0, 4).join("+"),
-          previousCompetence: conflict.previousCompetence,
-          newCompetence: conflict.competence,
-          newConfidence: conflict.confidence,
-          reason: conflict.conflict ? "Conflicting evidence detected." : "Evidence reinforced generalized skill.",
-        });
+
+        if (conflict) {
+          if (!skillLedger.conflict_completed) {
+            const { error: conflictCheckpointError } = await client
+              .from("james_experiment_core_skill_ledger")
+              .update({
+                conflict_completed: true,
+                conflict_result: conflict,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", skillLedger.id);
+            if (conflictCheckpointError) throw conflictCheckpointError;
+          }
+          coreSkillConflicts.push(conflict);
+          if (conflict.conflict && !skillLedger.contradiction_completed) {
+            const contradiction = await recordJamesKnowledgeContradiction({
+              capabilityKey: skill.capabilityKey,
+              previousQuality: conflict.previousCompetence,
+              observedQuality: conflict.observedQuality,
+              observedContext: String(blueprint.world) + ":" + String(blueprint.genre),
+              resolution: conflict.nextAction,
+              sourceEventKey: skillLedger.source_event_key,
+            });
+            if (!contradiction) {
+              throw new Error("Core skill contradiction could not be persisted; verification will resume this capability.");
+            }
+            const { error: contradictionCheckpointError } = await client
+              .from("james_experiment_core_skill_ledger")
+              .update({ contradiction_completed: true, updated_at: new Date().toISOString() })
+              .eq("id", skillLedger.id);
+            if (contradictionCheckpointError) throw contradictionCheckpointError;
+          } else if (!conflict.conflict) {
+            const { error: contradictionCheckpointError } = await client
+              .from("james_experiment_core_skill_ledger")
+              .update({ contradiction_completed: true, updated_at: new Date().toISOString() })
+              .eq("id", skillLedger.id);
+            if (contradictionCheckpointError) throw contradictionCheckpointError;
+          }
+          if (!skillLedger.lineage_completed) {
+            const lineage = await recordJamesCoreSkillLineage(skill.capabilityKey, {
+              source: "fun-zone-experiment-verification",
+              quality: gameQuality(report),
+              passed: report.passed === true,
+              context: String(blueprint.world) + ":" + String(blueprint.genre) + ":" + blueprint.mechanics.slice(0, 4).join("+"),
+              previousCompetence: conflict.previousCompetence,
+              newCompetence: conflict.competence,
+              newConfidence: conflict.confidence,
+              reason: conflict.conflict ? "Conflicting evidence detected." : "Evidence reinforced generalized skill.",
+              sourceEventKey: skillLedger.source_event_key,
+            });
+            if (!lineage) {
+              throw new Error("Core skill lineage could not be persisted; verification will resume this capability.");
+            }
+            const { error: lineageCheckpointError } = await client
+              .from("james_experiment_core_skill_ledger")
+              .update({ lineage_completed: true, updated_at: new Date().toISOString() })
+              .eq("id", skillLedger.id);
+            if (lineageCheckpointError) throw lineageCheckpointError;
+          }
+        }
       }
     }
+    const { error: coreCheckpointError } = await client
+      .from("james_experiment_verification_ledger")
+      .update({
+        core_skill_completed: true,
+        core_skill_result: coreSkillConflicts,
+        stage: "strategy_feedback_started",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", coreStage.id)
+      .eq("finalized", false);
+    if (coreCheckpointError) throw coreCheckpointError;
     const verified = report.passed === true;
     const terminalFailure = !verified && attempt >= 5;
 
     const nextStatus = verified ? "verified" : terminalFailure ? "failed" : "pending_verification";
-    const updatePayload = {
-      status: nextStatus,
-      test_report: report,
-      learning_result: { learning, brainEvidence, evolved, mutationOutcome, recoveryImpact, explorationPromotion, learningModeImpact, generalizedSkills, coreSkillConflicts, consolidatedKnowledge, knowledgeVersions, knowledgeSupersession },
-      attempt,
-      verified_at: verified ? new Date().toISOString() : null,
-      runner_token: null,
-      started_at: null,
-    };
-
-    // Running jobs are protected by the runner claim token. Pending verification
-    // jobs have no runner token and must be allowed to transition independently.
-    let updateQuery = client
-      .from("james_game_experiments")
-      .update(updatePayload)
-      .eq("id", experimentId);
-
-    if (experiment.status === "running") {
-      updateQuery = updateQuery.eq("status", "running").eq("runner_token", claimToken);
-    } else {
-      updateQuery = updateQuery.eq("status", "pending_verification");
-    }
-
-    const { data: updatedExperiment, error: updateError } = await updateQuery.select("id,status");
-
-    if (updateError) throw updateError;
-    if (!updatedExperiment || updatedExperiment.length !== 1) {
-      return NextResponse.json({ success: false, error: "Experiment verification state changed before persistence." }, { status: 409 });
-    }
-
-    // Feed autonomous strategy-revalidation experiments back into the strategy loop.
-    // The strategy/job identifiers are carried in learning_result by the sandbox bridge.
+    // Feed strategy-aware experiments back into the strategy loop.
+    // Revalidation jobs carry both strategyId and revalidationJobId; newly
+    // synthesized candidates only need strategyId to receive fresh evidence.
     const strategyMeta = (experiment.learning_result && typeof experiment.learning_result === "object")
       ? experiment.learning_result as Record<string, unknown>
       : {};
     const strategyId = typeof strategyMeta.strategyId === "string" ? strategyMeta.strategyId : "";
     const revalidationJobId = typeof strategyMeta.revalidationJobId === "string" ? strategyMeta.revalidationJobId : "";
-    if (strategyId && revalidationJobId) {
+    if (strategyId) {
       const hardFailures = Array.isArray(report.hardFailures) ? report.hardFailures : [];
       const softWarnings = Array.isArray(report.softWarnings) ? report.softWarnings : [];
       const quality = Math.max(0, Math.min(1,
         verified ? 0.9 : Math.max(0.1, 0.6 - hardFailures.length * 0.12 - softWarnings.length * 0.03)
       ));
       const outcome = verified ? "success" : hardFailures.length > 0 ? "failure" : "partial";
-      const sourceEventKey = "strategy-revalidation:" + revalidationJobId + ":experiment:" + experimentId + ":attempt:" + attempt;
+      const sourceEventKey = revalidationJobId
+        ? "strategy-revalidation:" + revalidationJobId + ":experiment:" + experimentId + ":attempt:" + attempt
+        : "strategy-experiment:" + strategyId + ":experiment:" + experimentId + ":attempt:" + attempt;
+
+      // Resolve the retired parent from the candidate's immutable source lineage.
+      // This makes candidate-vs-parent comparison causal instead of relying on
+      // the nearest historical game fingerprint.
+      let parentStrategyId: string | null = null;
+      let parentQuality: number | null = null;
+      let parentEvidenceCount = 0;
+      if (strategyMeta.strategySelectionSource === "retired-strategy-synthesis") {
+        const { data: candidateRow } = await client
+          .from("james_meta_strategy_synthesis")
+          .select("source_patterns")
+          .eq("id", strategyId)
+          .maybeSingle();
+        const patterns = Array.isArray(candidateRow?.source_patterns)
+          ? candidateRow.source_patterns.filter((value): value is string => typeof value === "string")
+          : [];
+        const retiredPattern = patterns.find((value) => value.startsWith("retired:"));
+        parentStrategyId = retiredPattern ? retiredPattern.slice("retired:".length) : null;
+
+        if (parentStrategyId) {
+          const { data: parentTrials } = await client
+            .from("james_meta_strategy_trials")
+            .select("quality,outcome,created_at")
+            .eq("strategy_id", parentStrategyId)
+            .order("created_at", { ascending: false })
+            .limit(20);
+          parentEvidenceCount = parentTrials?.length || 0;
+          if (parentEvidenceCount) {
+            parentQuality = Number((
+              parentTrials!.reduce((sum, trial) => sum + Number(trial.quality || 0), 0) /
+              parentEvidenceCount
+            ).toFixed(4));
+          }
+        }
+      }
+
+      const candidateImprovement = parentQuality === null
+        ? null
+        : Number((quality - parentQuality).toFixed(4));
+      const strategyComparison = {
+        comparisonType: parentStrategyId ? "retired-parent-vs-new-candidate" : "candidate-only",
+        parentStrategyId,
+        parentQuality,
+        parentEvidenceCount,
+        candidateStrategyId: strategyId,
+        candidateQuality: quality,
+        improvement: candidateImprovement,
+        improved: candidateImprovement === null ? null : candidateImprovement > 0,
+      };
       const evidence = {
         source: "fun-zone-post-verification-callback",
         sourceEventKey,
@@ -141,8 +445,36 @@ export async function POST(request: Request) {
         attempt,
         hardFailures: hardFailures.slice(0, 10),
         softWarnings: softWarnings.slice(0, 10),
+        strategySelectionSource: typeof strategyMeta.strategySelectionSource === "string"
+          ? strategyMeta.strategySelectionSource
+          : null,
+        strategyKey: typeof strategyMeta.strategyKey === "string"
+          ? strategyMeta.strategyKey
+          : null,
+        baselineValidatedStrategyId: typeof strategyMeta.baselineValidatedStrategyId === "string"
+          ? strategyMeta.baselineValidatedStrategyId
+          : null,
+        strategyComparison,
+        // Persist diversity at the trial-evidence level because the lifecycle
+        // RPC uses this field to decide whether a candidate is structurally
+        // different enough to validate.
+        blueprintDiversity: strategyMeta.diversity && typeof strategyMeta.diversity === "object"
+          ? strategyMeta.diversity
+          : null,
+        // The sandbox report is the fresh outcome attached to this exact
+        // strategy identity. Keep the observable checks with the evidence so
+        // lifecycle decisions can be audited without reconstructing the run.
+        checks: {
+          passed: report.passed === true,
+          runtimeOk: report.runtimeOk,
+          gameplayTest: report.gameplayTest,
+          stateChanged: report.stateChanged,
+          objectiveChanged: report.objectiveChanged,
+          playerChanged: report.playerChanged,
+          restartVerified: report.restartVerified,
+        },
       };
-      const { data: strategyTrial, error: strategyTrialError } = await client
+      const { error: strategyTrialError } = await client
         .from("james_meta_strategy_trials")
         .upsert({
           strategy_id: strategyId,
@@ -161,12 +493,109 @@ export async function POST(request: Request) {
         // The bridge is fail-open so evidence recording is not blocked if the
         // lifecycle migration has not reached this deployment yet.
         await reconcileJamesMetaStrategyLifecycle(strategyId);
-        await client.from("james_meta_strategy_revalidation_queue")
-          .update({ status: "completed", completed_at: new Date().toISOString(), evidence })
-          .eq("id", revalidationJobId)
-          .eq("status", "running");
+
+        // Feed the real sandbox outcome back into the tournament memory so
+        // future mutation selection is based on observed experiment results,
+        // not only the pre-experiment tournament ranking.
+        const mutationAction = typeof strategyMeta.mutationAction === "string"
+          ? strategyMeta.mutationAction
+          : null;
+        const strategyKey = typeof strategyMeta.strategyKey === "string"
+          ? strategyMeta.strategyKey
+          : "";
+        const retiredMatch = strategyKey.match(/:retired:([^:]+):mutation:/);
+        const taskClassMatch = strategyKey.match(/^meta:([^:]+):retired:/);
+        const targetContext = retiredMatch
+          ? retiredMatch[1] + ":" + (taskClassMatch?.[1] || "fun-zone-game-director")
+          : strategyKey || strategyId;
+        await recordJamesTournamentOutcomeFeedback({
+          targetContext,
+          mutationAction,
+          experimentId,
+          sourceEventKey,
+          passed: verified,
+          quality,
+        });
+
+        if (parentStrategyId) {
+          const blueprintDiversity = strategyMeta.diversity && typeof strategyMeta.diversity === "object"
+            ? strategyMeta.diversity as { mutationVerified?: boolean | null; beforeFingerprint?: string | null; afterFingerprint?: string | null }
+            : null;
+          await recordJamesStrategyComparisonMemory({
+            parentStrategyId,
+            candidateStrategyId: strategyId,
+            targetContext,
+            mutation: mutationAction || "unknown",
+            parentQuality,
+            candidateQuality: quality,
+            improvement: candidateImprovement,
+            improved: strategyComparison.improved,
+            blueprintDiversity,
+            experimentId,
+            sourceEventKey,
+          });
+        }
+
+        if (revalidationJobId) {
+          await client.from("james_meta_strategy_revalidation_queue")
+            .update({ status: "completed", completed_at: new Date().toISOString(), evidence })
+            .eq("id", revalidationJobId)
+            .eq("status", "running");
+        }
       }
     }
+
+    const { error: strategyCheckpointError } = await client
+      .from("james_experiment_verification_ledger")
+      .update({
+        stage: "finalization_started",
+        strategy_feedback_completed: true,
+        strategy_feedback_result: strategyId ? { strategyId, revalidationJobId } : { strategyId: null },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("experiment_id", experimentId)
+      .eq("attempt", attempt)
+      .eq("finalized", false);
+    if (strategyCheckpointError) throw strategyCheckpointError;
+
+    // Finalize only after every learning and strategy side effect has completed.
+    const finalPayload = {
+      status: nextStatus,
+      test_report: report,
+      learning_result: { learning, brainEvidence, evolved, mutationOutcome, recoveryImpact, explorationPromotion, learningModeImpact, generalizedSkills, coreSkillConflicts, consolidatedKnowledge, knowledgeVersions, knowledgeSupersession },
+      attempt,
+      verified_at: verified ? new Date().toISOString() : null,
+      runner_token: null,
+      started_at: null,
+    };
+
+    let finalQuery = client
+      .from("james_game_experiments")
+      .update(finalPayload)
+      .eq("id", experimentId)
+      .eq("status", "running")
+      .eq("runner_token", processingToken);
+
+    const { data: finalizedExperiment, error: finalUpdateError } = await finalQuery.select("id,status");
+    if (finalUpdateError) throw finalUpdateError;
+    if (!finalizedExperiment || finalizedExperiment.length !== 1) {
+      return NextResponse.json({ success: false, error: "Experiment finalization state changed before persistence." }, { status: 409 });
+    }
+
+    const { error: ledgerFinalizeError } = await client
+      .from("james_experiment_verification_ledger")
+      .update({
+        stage: "finalized",
+        strategy_feedback_completed: true,
+        final_payload: finalPayload,
+        finalized: true,
+        processing_token: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("experiment_id", experimentId)
+      .eq("attempt", attempt)
+      .eq("finalized", false);
+    if (ledgerFinalizeError) throw ledgerFinalizeError;
 
     return NextResponse.json({ success: true, experimentId, status: nextStatus, learning, brainEvidence, evolved, mutationOutcome, recoveryImpact });
   } catch (error) {

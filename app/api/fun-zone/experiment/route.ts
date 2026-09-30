@@ -53,26 +53,78 @@ export async function POST(request: Request) {
       verification: { verified: false, reason: "Existing pending experiment returned for sandbox verification." },
     });
 
-    const result = await createJamesGameExperimentJob({
-      userId,
-      conversationId: typeof body?.conversationId === "string" ? body.conversationId : null,
-    });
+    let result;
+    try {
+      result = await createJamesGameExperimentJob({
+        userId,
+        conversationId: typeof body?.conversationId === "string" ? body.conversationId : null,
+      });
+    } catch (error) {
+      // A concurrent heartbeat may have won the active-queue uniqueness race.
+      // Return that existing job instead of creating a second causal experiment.
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("james_game_experiments_one_active_per_capability_idx") || message.includes("duplicate key")) {
+        const existing = await getJamesPendingExperiment({ userId });
+        if (existing) {
+          return NextResponse.json({
+            success: true,
+            status: "pending-verification",
+            source: "concurrent-existing-queue",
+            experimentId: existing.id,
+            experiment: existing,
+            blueprint: existing.blueprint,
+            gameHtml: existing.game_html,
+            provider: "james-autonomous",
+            model: "game-brain-experiment-v1",
+            verification: { verified: false, reason: "Another worker already created the active experiment." },
+          });
+        }
+      }
+      throw error;
+    }
 
     if (result.status !== "no-gap" && result.blueprint) {
+      const synthesizedStrategy = result.plan?.synthesizedRetiredStrategy;
+      const mutationContext = [
+        result.plan?.targetCapability?.key || result.plan?.targetCapability?.name || "fun-zone",
+        synthesizedStrategy?.strategy ? "candidate-strategy:" + synthesizedStrategy.strategy : "",
+      ].filter(Boolean).join(" | ");
       const mutated = await applyJamesAutonomousMutationToExperimentBlueprint(
         result.blueprint,
-        result.plan?.targetCapability?.key || result.plan?.targetCapability?.name || "fun-zone",
+        mutationContext,
       );
       result.blueprint = mutated.blueprint;
       result.gameHtml = buildAutonomousGameHtml(result.blueprint);
       const mutationDirective = mutated.directive;
+      if (mutated.diversity && !mutated.diversity.mutationVerified) {
+        return NextResponse.json({
+          success: false,
+          error: "Autonomous mutation did not produce a structural blueprint change.",
+          mutationDirective,
+          diversity: mutated.diversity,
+        }, { status: 409 });
+      }
       if (result.experimentId) {
         const client = db();
         if (client) {
+          const { data: existingExperiment } = await client
+            .from("james_game_experiments")
+            .select("learning_result")
+            .eq("id", result.experimentId)
+            .maybeSingle();
+          const existingLearning = existingExperiment?.learning_result &&
+            typeof existingExperiment.learning_result === "object"
+            ? existingExperiment.learning_result as Record<string, unknown>
+            : {};
           await client.from("james_game_experiments").update({
             blueprint: result.blueprint,
             game_html: result.gameHtml,
             status: "pending_verification",
+            learning_result: {
+              ...existingLearning,
+              diversity: mutated.diversity,
+              mutationAction: mutationDirective.action,
+            },
           }).eq("id", result.experimentId);
         }
       }

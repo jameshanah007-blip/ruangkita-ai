@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../laboratory/types";
 
-const SYSTEM_USER_ID = "system:fun-zone";
+const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -38,9 +38,22 @@ export async function recordJamesGameTestLearning(
   blueprint: GameBlueprint,
   report: TestReport,
   attempt: number,
+  sourceEventKey?: string,
 ) {
   const client = db();
   if (!client) return null;
+
+  if (sourceEventKey) {
+    const { data: priorReflection } = await client
+      .from("james_reflections")
+      .select("id, lesson, confidence, created_at")
+      .eq("user_id", SYSTEM_USER_ID)
+      .ilike("evidence", "%\"sourceEventKey\":\"%" + sourceEventKey.replace(/"/g, "\\\"") + "%")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (priorReflection?.id) return priorReflection;
+  }
 
   const failed = Array.isArray(report.hardFailures) ? report.hardFailures : [];
   const warnings = Array.isArray(report.softWarnings) ? report.softWarnings : [];
@@ -87,6 +100,7 @@ export async function recordJamesGameTestLearning(
     confidence,
     evidence: clean(
       JSON.stringify({
+        sourceEventKey: sourceEventKey || null,
         attempt,
         passed,
         runtimeOk: report.runtimeOk,
@@ -149,9 +163,38 @@ export async function recordJamesGameBrainEvidence(
   blueprint: GameBlueprint,
   report: TestReport,
   attempt: number,
+  sourceEventKey?: string,
 ) {
   const client = db();
   if (!client) return null;
+
+  if (sourceEventKey) {
+    const { data: priorEvaluation } = await client
+      .from("james_self_evaluations")
+      .select("id, outcome, quality_score, created_at, strengths, weaknesses, evidence")
+      .eq("evidence->>source_event_key", sourceEventKey)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (priorEvaluation?.id) {
+      const priorEvidence = priorEvaluation.evidence && typeof priorEvaluation.evidence === "object"
+        ? priorEvaluation.evidence as Record<string, unknown>
+        : {};
+      return {
+        outcome: priorEvaluation.outcome,
+        quality: Number(priorEvaluation.quality_score || 0),
+        capabilities: Array.isArray(priorEvaluation.strengths) ? priorEvaluation.strengths : [],
+        failedCapabilities: Array.isArray(priorEvaluation.weaknesses) ? priorEvaluation.weaknesses : [],
+        selfEvaluationId: priorEvaluation.id,
+        consolidationEvidence: null,
+        transferEvidence: null,
+        crossContextTested: false,
+        adaptationPlan: [],
+        strategyComparison: priorEvidence.strategy_comparison || null,
+        duplicate: true,
+      };
+    }
+  }
 
   const evidence = gameCapabilities(report);
   const quality = gameQuality(report);
@@ -967,7 +1010,7 @@ export function selectJamesLearningMode(input: {
   };
 }
 
-export async function promoteJamesGeneralizedGameSkills(limit = 8) {
+export async function promoteJamesGeneralizedGameSkills(limit = 8, sourceEventKey?: string) {
   const client = db();
   if (!client) return [];
 
@@ -980,16 +1023,33 @@ export async function promoteJamesGeneralizedGameSkills(limit = 8) {
     const strategy = "Generalized Game Brain skill: reuse proven capabilities across contexts only after contextual verification.";
     const { data: existing } = await client
       .from("james_self_model")
-      .select("id,competence,confidence,evidence_count,success_count,failure_count")
+      .select("id,competence,confidence,evidence_count,success_count,failure_count,last_evidence")
       .eq("user_id", SYSTEM_USER_ID)
       .eq("capability_key", capabilityKey)
       .maybeSingle();
 
-    const evidenceCount = Number(existing?.evidence_count || 0) + item.evidenceCount;
-    const successCount = Number(existing?.success_count || 0) + Math.round(item.evidenceCount * item.successRate);
+    // Reconcile from the latest cross-context aggregate instead of adding the
+    // cumulative aggregate again on every verification event.
+    const evidenceCount = Math.max(0, Number(item.evidenceCount || 0));
+    const successCount = Math.min(evidenceCount, Math.max(0, Math.round(evidenceCount * item.successRate)));
     const failureCount = Math.max(0, evidenceCount - successCount);
     const competence = Math.min(0.99, Math.max(0.1, item.successRate));
     const confidence = Math.min(0.99, Math.max(0.1, item.confidence + Math.min(0.1, item.contextCount * 0.02)));
+    const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+      ? existing.last_evidence as Record<string, unknown>
+      : {};
+    if (sourceEventKey && priorEvidence.sourceEventKey === sourceEventKey) {
+      promoted.push({
+        capabilityKey,
+        competence: Number(competence.toFixed(3)),
+        confidence: Number(confidence.toFixed(3)),
+        contextCount: item.contextCount,
+        evidenceCount: Number(existing?.evidence_count || 0),
+        duplicate: true,
+      });
+      continue;
+    }
+
     const memory = {
       user_id: SYSTEM_USER_ID,
       capability_key: capabilityKey,
@@ -1007,6 +1067,7 @@ export async function promoteJamesGeneralizedGameSkills(limit = 8) {
         contextCount: item.contextCount,
         successRate: item.successRate,
         strategy,
+        sourceEventKey: sourceEventKey || null,
       },
       next_learning_action: "Verify this generalized skill in a new context and update competence from evidence.",
       status: competence >= 0.85 && confidence >= 0.8 ? "strong" : competence >= 0.7 ? "competent" : "developing",
@@ -1016,15 +1077,18 @@ export async function promoteJamesGeneralizedGameSkills(limit = 8) {
       ? await client.from("james_self_model").update(memory).eq("id", existing.id)
       : await client.from("james_self_model").insert(memory);
 
-    if (!result.error) {
-      promoted.push({
-        capabilityKey,
-        competence: Number(competence.toFixed(3)),
-        confidence: Number(confidence.toFixed(3)),
-        contextCount: item.contextCount,
-        evidenceCount,
-      });
+    if (result.error) {
+      console.warn("James generalized skill promotion failed:", result.error.message);
+      throw new Error("Generalized skill promotion could not be persisted; verification will resume this stage.");
     }
+
+    promoted.push({
+      capabilityKey,
+      competence: Number(competence.toFixed(3)),
+      confidence: Number(confidence.toFixed(3)),
+      contextCount: item.contextCount,
+      evidenceCount,
+    });
   }
 
   return promoted;
@@ -1105,7 +1169,7 @@ export async function evaluateJamesContextTransfer(
 
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence")
+     .select("id,success_count,failure_count,confidence,last_evidence")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
@@ -1142,7 +1206,7 @@ export async function evaluateJamesContextTransfer(
   };
 }
 
-export async function resolveJamesKnowledgeSupersession(limit = 12) {
+export async function resolveJamesKnowledgeSupersession(limit = 12, sourceEventKey?: string) {
   const client = db();
   if (!client) return [];
 
@@ -1184,11 +1248,28 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
     const strategy = "Resolve knowledge version supersession using context overlap and evidence improvement.";
     const { data: existing } = await client
       .from("james_experiences")
-      .select("id")
+      .select("id,last_evidence")
       .eq("user_id", SYSTEM_USER_ID)
       .eq("pattern", pattern)
       .eq("strategy", strategy)
       .maybeSingle();
+
+    const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+      ? existing.last_evidence as Record<string, unknown>
+      : {};
+    if (sourceEventKey && priorEvidence.sourceEventKey === sourceEventKey) {
+      results.push({
+        knowledgeKey,
+        latestVersion: Number(priorEvidence.latestVersion || latest.version),
+        priorVersion: priorEvidence.priorVersion ? Number(priorEvidence.priorVersion) : null,
+        supersedes: priorEvidence.supersedes === true,
+        coexist: priorEvidence.coexist === true,
+        contextOverlap: Number(priorEvidence.contextOverlap || 0),
+        reason: String(priorEvidence.reason || "duplicate knowledge supersession event"),
+        duplicate: true,
+      });
+      continue;
+    }
 
     const memory = {
       user_id: SYSTEM_USER_ID,
@@ -1208,6 +1289,7 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
         contextOverlap: Number(contextOverlap.toFixed(3)),
         reason: coexistReason,
         resolvedAt: new Date().toISOString(),
+        sourceEventKey: sourceEventKey || null,
       },
     };
 
@@ -1215,17 +1297,20 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
       ? await client.from("james_experiences").update(memory).eq("id", existing.id)
       : await client.from("james_experiences").insert(memory);
 
-    if (!write.error) {
-      results.push({
-        knowledgeKey,
-        latestVersion: latest.version,
-        priorVersion: prior?.version || null,
-        supersedes,
-        coexist: !supersedes,
-        contextOverlap: Number(contextOverlap.toFixed(3)),
-        reason: coexistReason,
-      });
+    if (write.error) {
+      console.warn("James knowledge supersession persistence failed:", write.error.message);
+      throw new Error("Knowledge supersession could not be persisted; verification will resume this stage.");
     }
+
+    results.push({
+      knowledgeKey,
+      latestVersion: latest.version,
+      priorVersion: prior?.version || null,
+      supersedes,
+      coexist: !supersedes,
+      contextOverlap: Number(contextOverlap.toFixed(3)),
+      reason: coexistReason,
+    });
   }
 
   return results.slice(0, limit);
@@ -1240,7 +1325,7 @@ export async function getJamesStrategyLineage(targetContext?: string, limit = 12
     .select("pattern,strategy,confidence,success_count,failure_count,last_evidence,status")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("status", "active")
-    .eq("capabilities", ["fun-zone-strategy-lineage"])
+    .contains("capabilities", ["fun-zone-strategy-lineage"])
     .order("confidence", { ascending: false })
     .limit(Math.max(1, Math.min(30, limit)));
 
@@ -1266,6 +1351,7 @@ export async function evaluateJamesMutationOutcome(
   experimentPrompt: string,
   blueprint: any,
   report: { passed?: boolean; hardFailures?: string[]; softWarnings?: string[] },
+  sourceEventKey?: string,
 ) {
   const directive = await getJamesMutationDirective(String(blueprint?.world || "fun-zone"));
   const passed = report.passed === true;
@@ -1280,8 +1366,13 @@ export async function evaluateJamesMutationOutcome(
         targetContext: String(blueprint?.world || "fun-zone") + ":" + String(blueprint?.genre || "unknown"),
         mutation: action,
         outcome,
+        sourceEventKey,
       })
     : null;
+
+  if (directive.winner?.strategy && !lineage) {
+    throw new Error("Strategy lineage could not be persisted; mutation outcome must be retried.");
+  }
 
   return {
     action,
@@ -1300,6 +1391,7 @@ export async function recordJamesStrategyLineage(input: {
   targetContext: string;
   mutation: string;
   outcome?: "success" | "failure" | "candidate";
+  sourceEventKey?: string;
 }) {
   const client = db();
   if (!client) return null;
@@ -1308,11 +1400,18 @@ export async function recordJamesStrategyLineage(input: {
   const strategy = "Parent: " + input.parentStrategy + " -> Child: " + input.childStrategy;
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence")
+    .select("id,success_count,failure_count,confidence,last_evidence")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
+
+  const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+    ? existing.last_evidence as Record<string, unknown>
+    : {};
+  if (input.sourceEventKey && priorEvidence.sourceEventKey === input.sourceEventKey) {
+    return { pattern, confidence: Number(existing?.confidence || 0.5), successCount: Number(existing?.success_count || 0), failureCount: Number(existing?.failure_count || 0), duplicate: true };
+  }
 
   const successCount = Number(existing?.success_count || 0) + (input.outcome === "success" ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (input.outcome === "failure" ? 1 : 0);
@@ -1337,6 +1436,7 @@ export async function recordJamesStrategyLineage(input: {
       targetContext: input.targetContext,
       outcome: input.outcome || "candidate",
       recordedAt: new Date().toISOString(),
+      sourceEventKey: input.sourceEventKey || null,
     },
   };
 
@@ -1350,6 +1450,109 @@ export async function recordJamesStrategyLineage(input: {
   }
 
   return { pattern, confidence: Number(confidence.toFixed(3)), successCount, failureCount };
+}
+
+export async function recordJamesStrategyComparisonMemory(input: {
+  parentStrategyId: string;
+  candidateStrategyId: string;
+  targetContext: string;
+  mutation: string;
+  parentQuality: number | null;
+  candidateQuality: number;
+  improvement: number | null;
+  improved: boolean | null;
+  blueprintDiversity?: { mutationVerified?: boolean | null; beforeFingerprint?: string | null; afterFingerprint?: string | null } | null;
+  experimentId?: string;
+  sourceEventKey?: string;
+}) {
+  const client = db();
+  if (!client) return null;
+
+  const outcome = input.improved === true ? "success" : input.improved === false ? "failure" : "candidate";
+  const pattern = "fun-zone:strategy-comparison:" + clean(
+    input.parentStrategyId + ":" + input.candidateStrategyId,
+    220,
+  );
+  const strategy = "Parent " + input.parentStrategyId + " -> Candidate " + input.candidateStrategyId;
+  const { data: existing } = await client
+    .from("james_experiences")
+    .select("id,success_count,failure_count,confidence")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("pattern", pattern)
+    .eq("strategy", strategy)
+    .maybeSingle();
+
+  const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+    ? existing.last_evidence as Record<string, unknown>
+    : {};
+  if (input.sourceEventKey && priorEvidence.sourceEventKey === input.sourceEventKey) {
+    return {
+      pattern,
+      outcome,
+      confidence: Number(existing?.confidence || 0.5),
+      successCount: Number(existing?.success_count || 0),
+      failureCount: Number(existing?.failure_count || 0),
+      duplicate: true,
+    };
+  }
+
+  const successCount = Number(existing?.success_count || 0) + (outcome === "success" ? 1 : 0);
+  const failureCount = Number(existing?.failure_count || 0) + (outcome === "failure" ? 1 : 0);
+  const total = successCount + failureCount;
+  const confidence = Math.min(
+    0.99,
+    Math.max(0.1, total
+      ? successCount / total * 0.7 + Number(existing?.confidence || 0.5) * 0.3
+      : 0.5),
+  );
+
+  const memory = {
+    user_id: SYSTEM_USER_ID,
+    pattern,
+    strategy,
+    confidence,
+    success_count: successCount,
+    failure_count: failureCount,
+    capabilities: ["fun-zone-strategy-comparison", "retired-strategy-learning"],
+    status: "active",
+    last_evidence: {
+      parentStrategyId: input.parentStrategyId,
+      candidateStrategyId: input.candidateStrategyId,
+      parentQuality: input.parentQuality,
+      candidateQuality: input.candidateQuality,
+      improvement: input.improvement,
+      improved: input.improved,
+      mutation: input.mutation,
+      blueprintDiversity: input.blueprintDiversity || null,
+      targetContext: input.targetContext,
+      experimentId: input.experimentId || null,
+      sourceEventKey: input.sourceEventKey || null,
+      outcome,
+      lesson: input.improved === false
+        ? "Candidate mutation underperformed its retired parent; preserve the parent failure evidence and avoid repeating this mutation without a materially different branch."
+        : input.improved === true
+          ? "Candidate mutation improved on the retired parent; retain the causal mutation as evidence for future synthesis."
+          : "Candidate has no causal parent baseline yet; require fresh evidence before treating it as an improvement.",
+      recordedAt: new Date().toISOString(),
+    },
+  };
+
+  const result = existing?.id
+    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
+    : await client.from("james_experiences").insert(memory);
+
+  if (result.error) {
+    console.warn("James strategy comparison memory recording failed:", result.error.message);
+    return null;
+  }
+
+  return {
+    pattern,
+    outcome,
+    confidence: Number(confidence.toFixed(3)),
+    successCount,
+    failureCount,
+  };
 }
 
 export async function evolveJamesComposedStrategy(input: {
@@ -1578,7 +1781,7 @@ export async function getJamesKnowledgeVersions(limit = 12) {
   });
 }
 
-export async function versionJamesConsolidatedKnowledge(limit = 8) {
+export async function versionJamesConsolidatedKnowledge(limit = 8, sourceEventKey?: string) {
   const client = db();
   if (!client) return [];
 
@@ -1596,7 +1799,21 @@ export async function versionJamesConsolidatedKnowledge(limit = 8) {
       .eq("strategy", strategy)
       .maybeSingle();
 
-    const previousVersion = Number(existing?.last_evidence?.version || 0);
+    const previousEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+      ? existing.last_evidence as Record<string, unknown>
+      : {};
+    if (sourceEventKey && previousEvidence.sourceEventKey === sourceEventKey) {
+      results.push({
+        knowledgeKey: item.knowledgeKey,
+        version: Number(previousEvidence.version || 0),
+        previousVersion: Number(previousEvidence.previousVersion || 0),
+        confidence: item.confidence,
+        successRate: item.successRate,
+        duplicate: true,
+      });
+      continue;
+    }
+    const previousVersion = Number(previousEvidence.version || 0);
     const version = previousVersion + 1;
     const memory = {
       user_id: SYSTEM_USER_ID,
@@ -1619,6 +1836,7 @@ export async function versionJamesConsolidatedKnowledge(limit = 8) {
         principle: item.principle,
         supersedes: previousVersion > 0 ? pattern + ":v" + previousVersion : null,
         recordedAt: new Date().toISOString(),
+        sourceEventKey: sourceEventKey || null,
       },
     };
 
@@ -1626,15 +1844,18 @@ export async function versionJamesConsolidatedKnowledge(limit = 8) {
       ? await client.from("james_experiences").update(memory).eq("id", existing.id)
       : await client.from("james_experiences").insert(memory);
 
-    if (!result.error) {
-      results.push({
-        knowledgeKey: item.knowledgeKey,
-        version,
-        previousVersion,
-        confidence: item.confidence,
-        successRate: item.successRate,
-      });
+    if (result.error) {
+      console.warn("James knowledge version persistence failed:", result.error.message);
+      throw new Error("Knowledge version could not be persisted; verification will resume this stage.");
     }
+
+    results.push({
+      knowledgeKey: item.knowledgeKey,
+      version,
+      previousVersion,
+      confidence: item.confidence,
+      successRate: item.successRate,
+    });
   }
 
   return results;
@@ -1919,6 +2140,7 @@ export async function recordJamesCoreSkillLineage(
     previousConfidence?: number;
     newConfidence?: number;
     reason?: string;
+    sourceEventKey?: string;
   },
 ) {
   const client = db();
@@ -1934,6 +2156,9 @@ export async function recordJamesCoreSkillLineage(
   const previous = current?.last_evidence && typeof current.last_evidence === "object"
     ? current.last_evidence as Record<string, unknown>
     : {};
+  if (evidence.sourceEventKey && previous.sourceEventKey === evidence.sourceEventKey) {
+    return previous.current || null;
+  }
 
   const lineage = {
     source: evidence.source,
@@ -1945,6 +2170,7 @@ export async function recordJamesCoreSkillLineage(
     previousConfidence: evidence.previousConfidence ?? null,
     newConfidence: evidence.newConfidence ?? null,
     reason: evidence.reason || null,
+    sourceEventKey: evidence.sourceEventKey || null,
     recordedAt: new Date().toISOString(),
     previousEvidence: previous,
   };
@@ -1978,6 +2204,7 @@ export async function recordJamesKnowledgeContradiction(input: {
   previousContext?: string | null;
   observedContext?: string | null;
   resolution: string;
+  sourceEventKey?: string;
 }) {
   const client = db();
   if (!client || !input.capabilityKey.startsWith("fun-zone-core:")) return null;
@@ -1986,11 +2213,26 @@ export async function recordJamesKnowledgeContradiction(input: {
   const strategy = "Preserve contradiction history and require contextual evidence before resolving conflicting knowledge.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence,capabilities")
+    .select("id,success_count,failure_count,confidence,capabilities,last_evidence")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
+
+  const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+    ? existing.last_evidence as Record<string, unknown>
+    : {};
+  if (input.sourceEventKey && priorEvidence.sourceEventKey === input.sourceEventKey) {
+    return {
+      pattern,
+      contradictionMagnitude: Number(Math.abs(input.observedQuality - input.previousQuality).toFixed(3)),
+      previousContext: input.previousContext || null,
+      observedContext: input.observedContext || null,
+      resolution: input.resolution,
+      confidence: Number(existing?.confidence || 0.1),
+      duplicate: true,
+    };
+  }
 
   const contradictionMagnitude = Math.abs(input.observedQuality - input.previousQuality);
   const successCount = Number(existing?.success_count || 0);
@@ -2009,6 +2251,11 @@ export async function recordJamesKnowledgeContradiction(input: {
       "fun-zone-knowledge-arbitration",
       "fun-zone-contradiction-memory",
     ],
+    last_evidence: {
+      ...priorEvidence,
+      sourceEventKey: input.sourceEventKey || null,
+      contradictionMagnitude: Number(contradictionMagnitude.toFixed(3)),
+    },
     status: "active",
   };
 
@@ -2073,6 +2320,7 @@ export function arbitrateJamesEvidence(
 export async function resolveJamesCoreSkillConflict(
   capabilityKey: string,
   observed: { competence: number; confidence: number; passed: boolean; quality: number; evidence: number },
+  sourceEventKey?: string,
 ) {
   const client = db();
   if (!client || !capabilityKey.startsWith("fun-zone-core:")) return null;
@@ -2094,6 +2342,10 @@ export async function resolveJamesCoreSkillConflict(
   const previousEvidence = current.last_evidence && typeof current.last_evidence === "object"
     ? current.last_evidence as Record<string, unknown>
     : {};
+  if (sourceEventKey && previousEvidence.sourceEventKey === sourceEventKey && previousEvidence.conflictResult) {
+    return previousEvidence.conflictResult;
+  }
+
   const previousHistory = Array.isArray(previousEvidence.history) ? previousEvidence.history : [];
   const historicalCandidates = previousHistory.slice(0, 6).map((item) => {
     const entry = item && typeof item === "object" ? item as Record<string, unknown> : {};
@@ -2160,6 +2412,19 @@ export async function resolveJamesCoreSkillConflict(
       : "Continue validating this generalized skill in diverse contexts.",
     last_evidence: {
       source: "core-skill-conflict-resolution",
+      sourceEventKey: sourceEventKey || null,
+      conflictResult: {
+        capabilityKey,
+        conflict,
+        previousCompetence: Number(oldCompetence.toFixed(3)),
+        observedQuality: Number(observedQuality.toFixed(3)),
+        competence: Number(competence.toFixed(3)),
+        confidence: Number(confidence.toFixed(3)),
+        status,
+        nextAction: conflict
+          ? "Run another contextual experiment before increasing confidence."
+          : "Continue diverse contextual validation.",
+      },
       conflict,
       previousCompetence: oldCompetence,
       observedQuality,
@@ -2173,6 +2438,14 @@ export async function resolveJamesCoreSkillConflict(
       corroboration: evidenceTrust.corroboration,
       sourceEvidenceCount: sourceReliability.evidenceCount,
       empiricalRate: Number(empiricalRate.toFixed(3)),
+      history: [{
+        source: "core-skill-conflict-resolution",
+        quality: observedQuality,
+        passed: observed.passed,
+        context: "current-context",
+        recordedAt: new Date().toISOString(),
+        sourceEventKey: sourceEventKey || null,
+      }, ...previousHistory].slice(0, 12),
     },
   }).eq("id", current.id);
 
@@ -2325,12 +2598,82 @@ export async function getJamesGeneralizedCoreSkills(limit = 12) {
   }));
 }
 
+export type JamesMutationEvidence = {
+  action: string;
+  successCount: number;
+  failureCount: number;
+  averageQuality: number;
+  diversityRate: number | null;
+  comparisonImprovement: number | null;
+};
+
+export type JamesMutationTournamentEntry = JamesMutationEvidence & {
+  score: number;
+  explorationBonus: number;
+  rank: number;
+};
+
+export function runJamesMutationTournament(
+  evidence: JamesMutationEvidence[],
+  excludedMutations: string[] = [],
+  explorationRate = 0.15,
+): JamesMutationTournamentEntry[] {
+  const excluded = new Set(excludedMutations);
+  const pool = evidence.filter((item) => item.action && !excluded.has(item.action));
+  const maxSamples = Math.max(1, ...pool.map((item) => item.successCount + item.failureCount));
+  return pool.map((item) => {
+    const total = item.successCount + item.failureCount;
+    const successRate = total ? item.successCount / total : 0;
+    const diversity = item.diversityRate === null ? 0.5 : item.diversityRate;
+    const comparison = item.comparisonImprovement === null ? 0 : Math.max(-1, Math.min(1, item.comparisonImprovement));
+    const evidenceStrength = Math.min(1, total / maxSamples);
+    const uncertainty = 1 - evidenceStrength;
+    const explorationBonus = explorationRate * uncertainty;
+    const score = successRate * 0.40 +
+      item.averageQuality * 0.25 +
+      diversity * 0.20 +
+      ((comparison + 1) / 2) * 0.10 +
+      explorationBonus;
+    return { ...item, score, explorationBonus };
+  }).sort((a,b) => b.score-a.score || b.successCount-a.successCount)
+    .map((item,index) => ({...item,rank:index+1}));
+}
+
+export function selectJamesMutationFromEvidence(
+  evidence: JamesMutationEvidence[],
+  fallback: string,
+  excludedMutations: string[] = [],
+) {
+  const excluded = new Set(excludedMutations);
+  const candidates = evidence.filter((item) => item.action && !excluded.has(item.action)).map((item) => {
+    const total = item.successCount + item.failureCount;
+    const successRate = total ? item.successCount / total : 0;
+    const diversity = item.diversityRate === null ? 0.5 : item.diversityRate;
+    const comparison = item.comparisonImprovement === null ? 0 : Math.max(-1, Math.min(1, item.comparisonImprovement));
+    const score = successRate * 0.45 + item.averageQuality * 0.25 + diversity * 0.20 + ((comparison + 1) / 2) * 0.10;
+    return { ...item, score, total };
+  }).sort((a, b) => b.score - a.score || b.total - a.total);
+  return candidates[0]?.action || (excluded.has(fallback) ? "rollback-and-open-new-branch" : fallback);
+}
+
 export function chooseJamesStrategyMutation(input: {
   compositionScore: number;
   confidence: number;
   failureCount?: number;
+  empiricalEvidence?: JamesMutationEvidence[];
+  excludedMutations?: string[];
 }) {
   const failureCount = input.failureCount || 0;
+  if (input.empiricalEvidence?.length) {
+    const fallback = failureCount >= 3
+      ? "change-one-component-and-add-regression-check"
+      : input.compositionScore < 0.65
+        ? "simplify-composition-and-test-one-new-component"
+        : input.confidence >= 0.8
+          ? "small-contextual-variation"
+          : "bounded-parameter-variation";
+    return selectJamesMutationFromEvidence(input.empiricalEvidence, fallback, input.excludedMutations || []);
+  }
   if (failureCount >= 3) return "change-one-component-and-add-regression-check";
   if (input.compositionScore < 0.65) return "simplify-composition-and-test-one-new-component";
   if (input.confidence >= 0.8) return "small-contextual-variation";
@@ -2406,7 +2749,7 @@ export async function getJamesTournamentMemory(targetContext?: string, limit = 6
     .select("pattern,strategy,confidence,success_count,failure_count,last_evidence")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("status", "active")
-    .eq("capabilities", ["fun-zone-strategy-tournament"])
+    .contains("capabilities", ["fun-zone-strategy-tournament"])
     .order("confidence", { ascending: false })
     .limit(Math.max(1, Math.min(20, limit)));
 
@@ -2436,33 +2779,96 @@ export function applyJamesMutationDirectiveToBlueprint(
   const addUnique = (key: string, values: string[], max = 12) => {
     next[key] = Array.from(new Set([...(Array.isArray(next[key]) ? next[key] : []), ...values])).slice(0, max);
   };
+  const appendProgression = (text: string) => {
+    next.progression = clean(String(next.progression || "") + " " + text, 1400);
+  };
+  const appendCoreLoop = (text: string) => {
+    next.coreLoop = clean(String(next.coreLoop || "") + " " + text, 900);
+  };
+  const appendObjective = (text: string) => {
+    next.objective = clean(String(next.objective || "") + " " + text, 700);
+  };
 
-  switch (directive.action) {
-    case "preserve-and-make-small-mutation":
-      addUnique("testRequirements", ["regression check for winning strategy", "contextual variation verification"]);
-      next.progression = [...(next.progression || []), "James mutation policy: preserve winning strategy and mutate one bounded component."];
-      break;
-    case "reuse-with-contextual-mutation":
-      addUnique("testRequirements", ["cross-context strategy verification", "alternate implementation path"]);
+  const action = directive.action;
+  if (action === "rollback-and-open-new-branch") {
+    // Materially change one gameplay branch while preserving the user's core concept.
+    addUnique("mechanics", ["puzzle", "explore"]);
+    addUnique("playerActions", ["interact", "inspect", "move"]);
+    addUnique("controls", ["alternate touch interaction path"]);
+    addUnique("testRequirements", [
+      "failed-strategy regression check",
+      "new branch verification",
+      "compare changed mechanic against retired branch",
+    ]);
+    next.coreLoop = clean("Explore, inspect, interact, and solve a short deterministic branch before the original loop. " + String(next.coreLoop || ""), 900);
+    appendObjective("Complete the alternate branch and demonstrate that the retired failure mode is not reproduced.");
+    appendProgression("Mutation branch: replaced the primary interaction path with an inspect-and-puzzle branch; verify this concrete change.");
+  } else if (action === "change-one-component-and-add-regression-check") {
+    const seed = clean(
+      String(directive.winner?.strategy || "") + "|" +
+      String(next.world || "") + "|" + String(next.genre || "") + "|" +
+      String(next.mechanics || ""),
+      500,
+    );
+    const component = ["objective", "mechanics", "playerActions", "controls"][
+      Math.abs([...seed].reduce((sum, ch) => sum + ch.charCodeAt(0), 0)) % 4
+    ];
+    if (component === "objective") {
+      appendObjective("Use a single explicit intermediate checkpoint before the final win condition.");
+    } else if (component === "mechanics") {
       addUnique("mechanics", ["explore"]);
-      next.progression = [...(next.progression || []), "James mutation policy: reuse proven strategy with contextual variation."];
-      break;
-    case "rollback-and-open-new-branch":
-      addUnique("mechanics", ["puzzle", "explore"]);
-      addUnique("playerActions", ["interact", "move"]);
-      addUnique("testRequirements", ["failed-strategy regression check", "new branch verification"]);
-      next.progression = [...(next.progression || []), "James mutation policy: abandon repeated-failure child and open a materially different branch."];
-      break;
-    default:
-      addUnique("mechanics", ["explore"]);
-      addUnique("testRequirements", ["new strategy branch verification"]);
-      next.progression = [...(next.progression || []), "James mutation policy: open a bounded alternative branch before exploitation."];
+    } else if (component === "playerActions") {
+      addUnique("playerActions", ["inspect"]);
+    } else {
+      addUnique("controls", ["alternate input path"]);
+    }
+    addUnique("testRequirements", ["one-component mutation regression check", "compare mutated component against parent strategy"]);
+    appendProgression("Mutation branch: changed exactly one bounded component (" + component + ") and retained the rest for controlled comparison.");
+  } else if (action === "preserve-and-make-small-mutation") {
+    addUnique("testRequirements", ["regression check for winning strategy", "contextual variation verification"]);
+    appendProgression("Mutation branch: preserve proven components and vary one contextual parameter only.");
+  } else if (action === "reuse-with-contextual-mutation") {
+    addUnique("testRequirements", ["cross-context strategy verification", "alternate implementation path"]);
+    addUnique("mechanics", ["explore"]);
+    appendCoreLoop(" Apply the proven loop in the current context through an alternate implementation path.");
+    appendProgression("Mutation branch: reused the proven principle with a context-specific implementation change.");
+  } else {
+    addUnique("mechanics", ["explore"]);
+    addUnique("testRequirements", ["new strategy branch verification", "compare branch against previous evidence"]);
+    appendProgression("Mutation branch: opened a bounded alternative exploration path before exploitation.");
   }
 
   return next;
 }
 
 export async function getJamesMutationDirective(targetContext?: string) {
+  const candidateText = String(targetContext || "").toLowerCase();
+  if (candidateText.includes("candidate-strategy:")) {
+    if (candidateText.includes("rollback-and-open-new-branch") ||
+        candidateText.includes("materially different branch") ||
+        candidateText.includes("repeated failures")) {
+      return {
+        action: "rollback-and-open-new-branch",
+        reason: "The synthesized candidate explicitly requests a materially different branch after terminal failure evidence.",
+        winner: null,
+      };
+    }
+    if (candidateText.includes("change-one-component-and-add-regression-check")) {
+      return {
+        action: "change-one-component-and-add-regression-check",
+        reason: "The synthesized candidate requests a controlled one-component mutation with regression evidence.",
+        winner: null,
+      };
+    }
+    if (candidateText.includes("small-contextual-variation")) {
+      return {
+        action: "preserve-and-make-small-mutation",
+        reason: "The synthesized candidate requests a bounded contextual variation.",
+        winner: null,
+      };
+    }
+  }
+
   const tournament = await evaluateJamesTournamentWithMemory(targetContext, 5);
   if (!tournament.winner) {
     return {
@@ -2542,21 +2948,233 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
   if (!retired) return null;
   const failureCount = Number(retired.failure_count || 0);
   const evidenceCount = Number(retired.evidence_count || 0);
-  const mutation = chooseJamesStrategyMutation({
+
+  // Read causal comparison memories before selecting the next mutation.
+  // This prevents synthesis from blindly repeating a mutation that already
+  // underperformed its retired parent.
+  const { data: comparisonMemories } = await client
+    .from("james_experiences")
+    .select("pattern,strategy,confidence,success_count,failure_count,last_evidence")
+    .eq("status", "active")
+    .contains("capabilities", ["fun-zone-strategy-comparison", "retired-strategy-learning"])
+    .ilike("pattern", "fun-zone:strategy-comparison:" + String(retired.id) + ":%")
+    .order("updated_at", { ascending: false })
+    .limit(10);
+
+  const failedMutations = (comparisonMemories || [])
+    .filter((memory) => Number(memory.failure_count || 0) > Number(memory.success_count || 0))
+    .map((memory) => {
+      const evidence = memory.last_evidence && typeof memory.last_evidence === "object"
+        ? memory.last_evidence as Record<string, unknown>
+        : {};
+      return String(evidence.mutation || "retired-strategy-synthesis");
+    });
+
+  const successfulMutations = (comparisonMemories || [])
+    .filter((memory) => Number(memory.success_count || 0) > Number(memory.failure_count || 0))
+    .map((memory) => {
+      const evidence = memory.last_evidence && typeof memory.last_evidence === "object"
+        ? memory.last_evidence as Record<string, unknown>
+        : {};
+      return String(evidence.mutation || "retired-strategy-synthesis");
+    });
+
+  const empiricalMutationEvidence = (comparisonMemories || []).map((memory) => {
+    const evidence = memory.last_evidence && typeof memory.last_evidence === "object"
+      ? memory.last_evidence as Record<string, unknown>
+      : {};
+    const candidateQuality = Number(evidence.candidateQuality);
+    const parentQuality = Number(evidence.parentQuality);
+    const improvement = Number.isFinite(candidateQuality) && Number.isFinite(parentQuality)
+      ? Number((candidateQuality - parentQuality).toFixed(4))
+      : null;
+    const diversity = evidence.blueprintDiversity && typeof evidence.blueprintDiversity === "object"
+      ? evidence.blueprintDiversity as Record<string, unknown>
+      : null;
+    return {
+      action: String(evidence.mutation || "retired-strategy-synthesis"),
+      successCount: Number(memory.success_count || 0),
+      failureCount: Number(memory.failure_count || 0),
+      averageQuality: Number.isFinite(candidateQuality) ? candidateQuality : Number(retired.confidence || 0),
+      diversityRate: diversity && typeof diversity.mutationVerified === "boolean"
+        ? (diversity.mutationVerified ? 1 : 0)
+        : null,
+      comparisonImprovement: improvement,
+    };
+  });
+
+  const mutationTournament = runJamesMutationTournament(empiricalMutationEvidence, failedMutations);
+
+  const tournamentMemoryPattern = "fun-zone:tournament:" + String(retired.id) + ":" + String(retired.task_class || input.taskClass || "fun-zone-game-director");
+  const { data: tournamentMemoryRows } = await client
+    .from("james_experiences")
+    .select("last_evidence,confidence,success_count,failure_count,updated_at")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("pattern", tournamentMemoryPattern)
+    .eq("status", "active")
+    .order("updated_at", { ascending: false })
+    .limit(3);
+  const rememberedTournamentRankings = (tournamentMemoryRows || [])
+    .flatMap((row) => {
+      const evidence = row.last_evidence && typeof row.last_evidence === "object"
+        ? row.last_evidence as Record<string, unknown>
+        : {};
+      return Array.isArray(evidence.rankings) ? evidence.rankings : [];
+    })
+    .map((item) => item && typeof item === "object" ? item as Record<string, unknown> : {})
+    .filter((item) => typeof item.strategy === "string" && !failedMutations.includes(String(item.strategy)))
+    .sort((a, b) => Number(a.rank || 999) - Number(b.rank || 999));
+  const rememberedTournamentMutation = rememberedTournamentRankings[0]
+    ? String(rememberedTournamentRankings[0].strategy)
+    : null;
+  const tournamentMemory = (tournamentMemoryRows || []).flatMap((row) => {
+    const evidence = row.last_evidence && typeof row.last_evidence === "object"
+      ? row.last_evidence as Record<string, unknown>
+      : {};
+    const selectedMutation = String(evidence.selectedMutation || "");
+    const outcomeEvents = Array.isArray(evidence.outcomeEvents)
+      ? evidence.outcomeEvents
+      : [];
+    const successCount = Number(row.success_count || 0);
+    const failureCount = Number(row.failure_count || 0);
+    return selectedMutation
+      ? [{
+          strategy: "Tournament winner: " + selectedMutation,
+          confidence: Number(row.confidence || evidence.winnerConfidence || 0),
+          successCount,
+          failureCount,
+          outcomeEvents,
+        }]
+      : [];
+  });
+
+  const calibratedMutationTournament = scoreJamesMutationTournamentWithMemory(
+    mutationTournament,
+    tournamentMemory,
+  );
+  const calibratedWinner = calibratedMutationTournament[0] || null;
+  const tournamentMutation = calibratedWinner?.action || rememberedTournamentMutation || null;
+
+  if (calibratedMutationTournament.length) {
+    await recordJamesTournamentMemory({
+      targetContext: String(retired.id) + ":" + String(retired.task_class || input.taskClass || "fun-zone-game-director"),
+      winnerStrategy: tournamentMutation || "no-selected-mutation",
+      winnerScore: Number(calibratedWinner?.tournamentScore || calibratedWinner?.score || 0),
+      winnerSuccessRate: calibratedWinner
+        ? Number((calibratedWinner.successCount / Math.max(1, calibratedWinner.successCount + calibratedWinner.failureCount)).toFixed(4))
+        : 0,
+      winnerConfidence: calibratedWinner
+        ? Number(calibratedWinner.averageQuality || 0)
+        : 0,
+      selectedMutation: tournamentMutation,
+      excludedMutations: failedMutations,
+      reason: "Calibrated tournament score combines fresh mutation evidence with maturity-weighted historical tournament memory while preserving exploration and failed-mutation exclusions.",
+      rankings: calibratedMutationTournament.slice(0, 5).map((entry) => ({
+        rank: entry.rank,
+        strategy: entry.action,
+        score: entry.tournamentScore,
+        successRate: entry.successCount / Math.max(1, entry.successCount + entry.failureCount),
+        confidence: entry.averageQuality,
+        evidenceCount: entry.successCount + entry.failureCount,
+        explorationBonus: entry.explorationBonus,
+      })),
+    });
+  }
+
+  let mutation = chooseJamesStrategyMutation({
     compositionScore: Math.max(0, Number(retired.confidence || 0) - 0.2),
     confidence: Number(retired.confidence || 0),
     failureCount: Math.max(failureCount, 3),
+    empiricalEvidence: empiricalMutationEvidence,
+    excludedMutations: failedMutations,
+  });
+  if (tournamentMutation && !failedMutations.includes(tournamentMutation)) mutation = tournamentMutation;
+
+  // Force a materially different branch when the previous mutation is known
+  // to have underperformed its parent.
+  if (failedMutations.length > 0 && failedMutations.includes(mutation)) {
+    mutation = failedMutations.includes("rollback-and-open-new-branch")
+      ? "change-one-component-and-add-regression-check"
+      : "rollback-and-open-new-branch";
+  }
+
+  const memoryInstruction = failedMutations.length
+    ? " Known failed mutations: " + Array.from(new Set(failedMutations)).join(", ") + ". Do not repeat them without a materially different implementation."
+    : "";
+  const excludedMutations = Array.from(new Set(failedMutations)).sort();
+  const branchFingerprint = excludedMutations.length
+    ? excludedMutations.join("|")
+    : "no-known-failed-mutation";
+  const successInstruction = successfulMutations.length
+    ? " Successful comparison mutations available for controlled reuse: " + Array.from(new Set(successfulMutations)).join(", ") + ". Reuse only with fresh verification."
+    : "";
+  const tournamentInstruction = calibratedMutationTournament.length
+    ? " Calibrated mutation tournament ranking: " + calibratedMutationTournament.slice(0, 5).map((entry) =>
+        entry.rank + ":" + entry.action + "=" + entry.tournamentScore.toFixed(3) +
+        " memoryReliability=" + entry.tournamentMemoryReliability.toFixed(2)
+      ).join(", ") + "."
+    : rememberedTournamentRankings.length
+      ? " Remembered mutation tournament ranking: " + rememberedTournamentRankings.slice(0, 5).map((entry) => String(entry.rank || "?") + ":" + String(entry.strategy) + "=" + Number(entry.score || 0).toFixed(3)).join(", ") + "."
+      : "";
+
+  const mutationDirective = chooseJamesMutationStrategy({
+    tournamentScore: 0, successRate: 0, confidence: Number(retired.confidence || 0),
+    memoryRate: 0, failureCount: Math.max(failureCount, 3),
   });
   return {
     retiredStrategyId: String(retired.id),
     taskClass: typeof retired.task_class === "string" ? retired.task_class : null,
     strategy: String(retired.strategy || ""),
-    directive: chooseJamesMutationStrategy({
-      tournamentScore: 0, successRate: 0, confidence: Number(retired.confidence || 0),
-      memoryRate: 0, failureCount: Math.max(failureCount, 3),
-    }),
-    synthesisPrompt: "A previous strategy has been terminally retired. Do not resurrect or edit it. Preserve its failure as historical evidence, identify the concrete failure mode, and create a new strategy identity using a materially different branch. Use mutation='" + mutation + "'. Evidence count=" + evidenceCount + ".",
+    directive: { ...mutationDirective, action: mutation },
+    synthesisPrompt: "A previous strategy has been terminally retired. Do not resurrect or edit it. Preserve its failure as historical evidence, identify the concrete failure mode, and create a new strategy identity using a materially different branch. Use mutation='" + mutation + "'. Evidence count=" + evidenceCount + "." + memoryInstruction + successInstruction + tournamentInstruction,
+    excludedMutations,
+    branchFingerprint,
   };
+}
+
+async function persistJamesRetiredStrategyCandidate(directive: {
+  retiredStrategyId: string; taskClass: string | null; strategy: string; synthesisPrompt: string;
+  directive: { action: string; reason: string };
+  excludedMutations?: string[];
+  branchFingerprint?: string;
+}) {
+  const client = db();
+  if (!client) return null;
+  const taskClass = directive.taskClass || "fun-zone-game-director";
+  const mutationAction = clean(directive.directive.action, 120).replace(/[^a-zA-Z0-9_-]+/g, "-");
+  const excludedMutations = Array.from(new Set(directive.excludedMutations || [])).sort();
+  const branchFingerprint = clean(directive.branchFingerprint || (excludedMutations.join("|") || "no-known-failed-mutation"), 180);
+  const fingerprintHash = [...branchFingerprint].reduce((sum, char) => ((sum * 31) + char.charCodeAt(0)) >>> 0, 7).toString(36);
+  const baseKey = clean("meta:" + taskClass + ":retired:" + directive.retiredStrategyId + ":mutation:" + mutationAction + ":branch:" + fingerprintHash, 500);
+  const { data: existingRows } = await client.from("james_meta_strategy_synthesis")
+    .select("id,strategy_key,task_class,strategy,status,confidence,evidence_count,success_count,failure_count,created_at")
+    .like("strategy_key", baseKey + "%").order("created_at", { ascending: false }).limit(20);
+  const existing = (existingRows || []).find((row) => row.status !== "deprecated") || existingRows?.[0] || null;
+  if (existing?.id && existing.status !== "deprecated") {
+    return {
+      strategyId: String(existing.id), strategyKey: String(existing.strategy_key),
+      taskClass: String(existing.task_class || taskClass), strategy: String(existing.strategy || ""),
+      sourcePatterns: ["retired:" + directive.retiredStrategyId, "mutation:" + directive.directive.action, "task:" + taskClass],
+      status: String(existing.status), reused: true,
+    };
+  }
+  const deprecatedBranches = (existingRows || []).filter((row) => row.status === "deprecated");
+  const branchOrdinal = deprecatedBranches.length ? deprecatedBranches.length + 1 : 0;
+  const strategyKey = branchOrdinal ? baseKey + ":branch:" + branchOrdinal : baseKey;
+  const strategy = clean("New branch synthesized from retired strategy " + directive.retiredStrategyId +
+    ". Do not resurrect the retired identity. Apply mutation '" + directive.directive.action +
+    "'. Preserve the failure as evidence and verify the new branch with fresh sandbox evidence." +
+    (branchOrdinal ? " This is fresh synthesis branch " + branchOrdinal + "; do not reuse the prior candidate identity." : ""), 1000);
+  const sourcePatterns = ["retired:" + directive.retiredStrategyId, "mutation:" + directive.directive.action, "task:" + taskClass,
+    "branch-fingerprint:" + fingerprintHash,
+    ...excludedMutations.map((value) => "excluded-mutation:" + value),
+    ...(branchOrdinal ? ["fresh-branch:" + branchOrdinal] : [])];
+  const { data, error } = await client.rpc("synthesize_james_meta_strategy", {
+    p_strategy_key: strategyKey, p_task_class: taskClass, p_strategy: strategy,
+    p_source_patterns: sourcePatterns, p_confidence: 0.5,
+  });
+  if (error) { console.warn("James retired-strategy candidate persistence unavailable:", error.message); return null; }
+  return { strategyId: typeof data === "string" ? data : null, strategyKey, taskClass, strategy, sourcePatterns, status: "candidate", reused: false };
 }
 
 export async function createJamesGameExperimentPlan() {
@@ -2654,6 +3272,7 @@ export async function createJamesGameExperimentPlan() {
   const validatedMetaStrategies = await getJamesValidatedMetaStrategies({ taskClass: key, limit: 5 });
   const selectedMetaStrategy = [...validatedMetaStrategies].sort((a, b) => b.relevanceScore - a.relevanceScore)[0] || null;
   const retiredStrategyDirective = await getJamesRetiredStrategySynthesisDirective({ taskClass: key });
+  const synthesizedRetiredStrategy = retiredStrategyDirective ? await persistJamesRetiredStrategyCandidate(retiredStrategyDirective) : null;
   const contextualMemory = await getJamesContextualLearningMemory("unknown", String(target.capability_name), []);
   const transferCandidate = contextualMemory[0] || null;
   const generalizedTransfer = (transferKnowledge || []).find((item) => item.transferable) || null;
@@ -2698,6 +3317,12 @@ export async function createJamesGameExperimentPlan() {
   const retirementContext = retiredStrategyDirective
     ? " Retired-strategy synthesis directive: " + retiredStrategyDirective.synthesisPrompt
     : "";
+  const synthesizedStrategyContext = synthesizedRetiredStrategy
+    ? " Newly synthesized candidate strategy: \"" + synthesizedRetiredStrategy.strategy +
+      "\". Candidate status=" + String(synthesizedRetiredStrategy.status || "candidate") +
+      ". Strategy ID=" + String(synthesizedRetiredStrategy.strategyId || "pending") +
+      ". This candidate must be exercised in this experiment and judged only from fresh sandbox evidence."
+    : "";
   const capabilityPrompt =
     key.includes("input")
       ? "Create a small game focused on reliable keyboard and touch movement with an alternate input path."
@@ -2716,7 +3341,7 @@ export async function createJamesGameExperimentPlan() {
   return {
     status: "experiment",
     title: "James Game Brain experiment: " + String(target.capability_name),
-    prompt: capabilityPrompt + relevantKnowledgeContext + knowledgeContext + coreSkillContext + contradictionContext + corroborationContext + contextualContext + transferContext + metaStrategyContext + retirementContext + tournamentContext + recoveryContext +
+    prompt: capabilityPrompt + relevantKnowledgeContext + knowledgeContext + coreSkillContext + contradictionContext + corroborationContext + contextualContext + transferContext + metaStrategyContext + retirementContext + synthesizedStrategyContext + tournamentContext + recoveryContext +
       (learningMode.mode === "explore" && exploration?.novelMechanic
         ? " Exploration directive: deliberately test the novel mechanic \""+ exploration.novelMechanic + "\" instead of repeating the most recent proven mechanic set. Compare its evidence against the current strategy."
         : " Exploitation directive: reuse proven strategy components first, while preserving regression checks and measurable evidence."),
@@ -2742,6 +3367,7 @@ export async function createJamesGameExperimentPlan() {
     composedKnowledge,
     selectedMetaStrategy,
     validatedMetaStrategies: validatedMetaStrategies.slice(0, 5),
+    synthesizedRetiredStrategy,
   };
 }
 
@@ -2934,6 +3560,7 @@ export async function evaluateJamesRecoveryDirectiveImpact(
   experimentPrompt: string | null | undefined,
   blueprint: GameBlueprint,
   report: TestReport,
+  sourceEventKey?: string,
 ) {
   const client = db();
   if (!client) return null;
@@ -2990,11 +3617,35 @@ export async function evaluateJamesRecoveryDirectiveImpact(
   const strategy = "Apply recovery directive only when it improves comparable experiment quality without repeating stale-runner execution failures.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence")
+    .select("id,success_count,failure_count,confidence,last_evidence")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", strategyPattern)
     .eq("strategy", strategy)
     .maybeSingle();
+
+  const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+    ? existing.last_evidence as Record<string, unknown>
+    : {};
+  if (sourceEventKey && priorEvidence.sourceEventKey === sourceEventKey) {
+    const priorTotal = Number(existing?.success_count || 0) + Number(existing?.failure_count || 0);
+    return {
+      influenced: true,
+      evaluated: true,
+      currentQuality,
+      currentOutcome,
+      baselineQuality,
+      baselineOutcome: baseline.outcome,
+      improvement,
+      directiveEffective,
+      duplicate: true,
+      directiveMemory: {
+        successCount: Number(existing?.success_count || 0),
+        failureCount: Number(existing?.failure_count || 0),
+        successRate: Number((priorTotal ? Number(existing?.success_count || 0) / priorTotal : 0).toFixed(3)),
+        confidence: Number(existing?.confidence || 0.1),
+      },
+    };
+  }
 
   const successCount = Number(existing?.success_count || 0) + (directiveEffective ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (directiveEffective ? 0 : 1);
@@ -3012,12 +3663,23 @@ export async function evaluateJamesRecoveryDirectiveImpact(
     failure_count: failureCount,
     capabilities: ["fun-zone-runtime-observability", "fun-zone-restart-integrity"],
     status,
+    last_evidence: {
+      source: "recovery-directive-impact",
+      sourceEventKey: sourceEventKey || null,
+      directiveEffective,
+      improvement,
+      baselineQuality,
+      currentQuality,
+    },
   };
 
-  if (existing?.id) {
-    await client.from("james_experiences").update(memory).eq("id", existing.id);
-  } else {
-    await client.from("james_experiences").insert(memory);
+  const persistence = existing?.id
+    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
+    : await client.from("james_experiences").insert(memory);
+
+  if (persistence.error) {
+    console.warn("James recovery directive impact persistence failed:", persistence.error.message);
+    throw new Error("Recovery directive impact could not be persisted; verification will resume this stage.");
   }
 
   return {
@@ -3044,6 +3706,7 @@ export async function evaluateJamesExploreExploitImpact(
   experimentPrompt: string | null | undefined,
   blueprint: GameBlueprint,
   report: TestReport,
+  sourceEventKey?: string,
 ) {
   const client = db();
   if (!client || typeof experimentPrompt !== "string") return null;
@@ -3091,11 +3754,29 @@ export async function evaluateJamesExploreExploitImpact(
   const strategy = "Use " + mode + " mode when its measured experiment quality improves over the comparable prior strategy.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count")
+    .select("id,success_count,failure_count,last_evidence")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", strategyPattern)
     .eq("strategy", strategy)
     .maybeSingle();
+
+  const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+    ? existing.last_evidence as Record<string, unknown>
+    : {};
+  if (sourceEventKey && priorEvidence.sourceEventKey === sourceEventKey) {
+    const priorTotal = Number(existing?.success_count || 0) + Number(existing?.failure_count || 0);
+    return {
+      mode,
+      evaluated: true,
+      currentQuality,
+      baselineQuality,
+      improvement,
+      better,
+      successRate: Number((priorTotal ? Number(existing?.success_count || 0) / priorTotal : 0).toFixed(3)),
+      confidence: Number(existing?.confidence || 0.1),
+      duplicate: true,
+    };
+  }
 
   const successCount = Number(existing?.success_count || 0) + (better ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (better ? 0 : 1);
@@ -3112,10 +3793,25 @@ export async function evaluateJamesExploreExploitImpact(
     failure_count: failureCount,
     capabilities: ["fun-zone-strategy-selection"],
     status,
+    last_evidence: {
+      source: "learning-mode",
+      sourceEventKey: sourceEventKey || null,
+      mode,
+      better,
+      improvement,
+      baselineQuality,
+      currentQuality,
+    },
   };
 
-  if (existing?.id) await client.from("james_experiences").update(memory).eq("id", existing.id);
-  else await client.from("james_experiences").insert(memory);
+  const persistence = existing?.id
+    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
+    : await client.from("james_experiences").insert(memory);
+
+  if (persistence.error) {
+    console.warn("James learning-mode persistence failed:", persistence.error.message);
+    throw new Error("Learning mode impact could not be persisted; verification will resume this stage.");
+  }
 
   return {
     mode,
@@ -3134,6 +3830,7 @@ export async function promoteJamesExplorationResult(
   experimentPrompt: string | null | undefined,
   blueprint: GameBlueprint,
   report: TestReport,
+  sourceEventKey?: string,
 ) {
   const client = db();
   if (!client || typeof experimentPrompt !== "string" || !experimentPrompt.includes("Exploration directive:")) {
@@ -3148,11 +3845,24 @@ export async function promoteJamesExplorationResult(
   const strategy = "Exploration strategy: test novel mechanic set " + mechanics + " and promote it only when runtime evidence passes.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence")
+    .select("id,success_count,failure_count,confidence,last_evidence")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
+
+  const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+    ? existing.last_evidence as Record<string, unknown>
+    : {};
+  if (sourceEventKey && priorEvidence.sourceEventKey === sourceEventKey) {
+    return {
+      explored: true,
+      promoted: report.passed,
+      successRate: Number((Number(existing?.success_count || 0) / Math.max(1, Number(existing?.success_count || 0) + Number(existing?.failure_count || 0))).toFixed(3)),
+      confidence: Number(existing?.confidence || 0),
+      duplicate: true,
+    };
+  }
 
   const successCount = Number(existing?.success_count || 0) + (report.passed ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (report.passed ? 0 : 1);
@@ -3170,6 +3880,12 @@ export async function promoteJamesExplorationResult(
     failure_count: failureCount,
     capabilities: blueprint.mechanics.slice(0, 6).map((mechanic) => "fun-zone-mechanic:" + mechanic),
     status,
+    last_evidence: {
+      source: "exploration-promotion",
+      sourceEventKey: sourceEventKey || null,
+      passed: report.passed === true,
+      mechanics,
+    },
   };
 
   const result = existing?.id
@@ -3178,7 +3894,7 @@ export async function promoteJamesExplorationResult(
 
   if (result.error) {
     console.warn("James exploration promotion failed:", result.error.message);
-    return { explored: true, promoted: false, successRate };
+    throw new Error("Exploration promotion could not be persisted; verification will resume this stage.");
   }
 
   return {
@@ -3193,6 +3909,7 @@ export async function promoteJamesExplorationResult(
 export async function evolveJamesStrategyMemory(
   blueprint: GameBlueprint,
   report: TestReport,
+  sourceEventKey?: string,
 ) {
   const client = db();
   if (!client) return null;
@@ -3203,7 +3920,7 @@ export async function evolveJamesStrategyMemory(
   );
   const { data: rows, error } = await client
     .from("james_experiences")
-    .select("id, pattern, strategy, confidence, success_count, failure_count, capabilities")
+    .select("id, pattern, strategy, confidence, success_count, failure_count, capabilities,last_evidence")
     .eq("status", "active")
     .limit(40);
 
@@ -3240,9 +3957,25 @@ export async function evolveJamesStrategyMemory(
         ? "blocked"
         : "active";
 
+    const priorEvidence = row.last_evidence && typeof row.last_evidence === "object"
+      ? row.last_evidence as Record<string, unknown>
+      : {};
+    if (sourceEventKey && priorEvidence.strategyEvolutionEventKey === sourceEventKey) {
+      continue;
+    }
+
     const result = await client
       .from("james_experiences")
-      .update({ confidence, status })
+      .update({
+        confidence,
+        status,
+        last_evidence: {
+          ...priorEvidence,
+          strategyEvolutionEventKey: sourceEventKey || null,
+          strategyEvolutionOutcome: report.passed ? "success" : "failure",
+          strategyEvolutionRecordedAt: new Date().toISOString(),
+        },
+      })
       .eq("id", row.id);
 
     if (!result.error) {
@@ -3550,11 +4283,40 @@ export async function claimJamesGameExperiment(input: { userId?: string | null }
   return data;
 }
 
+function getJamesBlueprintFingerprint(blueprint: any) {
+  const stable = (value: any): string => {
+    if (value === null || value === undefined) return "";
+    if (Array.isArray(value)) return "[" + value.map(stable).join("|") + "]";
+    if (typeof value === "object") return "{" + Object.keys(value).sort().map((key) => key + ":" + stable(value[key])).join("|") + "}";
+    return String(value);
+  };
+  const relevant = {
+    genre: blueprint?.genre,
+    world: blueprint?.world,
+    mechanics: blueprint?.mechanics,
+    playerActions: blueprint?.playerActions,
+    controls: blueprint?.controls,
+    objective: blueprint?.objective,
+    progression: blueprint?.progression,
+    coreLoop: blueprint?.coreLoop,
+  };
+  return [...stable(relevant)].reduce((sum, char) => ((sum * 31) + char.charCodeAt(0)) >>> 0, 7).toString(36);
+}
+
 export async function applyJamesAutonomousMutationToExperimentBlueprint(blueprint: any, targetContext?: string) {
   const directive = await getJamesMutationDirective(targetContext);
+  const mutatedBlueprint = applyJamesMutationDirectiveToBlueprint(blueprint, directive);
+  const beforeFingerprint = getJamesBlueprintFingerprint(blueprint);
+  const afterFingerprint = getJamesBlueprintFingerprint(mutatedBlueprint);
   return {
     directive,
-    blueprint: applyJamesMutationDirectiveToBlueprint(blueprint, directive),
+    blueprint: mutatedBlueprint,
+    diversity: {
+      beforeFingerprint,
+      afterFingerprint,
+      structurallyChanged: beforeFingerprint !== afterFingerprint,
+      mutationVerified: beforeFingerprint !== afterFingerprint,
+    },
   };
 }
 
@@ -3573,6 +4335,31 @@ export async function createJamesGameExperimentJob(input: {
   const gameHtml = buildAutonomousGameHtml(blueprint);
   const client = db();
   const selectedMetaStrategy = plan.selectedMetaStrategy as JamesValidatedMetaStrategy | null;
+  const synthesizedRetiredStrategy = plan.synthesizedRetiredStrategy as {
+    strategyId: string | null; strategyKey: string; taskClass: string; strategy: string; sourcePatterns: string[];
+  } | null;
+  const experimentStrategy = synthesizedRetiredStrategy?.strategyId
+    ? {
+        strategyId: synthesizedRetiredStrategy.strategyId,
+        strategyTaskClass: synthesizedRetiredStrategy.taskClass,
+        strategySelectionScore: null,
+        strategySelectionEvidenceCount: 0,
+        strategySelectionSource: "retired-strategy-synthesis",
+        strategyKey: synthesizedRetiredStrategy.strategyKey,
+        baselineValidatedStrategyId: selectedMetaStrategy?.strategyId || null,
+        baselineValidatedStrategyScore: selectedMetaStrategy?.relevanceScore ?? null,
+      }
+    : selectedMetaStrategy
+      ? {
+          strategyId: selectedMetaStrategy.strategyId,
+          strategyTaskClass: selectedMetaStrategy.taskClass,
+          strategySelectionScore: selectedMetaStrategy.relevanceScore,
+          strategySelectionEvidenceCount: selectedMetaStrategy.evidenceCount,
+          strategySelectionSource: "validated-meta-strategy-lifecycle",
+          baselineValidatedStrategyId: selectedMetaStrategy.strategyId,
+          baselineValidatedStrategyScore: selectedMetaStrategy.relevanceScore,
+        }
+      : null;
 
   if (!client) {
     return {
@@ -3596,8 +4383,8 @@ export async function createJamesGameExperimentJob(input: {
       game_html: gameHtml,
       status: "pending_verification",
       attempt: 0,
-      learning_result: selectedMetaStrategy
-        ? { strategyId: selectedMetaStrategy.strategyId, strategyTaskClass: selectedMetaStrategy.taskClass, strategySelectionScore: selectedMetaStrategy.relevanceScore, strategySelectionEvidenceCount: selectedMetaStrategy.evidenceCount, strategySelectionSource: "validated-meta-strategy-lifecycle" }
+      learning_result: experimentStrategy
+        ? experimentStrategy
         : { strategySelectionSource: "no-validated-meta-strategy" },
     })
     .select("id")
@@ -3611,7 +4398,7 @@ export async function createJamesGameExperimentJob(input: {
     plan,
     blueprint,
     gameHtml,
-    strategyId: selectedMetaStrategy?.strategyId || null,
+    strategyId: experimentStrategy?.strategyId || null,
   };
 }export async function recordJamesTournamentMemory(input: {
   targetContext: string;
@@ -3619,6 +4406,9 @@ export async function createJamesGameExperimentJob(input: {
   winnerScore: number;
   winnerSuccessRate: number;
   winnerConfidence: number;
+  selectedMutation?: string | null;
+  excludedMutations?: string[];
+  reason?: string;
   rankings: Array<{
     rank: number;
     strategy: string;
@@ -3626,6 +4416,7 @@ export async function createJamesGameExperimentJob(input: {
     successRate: number;
     confidence: number;
     evidenceCount: number;
+    explorationBonus?: number;
   }>;
 }) {
   const client = db();
@@ -3641,12 +4432,24 @@ export async function createJamesGameExperimentJob(input: {
     .eq("strategy", strategy)
     .maybeSingle();
 
-  const successCount = Number(existing.data?.success_count || 0) + (input.winnerSuccessRate >= 0.75 ? 1 : 0);
-  const failureCount = Number(existing.data?.failure_count || 0) + (input.winnerSuccessRate < 0.75 ? 1 : 0);
-  const confidence = Math.min(0.99, Math.max(0.1,
-    Number(input.winnerConfidence) * 0.7 + Number(existing.data?.confidence || input.winnerConfidence) * 0.3,
-  ));
+  // This function records a selection/ranking snapshot, not an experiment outcome.
+  // Success/failure counts must be changed only by recordJamesTournamentOutcomeFeedback()
+  // after sandbox verification. Otherwise a pre-experiment ranking would masquerade as
+  // observed evidence and contaminate future mutation selection.
+  const successCount = Number(existing.data?.success_count || 0);
+  const failureCount = Number(existing.data?.failure_count || 0);
+  const confidence = Number(existing.data?.confidence || 0.1);
 
+  const priorEvidence = existing.data?.id
+    ? await client.from("james_experiences")
+        .select("last_evidence")
+        .eq("id", existing.data.id)
+        .maybeSingle()
+    : { data: null };
+  const previousEvidence = priorEvidence.data?.last_evidence &&
+    typeof priorEvidence.data.last_evidence === "object"
+    ? priorEvidence.data.last_evidence as Record<string, unknown>
+    : {};
   const memory = {
     user_id: SYSTEM_USER_ID,
     pattern,
@@ -3656,10 +4459,16 @@ export async function createJamesGameExperimentJob(input: {
     failure_count: failureCount,
     capabilities: ["fun-zone-strategy-tournament"],
     status: "active",
+    // Ranking snapshots are replaceable, but observed outcome events are immutable
+    // history for duplicate protection and calibration.
     last_evidence: {
+      ...previousEvidence,
       winnerScore: input.winnerScore,
       winnerSuccessRate: input.winnerSuccessRate,
       winnerConfidence: input.winnerConfidence,
+      selectedMutation: input.selectedMutation || input.winnerStrategy,
+      excludedMutations: Array.from(new Set(input.excludedMutations || [])).slice(0, 12),
+      reason: input.reason || "Tournament ranking combined empirical success, quality, diversity, parent improvement, and uncertainty-driven exploration.",
       rankings: input.rankings.slice(0, 5),
       targetContext: input.targetContext,
       recordedAt: new Date().toISOString(),
@@ -3681,6 +4490,87 @@ export async function createJamesGameExperimentJob(input: {
     successCount,
     failureCount,
   };
+}
+
+export async function recordJamesTournamentOutcomeFeedback(input: {
+  targetContext: string;
+  mutationAction?: string | null;
+  experimentId: string;
+  sourceEventKey: string;
+  passed: boolean;
+  quality: number;
+}) {
+  const client = db();
+  if (!client) return null;
+  const pattern = "fun-zone:tournament:" + clean(input.targetContext, 160);
+  const { data: rows, error } = await client
+    .from("james_experiences")
+    .select("id,strategy,success_count,failure_count,confidence,last_evidence")
+    .eq("user_id", SYSTEM_USER_ID)
+    .eq("pattern", pattern)
+    .eq("status", "active")
+    .limit(20);
+  if (error) {
+    console.warn("James tournament outcome memory retrieval failed:", error.message);
+    return null;
+  }
+  const matchingRows = (rows || []).filter((item) => {
+    const evidence = item.last_evidence && typeof item.last_evidence === "object"
+      ? item.last_evidence as Record<string, unknown>
+      : {};
+    return input.mutationAction
+      ? String(evidence.selectedMutation || "") === input.mutationAction
+      : true;
+  });
+  // Never attach an outcome to an arbitrary tournament row. If mutation identity is
+  // available it must match exactly; without it, only a single unambiguous row is safe.
+  const row = matchingRows.length === 1 ? matchingRows[0] : null;
+  if (!row) {
+    return {
+      updated: false,
+      reason: matchingRows.length > 1 ? "ambiguous-tournament-memory" : "tournament-memory-not-found",
+    };
+  }
+  const evidence = row.last_evidence && typeof row.last_evidence === "object"
+    ? row.last_evidence as Record<string, unknown>
+    : {};
+  const outcomeEvents = Array.isArray(evidence.outcomeEvents)
+    ? evidence.outcomeEvents.filter((value): value is Record<string, unknown> => Boolean(value) && typeof value === "object")
+    : [];
+  if (outcomeEvents.some((event) => String(event.sourceEventKey || "") === input.sourceEventKey)) {
+    return { updated: false, reason: "duplicate-outcome-event", memoryId: row.id };
+  }
+  const successCount = Number(row.success_count || 0) + (input.passed ? 1 : 0);
+  const failureCount = Number(row.failure_count || 0) + (input.passed ? 0 : 1);
+  const total = successCount + failureCount;
+  const successRate = total ? successCount / total : 0;
+  const quality = Math.max(0, Math.min(1, Number(input.quality || 0)));
+  const confidence = Math.min(0.99, Math.max(0.1,
+    successRate * 0.55 + quality * 0.35 + Math.min(0.1, total * 0.01),
+  ));
+  const nextEvidence = {
+    ...evidence,
+    latestOutcome: input.passed ? "success" : "failure",
+    latestQuality: quality,
+    latestExperimentId: input.experimentId,
+    latestSourceEventKey: input.sourceEventKey,
+    outcomeEvents: [
+      ...outcomeEvents.slice(-19),
+      { sourceEventKey: input.sourceEventKey, experimentId: input.experimentId, passed: input.passed, quality, recordedAt: new Date().toISOString() },
+    ],
+  };
+  const result = await client.from("james_experiences").update({
+    success_count: successCount,
+    failure_count: failureCount,
+    confidence,
+    last_evidence: nextEvidence,
+    updated_at: new Date().toISOString(),
+  }).eq("id", row.id);
+  if (result.error) {
+    console.warn("James tournament outcome memory update failed:", result.error.message);
+    return null;
+  }
+  return { updated: true, memoryId: row.id, mutation: input.mutationAction || String(evidence.selectedMutation || ""), successCount, failureCount, successRate: Number(successRate.toFixed(3)), confidence: Number(confidence.toFixed(3)), quality };
 }
 
 export function runJamesStrategyTournament(
@@ -3718,19 +4608,75 @@ export function scoreJamesTournamentWithMemory(
       const empirical = total ? branch.successCount / total : 0;
       const memoryTotal = historical ? historical.successCount + historical.failureCount : 0;
       const memoryRate = historical && memoryTotal ? historical.successCount / memoryTotal : 0;
-      const memoryScore = historical
-        ? memoryRate * 0.5 + historical.confidence * 0.5
+
+      // Calibrated memory earns influence only as repeated evidence accumulates.
+      // Sparse history is shrunk toward neutral so one experiment cannot dominate.
+      const memoryReliability = historical
+        ? Math.min(1, memoryTotal / 8)
         : 0;
-      const score = empirical * 0.45 + branch.confidence * 0.3 + memoryScore * 0.25;
+      const rawMemoryScore = historical
+        ? memoryRate * 0.5 + historical.confidence * 0.5
+        : 0.5;
+      const calibratedMemoryScore = 0.5 + (rawMemoryScore - 0.5) * memoryReliability;
+      const effectiveMemoryWeight = 0.25 * memoryReliability;
+      const baseWeight = 1 - effectiveMemoryWeight;
+      const score = (
+        empirical * (baseWeight * 0.60) +
+        branch.confidence * (baseWeight * 0.40) +
+        calibratedMemoryScore * effectiveMemoryWeight
+      );
+
       return {
         ...branch,
         empiricalSuccessRate: empirical,
         tournamentMemoryRate: memoryRate,
-        tournamentMemoryScore: memoryScore,
+        tournamentMemoryScore: Number(calibratedMemoryScore.toFixed(4)),
+        tournamentMemoryReliability: Number(memoryReliability.toFixed(4)),
         tournamentScore: Number(score.toFixed(4)),
       };
     })
-    .sort((a, b) => b.tournamentScore - a.tournamentScore);
+    .sort((a, b) => b.tournamentScore - a.tournamentScore || b.successCount - a.successCount);
+}
+
+export function scoreJamesMutationTournamentWithMemory(
+  tournament: JamesMutationTournamentEntry[],
+  memory: Array<{ strategy: string; confidence: number; successCount: number; failureCount: number }>,
+) {
+  return tournament
+    .map((entry) => {
+      const historical = memory.find((item) => item.strategy === "Tournament winner: " + entry.action);
+      const memoryTotal = historical
+        ? historical.successCount + historical.failureCount
+        : 0;
+      const memoryRate = historical && memoryTotal
+        ? historical.successCount / memoryTotal
+        : 0;
+      const memoryReliability = historical
+        ? Math.min(1, memoryTotal / 8)
+        : 0;
+      const rawMemoryScore = historical
+        ? memoryRate * 0.5 + historical.confidence * 0.5
+        : 0.5;
+      const calibratedMemoryScore = 0.5 + (rawMemoryScore - 0.5) * memoryReliability;
+      const effectiveMemoryWeight = 0.25 * memoryReliability;
+      const tournamentScore = Number(entry.score || 0);
+      const score = tournamentScore * (1 - effectiveMemoryWeight) +
+        calibratedMemoryScore * effectiveMemoryWeight;
+
+      return {
+        ...entry,
+        tournamentScore: Number(score.toFixed(4)),
+        tournamentMemoryRate: Number(memoryRate.toFixed(4)),
+        tournamentMemoryScore: Number(calibratedMemoryScore.toFixed(4)),
+        tournamentMemoryReliability: Number(memoryReliability.toFixed(4)),
+      };
+    })
+    .sort((a, b) =>
+      b.tournamentScore - a.tournamentScore ||
+      b.successCount - a.successCount ||
+      b.score - a.score,
+    )
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
 }
 
 export function selectJamesStrategyBranches(

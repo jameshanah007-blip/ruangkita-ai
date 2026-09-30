@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const claimed = await claimJamesGameExperiment({ userId: "system:fun-zone" });
+    const claimed = await claimJamesGameExperiment({ userId: "00000000-0000-0000-0000-000000000001" });
     if (!claimed) {
       return NextResponse.json({
         success: true,
