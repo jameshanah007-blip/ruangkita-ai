@@ -26,6 +26,18 @@ begin
     return jsonb_build_object('updated',false,'reason','strategy_not_found');
   end if;
 
+  -- Deprecated is terminal retirement. New evidence must not resurrect
+  -- a retired strategy; a genuinely new strategy should be synthesized
+  -- with a new strategy identity instead.
+  if v_strategy.status = 'deprecated' then
+    return jsonb_build_object(
+      'updated',false,
+      'strategyId',p_strategy_id,
+      'status','deprecated',
+      'reason','strategy_terminally_retired'
+    );
+  end if;
+
   select count(*),
     coalesce(avg(case when outcome='success' then 1 when outcome='partial' then quality else 0 end),0),
     coalesce(avg(quality),0.5)
