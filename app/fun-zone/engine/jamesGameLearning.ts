@@ -2505,29 +2505,45 @@ export async function getJamesTournamentDirective(targetContext?: string) {
 }
 
 export type JamesValidatedMetaStrategy = {
-  strategyId: string; taskClass: string | null; strategy: string; confidence: number;
-  evidenceCount: number; successCount: number; failureCount: number; relevanceScore: number;
+  strategyId: string;
+  taskClass: string | null;
+  strategy: string;
+  confidence: number;
+  evidenceCount: number;
+  successCount: number;
+  failureCount: number;
+  relevanceScore: number;
 };
 
 export async function getJamesValidatedMetaStrategies(input?: { taskClass?: string | null; limit?: number }) {
-  const client = db(); if (!client) return [];
-  const limit = Math.max(1, Math.min(10, input?.limit ?? 5));
-  let query = client.from("james_meta_strategy_synthesis")
-    .select("id,task_class,strategy,confidence,evidence_count,success_count,failure_count,status,updated_at")
-    .eq("status", "validated").order("confidence", { ascending: false })
-    .order("evidence_count", { ascending: false }).order("updated_at", { ascending: false }).limit(limit);
-  if (input?.taskClass) query = query.or("task_class.eq." + input.taskClass + ",task_class.is.null");
-  const { data, error } = await query;
-  if (error) { console.warn("James validated meta-strategy retrieval failed:", error.message); return []; }
-  return (data || []).map((row) => {
-    const successCount=Number(row.success_count||0), failureCount=Number(row.failure_count||0);
-    const evidenceCount=Number(row.evidence_count||(successCount+failureCount));
-    const confidence=Math.max(0,Math.min(1,Number(row.confidence||0)));
-    const successRate=successCount+failureCount>0?successCount/(successCount+failureCount):0.5;
-    const evidenceWeight=Math.min(1,evidenceCount/10);
-    return { strategyId:String(row.id), taskClass:typeof row.task_class==="string"?row.task_class:null, strategy:String(row.strategy||""), confidence,evidenceCount,successCount,failureCount,relevanceScore:Number((confidence*.45+successRate*.35+evidenceWeight*.20).toFixed(4)) };
-  }).filter((item)=>item.strategy.length>0);
+  const client = db();
+  if (!client) return [];
+
+  const limit = Math.max(1, Math.min(20, input?.limit ?? 5));
+  const { data, error } = await client.rpc("retrieve_james_validated_meta_strategies", {
+    p_task_class: input?.taskClass ?? null,
+    p_limit: limit,
+  });
+
+  if (error) {
+    console.warn("James validated meta-strategy retrieval failed:", error.message);
+    return [];
+  }
+
+  return (data ?? [])
+    .map((row) => ({
+      strategyId: String(row.strategy_id),
+      taskClass: input?.taskClass ?? null,
+      strategy: String(row.strategy ?? ""),
+      confidence: Math.max(0, Math.min(1, Number(row.confidence ?? 0))),
+      evidenceCount: Number(row.evidence_count ?? 0),
+      successCount: Number(row.success_count ?? 0),
+      failureCount: Number(row.failure_count ?? 0),
+      relevanceScore: Number(row.relevance_score ?? 0),
+    }))
+    .filter((item) => item.strategy.length > 0);
 }
+
 export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
