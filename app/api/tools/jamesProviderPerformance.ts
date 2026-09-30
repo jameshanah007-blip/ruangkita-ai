@@ -109,4 +109,109 @@ export async function recordJamesProviderPerformance(input: {
 
   return !error;
 }
-\n\nexport type JamesProviderFailureKind =\n  | "quota"\n  | "rate_limit"\n  | "timeout"\n  | "auth"\n  | "server"\n  | "network"\n  | "invalid_output"\n  | "unknown";\n\nexport function classifyJamesProviderFailure(error: unknown): JamesProviderFailureKind {\n  const status = error && typeof error === "object" && "status" in error\n    ? Number((error as { status?: unknown }).status)\n    : undefined;\n  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();\n  if (status === 401 || status === 403 || message.includes("api key") || message.includes("unauthorized")) return "auth";\n  if (status === 429 || message.includes("rate limit") || message.includes("too many requests") || message.includes("tokens per minute")) return "rate_limit";\n  if (message.includes("quota") || message.includes("daily limit") || message.includes("requests per day") || message.includes("free-models-per-day")) return "quota";\n  if (status === 408 || message.includes("timeout") || message.includes("timed out")) return "timeout";\n  if ([500,502,503,504].includes(status ?? -1) || message.includes("temporarily unavailable")) return "server";\n  if (message.includes("network") || message.includes("fetch failed")) return "network";\n  if (message.includes("output") || message.includes("empty") || message.includes("invalid")) return "invalid_output";\n  return "unknown";\n}\n\nfunction cooldownForFailure(kind: JamesProviderFailureKind): number {\n  switch (kind) {\n    case "quota": return 24 * 60 * 60 * 1000;\n    case "rate_limit": return 60 * 60 * 1000;\n    case "auth": return 6 * 60 * 60 * 1000;\n    case "timeout":\n    case "server":\n    case "network": return 5 * 60 * 1000;\n    case "invalid_output": return 2 * 60 * 1000;\n    default: return 60 * 1000;\n  }\n}\n\nexport async function getJamesProviderCooldowns() {\n  const supabase = db();\n  if (!supabase) return new Map<AIProviderName, string>();\n  const { data, error } = await supabase\n    .from("james_provider_performance")\n    .select("provider, cooldown_until")\n    .not("cooldown_until", "is", null);\n  if (error || !data) return new Map<AIProviderName, string>();\n  const now = Date.now();\n  const result = new Map<AIProviderName, string>();\n  for (const row of data) {\n    if (typeof row.cooldown_until !== "string") continue;\n    if (new Date(row.cooldown_until).getTime() > now) {\n      const provider = row.provider as AIProviderName;\n      const current = result.get(provider);\n      if (!current || new Date(row.cooldown_until).getTime() > new Date(current).getTime()) result.set(provider, row.cooldown_until);\n    }\n  }\n  return result;\n}\n\nexport async function recordJamesProviderFailure(input: {\n  provider: AIProviderName;\n  task: JamesResourceTask;\n  error: unknown;\n}) {\n  const supabase = db();\n  if (!supabase) return false;\n  const kind = classifyJamesProviderFailure(input.error);\n  const cooldownUntil = new Date(Date.now() + cooldownForFailure(kind)).toISOString();\n  const now = new Date().toISOString();\n  const { data: existing } = await supabase\n    .from("james_provider_performance")\n    .select("attempts, failures, successes, total_quality, total_latency_ms, confidence")\n    .eq("provider", input.provider)\n    .eq("task", input.task)\n    .maybeSingle();\n  const attempts = Number(existing?.attempts || 0) + 1;\n  const failures = Number(existing?.failures || 0) + 1;\n  const successes = Number(existing?.successes || 0);\n  const { error } = await supabase.from("james_provider_performance").upsert({\n    provider: input.provider, task: input.task, attempts, failures, successes,\n    total_quality: Number(existing?.total_quality || 0),\n    total_latency_ms: Number(existing?.total_latency_ms || 0),\n    last_quality: 0, last_latency_ms: null,\n    confidence: Number(existing?.confidence || 0.2),\n    cooldown_until: cooldownUntil, last_failure_at: now, last_failure_kind: kind,\n    updated_at: now,\n  }, { onConflict: "provider,task" });\n  return !error;\n}\n\nexport async function recordJamesProviderSuccess(input: {\n  provider: AIProviderName;\n  task: JamesResourceTask;\n}) {\n  const supabase = db();\n  if (!supabase) return false;\n  const now = new Date().toISOString();\n  const { error } = await supabase\n    .from("james_provider_performance")\n    .update({ cooldown_until: null, last_success_at: now, last_failure_kind: null, updated_at: now })\n    .eq("provider", input.provider)\n    .eq("task", input.task);\n  return !error;\n}\n
+
+
+export type JamesProviderFailureKind =
+  | "quota"
+  | "rate_limit"
+  | "timeout"
+  | "auth"
+  | "server"
+  | "network"
+  | "invalid_output"
+  | "unknown";
+
+export function classifyJamesProviderFailure(error: unknown): JamesProviderFailureKind {
+  const status = error && typeof error === "object" && "status" in error
+    ? Number((error as { status?: unknown }).status)
+    : undefined;
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  if (status === 401 || status === 403 || message.includes("api key") || message.includes("unauthorized")) return "auth";
+  if (status === 429 || message.includes("rate limit") || message.includes("too many requests") || message.includes("tokens per minute")) return "rate_limit";
+  if (message.includes("quota") || message.includes("daily limit") || message.includes("requests per day") || message.includes("free-models-per-day")) return "quota";
+  if (status === 408 || message.includes("timeout") || message.includes("timed out")) return "timeout";
+  if ([500,502,503,504].includes(status ?? -1) || message.includes("temporarily unavailable")) return "server";
+  if (message.includes("network") || message.includes("fetch failed")) return "network";
+  if (message.includes("output") || message.includes("empty") || message.includes("invalid")) return "invalid_output";
+  return "unknown";
+}
+
+function cooldownForFailure(kind: JamesProviderFailureKind): number {
+  switch (kind) {
+    case "quota": return 24 * 60 * 60 * 1000;
+    case "rate_limit": return 60 * 60 * 1000;
+    case "auth": return 6 * 60 * 60 * 1000;
+    case "timeout":
+    case "server":
+    case "network": return 5 * 60 * 1000;
+    case "invalid_output": return 2 * 60 * 1000;
+    default: return 60 * 1000;
+  }
+}
+
+export async function getJamesProviderCooldowns() {
+  const supabase = db();
+  if (!supabase) return new Map<AIProviderName, string>();
+  const { data, error } = await supabase
+    .from("james_provider_performance")
+    .select("provider, cooldown_until")
+    .not("cooldown_until", "is", null);
+  if (error || !data) return new Map<AIProviderName, string>();
+  const now = Date.now();
+  const result = new Map<AIProviderName, string>();
+  for (const row of data) {
+    if (typeof row.cooldown_until !== "string") continue;
+    if (new Date(row.cooldown_until).getTime() > now) {
+      const provider = row.provider as AIProviderName;
+      const current = result.get(provider);
+      if (!current || new Date(row.cooldown_until).getTime() > new Date(current).getTime()) result.set(provider, row.cooldown_until);
+    }
+  }
+  return result;
+}
+
+export async function recordJamesProviderFailure(input: {
+  provider: AIProviderName;
+  task: JamesResourceTask;
+  error: unknown;
+}) {
+  const supabase = db();
+  if (!supabase) return false;
+  const kind = classifyJamesProviderFailure(input.error);
+  const cooldownUntil = new Date(Date.now() + cooldownForFailure(kind)).toISOString();
+  const now = new Date().toISOString();
+  const { data: existing } = await supabase
+    .from("james_provider_performance")
+    .select("attempts, failures, successes, total_quality, total_latency_ms, confidence")
+    .eq("provider", input.provider)
+    .eq("task", input.task)
+    .maybeSingle();
+  const attempts = Number(existing?.attempts || 0) + 1;
+  const failures = Number(existing?.failures || 0) + 1;
+  const successes = Number(existing?.successes || 0);
+  const { error } = await supabase.from("james_provider_performance").upsert({
+    provider: input.provider, task: input.task, attempts, failures, successes,
+    total_quality: Number(existing?.total_quality || 0),
+    total_latency_ms: Number(existing?.total_latency_ms || 0),
+    last_quality: 0, last_latency_ms: null,
+    confidence: Number(existing?.confidence || 0.2),
+    cooldown_until: cooldownUntil, last_failure_at: now, last_failure_kind: kind,
+    updated_at: now,
+  }, { onConflict: "provider,task" });
+  return !error;
+}
+
+export async function recordJamesProviderSuccess(input: {
+  provider: AIProviderName;
+  task: JamesResourceTask;
+}) {
+  const supabase = db();
+  if (!supabase) return false;
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("james_provider_performance")
+    .update({ cooldown_until: null, last_success_at: now, last_failure_kind: null, updated_at: now })
+    .eq("provider", input.provider)
+    .eq("task", input.task);
+  return !error;
+}
