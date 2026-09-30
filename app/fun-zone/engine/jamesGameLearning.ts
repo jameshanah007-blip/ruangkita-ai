@@ -3755,6 +3755,7 @@ export async function promoteJamesExplorationResult(
 export async function evolveJamesStrategyMemory(
   blueprint: GameBlueprint,
   report: TestReport,
+  sourceEventKey?: string,
 ) {
   const client = db();
   if (!client) return null;
@@ -3765,7 +3766,7 @@ export async function evolveJamesStrategyMemory(
   );
   const { data: rows, error } = await client
     .from("james_experiences")
-    .select("id, pattern, strategy, confidence, success_count, failure_count, capabilities")
+    .select("id, pattern, strategy, confidence, success_count, failure_count, capabilities,last_evidence")
     .eq("status", "active")
     .limit(40);
 
@@ -3802,9 +3803,25 @@ export async function evolveJamesStrategyMemory(
         ? "blocked"
         : "active";
 
+    const priorEvidence = row.last_evidence && typeof row.last_evidence === "object"
+      ? row.last_evidence as Record<string, unknown>
+      : {};
+    if (sourceEventKey && priorEvidence.strategyEvolutionEventKey === sourceEventKey) {
+      continue;
+    }
+
     const result = await client
       .from("james_experiences")
-      .update({ confidence, status })
+      .update({
+        confidence,
+        status,
+        last_evidence: {
+          ...priorEvidence,
+          strategyEvolutionEventKey: sourceEventKey || null,
+          strategyEvolutionOutcome: report.passed ? "success" : "failure",
+          strategyEvolutionRecordedAt: new Date().toISOString(),
+        },
+      })
       .eq("id", row.id);
 
     if (!result.error) {
