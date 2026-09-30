@@ -2839,26 +2839,52 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
   const rememberedTournamentMutation = rememberedTournamentRankings[0]
     ? String(rememberedTournamentRankings[0].strategy)
     : null;
-  const tournamentMutation = mutationTournament[0]?.action || rememberedTournamentMutation || null;
+  const tournamentMemory = (tournamentMemoryRows || []).flatMap((row) => {
+    const evidence = row.last_evidence && typeof row.last_evidence === "object"
+      ? row.last_evidence as Record<string, unknown>
+      : {};
+    const selectedMutation = String(evidence.selectedMutation || "");
+    const outcomeEvents = Array.isArray(evidence.outcomeEvents)
+      ? evidence.outcomeEvents
+      : [];
+    const successCount = Number(row.last_evidence?.successCount || 0);
+    const failureCount = Number(row.last_evidence?.failureCount || 0);
+    return selectedMutation
+      ? [{
+          strategy: "Tournament winner: " + selectedMutation,
+          confidence: Number(evidence.winnerConfidence || row.confidence || 0),
+          successCount,
+          failureCount,
+          outcomeEvents,
+        }]
+      : [];
+  });
 
-  if (mutationTournament.length) {
+  const calibratedMutationTournament = scoreJamesMutationTournamentWithMemory(
+    mutationTournament,
+    tournamentMemory,
+  );
+  const calibratedWinner = calibratedMutationTournament[0] || null;
+  const tournamentMutation = calibratedWinner?.action || rememberedTournamentMutation || null;
+
+  if (calibratedMutationTournament.length) {
     await recordJamesTournamentMemory({
       targetContext: String(retired.id) + ":" + String(retired.task_class || input.taskClass || "fun-zone-game-director"),
       winnerStrategy: tournamentMutation || "no-selected-mutation",
-      winnerScore: Number(mutationTournament[0]?.score || 0),
-      winnerSuccessRate: mutationTournament[0]
-        ? Number((mutationTournament[0].successCount / Math.max(1, mutationTournament[0].successCount + mutationTournament[0].failureCount)).toFixed(4))
+      winnerScore: Number(calibratedWinner?.tournamentScore || calibratedWinner?.score || 0),
+      winnerSuccessRate: calibratedWinner
+        ? Number((calibratedWinner.successCount / Math.max(1, calibratedWinner.successCount + calibratedWinner.failureCount)).toFixed(4))
         : 0,
-      winnerConfidence: mutationTournament[0]
-        ? Number(mutationTournament[0].averageQuality || 0)
+      winnerConfidence: calibratedWinner
+        ? Number(calibratedWinner.averageQuality || 0)
         : 0,
       selectedMutation: tournamentMutation,
       excludedMutations: failedMutations,
-      reason: "Tournament result persisted before synthesis so future runs can reuse both the ranking and the evidence behind the ranking.",
-      rankings: mutationTournament.slice(0, 5).map((entry) => ({
+      reason: "Calibrated tournament score combines fresh mutation evidence with maturity-weighted historical tournament memory while preserving exploration and failed-mutation exclusions.",
+      rankings: calibratedMutationTournament.slice(0, 5).map((entry) => ({
         rank: entry.rank,
         strategy: entry.action,
-        score: entry.score,
+        score: entry.tournamentScore,
         successRate: entry.successCount / Math.max(1, entry.successCount + entry.failureCount),
         confidence: entry.averageQuality,
         evidenceCount: entry.successCount + entry.failureCount,
@@ -2894,8 +2920,11 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
   const successInstruction = successfulMutations.length
     ? " Successful comparison mutations available for controlled reuse: " + Array.from(new Set(successfulMutations)).join(", ") + ". Reuse only with fresh verification."
     : "";
-  const tournamentInstruction = mutationTournament.length
-    ? " Mutation tournament ranking: " + mutationTournament.slice(0, 5).map((entry) => entry.rank + ":" + entry.action + "=" + entry.score.toFixed(3)).join(", ") + "."
+  const tournamentInstruction = calibratedMutationTournament.length
+    ? " Calibrated mutation tournament ranking: " + calibratedMutationTournament.slice(0, 5).map((entry) =>
+        entry.rank + ":" + entry.action + "=" + entry.tournamentScore.toFixed(3) +
+        " memoryReliability=" + entry.tournamentMemoryReliability.toFixed(2)
+      ).join(", ") + "."
     : rememberedTournamentRankings.length
       ? " Remembered mutation tournament ranking: " + rememberedTournamentRankings.slice(0, 5).map((entry) => String(entry.rank || "?") + ":" + String(entry.strategy) + "=" + Number(entry.score || 0).toFixed(3)).join(", ") + "."
       : "";
@@ -4287,6 +4316,47 @@ export function scoreJamesTournamentWithMemory(
       };
     })
     .sort((a, b) => b.tournamentScore - a.tournamentScore || b.successCount - a.successCount);
+}
+
+export function scoreJamesMutationTournamentWithMemory(
+  tournament: JamesMutationTournamentEntry[],
+  memory: Array<{ strategy: string; confidence: number; successCount: number; failureCount: number }>,
+) {
+  return tournament
+    .map((entry) => {
+      const historical = memory.find((item) => item.strategy === "Tournament winner: " + entry.action);
+      const memoryTotal = historical
+        ? historical.successCount + historical.failureCount
+        : 0;
+      const memoryRate = historical && memoryTotal
+        ? historical.successCount / memoryTotal
+        : 0;
+      const memoryReliability = historical
+        ? Math.min(1, memoryTotal / 8)
+        : 0;
+      const rawMemoryScore = historical
+        ? memoryRate * 0.5 + historical.confidence * 0.5
+        : 0.5;
+      const calibratedMemoryScore = 0.5 + (rawMemoryScore - 0.5) * memoryReliability;
+      const effectiveMemoryWeight = 0.25 * memoryReliability;
+      const tournamentScore = Number(entry.score || 0);
+      const score = tournamentScore * (1 - effectiveMemoryWeight) +
+        calibratedMemoryScore * effectiveMemoryWeight;
+
+      return {
+        ...entry,
+        tournamentScore: Number(score.toFixed(4)),
+        tournamentMemoryRate: Number(memoryRate.toFixed(4)),
+        tournamentMemoryScore: Number(calibratedMemoryScore.toFixed(4)),
+        tournamentMemoryReliability: Number(memoryReliability.toFixed(4)),
+      };
+    })
+    .sort((a, b) =>
+      b.tournamentScore - a.tournamentScore ||
+      b.successCount - a.successCount ||
+      b.score - a.score,
+    )
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
 }
 
 export function selectJamesStrategyBranches(
