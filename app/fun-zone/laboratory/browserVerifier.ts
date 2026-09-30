@@ -95,16 +95,16 @@ function buildVerifierHtml(gameHtml: string, actions: string[]) {
 
 async function createSandbox() {
   const Sandbox = await getSandboxRuntime();
-  const snapshotId = process.env.AGENT_BROWSER_SNAPSHOT_ID;
+  const snapshotId = process.env.AGENT_BROWSER_SNAPSHOT_ID || process.env.SANDBOX_SNAPSHOT_ID;
   return snapshotId
-    ? Sandbox.create({...credentials(),source:{type:"snapshot",snapshotId},timeout:120_000})
-    : Sandbox.create({...credentials(),runtime:"node24",timeout:120_000,networkPolicy:"allow-all"});
+    ? Sandbox.create({...credentials(),source:{type:"snapshot",snapshotId},timeout:240_000})
+    : Sandbox.create({...credentials(),runtime:"node24",timeout:240_000,networkPolicy:"allow-all"});
 }
 
 export async function verifyGameInBrowser(gameHtml:string, blueprint:GameBlueprint, attempt:number):Promise<TestReport>{
   const sandbox=await createSandbox();
   try{
-    if(!process.env.AGENT_BROWSER_SNAPSHOT_ID){
+    if(!process.env.AGENT_BROWSER_SNAPSHOT_ID && !process.env.SANDBOX_SNAPSHOT_ID){
       await command(sandbox,"npm",["install","-g","agent-browser"]);
       await command(sandbox,"npx",["agent-browser","install"]);
     }
