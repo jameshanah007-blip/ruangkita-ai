@@ -967,7 +967,7 @@ export function selectJamesLearningMode(input: {
   };
 }
 
-export async function promoteJamesGeneralizedGameSkills(limit = 8) {
+export async function promoteJamesGeneralizedGameSkills(limit = 8, sourceEventKey?: string) {
   const client = db();
   if (!client) return [];
 
@@ -980,7 +980,7 @@ export async function promoteJamesGeneralizedGameSkills(limit = 8) {
     const strategy = "Generalized Game Brain skill: reuse proven capabilities across contexts only after contextual verification.";
     const { data: existing } = await client
       .from("james_self_model")
-      .select("id,competence,confidence,evidence_count,success_count,failure_count")
+      .select("id,competence,confidence,evidence_count,success_count,failure_count,last_evidence")
       .eq("user_id", SYSTEM_USER_ID)
       .eq("capability_key", capabilityKey)
       .maybeSingle();
@@ -990,18 +990,16 @@ export async function promoteJamesGeneralizedGameSkills(limit = 8) {
     const failureCount = Math.max(0, evidenceCount - successCount);
     const competence = Math.min(0.99, Math.max(0.1, item.successRate));
     const confidence = Math.min(0.99, Math.max(0.1, item.confidence + Math.min(0.1, item.contextCount * 0.02)));
-    const priorSupersessionEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+    const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
       ? existing.last_evidence as Record<string, unknown>
       : {};
-    if (sourceEventKey && priorSupersessionEvidence.sourceEventKey === sourceEventKey) {
-      results.push({
-        knowledgeKey,
-        latestVersion: latest.version,
-        priorVersion: prior?.version || null,
-        supersedes,
-        coexist: !supersedes,
-        contextOverlap: Number(contextOverlap.toFixed(3)),
-        reason: coexistReason,
+    if (sourceEventKey && priorEvidence.sourceEventKey === sourceEventKey) {
+      promoted.push({
+        capabilityKey,
+        competence: Number(competence.toFixed(3)),
+        confidence: Number(confidence.toFixed(3)),
+        contextCount: item.contextCount,
+        evidenceCount: Number(existing?.evidence_count || 0),
         duplicate: true,
       });
       continue;
@@ -1024,6 +1022,7 @@ export async function promoteJamesGeneralizedGameSkills(limit = 8) {
         contextCount: item.contextCount,
         successRate: item.successRate,
         strategy,
+        sourceEventKey: sourceEventKey || null,
       },
       next_learning_action: "Verify this generalized skill in a new context and update competence from evidence.",
       status: competence >= 0.85 && confidence >= 0.8 ? "strong" : competence >= 0.7 ? "competent" : "developing",
