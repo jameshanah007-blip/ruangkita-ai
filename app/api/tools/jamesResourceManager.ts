@@ -7,7 +7,7 @@ import {
 } from "../../fun-zone/aiProvider";
 import { openRouterProvider } from "../../fun-zone/openRouterProvider";
 import { groqProvider } from "../../fun-zone/groqProvider";
-import { getJamesProviderPerformance, scoreJamesProviderPerformance } from "./jamesProviderPerformance";
+import { getJamesProviderPerformance, scoreJamesProviderPerformance, getJamesProviderCooldowns, recordJamesProviderFailure, recordJamesProviderSuccess } from "./jamesProviderPerformance";
 import { planJamesLearningPolicy } from "./jamesLearningPolicy";
 
 export type JamesResourceTask =
@@ -180,7 +180,7 @@ async function getCandidates(task: JamesResourceTask) {
   // Policy may rank only a subset of providers. Never let that subset
   // disable the hard fallback chain.
   const order = [...new Set([...rankedProviders, ...fallbackOrder])];
-  const performance = await getJamesProviderPerformance(task);
+  const performance = await getJamesProviderPerformance(task);\n  const persistentCooldowns = await getJamesProviderCooldowns();
 
   return order
     .map((name, index) => ({
