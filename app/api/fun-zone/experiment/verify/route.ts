@@ -144,8 +144,29 @@ export async function POST(request: Request) {
         attempt,
         hardFailures: hardFailures.slice(0, 10),
         softWarnings: softWarnings.slice(0, 10),
+        strategySelectionSource: typeof strategyMeta.strategySelectionSource === "string"
+          ? strategyMeta.strategySelectionSource
+          : null,
+        strategyKey: typeof strategyMeta.strategyKey === "string"
+          ? strategyMeta.strategyKey
+          : null,
+        baselineValidatedStrategyId: typeof strategyMeta.baselineValidatedStrategyId === "string"
+          ? strategyMeta.baselineValidatedStrategyId
+          : null,
+        // The sandbox report is the fresh outcome attached to this exact
+        // strategy identity. Keep the observable checks with the evidence so
+        // lifecycle decisions can be audited without reconstructing the run.
+        checks: {
+          passed: report.passed === true,
+          runtimeOk: report.runtimeOk,
+          gameplayTest: report.gameplayTest,
+          stateChanged: report.stateChanged,
+          objectiveChanged: report.objectiveChanged,
+          playerChanged: report.playerChanged,
+          restartVerified: report.restartVerified,
+        },
       };
-      const { data: strategyTrial, error: strategyTrialError } = await client
+      const { error: strategyTrialError } = await client
         .from("james_meta_strategy_trials")
         .upsert({
           strategy_id: strategyId,
