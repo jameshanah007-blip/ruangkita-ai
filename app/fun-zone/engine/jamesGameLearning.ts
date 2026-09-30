@@ -4147,6 +4147,16 @@ export async function createJamesGameExperimentJob(input: {
   const failureCount = Number(existing.data?.failure_count || 0);
   const confidence = Number(existing.data?.confidence || 0.1);
 
+  const priorEvidence = existing.data?.id
+    ? await client.from("james_experiences")
+        .select("last_evidence")
+        .eq("id", existing.data.id)
+        .maybeSingle()
+    : { data: null };
+  const previousEvidence = priorEvidence.data?.last_evidence &&
+    typeof priorEvidence.data.last_evidence === "object"
+    ? priorEvidence.data.last_evidence as Record<string, unknown>
+    : {};
   const memory = {
     user_id: SYSTEM_USER_ID,
     pattern,
@@ -4156,7 +4166,10 @@ export async function createJamesGameExperimentJob(input: {
     failure_count: failureCount,
     capabilities: ["fun-zone-strategy-tournament"],
     status: "active",
+    // Ranking snapshots are replaceable, but observed outcome events are immutable
+    // history for duplicate protection and calibration.
     last_evidence: {
+      ...previousEvidence,
       winnerScore: input.winnerScore,
       winnerSuccessRate: input.winnerSuccessRate,
       winnerConfidence: input.winnerConfidence,
