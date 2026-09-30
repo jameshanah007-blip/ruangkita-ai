@@ -148,7 +148,7 @@ export async function POST(request: Request) {
 
     const evolved = stageRow.evolution_completed && stageRow.evolution_result
       ? stageRow.evolution_result
-      : await evolveJamesStrategyMemory(blueprint, report);
+      : await evolveJamesStrategyMemory(blueprint, report, `strategy-evolution:${experimentId}:${attempt}`);
     if (!stageRow.evolution_completed) {
       const { error } = await client.from("james_experiment_verification_ledger").update({
         evolution_completed: true, evolution_result: evolved, stage: "mutation_started", updated_at: new Date().toISOString()
