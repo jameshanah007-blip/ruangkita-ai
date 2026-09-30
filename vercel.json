@@ -9,6 +9,10 @@
       "schedule": "0 4 * * *"
     },
     {
+      "path": "/api/fun-zone/experiment/auto-verify",
+      "schedule": "30 4 * * *"
+    },
+    {
       "path": "/api/fun-zone/experiment/watchdog",
       "schedule": "0 5 * * *"
     }
