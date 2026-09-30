@@ -305,36 +305,6 @@ export async function POST(request: Request) {
       .eq("id", coreStage.id)
       .eq("finalized", false);
     if (coreCheckpointError) throw coreCheckpointError;
-      const conflict = await resolveJamesCoreSkillConflict(skill.capabilityKey, {
-        competence: skill.competence,
-        confidence: skill.confidence,
-        passed: report.passed === true,
-        quality: gameQuality(report),
-        evidence: 1,
-      });
-      if (conflict) {
-        coreSkillConflicts.push(conflict);
-        if (conflict.conflict) {
-          await recordJamesKnowledgeContradiction({
-            capabilityKey: skill.capabilityKey,
-            previousQuality: conflict.previousCompetence,
-            observedQuality: conflict.observedQuality,
-            observedContext: String(blueprint.world) + ":" + String(blueprint.genre),
-            resolution: conflict.nextAction,
-          });
-        }
-        await recordJamesCoreSkillLineage(skill.capabilityKey, {
-          source: "fun-zone-experiment-verification",
-          quality: gameQuality(report),
-          passed: report.passed === true,
-          context: String(blueprint.world) + ":" + String(blueprint.genre) + ":" + blueprint.mechanics.slice(0, 4).join("+"),
-          previousCompetence: conflict.previousCompetence,
-          newCompetence: conflict.competence,
-          newConfidence: conflict.confidence,
-          reason: conflict.conflict ? "Conflicting evidence detected." : "Evidence reinforced generalized skill.",
-        });
-      }
-    }
     const verified = report.passed === true;
     const terminalFailure = !verified && attempt >= 5;
 
