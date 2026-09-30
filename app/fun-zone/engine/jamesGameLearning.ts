@@ -4139,11 +4139,13 @@ export async function createJamesGameExperimentJob(input: {
     .eq("strategy", strategy)
     .maybeSingle();
 
-  const successCount = Number(existing.data?.success_count || 0) + (input.winnerSuccessRate >= 0.75 ? 1 : 0);
-  const failureCount = Number(existing.data?.failure_count || 0) + (input.winnerSuccessRate < 0.75 ? 1 : 0);
-  const confidence = Math.min(0.99, Math.max(0.1,
-    Number(input.winnerConfidence) * 0.7 + Number(existing.data?.confidence || input.winnerConfidence) * 0.3,
-  ));
+  // This function records a selection/ranking snapshot, not an experiment outcome.
+  // Success/failure counts must be changed only by recordJamesTournamentOutcomeFeedback()
+  // after sandbox verification. Otherwise a pre-experiment ranking would masquerade as
+  // observed evidence and contaminate future mutation selection.
+  const successCount = Number(existing.data?.success_count || 0);
+  const failureCount = Number(existing.data?.failure_count || 0);
+  const confidence = Number(existing.data?.confidence || 0.1);
 
   const memory = {
     user_id: SYSTEM_USER_ID,
@@ -4206,13 +4208,23 @@ export async function recordJamesTournamentOutcomeFeedback(input: {
     console.warn("James tournament outcome memory retrieval failed:", error.message);
     return null;
   }
-  const row = (rows || []).find((item) => {
+  const matchingRows = (rows || []).filter((item) => {
     const evidence = item.last_evidence && typeof item.last_evidence === "object"
       ? item.last_evidence as Record<string, unknown>
       : {};
-    return !input.mutationAction || String(evidence.selectedMutation || "") === input.mutationAction;
-  }) || rows?.[0];
-  if (!row) return null;
+    return input.mutationAction
+      ? String(evidence.selectedMutation || "") === input.mutationAction
+      : true;
+  });
+  // Never attach an outcome to an arbitrary tournament row. If mutation identity is
+  // available it must match exactly; without it, only a single unambiguous row is safe.
+  const row = matchingRows.length === 1 ? matchingRows[0] : null;
+  if (!row) {
+    return {
+      updated: false,
+      reason: matchingRows.length > 1 ? "ambiguous-tournament-memory" : "tournament-memory-not-found",
+    };
+  }
   const evidence = row.last_evidence && typeof row.last_evidence === "object"
     ? row.last_evidence as Record<string, unknown>
     : {};
