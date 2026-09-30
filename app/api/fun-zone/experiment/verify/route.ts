@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../../../../fun-zone/laboratory/types";
 import { reconcileJamesMetaStrategyLifecycle } from "../../../tools/jamesStrategyLifecycleBridge";
-import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, gameQuality, evolveJamesStrategyMemory, evaluateJamesMutationOutcome, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict, recordJamesCoreSkillLineage, recordJamesKnowledgeContradiction, consolidateJamesGameKnowledge, versionJamesConsolidatedKnowledge, resolveJamesKnowledgeSupersession, recordJamesTournamentOutcomeFeedback } from "../../../../fun-zone/engine/jamesGameLearning";
+import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, gameQuality, evolveJamesStrategyMemory, evaluateJamesMutationOutcome, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict, recordJamesCoreSkillLineage, recordJamesKnowledgeContradiction, consolidateJamesGameKnowledge, versionJamesConsolidatedKnowledge, resolveJamesKnowledgeSupersession, recordJamesTournamentOutcomeFeedback, recordJamesStrategyComparisonMemory } from "../../../../fun-zone/engine/jamesGameLearning";
 
 export const runtime = "nodejs";
 
@@ -258,6 +258,20 @@ export async function POST(request: Request) {
           passed: verified,
           quality,
         });
+
+        if (parentStrategyId) {
+          await recordJamesStrategyComparisonMemory({
+            parentStrategyId,
+            candidateStrategyId: strategyId,
+            targetContext,
+            mutation: mutationAction || "unknown",
+            parentQuality,
+            candidateQuality: quality,
+            improvement: candidateImprovement,
+            improved: strategyComparison.improved,
+            experimentId,
+          });
+        }
 
         if (revalidationJobId) {
           await client.from("james_meta_strategy_revalidation_queue")
