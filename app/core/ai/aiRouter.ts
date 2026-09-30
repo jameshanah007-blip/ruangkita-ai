@@ -3,6 +3,7 @@ import {
   type AIGenerateRequest,
   type AIGenerateResponse,
   type AIStreamEvent,
+  isJamesLocalInferenceEligible,
 } from "./aiProvider";
 import { openRouterProvider } from "./openRouterProvider";
 import { groqProvider } from "./groqProvider";
@@ -119,11 +120,14 @@ export async function generateWithAIRouter(
 ): Promise<AIRouterResult> {
   // RuangKita's primary provider chain is Gemini -> OpenRouter -> Groq.
   // OpenAI remains an additional last-resort fallback when configured.
+  const localProvider = aiProviders.filter((provider) => provider.name === "local");
   const providers = [
+    ...(isJamesLocalInferenceEligible(request) ? localProvider : []),
     ...aiProviders.filter((provider) => provider.name === "gemini"),
     openRouterProvider,
     groqProvider,
     ...aiProviders.filter((provider) => provider.name === "openai"),
+    ...(!isJamesLocalInferenceEligible(request) ? localProvider : []),
   ];
 
   const availableProviders = providers.filter((provider) =>
@@ -243,11 +247,14 @@ export async function* streamWithAIRouter(
 ): AsyncGenerator<AIStreamEvent, void, unknown> {
   // RuangKita's primary provider chain is Gemini -> OpenRouter -> Groq.
   // OpenAI remains an additional last-resort fallback when configured.
+  const localProvider = aiProviders.filter((provider) => provider.name === "local");
   const providers = [
+    ...(isJamesLocalInferenceEligible(request) ? localProvider : []),
     ...aiProviders.filter((provider) => provider.name === "gemini"),
     openRouterProvider,
     groqProvider,
     ...aiProviders.filter((provider) => provider.name === "openai"),
+    ...(!isJamesLocalInferenceEligible(request) ? localProvider : []),
   ];
   const availableProviders = providers.filter((provider) => provider.isAvailable());
   if (!availableProviders.length) {
@@ -280,7 +287,9 @@ export async function* streamWithAIRouter(
             ? "openrouter/free"
             : provider.name === "openai"
               ? "gpt-5.6-luna"
-              : "unknown";
+              : provider.name === "local"
+                ? (process.env.JAMES_LOCAL_MODEL || "qwen3:8b")
+                : "unknown";
 
       if (provider.generateStream) {
         for await (const chunk of provider.generateStream(request)) {
