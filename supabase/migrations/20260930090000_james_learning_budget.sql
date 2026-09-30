@@ -1,6 +1,6 @@
 create table if not exists public.james_learning_budget (
   budget_date date primary key default current_date,
-  max_calls integer not null default 8,
+  max_calls integer not null default 10,
   used_calls integer not null default 0,
   updated_at timestamptz not null default now()
 );
@@ -9,7 +9,7 @@ alter table public.james_learning_budget enable row level security;
 
 create or replace function public.reserve_james_learning_budget(
   p_calls integer,
-  p_max_calls integer default 8
+  p_max_calls integer default 10
 )
 returns boolean
 language plpgsql
