@@ -2571,20 +2571,51 @@ async function persistJamesRetiredStrategyCandidate(directive: {
 
   const taskClass = directive.taskClass || "fun-zone-game-director";
   const mutationAction = clean(directive.directive.action, 120).replace(/[^a-zA-Z0-9_-]+/g, "-");
-  const strategyKey = clean(
+  const baseKey = clean(
     "meta:" + taskClass + ":retired:" + directive.retiredStrategyId + ":mutation:" + mutationAction,
     500,
   );
+
+  const { data: existing } = await client
+    .from("james_meta_strategy_synthesis")
+    .select("id,strategy_key,task_class,strategy,status,confidence,evidence_count,success_count,failure_count")
+    .eq("strategy_key", baseKey)
+    .maybeSingle();
+
+  // Planner calls are expected to be repeatable. Never rewrite an existing
+  // candidate/validated/retired identity merely because planning ran again.
+  if (existing?.id && existing.status !== "deprecated") {
+    return {
+      strategyId: String(existing.id),
+      strategyKey: String(existing.strategy_key),
+      taskClass: String(existing.task_class || taskClass),
+      strategy: String(existing.strategy || ""),
+      sourcePatterns: ["retired:" + directive.retiredStrategyId, "mutation:" + directive.directive.action, "task:" + taskClass],
+      status: String(existing.status),
+      reused: true,
+    };
+  }
+
+  // A deprecated identity is terminal. Do not edit it or resurrect it.
+  // Create a fresh identity for the next synthesis branch.
+  const branchOrdinal = existing?.status === "deprecated"
+    ? Math.max(1, Number(existing.evidence_count || 0) + Number(existing.failure_count || 0) + 1)
+    : 0;
+  const strategyKey = branchOrdinal
+    ? baseKey + ":branch:" + branchOrdinal
+    : baseKey;
   const strategy = clean(
     "New branch synthesized from retired strategy " + directive.retiredStrategyId +
       ". Do not resurrect the retired identity. Apply mutation '" +
-      directive.directive.action + "'. Preserve the failure as evidence and verify the new branch with fresh sandbox evidence.",
+      directive.directive.action + "'. Preserve the failure as evidence and verify the new branch with fresh sandbox evidence." +
+      (branchOrdinal ? " This is fresh synthesis branch " + branchOrdinal + "; do not reuse the prior candidate identity." : ""),
     1000,
   );
   const sourcePatterns = [
     "retired:" + directive.retiredStrategyId,
     "mutation:" + directive.directive.action,
     "task:" + taskClass,
+    ...(branchOrdinal ? ["fresh-branch:" + branchOrdinal] : []),
   ];
 
   const { data, error } = await client.rpc("synthesize_james_meta_strategy", {
@@ -2606,6 +2637,8 @@ async function persistJamesRetiredStrategyCandidate(directive: {
     taskClass,
     strategy,
     sourcePatterns,
+    status: "candidate",
+    reused: false,
   };
 }
 
