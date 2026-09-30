@@ -209,3 +209,48 @@ to service_role;
 
 grant execute on function public.reconcile_all_james_meta_strategy_lifecycle(integer,numeric,numeric)
 to service_role;
+
+
+create or replace function public.reconcile_james_meta_strategy_lifecycle_from_evidence()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.reconcile_james_meta_strategy_lifecycle(
+    new.strategy_id,
+    4,
+    0.75,
+    0.35
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists james_meta_strategy_lifecycle_after_evidence
+on public.james_meta_strategy_evidence;
+
+create trigger james_meta_strategy_lifecycle_after_evidence
+after insert or update of
+  trial_count,
+  success_count,
+  failure_count,
+  partial_count,
+  comparison_count,
+  comparison_improved_count,
+  tournament_count,
+  tournament_win_count,
+  outcome_rate,
+  avg_quality,
+  confidence,
+  evidence_count
+on public.james_meta_strategy_evidence
+for each row
+execute function public.reconcile_james_meta_strategy_lifecycle_from_evidence();
+
+revoke all on function public.reconcile_james_meta_strategy_lifecycle_from_evidence()
+from public, anon, authenticated;
+
+grant execute on function public.reconcile_james_meta_strategy_lifecycle_from_evidence()
+to service_role;
