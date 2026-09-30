@@ -377,6 +377,7 @@ export function buildAutonomousGameHtml(blueprint: GameBlueprint): string {
   const [bg, panel, accent, danger, light] = g.palette;
 
   const config = js(g);
+  const runtimeWorldKnowledge = js(worldKnowledge(g.world));
 
   return `<!doctype html>
 <html lang="en">
@@ -414,6 +415,7 @@ button:active{transform:scale(.96);background:${accent}66}
 (function(){
 "use strict";
 var G=${config};
+var RUNTIME_WORLD_KNOWLEDGE=${runtimeWorldKnowledge};
 var canvas=document.getElementById("gameCanvas"),ctx=canvas.getContext("2d");
 var root=document.getElementById("root");
 var titleEl=document.getElementById("title"),statsEl=document.getElementById("stats"),modeEl=document.getElementById("mode"),objectiveEl=document.getElementById("objective");
@@ -530,7 +532,7 @@ function drawBackground(){
   ctx.restore();
 }
 function drawWorldDecor(c){
-  var knowledge=worldKnowledge(G.world), step=90;
+  var knowledge=RUNTIME_WORLD_KNOWLEDGE, step=90;
   ctx.strokeStyle=c.light+"10";ctx.lineWidth=1;
   for(var x=0;x<G.level.width;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,G.level.height);ctx.stroke()}
   for(var y=0;y<G.level.height;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(G.level.width,y);ctx.stroke()}
@@ -551,7 +553,7 @@ function drawWorldDecor(c){
   }
 }
 function drawItem(x,y,c,i){
-  var k=worldKnowledge(G.world);
+  var k=RUNTIME_WORLD_KNOWLEDGE;
   ctx.save();ctx.translate(x,y);ctx.rotate((i%4)*.2+state.time*.2);ctx.fillStyle=c;
   if(G.world==="hospital"){ctx.fillRect(-12,-8,24,16);ctx.fillStyle="#fff";ctx.fillRect(-3,-8,6,16);ctx.fillRect(-12,-3,24,6)}
   else if(G.world==="forest"){ctx.beginPath();ctx.arc(0,0,12,0,Math.PI*2);ctx.fill();ctx.fillStyle="#14532d";ctx.fillRect(-2,-15,4,8)}
