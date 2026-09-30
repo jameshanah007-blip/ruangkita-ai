@@ -2410,12 +2410,50 @@ export async function getJamesGeneralizedCoreSkills(limit = 12) {
   }));
 }
 
+export type JamesMutationEvidence = {
+  action: string;
+  successCount: number;
+  failureCount: number;
+  averageQuality: number;
+  diversityRate: number | null;
+  comparisonImprovement: number | null;
+};
+
+export function selectJamesMutationFromEvidence(
+  evidence: JamesMutationEvidence[],
+  fallback: string,
+  excludedMutations: string[] = [],
+) {
+  const excluded = new Set(excludedMutations);
+  const candidates = evidence.filter((item) => item.action && !excluded.has(item.action)).map((item) => {
+    const total = item.successCount + item.failureCount;
+    const successRate = total ? item.successCount / total : 0;
+    const diversity = item.diversityRate === null ? 0.5 : item.diversityRate;
+    const comparison = item.comparisonImprovement === null ? 0 : Math.max(-1, Math.min(1, item.comparisonImprovement));
+    const score = successRate * 0.45 + item.averageQuality * 0.25 + diversity * 0.20 + ((comparison + 1) / 2) * 0.10;
+    return { ...item, score, total };
+  }).sort((a, b) => b.score - a.score || b.total - a.total);
+  return candidates[0]?.action || (excluded.has(fallback) ? "rollback-and-open-new-branch" : fallback);
+}
+
 export function chooseJamesStrategyMutation(input: {
   compositionScore: number;
   confidence: number;
   failureCount?: number;
+  empiricalEvidence?: JamesMutationEvidence[];
+  excludedMutations?: string[];
 }) {
   const failureCount = input.failureCount || 0;
+  if (input.empiricalEvidence?.length) {
+    const fallback = failureCount >= 3
+      ? "change-one-component-and-add-regression-check"
+      : input.compositionScore < 0.65
+        ? "simplify-composition-and-test-one-new-component"
+        : input.confidence >= 0.8
+          ? "small-contextual-variation"
+          : "bounded-parameter-variation";
+    return selectJamesMutationFromEvidence(input.empiricalEvidence, fallback, input.excludedMutations || []);
+  }
   if (failureCount >= 3) return "change-one-component-and-add-regression-check";
   if (input.compositionScore < 0.65) return "simplify-composition-and-test-one-new-component";
   if (input.confidence >= 0.8) return "small-contextual-variation";
