@@ -1249,6 +1249,23 @@ export async function resolveJamesKnowledgeSupersession(limit = 12, sourceEventK
       .eq("strategy", strategy)
       .maybeSingle();
 
+    const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+      ? existing.last_evidence as Record<string, unknown>
+      : {};
+    if (sourceEventKey && priorEvidence.sourceEventKey === sourceEventKey) {
+      results.push({
+        knowledgeKey,
+        latestVersion: Number(priorEvidence.latestVersion || latest.version),
+        priorVersion: priorEvidence.priorVersion ? Number(priorEvidence.priorVersion) : null,
+        supersedes: priorEvidence.supersedes === true,
+        coexist: priorEvidence.coexist === true,
+        contextOverlap: Number(priorEvidence.contextOverlap || 0),
+        reason: String(priorEvidence.reason || "duplicate knowledge supersession event"),
+        duplicate: true,
+      });
+      continue;
+    }
+
     const memory = {
       user_id: SYSTEM_USER_ID,
       pattern,
@@ -1275,17 +1292,20 @@ export async function resolveJamesKnowledgeSupersession(limit = 12, sourceEventK
       ? await client.from("james_experiences").update(memory).eq("id", existing.id)
       : await client.from("james_experiences").insert(memory);
 
-    if (!write.error) {
-      results.push({
-        knowledgeKey,
-        latestVersion: latest.version,
-        priorVersion: prior?.version || null,
-        supersedes,
-        coexist: !supersedes,
-        contextOverlap: Number(contextOverlap.toFixed(3)),
-        reason: coexistReason,
-      });
+    if (write.error) {
+      console.warn("James knowledge supersession persistence failed:", write.error.message);
+      throw new Error("Knowledge supersession could not be persisted; verification will resume this stage.");
     }
+
+    results.push({
+      knowledgeKey,
+      latestVersion: latest.version,
+      priorVersion: prior?.version || null,
+      supersedes,
+      coexist: !supersedes,
+      contextOverlap: Number(contextOverlap.toFixed(3)),
+      reason: coexistReason,
+    });
   }
 
   return results.slice(0, limit);
@@ -1819,15 +1839,18 @@ export async function versionJamesConsolidatedKnowledge(limit = 8, sourceEventKe
       ? await client.from("james_experiences").update(memory).eq("id", existing.id)
       : await client.from("james_experiences").insert(memory);
 
-    if (!result.error) {
-      results.push({
-        knowledgeKey: item.knowledgeKey,
-        version,
-        previousVersion,
-        confidence: item.confidence,
-        successRate: item.successRate,
-      });
+    if (result.error) {
+      console.warn("James knowledge version persistence failed:", result.error.message);
+      throw new Error("Knowledge version could not be persisted; verification will resume this stage.");
     }
+
+    results.push({
+      knowledgeKey: item.knowledgeKey,
+      version,
+      previousVersion,
+      confidence: item.confidence,
+      successRate: item.successRate,
+    });
   }
 
   return results;
