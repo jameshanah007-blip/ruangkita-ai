@@ -2419,6 +2419,38 @@ export type JamesMutationEvidence = {
   comparisonImprovement: number | null;
 };
 
+export type JamesMutationTournamentEntry = JamesMutationEvidence & {
+  score: number;
+  explorationBonus: number;
+  rank: number;
+};
+
+export function runJamesMutationTournament(
+  evidence: JamesMutationEvidence[],
+  excludedMutations: string[] = [],
+  explorationRate = 0.15,
+): JamesMutationTournamentEntry[] {
+  const excluded = new Set(excludedMutations);
+  const pool = evidence.filter((item) => item.action && !excluded.has(item.action));
+  const maxSamples = Math.max(1, ...pool.map((item) => item.successCount + item.failureCount));
+  return pool.map((item) => {
+    const total = item.successCount + item.failureCount;
+    const successRate = total ? item.successCount / total : 0;
+    const diversity = item.diversityRate === null ? 0.5 : item.diversityRate;
+    const comparison = item.comparisonImprovement === null ? 0 : Math.max(-1, Math.min(1, item.comparisonImprovement));
+    const evidenceStrength = Math.min(1, total / maxSamples);
+    const uncertainty = 1 - evidenceStrength;
+    const explorationBonus = explorationRate * uncertainty;
+    const score = successRate * 0.40 +
+      item.averageQuality * 0.25 +
+      diversity * 0.20 +
+      ((comparison + 1) / 2) * 0.10 +
+      explorationBonus;
+    return { ...item, score, explorationBonus };
+  }).sort((a,b) => b.score-a.score || b.successCount-a.successCount)
+    .map((item,index) => ({...item,rank:index+1}));
+}
+
 export function selectJamesMutationFromEvidence(
   evidence: JamesMutationEvidence[],
   fallback: string,
@@ -2783,6 +2815,9 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
     };
   });
 
+  const mutationTournament = runJamesMutationTournament(empiricalMutationEvidence, failedMutations);
+  const tournamentMutation = mutationTournament[0]?.action || null;
+
   let mutation = chooseJamesStrategyMutation({
     compositionScore: Math.max(0, Number(retired.confidence || 0) - 0.2),
     confidence: Number(retired.confidence || 0),
@@ -2790,6 +2825,7 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
     empiricalEvidence: empiricalMutationEvidence,
     excludedMutations: failedMutations,
   });
+  if (tournamentMutation && !failedMutations.includes(tournamentMutation)) mutation = tournamentMutation;
 
   // Force a materially different branch when the previous mutation is known
   // to have underperformed its parent.
