@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateWithAllAIProviders } from "../../../core/ai/aiRouter";
+import { generateWithAIRouter, generateWithAllAIProviders } from "../../../core/ai/aiRouter";
 import { refreshJamesProviderCapabilities } from "../../tools/jamesProviderCapabilities";
 import { getJamesGoals, saveJamesGoal } from "../../tools/jamesGoals";
 import {
@@ -34,6 +34,16 @@ export async function POST(request: Request) {
   }
 
   try {
+    const budgetReserved = await reserveJamesLearningCalls(1);
+    if (!budgetReserved) {
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        reason: "James learning budget exhausted for today.",
+        dailyBudget: getJamesDailyLearningBudget(),
+      });
+    }
+
     const capabilities = await refreshJamesProviderCapabilities();
     const goals = await getJamesGoals(undefined, 12);
     const globalCandidates = await getGlobalCandidates(12);
@@ -99,13 +109,15 @@ Aturan:
 - Goal harus dapat dievaluasi pada sesi belajar berikutnya.
 `;
 
-    const results = await generateWithAllAIProviders({
+    const primary = await generateWithAIRouter({
       prompt,
       systemInstruction:
         "Kamu adalah learning strategist untuk James. Bandingkan kemampuan provider secara faktual dan hasilkan JSON valid.",
       temperature: 0.2,
       maxOutputTokens: 2500,
     });
+
+    const results = [primary];
 
     const proposals = results
       .map((result) => ({ provider: result.provider, data: extractJson(result.text) }))
@@ -207,13 +219,16 @@ Jika bukti tidak cukup, pilih reject.
 Keluarkan JSON SAJA:
 {"decision":"activate"|"reject","confidence":0.0,"rationale":"alasan singkat"}`;
 
-      const validatorResults = await generateWithAllAIProviders({
+      const validationBudget = await reserveJamesLearningCalls(1);
+      if (!validationBudget) break;
+
+      const validatorResults = [await generateWithAIRouter({
         prompt: validationPrompt,
         systemInstruction:
           "Kamu adalah validator independen untuk global knowledge James. Jangan mengarang fakta. Nilai hanya kandidat yang diberikan.",
         temperature: 0.1,
         maxOutputTokens: 500,
-      });
+      })];
 
       for (const validator of validatorResults) {
         const parsed = extractJson(validator.text) as Record<string, unknown> | null;
@@ -271,6 +286,7 @@ Keluarkan JSON SAJA:
     return NextResponse.json({
       ok: true,
       providers: [...new Set(results.map((item) => item.provider))],
+      learningBudget: getJamesDailyLearningBudget(),
       capabilityObservations: capabilities.length,
       activeGoals: goals.length + saved.length,
       newGoals: saved,
