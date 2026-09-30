@@ -5,7 +5,7 @@ import {
   type AIStreamEvent,
 } from "./aiProvider";
 import { openRouterProvider } from "./openRouterProvider";
-import { groqProvider } from "./groqProvider";
+import { groqProvider } from "./groqProvider";\nimport { getJamesProviderCooldowns, recordJamesProviderFailure, recordJamesProviderSuccess } from "../../api/tools/jamesProviderPerformance";
 
 export type AIRouterResult = AIGenerateResponse & {
   attempts: string[];
@@ -139,7 +139,7 @@ export async function generateWithAIRouter(
   const attempts: string[] = [];
 
   for (const provider of availableProviders) {
-    const cooldownUntil = providerCooldownUntil.get(provider.name) ?? 0;
+    const cooldownUntil = Math.max(\n      providerCooldownUntil.get(provider.name) ?? 0,\n      persistentCooldowns.get(provider.name) ? new Date(persistentCooldowns.get(provider.name)!).getTime() : 0\n    );
     if (cooldownUntil > Date.now()) {
       attempts.push(
         `${provider.name}: cooldown aktif sampai ${new Date(cooldownUntil).toISOString()}`
@@ -181,7 +181,7 @@ export async function generateWithAIRouter(
 
         if (retry === 0) attempts.push(detail);
 
-        console.error(`AI provider ${provider.name} gagal:`, {
+        await recordJamesProviderFailure({ provider: provider.name, task: "fallback", error });\n\n        console.error(`AI provider ${provider.name} gagal:`, {
           message,
           status,
           retryable,
