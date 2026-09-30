@@ -291,10 +291,10 @@ export async function POST(request: Request) {
           passed: report.passed === true,
           quality: gameQuality(report),
           evidence: 1,
-        });
+        }, skillLedger.source_event_key);
         if (conflict) {
           coreSkillConflicts.push(conflict);
-          await client
+          const { error: conflictCheckpointError } = await client
             .from("james_experiment_core_skill_ledger")
             .update({
               conflict_completed: true,
@@ -302,9 +302,10 @@ export async function POST(request: Request) {
               updated_at: new Date().toISOString(),
             })
             .eq("id", skillLedger.id);
+          if (conflictCheckpointError) throw conflictCheckpointError;
 
           if (conflict.conflict && !skillLedger.contradiction_completed) {
-            await recordJamesKnowledgeContradiction({
+            const contradiction = await recordJamesKnowledgeContradiction({
               capabilityKey: skill.capabilityKey,
               previousQuality: conflict.previousCompetence,
               observedQuality: conflict.observedQuality,
@@ -312,32 +313,41 @@ export async function POST(request: Request) {
               resolution: conflict.nextAction,
               sourceEventKey: skillLedger.source_event_key,
             });
-            await client
+            if (!contradiction) {
+              throw new Error("Core skill contradiction could not be persisted; verification will resume this capability.");
+            }
+            const { error: contradictionCheckpointError } = await client
               .from("james_experiment_core_skill_ledger")
               .update({ contradiction_completed: true, updated_at: new Date().toISOString() })
               .eq("id", skillLedger.id);
+            if (contradictionCheckpointError) throw contradictionCheckpointError;
           } else if (!conflict.conflict) {
-            await client
+            const { error: contradictionCheckpointError } = await client
               .from("james_experiment_core_skill_ledger")
               .update({ contradiction_completed: true, updated_at: new Date().toISOString() })
               .eq("id", skillLedger.id);
+            if (contradictionCheckpointError) throw contradictionCheckpointError;
           }
           if (!skillLedger.lineage_completed) {
-            await recordJamesCoreSkillLineage(skill.capabilityKey, {
-            source: "fun-zone-experiment-verification",
-            quality: gameQuality(report),
-            passed: report.passed === true,
-            context: String(blueprint.world) + ":" + String(blueprint.genre) + ":" + blueprint.mechanics.slice(0, 4).join("+"),
-            previousCompetence: conflict.previousCompetence,
-            newCompetence: conflict.competence,
-            newConfidence: conflict.confidence,
-            reason: conflict.conflict ? "Conflicting evidence detected." : "Evidence reinforced generalized skill.",
-            sourceEventKey: skillLedger.source_event_key,
-          });
-            await client
+            const lineage = await recordJamesCoreSkillLineage(skill.capabilityKey, {
+              source: "fun-zone-experiment-verification",
+              quality: gameQuality(report),
+              passed: report.passed === true,
+              context: String(blueprint.world) + ":" + String(blueprint.genre) + ":" + blueprint.mechanics.slice(0, 4).join("+"),
+              previousCompetence: conflict.previousCompetence,
+              newCompetence: conflict.competence,
+              newConfidence: conflict.confidence,
+              reason: conflict.conflict ? "Conflicting evidence detected." : "Evidence reinforced generalized skill.",
+              sourceEventKey: skillLedger.source_event_key,
+            });
+            if (!lineage) {
+              throw new Error("Core skill lineage could not be persisted; verification will resume this capability.");
+            }
+            const { error: lineageCheckpointError } = await client
               .from("james_experiment_core_skill_ledger")
               .update({ lineage_completed: true, updated_at: new Date().toISOString() })
               .eq("id", skillLedger.id);
+            if (lineageCheckpointError) throw lineageCheckpointError;
           }
         }
       }
