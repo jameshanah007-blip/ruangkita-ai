@@ -3459,6 +3459,7 @@ export async function evaluateJamesRecoveryDirectiveImpact(
   experimentPrompt: string | null | undefined,
   blueprint: GameBlueprint,
   report: TestReport,
+  sourceEventKey?: string,
 ) {
   const client = db();
   if (!client) return null;
@@ -3515,11 +3516,35 @@ export async function evaluateJamesRecoveryDirectiveImpact(
   const strategy = "Apply recovery directive only when it improves comparable experiment quality without repeating stale-runner execution failures.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence")
+    .select("id,success_count,failure_count,confidence,last_evidence")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", strategyPattern)
     .eq("strategy", strategy)
     .maybeSingle();
+
+  const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+    ? existing.last_evidence as Record<string, unknown>
+    : {};
+  if (sourceEventKey && priorEvidence.sourceEventKey === sourceEventKey) {
+    const priorTotal = Number(existing?.success_count || 0) + Number(existing?.failure_count || 0);
+    return {
+      influenced: true,
+      evaluated: true,
+      currentQuality,
+      currentOutcome,
+      baselineQuality,
+      baselineOutcome: baseline.outcome,
+      improvement,
+      directiveEffective,
+      duplicate: true,
+      directiveMemory: {
+        successCount: Number(existing?.success_count || 0),
+        failureCount: Number(existing?.failure_count || 0),
+        successRate: Number((priorTotal ? Number(existing?.success_count || 0) / priorTotal : 0).toFixed(3)),
+        confidence: Number(existing?.confidence || 0.1),
+      },
+    };
+  }
 
   const successCount = Number(existing?.success_count || 0) + (directiveEffective ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (directiveEffective ? 0 : 1);
@@ -3537,6 +3562,14 @@ export async function evaluateJamesRecoveryDirectiveImpact(
     failure_count: failureCount,
     capabilities: ["fun-zone-runtime-observability", "fun-zone-restart-integrity"],
     status,
+    last_evidence: {
+      source: "recovery-directive-impact",
+      sourceEventKey: sourceEventKey || null,
+      directiveEffective,
+      improvement,
+      baselineQuality,
+      currentQuality,
+    },
   };
 
   if (existing?.id) {
