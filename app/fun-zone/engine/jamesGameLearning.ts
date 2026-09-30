@@ -2690,11 +2690,58 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
   if (!retired) return null;
   const failureCount = Number(retired.failure_count || 0);
   const evidenceCount = Number(retired.evidence_count || 0);
-  const mutation = chooseJamesStrategyMutation({
+
+  // Read causal comparison memories before selecting the next mutation.
+  // This prevents synthesis from blindly repeating a mutation that already
+  // underperformed its retired parent.
+  const { data: comparisonMemories } = await client
+    .from("james_experiences")
+    .select("pattern,strategy,confidence,success_count,failure_count,last_evidence")
+    .eq("status", "active")
+    .eq("capabilities", ["fun-zone-strategy-comparison", "retired-strategy-learning"])
+    .ilike("pattern", "fun-zone:strategy-comparison:" + String(retired.id) + ":%")
+    .order("updated_at", { ascending: false })
+    .limit(10);
+
+  const failedMutations = (comparisonMemories || [])
+    .filter((memory) => Number(memory.failure_count || 0) > Number(memory.success_count || 0))
+    .map((memory) => {
+      const evidence = memory.last_evidence && typeof memory.last_evidence === "object"
+        ? memory.last_evidence as Record<string, unknown>
+        : {};
+      return String(evidence.mutation || "retired-strategy-synthesis");
+    });
+
+  const successfulMutations = (comparisonMemories || [])
+    .filter((memory) => Number(memory.success_count || 0) > Number(memory.failure_count || 0))
+    .map((memory) => {
+      const evidence = memory.last_evidence && typeof memory.last_evidence === "object"
+        ? memory.last_evidence as Record<string, unknown>
+        : {};
+      return String(evidence.mutation || "retired-strategy-synthesis");
+    });
+
+  let mutation = chooseJamesStrategyMutation({
     compositionScore: Math.max(0, Number(retired.confidence || 0) - 0.2),
     confidence: Number(retired.confidence || 0),
     failureCount: Math.max(failureCount, 3),
   });
+
+  // Force a materially different branch when the previous mutation is known
+  // to have underperformed its parent.
+  if (failedMutations.length > 0 && failedMutations.includes(mutation)) {
+    mutation = failedMutations.includes("rollback-and-open-new-branch")
+      ? "change-one-component-and-add-regression-check"
+      : "rollback-and-open-new-branch";
+  }
+
+  const memoryInstruction = failedMutations.length
+    ? " Known failed mutations: " + Array.from(new Set(failedMutations)).join(", ") + ". Do not repeat them without a materially different implementation."
+    : "";
+  const successInstruction = successfulMutations.length
+    ? " Successful comparison mutations available for controlled reuse: " + Array.from(new Set(successfulMutations)).join(", ") + ". Reuse only with fresh verification."
+    : "";
+
   return {
     retiredStrategyId: String(retired.id),
     taskClass: typeof retired.task_class === "string" ? retired.task_class : null,
@@ -2703,7 +2750,7 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
       tournamentScore: 0, successRate: 0, confidence: Number(retired.confidence || 0),
       memoryRate: 0, failureCount: Math.max(failureCount, 3),
     }),
-    synthesisPrompt: "A previous strategy has been terminally retired. Do not resurrect or edit it. Preserve its failure as historical evidence, identify the concrete failure mode, and create a new strategy identity using a materially different branch. Use mutation='" + mutation + "'. Evidence count=" + evidenceCount + ".",
+    synthesisPrompt: "A previous strategy has been terminally retired. Do not resurrect or edit it. Preserve its failure as historical evidence, identify the concrete failure mode, and create a new strategy identity using a materially different branch. Use mutation='" + mutation + "'. Evidence count=" + evidenceCount + "." + memoryInstruction + successInstruction,
   };
 }
 
