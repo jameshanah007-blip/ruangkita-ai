@@ -269,6 +269,9 @@ export async function POST(request: Request) {
             candidateQuality: quality,
             improvement: candidateImprovement,
             improved: strategyComparison.improved,
+            blueprintDiversity: evidence.blueprintDiversity && typeof evidence.blueprintDiversity === "object"
+              ? evidence.blueprintDiversity as { mutationVerified?: boolean | null; beforeFingerprint?: string | null; afterFingerprint?: string | null }
+              : null,
             experimentId,
           });
         }
