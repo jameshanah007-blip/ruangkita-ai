@@ -280,30 +280,28 @@ export async function POST(request: Request) {
           .single();
         if (skillLedgerError) throw skillLedgerError;
 
-        if (skillLedger.conflict_completed && skillLedger.conflict_result) {
-          coreSkillConflicts.push(skillLedger.conflict_result);
-          continue;
-        }
-
-        const conflict = await resolveJamesCoreSkillConflict(skill.capabilityKey, {
-          competence: skill.competence,
-          confidence: skill.confidence,
-          passed: report.passed === true,
-          quality: gameQuality(report),
-          evidence: 1,
-        }, skillLedger.source_event_key);
+        const conflict = skillLedger.conflict_completed && skillLedger.conflict_result
+          ? skillLedger.conflict_result
+          : await resolveJamesCoreSkillConflict(skill.capabilityKey, {
+              competence: skill.competence,
+              confidence: skill.confidence,
+              passed: report.passed === true,
+              quality: gameQuality(report),
+              evidence: 1,
+            }, skillLedger.source_event_key);
         if (conflict) {
+          if (!skillLedger.conflict_completed) {
+            const { error: conflictCheckpointError } = await client
+              .from("james_experiment_core_skill_ledger")
+              .update({
+                conflict_completed: true,
+                conflict_result: conflict,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", skillLedger.id);
+            if (conflictCheckpointError) throw conflictCheckpointError;
+          }
           coreSkillConflicts.push(conflict);
-          const { error: conflictCheckpointError } = await client
-            .from("james_experiment_core_skill_ledger")
-            .update({
-              conflict_completed: true,
-              conflict_result: conflict,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", skillLedger.id);
-          if (conflictCheckpointError) throw conflictCheckpointError;
-
           if (conflict.conflict && !skillLedger.contradiction_completed) {
             const contradiction = await recordJamesKnowledgeContradiction({
               capabilityKey: skill.capabilityKey,
