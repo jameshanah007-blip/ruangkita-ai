@@ -416,6 +416,16 @@ class LocalOllamaProvider implements AIProvider {
   }
 }
 
+export function isJamesLocalInferenceEligible(request: AIGenerateRequest): boolean {
+  const text = `${request.systemInstruction ?? ""}\n${request.prompt ?? ""}`.toLowerCase();
+  const criticalSignals = [
+    "security", "authentication", "jwt", "database migration",
+    "production", "architecture", "repair", "debugging",
+    "autonomous brain", "strategy mutation", "failure analysis",
+  ];
+  return !criticalSignals.some((signal) => text.includes(signal));
+}
+
 export const aiProviders: AIProvider[] = [
   new GeminiProvider(),
   new OpenAIProvider(),
