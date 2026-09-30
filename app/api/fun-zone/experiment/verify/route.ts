@@ -314,16 +314,6 @@ export async function POST(request: Request) {
     const terminalFailure = !verified && attempt >= 5;
 
     const nextStatus = verified ? "verified" : terminalFailure ? "failed" : "pending_verification";
-    const updatePayload = {
-      status: nextStatus,
-      test_report: report,
-      learning_result: { learning, brainEvidence, evolved, mutationOutcome, recoveryImpact, explorationPromotion, learningModeImpact, generalizedSkills, coreSkillConflicts, consolidatedKnowledge, knowledgeVersions, knowledgeSupersession },
-      attempt,
-      verified_at: verified ? new Date().toISOString() : null,
-      runner_token: null,
-      started_at: null,
-    };
-
     // Feed strategy-aware experiments back into the strategy loop.
     // Revalidation jobs carry both strategyId and revalidationJobId; newly
     // synthesized candidates only need strategyId to receive fresh evidence.
@@ -498,6 +488,19 @@ export async function POST(request: Request) {
         }
       }
     }
+
+    const { error: strategyCheckpointError } = await client
+      .from("james_experiment_verification_ledger")
+      .update({
+        stage: "finalization_started",
+        strategy_feedback_completed: true,
+        strategy_feedback_result: strategyId ? { strategyId, revalidationJobId } : { strategyId: null },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("experiment_id", experimentId)
+      .eq("attempt", attempt)
+      .eq("finalized", false);
+    if (strategyCheckpointError) throw strategyCheckpointError;
 
     // Finalize only after every learning and strategy side effect has completed.
     const finalPayload = {
