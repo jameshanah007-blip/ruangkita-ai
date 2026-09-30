@@ -242,10 +242,14 @@ export async function POST(request: Request) {
         const mutationAction = typeof strategyMeta.mutationAction === "string"
           ? strategyMeta.mutationAction
           : null;
-        const targetContext = typeof strategyMeta.strategySelectionSource === "string"
-          && strategyMeta.strategySelectionSource === "retired-strategy-synthesis"
-          ? strategyId
-          : (typeof strategyMeta.strategyKey === "string" ? strategyMeta.strategyKey : strategyId);
+        const strategyKey = typeof strategyMeta.strategyKey === "string"
+          ? strategyMeta.strategyKey
+          : "";
+        const retiredMatch = strategyKey.match(/:retired:([^:]+):mutation:/);
+        const taskClassMatch = strategyKey.match(/^meta:([^:]+):retired:/);
+        const targetContext = retiredMatch
+          ? retiredMatch[1] + ":" + (taskClassMatch?.[1] || "fun-zone-game-director")
+          : strategyKey || strategyId;
         await recordJamesTournamentOutcomeFeedback({
           targetContext,
           mutationAction,
