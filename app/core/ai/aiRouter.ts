@@ -246,6 +246,7 @@ export async function generateWithAIRouter(
 export async function* streamWithAIRouter(
   request: AIGenerateRequest
 ): AsyncGenerator<AIStreamEvent, void, unknown> {
+  const budgetedRequest = applyJamesCognitiveBudget(request);
   // RuangKita's primary provider chain is Gemini -> OpenRouter -> Groq.
   // OpenAI remains an additional last-resort fallback when configured.
   const providers = [
@@ -288,7 +289,7 @@ export async function* streamWithAIRouter(
               : "unknown";
 
       if (provider.generateStream) {
-        for await (const chunk of provider.generateStream(request)) {
+        for await (const chunk of provider.generateStream(budgetedRequest)) {
           if (!chunk) continue;
           emitted = true;
           fullText += chunk;
@@ -353,6 +354,7 @@ export async function* streamWithAIRouter(
 export async function generateWithAllAIProviders(
   request: AIGenerateRequest
 ): Promise<Array<AIGenerateResponse & { attempts: string[] }>> {
+  const budgetedRequest = applyJamesCognitiveBudget(request);
   const providers = [
     ...aiProviders,
     openRouterProvider,
