@@ -299,6 +299,8 @@ export async function POST(request: Request) {
     const { error: coreCheckpointError } = await client
       .from("james_experiment_verification_ledger")
       .update({
+        core_skill_completed: true,
+        core_skill_result: coreSkillConflicts,
         stage: "strategy_feedback_started",
         updated_at: new Date().toISOString(),
       })
