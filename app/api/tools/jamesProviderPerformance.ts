@@ -18,6 +18,10 @@ export type JamesProviderPerformance = {
   quality: number;
   averageLatencyMs: number;
   confidence: number;
+  cooldownUntil?: string | null;
+  lastFailureAt?: string | null;
+  lastSuccessAt?: string | null;
+  lastFailureKind?: string | null;
 };
 
 export async function getJamesProviderPerformance(task: JamesResourceTask) {
@@ -44,6 +48,10 @@ export async function getJamesProviderPerformance(task: JamesResourceTask) {
       ? Number(item.total_latency_ms || 0) / Number(item.attempts || 1)
       : 0,
     confidence: Number(item.confidence || 0.2),
+    cooldownUntil: item.cooldown_until ?? null,
+    lastFailureAt: item.last_failure_at ?? null,
+    lastSuccessAt: item.last_success_at ?? null,
+    lastFailureKind: item.last_failure_kind ?? null,
   }));
 }
 
