@@ -909,8 +909,19 @@ Output hanya HTML.
       }
     }
 
-    const validationErrors =
+    let validationErrors =
       validateGameHtml(fixedHtml);
+
+    if (validationErrors.length > 0 && blueprint) {
+      console.warn(
+        "AI Game Debugger produced invalid HTML; using deterministic James fallback.",
+        validationErrors
+      );
+      fixedHtml = buildAutonomousGameHtml(normalizeBlueprint(blueprint)!);
+      provider = "james-autonomous-fallback";
+      model = "autonomous-evolution-engine-v1";
+      validationErrors = validateGameHtml(fixedHtml);
+    }
 
     if (validationErrors.length > 0) {
       return NextResponse.json(
