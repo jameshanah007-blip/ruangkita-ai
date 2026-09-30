@@ -324,26 +324,6 @@ export async function POST(request: Request) {
       started_at: null,
     };
 
-    // Running jobs are protected by the runner claim token. Pending verification
-    // jobs have no runner token and must be allowed to transition independently.
-    let updateQuery = client
-      .from("james_game_experiments")
-      .update(updatePayload)
-      .eq("id", experimentId);
-
-    if (experiment.status === "running") {
-      updateQuery = updateQuery.eq("status", "running").eq("runner_token", processingToken);
-    } else {
-      updateQuery = updateQuery.eq("status", "pending_verification");
-    }
-
-    const { data: updatedExperiment, error: updateError } = await updateQuery.select("id,status");
-
-    if (updateError) throw updateError;
-    if (!updatedExperiment || updatedExperiment.length !== 1) {
-      return NextResponse.json({ success: false, error: "Experiment verification state changed before persistence." }, { status: 409 });
-    }
-
     // Feed strategy-aware experiments back into the strategy loop.
     // Revalidation jobs carry both strategyId and revalidationJobId; newly
     // synthesized candidates only need strategyId to receive fresh evidence.
@@ -518,6 +498,45 @@ export async function POST(request: Request) {
         }
       }
     }
+
+    // Finalize only after every learning and strategy side effect has completed.
+    const finalPayload = {
+      status: nextStatus,
+      test_report: report,
+      learning_result: { learning, brainEvidence, evolved, mutationOutcome, recoveryImpact, explorationPromotion, learningModeImpact, generalizedSkills, coreSkillConflicts, consolidatedKnowledge, knowledgeVersions, knowledgeSupersession },
+      attempt,
+      verified_at: verified ? new Date().toISOString() : null,
+      runner_token: null,
+      started_at: null,
+    };
+
+    let finalQuery = client
+      .from("james_game_experiments")
+      .update(finalPayload)
+      .eq("id", experimentId)
+      .eq("status", "running")
+      .eq("runner_token", processingToken);
+
+    const { data: finalizedExperiment, error: finalUpdateError } = await finalQuery.select("id,status");
+    if (finalUpdateError) throw finalUpdateError;
+    if (!finalizedExperiment || finalizedExperiment.length !== 1) {
+      return NextResponse.json({ success: false, error: "Experiment finalization state changed before persistence." }, { status: 409 });
+    }
+
+    const { error: ledgerFinalizeError } = await client
+      .from("james_experiment_verification_ledger")
+      .update({
+        stage: "finalized",
+        strategy_feedback_completed: true,
+        final_payload: finalPayload,
+        finalized: true,
+        processing_token: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("experiment_id", experimentId)
+      .eq("attempt", attempt)
+      .eq("finalized", false);
+    if (ledgerFinalizeError) throw ledgerFinalizeError;
 
     return NextResponse.json({ success: true, experimentId, status: nextStatus, learning, brainEvidence, evolved, mutationOutcome, recoveryImpact });
   } catch (error) {
