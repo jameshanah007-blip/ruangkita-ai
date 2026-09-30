@@ -263,6 +263,24 @@ export async function POST(request: Request) {
       coreSkillConflicts.push(...coreStage.core_skill_result);
     } else {
       for (const skill of generalizedSkills || []) {
+        const sourceEventKey = `core-skill:${experimentId}:${attempt}:${skill.capabilityKey}`;
+        const { data: skillLedger, error: skillLedgerError } = await client
+          .from("james_experiment_core_skill_ledger")
+          .upsert({
+            experiment_id: experimentId,
+            attempt,
+            capability_key: skill.capabilityKey,
+            source_event_key: sourceEventKey,
+          }, { onConflict: "experiment_id,attempt,capability_key" })
+          .select("*")
+          .single();
+        if (skillLedgerError) throw skillLedgerError;
+
+        if (skillLedger.conflict_completed && skillLedger.conflict_result) {
+          coreSkillConflicts.push(skillLedger.conflict_result);
+          continue;
+        }
+
         const conflict = await resolveJamesCoreSkillConflict(skill.capabilityKey, {
           competence: skill.competence,
           confidence: skill.confidence,
@@ -272,7 +290,16 @@ export async function POST(request: Request) {
         });
         if (conflict) {
           coreSkillConflicts.push(conflict);
-          if (conflict.conflict) {
+          await client
+            .from("james_experiment_core_skill_ledger")
+            .update({
+              conflict_completed: true,
+              conflict_result: conflict,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", skillLedger.id);
+
+          if (conflict.conflict && !skillLedger.contradiction_completed) {
             await recordJamesKnowledgeContradiction({
               capabilityKey: skill.capabilityKey,
               previousQuality: conflict.previousCompetence,
@@ -280,8 +307,18 @@ export async function POST(request: Request) {
               observedContext: String(blueprint.world) + ":" + String(blueprint.genre),
               resolution: conflict.nextAction,
             });
+            await client
+              .from("james_experiment_core_skill_ledger")
+              .update({ contradiction_completed: true, updated_at: new Date().toISOString() })
+              .eq("id", skillLedger.id);
+          } else if (!conflict.conflict) {
+            await client
+              .from("james_experiment_core_skill_ledger")
+              .update({ contradiction_completed: true, updated_at: new Date().toISOString() })
+              .eq("id", skillLedger.id);
           }
-          await recordJamesCoreSkillLineage(skill.capabilityKey, {
+          if (!skillLedger.lineage_completed) {
+            await recordJamesCoreSkillLineage(skill.capabilityKey, {
             source: "fun-zone-experiment-verification",
             quality: gameQuality(report),
             passed: report.passed === true,
@@ -291,6 +328,11 @@ export async function POST(request: Request) {
             newConfidence: conflict.confidence,
             reason: conflict.conflict ? "Conflicting evidence detected." : "Evidence reinforced generalized skill.",
           });
+            await client
+              .from("james_experiment_core_skill_ledger")
+              .update({ lineage_completed: true, updated_at: new Date().toISOString() })
+              .eq("id", skillLedger.id);
+          }
         }
       }
     }
