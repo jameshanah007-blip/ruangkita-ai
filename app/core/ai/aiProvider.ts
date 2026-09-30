@@ -2,7 +2,8 @@ export type AIProviderName =
   | "gemini"
   | "openrouter"
   | "groq"
-  | "openai";
+  | "openai"
+  | "local";
 
 export type AIGenerateRequest = {
   systemInstruction: string;
@@ -280,7 +281,143 @@ class OpenAIProvider implements AIProvider {
   }
 }
 
+class LocalOllamaProvider implements AIProvider {
+  readonly name = "local" as const;
+
+  private baseUrl(): string | null {
+    const value = process.env.JAMES_LOCAL_AI_URL?.trim();
+    return value ? value.replace(/\\/$/, "") : null;
+  }
+
+  private model(): string {
+    return process.env.JAMES_LOCAL_MODEL?.trim() || "qwen3:8b";
+  }
+
+  isAvailable(): boolean {
+    return Boolean(this.baseUrl());
+  }
+
+  async generate(request: AIGenerateRequest): Promise<AIGenerateResponse> {
+    const baseUrl = this.baseUrl();
+    if (!baseUrl) {
+      throw new Error("JAMES_LOCAL_AI_URL belum dikonfigurasi.");
+    }
+
+    const response = await fetch(`${baseUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: this.model(),
+        messages: [
+          { role: "system", content: request.systemInstruction },
+          { role: "user", content: request.prompt },
+        ],
+        stream: false,
+        options: {
+          temperature: request.temperature ?? 0.2,
+          num_predict: request.maxOutputTokens ?? 1200,
+        },
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      const error = new Error(
+        data?.error || "Local AI gagal menghasilkan respons."
+      ) as Error & { provider?: string; status?: number };
+      error.provider = "local";
+      error.status = response.status;
+      throw error;
+    }
+
+    const text = typeof data?.message?.content === "string"
+      ? data.message.content.trim()
+      : "";
+
+    if (!text) throw new Error("Local AI tidak menghasilkan output teks.");
+
+    return {
+      text,
+      provider: "local",
+      model: typeof data?.model === "string" ? data.model : this.model(),
+    };
+  }
+
+  async *generateStream(
+    request: AIGenerateRequest
+  ): AsyncGenerator<string, void, unknown> {
+    const baseUrl = this.baseUrl();
+    if (!baseUrl) throw new Error("JAMES_LOCAL_AI_URL belum dikonfigurasi.");
+
+    const response = await fetch(`${baseUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: this.model(),
+        messages: [
+          { role: "system", content: request.systemInstruction },
+          { role: "user", content: request.prompt },
+        ],
+        stream: true,
+        options: {
+          temperature: request.temperature ?? 0.2,
+          num_predict: request.maxOutputTokens ?? 1200,
+        },
+      }),
+    });
+
+    if (!response.ok || !response.body) {
+      let message = "Local AI streaming gagal.";
+      try {
+        const data = await response.json();
+        message = data?.error || message;
+      } catch {}
+      const error = new Error(message) as Error & { provider?: string; status?: number };
+      error.provider = "local";
+      error.status = response.status;
+      throw error;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        for (const line of buffer.split(/\\r?\\n/)) {
+          if (!line.trim()) continue;
+          try {
+            const data = JSON.parse(line);
+            const text = data?.message?.content;
+            if (typeof text === "string" && text) yield text;
+          } catch {
+            // Keep partial JSON for the next network chunk.
+          }
+        }
+
+        const lines = buffer.split(/\\r?\\n/);
+        buffer = lines.pop() ?? "";
+      }
+
+      if (buffer.trim()) {
+        try {
+          const data = JSON.parse(buffer);
+          const text = data?.message?.content;
+          if (typeof text === "string" && text) yield text;
+        } catch {}
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+}
+
 export const aiProviders: AIProvider[] = [
   new GeminiProvider(),
   new OpenAIProvider(),
+  new LocalOllamaProvider(),
 ];
