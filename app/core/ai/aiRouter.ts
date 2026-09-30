@@ -287,7 +287,9 @@ export async function* streamWithAIRouter(
             ? "openrouter/free"
             : provider.name === "openai"
               ? "gpt-5.6-luna"
-              : "unknown";
+              : provider.name === "local"
+                ? (process.env.JAMES_LOCAL_MODEL || "qwen3:8b")
+                : "unknown";
 
       if (provider.generateStream) {
         for await (const chunk of provider.generateStream(request)) {
