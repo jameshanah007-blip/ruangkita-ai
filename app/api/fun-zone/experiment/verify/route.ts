@@ -259,10 +259,8 @@ export async function POST(request: Request) {
       .single();
     if (coreStageError) throw coreStageError;
 
-    if (coreStage.skills_completed && coreStage.final_payload?.coreSkillConflicts) {
-      coreSkillConflicts.push(...(Array.isArray(coreStage.final_payload.coreSkillConflicts)
-        ? coreStage.final_payload.coreSkillConflicts
-        : []));
+    if (coreStage.core_skill_completed && Array.isArray(coreStage.core_skill_result)) {
+      coreSkillConflicts.push(...coreStage.core_skill_result);
     } else {
       for (const skill of generalizedSkills || []) {
         const conflict = await resolveJamesCoreSkillConflict(skill.capabilityKey, {
