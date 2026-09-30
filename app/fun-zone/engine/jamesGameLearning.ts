@@ -3619,10 +3619,13 @@ export async function evaluateJamesRecoveryDirectiveImpact(
     },
   };
 
-  if (existing?.id) {
-    await client.from("james_experiences").update(memory).eq("id", existing.id);
-  } else {
-    await client.from("james_experiences").insert(memory);
+  const persistence = existing?.id
+    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
+    : await client.from("james_experiences").insert(memory);
+
+  if (persistence.error) {
+    console.warn("James recovery directive impact persistence failed:", persistence.error.message);
+    throw new Error("Recovery directive impact could not be persisted; verification will resume this stage.");
   }
 
   return {
