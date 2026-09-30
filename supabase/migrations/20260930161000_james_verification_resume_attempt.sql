@@ -6,7 +6,7 @@ set search_path to 'public'
 as $function$
 declare
   claimed public.james_game_experiments;
-  resume_attempt boolean;
+
 begin
   update public.james_game_experiments
   set status = case when attempt >= 5 then 'failed' else 'pending_verification' end,
@@ -15,21 +15,20 @@ begin
   where status = 'running'
     and started_at < now() - interval '10 minutes';
 
-  select exists (
-    select 1
-    from public.james_experiment_verification_ledger l
-    join public.james_game_experiments e on e.id = l.experiment_id
-    where e.status = 'pending_verification'
-      and l.finalized = false
-      and l.attempt = e.attempt
-      and (p_user_id is null or e.user_id = p_user_id)
-  ) into resume_attempt;
-
   update public.james_game_experiments
   set status = 'running',
       runner_token = encode(gen_random_bytes(18),'hex'),
       started_at = now(),
-      attempt = case when resume_attempt then attempt else attempt + 1 end
+      attempt = case
+        when exists (
+          select 1
+          from public.james_experiment_verification_ledger l
+          where l.experiment_id = public.james_game_experiments.id
+            and l.finalized = false
+            and l.attempt = public.james_game_experiments.attempt
+        ) then attempt
+        else attempt + 1
+      end
   where id = (
     select id
     from public.james_game_experiments
