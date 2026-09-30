@@ -3834,7 +3834,7 @@ export async function promoteJamesExplorationResult(
 
   if (result.error) {
     console.warn("James exploration promotion failed:", result.error.message);
-    return { explored: true, promoted: false, successRate };
+    throw new Error("Exploration promotion could not be persisted; verification will resume this stage.");
   }
 
   return {
