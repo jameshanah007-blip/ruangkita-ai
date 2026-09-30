@@ -53,10 +53,35 @@ export async function POST(request: Request) {
       verification: { verified: false, reason: "Existing pending experiment returned for sandbox verification." },
     });
 
-    const result = await createJamesGameExperimentJob({
-      userId,
-      conversationId: typeof body?.conversationId === "string" ? body.conversationId : null,
-    });
+    let result;
+    try {
+      result = await createJamesGameExperimentJob({
+        userId,
+        conversationId: typeof body?.conversationId === "string" ? body.conversationId : null,
+      });
+    } catch (error) {
+      // A concurrent heartbeat may have won the active-queue uniqueness race.
+      // Return that existing job instead of creating a second causal experiment.
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("james_game_experiments_one_active_per_capability_idx") || message.includes("duplicate key")) {
+        const existing = await getJamesPendingExperiment({ userId });
+        if (existing) {
+          return NextResponse.json({
+            success: true,
+            status: "pending-verification",
+            source: "concurrent-existing-queue",
+            experimentId: existing.id,
+            experiment: existing,
+            blueprint: existing.blueprint,
+            gameHtml: existing.game_html,
+            provider: "james-autonomous",
+            model: "game-brain-experiment-v1",
+            verification: { verified: false, reason: "Another worker already created the active experiment." },
+          });
+        }
+      }
+      throw error;
+    }
 
     if (result.status !== "no-gap" && result.blueprint) {
       const synthesizedStrategy = result.plan?.synthesizedRetiredStrategy;
