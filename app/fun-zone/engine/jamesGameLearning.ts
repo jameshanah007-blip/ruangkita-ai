@@ -2738,6 +2738,10 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
   const memoryInstruction = failedMutations.length
     ? " Known failed mutations: " + Array.from(new Set(failedMutations)).join(", ") + ". Do not repeat them without a materially different implementation."
     : "";
+  const excludedMutations = Array.from(new Set(failedMutations)).sort();
+  const branchFingerprint = excludedMutations.length
+    ? excludedMutations.join("|")
+    : "no-known-failed-mutation";
   const successInstruction = successfulMutations.length
     ? " Successful comparison mutations available for controlled reuse: " + Array.from(new Set(successfulMutations)).join(", ") + ". Reuse only with fresh verification."
     : "";
@@ -2751,18 +2755,25 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
       memoryRate: 0, failureCount: Math.max(failureCount, 3),
     }),
     synthesisPrompt: "A previous strategy has been terminally retired. Do not resurrect or edit it. Preserve its failure as historical evidence, identify the concrete failure mode, and create a new strategy identity using a materially different branch. Use mutation='" + mutation + "'. Evidence count=" + evidenceCount + "." + memoryInstruction + successInstruction,
+    excludedMutations,
+    branchFingerprint,
   };
 }
 
 async function persistJamesRetiredStrategyCandidate(directive: {
   retiredStrategyId: string; taskClass: string | null; strategy: string; synthesisPrompt: string;
   directive: { action: string; reason: string };
+  excludedMutations?: string[];
+  branchFingerprint?: string;
 }) {
   const client = db();
   if (!client) return null;
   const taskClass = directive.taskClass || "fun-zone-game-director";
   const mutationAction = clean(directive.directive.action, 120).replace(/[^a-zA-Z0-9_-]+/g, "-");
-  const baseKey = clean("meta:" + taskClass + ":retired:" + directive.retiredStrategyId + ":mutation:" + mutationAction, 500);
+  const excludedMutations = Array.from(new Set(directive.excludedMutations || [])).sort();
+  const branchFingerprint = clean(directive.branchFingerprint || (excludedMutations.join("|") || "no-known-failed-mutation"), 180);
+  const fingerprintHash = [...branchFingerprint].reduce((sum, char) => ((sum * 31) + char.charCodeAt(0)) >>> 0, 7).toString(36);
+  const baseKey = clean("meta:" + taskClass + ":retired:" + directive.retiredStrategyId + ":mutation:" + mutationAction + ":branch:" + fingerprintHash, 500);
   const { data: existingRows } = await client.from("james_meta_strategy_synthesis")
     .select("id,strategy_key,task_class,strategy,status,confidence,evidence_count,success_count,failure_count,created_at")
     .like("strategy_key", baseKey + "%").order("created_at", { ascending: false }).limit(20);
@@ -2783,6 +2794,8 @@ async function persistJamesRetiredStrategyCandidate(directive: {
     "'. Preserve the failure as evidence and verify the new branch with fresh sandbox evidence." +
     (branchOrdinal ? " This is fresh synthesis branch " + branchOrdinal + "; do not reuse the prior candidate identity." : ""), 1000);
   const sourcePatterns = ["retired:" + directive.retiredStrategyId, "mutation:" + directive.directive.action, "task:" + taskClass,
+    "branch-fingerprint:" + fingerprintHash,
+    ...excludedMutations.map((value) => "excluded-mutation:" + value),
     ...(branchOrdinal ? ["fresh-branch:" + branchOrdinal] : [])];
   const { data, error } = await client.rpc("synthesize_james_meta_strategy", {
     p_strategy_key: strategyKey, p_task_class: taskClass, p_strategy: strategy,
