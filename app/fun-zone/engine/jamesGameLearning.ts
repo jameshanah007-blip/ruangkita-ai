@@ -990,6 +990,23 @@ export async function promoteJamesGeneralizedGameSkills(limit = 8) {
     const failureCount = Math.max(0, evidenceCount - successCount);
     const competence = Math.min(0.99, Math.max(0.1, item.successRate));
     const confidence = Math.min(0.99, Math.max(0.1, item.confidence + Math.min(0.1, item.contextCount * 0.02)));
+    const priorSupersessionEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+      ? existing.last_evidence as Record<string, unknown>
+      : {};
+    if (sourceEventKey && priorSupersessionEvidence.sourceEventKey === sourceEventKey) {
+      results.push({
+        knowledgeKey,
+        latestVersion: latest.version,
+        priorVersion: prior?.version || null,
+        supersedes,
+        coexist: !supersedes,
+        contextOverlap: Number(contextOverlap.toFixed(3)),
+        reason: coexistReason,
+        duplicate: true,
+      });
+      continue;
+    }
+
     const memory = {
       user_id: SYSTEM_USER_ID,
       capability_key: capabilityKey,
@@ -1142,7 +1159,7 @@ export async function evaluateJamesContextTransfer(
   };
 }
 
-export async function resolveJamesKnowledgeSupersession(limit = 12) {
+export async function resolveJamesKnowledgeSupersession(limit = 12, sourceEventKey?: string) {
   const client = db();
   if (!client) return [];
 
@@ -1184,7 +1201,7 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
     const strategy = "Resolve knowledge version supersession using context overlap and evidence improvement.";
     const { data: existing } = await client
       .from("james_experiences")
-      .select("id")
+      .select("id,last_evidence")
       .eq("user_id", SYSTEM_USER_ID)
       .eq("pattern", pattern)
       .eq("strategy", strategy)
@@ -1208,6 +1225,7 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
         contextOverlap: Number(contextOverlap.toFixed(3)),
         reason: coexistReason,
         resolvedAt: new Date().toISOString(),
+        sourceEventKey: sourceEventKey || null,
       },
     };
 
@@ -1681,7 +1699,7 @@ export async function getJamesKnowledgeVersions(limit = 12) {
   });
 }
 
-export async function versionJamesConsolidatedKnowledge(limit = 8) {
+export async function versionJamesConsolidatedKnowledge(limit = 8, sourceEventKey?: string) {
   const client = db();
   if (!client) return [];
 
@@ -1699,7 +1717,21 @@ export async function versionJamesConsolidatedKnowledge(limit = 8) {
       .eq("strategy", strategy)
       .maybeSingle();
 
-    const previousVersion = Number(existing?.last_evidence?.version || 0);
+    const previousEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+      ? existing.last_evidence as Record<string, unknown>
+      : {};
+    if (sourceEventKey && previousEvidence.sourceEventKey === sourceEventKey) {
+      results.push({
+        knowledgeKey: item.knowledgeKey,
+        version: Number(previousEvidence.version || 0),
+        previousVersion: Number(previousEvidence.previousVersion || 0),
+        confidence: item.confidence,
+        successRate: item.successRate,
+        duplicate: true,
+      });
+      continue;
+    }
+    const previousVersion = Number(previousEvidence.version || 0);
     const version = previousVersion + 1;
     const memory = {
       user_id: SYSTEM_USER_ID,
@@ -1722,6 +1754,7 @@ export async function versionJamesConsolidatedKnowledge(limit = 8) {
         principle: item.principle,
         supersedes: previousVersion > 0 ? pattern + ":v" + previousVersion : null,
         recordedAt: new Date().toISOString(),
+        sourceEventKey: sourceEventKey || null,
       },
     };
 
