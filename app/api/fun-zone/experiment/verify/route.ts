@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordJamesStrategyFeedback } from "../../../tools/jamesStrategyFeedback";
 import { reconcileJamesMetaStrategyLifecycle } from "../../../tools/jamesMetaStrategyLifecycle";
 import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../../../../fun-zone/laboratory/types";
@@ -41,16 +42,62 @@ export async function POST(request: Request) {
 
     const attempt = Number(report.attempt || experiment.attempt || 0);
 
+    // Strategy feedback is persisted before the experiment checkpoint so a
+    // retry can safely replay the same evidence without creating a second trial.
     const strategyMeta =
       experiment.learning_result && typeof experiment.learning_result === "object"
         ? experiment.learning_result as Record<string, unknown>
         : {};
-    const strategyId = typeof strategyMeta.strategyId === "string" ? strategyMeta.strategyId : "";
-    let strategyLifecycle: unknown = null;
-    if (strategyId) {
-      strategyLifecycle = await reconcileJamesMetaStrategyLifecycle(strategyId);
-    }
+    const strategyId =
+      typeof strategyMeta.strategyId === "string" ? strategyMeta.strategyId : "";
 
+    let strategyFeedback: unknown = null;
+    if (strategyId) {
+      const hardFailures = Array.isArray(report.hardFailures) ? report.hardFailures : [];
+      const softWarnings = Array.isArray(report.softWarnings) ? report.softWarnings : [];
+      const verified = report.passed === true;
+      const quality = Math.max(
+        0,
+        Math.min(
+          1,
+          verified
+            ? 0.9
+            : Math.max(0.1, 0.6 - hardFailures.length * 0.12 - softWarnings.length * 0.03),
+        ),
+      );
+      const outcome =
+        verified ? "success" : hardFailures.length > 0 ? "failure" : "partial";
+      const comparison =
+        strategyMeta.strategyComparison &&
+        typeof strategyMeta.strategyComparison === "object"
+          ? strategyMeta.strategyComparison
+          : null;
+
+      strategyFeedback = await recordJamesStrategyFeedback({
+        strategyId,
+        experimentId,
+        attempt,
+        scenarioKey: "fun-zone-sandbox:" + experimentId,
+        outcome,
+        quality,
+        evidence: {
+          source: "fun-zone-post-verification-feedback",
+          status: verified ? "verified" : "not_verified",
+          hardFailures: hardFailures.slice(0, 10),
+          softWarnings: softWarnings.slice(0, 10),
+          strategyComparison: comparison,
+        },
+      });
+
+      if (!strategyFeedback) {
+        throw new Error("Strategy feedback could not be persisted; experiment checkpoint remains retryable.");
+      }
+
+      // Lifecycle reconciliation runs only after durable feedback exists.
+      // The lifecycle RPC reads the aggregated evidence ledger and remains
+      // the sole authority for candidate/active/retired transitions.
+      await reconcileJamesMetaStrategyLifecycle(strategyId);
+    }
     const learning = await recordJamesGameTestLearning(blueprint, report, attempt);
     const brainEvidence = await recordJamesGameBrainEvidence(blueprint, report, attempt);
     const evolved = await evolveJamesStrategyMemory(blueprint, report);
@@ -101,7 +148,7 @@ export async function POST(request: Request) {
     const updatePayload = {
       status: nextStatus,
       test_report: report,
-      learning_result: { learning, brainEvidence, evolved, mutationOutcome, recoveryImpact, explorationPromotion, learningModeImpact, generalizedSkills, coreSkillConflicts, consolidatedKnowledge, knowledgeVersions, knowledgeSupersession, strategyLifecycle },
+      learning_result: { learning, brainEvidence, evolved, mutationOutcome, recoveryImpact, explorationPromotion, learningModeImpact, generalizedSkills, coreSkillConflicts, consolidatedKnowledge, knowledgeVersions, knowledgeSupersession, strategyFeedback, strategyLifecycle: strategyId ? "reconciled" : null, strategyId: strategyId || null, strategyComparison: strategyMeta.strategyComparison || null },
       attempt,
       verified_at: verified ? new Date().toISOString() : null,
       runner_token: null,
@@ -128,7 +175,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Experiment verification state changed before persistence." }, { status: 409 });
     }
 
-    return NextResponse.json({ success: true, experimentId, status: nextStatus, learning, brainEvidence, evolved, mutationOutcome, recoveryImpact, strategyLifecycle });
+    return NextResponse.json({ success: true, experimentId, status: nextStatus, learning, brainEvidence, evolved, mutationOutcome, recoveryImpact });
   } catch (error) {
     console.error("James Game Brain experiment verification failed:", error);
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Experiment verification failed." }, { status: 500 });
