@@ -87,7 +87,7 @@ export async function GET(request: Request) {
     const confidence = Math.min(0.99, Math.max(Number(existing?.confidence || 0.7), 0.7) + 0.02);
 
     const experience = {
-      user_id: "system:fun-zone",
+      user_id: "00000000-0000-0000-0000-000000000001",
       pattern,
       strategy,
       confidence,
