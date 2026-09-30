@@ -260,13 +260,26 @@ export function scoreJamesTournamentWithMemory(
       const empirical = total ? branch.successCount / total : 0;
       const memoryTotal = historical ? historical.successCount + historical.failureCount : 0;
       const memoryRate = historical && memoryTotal ? historical.successCount / memoryTotal : 0;
-      const memoryScore = historical
-        ? memoryRate * 0.5 + historical.confidence * 0.5
+      // Calibrated memory earns influence only as repeated evidence accumulates.
+      // Sparse history is shrunk toward neutral so one experiment cannot dominate.
+      const memoryReliability = historical
+        ? Math.min(1, memoryTotal / 8)
         : 0;
-      const score = empirical * 0.45 + branch.confidence * 0.3 + memoryScore * 0.25;
+      const rawMemoryScore = historical
+        ? memoryRate * 0.5 + historical.confidence * 0.5
+        : 0.5;
+      const calibratedMemoryScore = 0.5 + (rawMemoryScore - 0.5) * memoryReliability;
+      const effectiveMemoryWeight = 0.25 * memoryReliability;
+      const baseWeight = 1 - effectiveMemoryWeight;
+      const score = (
+        empirical * (baseWeight * 0.60) +
+        branch.confidence * (baseWeight * 0.40) +
+        calibratedMemoryScore * effectiveMemoryWeight
+      );
       return {
         ...branch,
         empiricalSuccessRate: empirical,
         tournamentMemoryRate: memoryRate,
-        tournamentMemoryScore: memoryScore,
+        tournamentMemoryScore: Number(calibratedMemoryScore.toFixed(4)),
+        tournamentMemoryReliability: Number(memoryReliability.toFixed(4)),
         tournamentScore: Number(score.toFixed(4)),
