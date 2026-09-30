@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../../../../fun-zone/laboratory/types";
 import { reconcileJamesMetaStrategyLifecycle } from "../../../tools/jamesStrategyLifecycleBridge";
-import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, gameQuality, evolveJamesStrategyMemory, evaluateJamesMutationOutcome, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict, recordJamesCoreSkillLineage, recordJamesKnowledgeContradiction, consolidateJamesGameKnowledge, versionJamesConsolidatedKnowledge, resolveJamesKnowledgeSupersession } from "../../../../fun-zone/engine/jamesGameLearning";
+import { recordJamesGameTestLearning, recordJamesGameBrainEvidence, gameQuality, evolveJamesStrategyMemory, evaluateJamesMutationOutcome, evaluateJamesRecoveryDirectiveImpact, promoteJamesExplorationResult, evaluateJamesExploreExploitImpact, promoteJamesGeneralizedGameSkills, resolveJamesCoreSkillConflict, recordJamesCoreSkillLineage, recordJamesKnowledgeContradiction, consolidateJamesGameKnowledge, versionJamesConsolidatedKnowledge, resolveJamesKnowledgeSupersession, recordJamesTournamentOutcomeFeedback } from "../../../../fun-zone/engine/jamesGameLearning";
 
 export const runtime = "nodejs";
 
@@ -235,6 +235,26 @@ export async function POST(request: Request) {
         // The bridge is fail-open so evidence recording is not blocked if the
         // lifecycle migration has not reached this deployment yet.
         await reconcileJamesMetaStrategyLifecycle(strategyId);
+
+        // Feed the real sandbox outcome back into the tournament memory so
+        // future mutation selection is based on observed experiment results,
+        // not only the pre-experiment tournament ranking.
+        const mutationAction = typeof strategyMeta.mutationAction === "string"
+          ? strategyMeta.mutationAction
+          : null;
+        const targetContext = typeof strategyMeta.strategySelectionSource === "string"
+          && strategyMeta.strategySelectionSource === "retired-strategy-synthesis"
+          ? strategyId
+          : (typeof strategyMeta.strategyKey === "string" ? strategyMeta.strategyKey : strategyId);
+        await recordJamesTournamentOutcomeFeedback({
+          targetContext,
+          mutationAction,
+          experimentId,
+          sourceEventKey,
+          passed: verified,
+          quality,
+        });
+
         if (revalidationJobId) {
           await client.from("james_meta_strategy_revalidation_queue")
             .update({ status: "completed", completed_at: new Date().toISOString(), evidence })
