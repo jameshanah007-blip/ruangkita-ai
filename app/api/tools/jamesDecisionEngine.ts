@@ -3,10 +3,12 @@ import type { AIProviderName } from "../../fun-zone/aiProvider";
 import type { JamesResourceTask } from "./jamesResourceManager";
 import { getJamesProviderPerformance, scoreJamesProviderPerformance } from "./jamesProviderPerformance";
 import { getJamesDecisionMemory } from "./jamesDecisionMemory";
+import { retrieveJamesMetaStrategies } from "./jamesMetaLearning";
 
 export type JamesDecisionStrategy = "single-provider" | "multi-provider" | "fallback-first" | "explore-and-verify";
 export type JamesBrainDecision = {
   task: JamesResourceTask; strategy: JamesDecisionStrategy; rankedProviders: AIProviderName[];
+  metaStrategies: Array<{ id: string; taskClass: string; strategy: string; confidence: number; evidenceCount: number }>;
   confidence: number; evidenceCount: number; successfulEvidence: number; failedEvidence: number; reason: string;
 };
 const PROVIDERS: AIProviderName[] = ["openai", "gemini", "openrouter", "groq"];
@@ -22,8 +24,8 @@ function taskDefaultOrder(task: JamesResourceTask): AIProviderName[] {
 }
 
 export async function decideJamesBrainStrategy(task: JamesResourceTask, userId?: string): Promise<JamesBrainDecision> {
-  const [performance, decisions] = await Promise.all([
-    getJamesProviderPerformance(task), getJamesDecisionMemory(task, 30),
+  const [performance, decisions, metaStrategies] = await Promise.all([
+    getJamesProviderPerformance(task), getJamesDecisionMemory(task, 30), retrieveJamesMetaStrategies(task, 6),
   ]);
   const defaults = taskDefaultOrder(task);
   const performanceByProvider = new Map(performance.map((item) => [item.provider, item]));
@@ -96,5 +98,5 @@ export async function decideJamesBrainStrategy(task: JamesResourceTask, userId?:
   if (multiSuccess > singleSuccess) reasonParts.push("Decision memory menunjukkan routing multi-provider berhasil lebih sering.");
   else if (singleSuccess > multiSuccess) reasonParts.push("Decision memory menunjukkan routing single-provider cukup konsisten.");
 
-  return { task, strategy, rankedProviders: ranked.map((item) => item.provider), confidence, evidenceCount: totalEvidence + capabilityEvidence, successfulEvidence, failedEvidence, reason: reasonParts.join(" ") };
+  return { task, strategy, rankedProviders: ranked.map((item) => item.provider), metaStrategies: metaStrategies.map((item) => ({ id: String(item.id), taskClass: String(item.task_class), strategy: String(item.strategy), confidence: Number(item.confidence || 0), evidenceCount: Number(item.evidence_count || 0) })), confidence, evidenceCount: totalEvidence + capabilityEvidence, successfulEvidence, failedEvidence, reason: reasonParts.join(" ") };
 }
