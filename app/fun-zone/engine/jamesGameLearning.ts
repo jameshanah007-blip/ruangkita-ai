@@ -1105,7 +1105,7 @@ export async function evaluateJamesContextTransfer(
 
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence")
+     .select("id,success_count,failure_count,confidence,last_evidence")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
@@ -1363,6 +1363,7 @@ export async function recordJamesStrategyComparisonMemory(input: {
   improved: boolean | null;
   blueprintDiversity?: { mutationVerified?: boolean | null; beforeFingerprint?: string | null; afterFingerprint?: string | null } | null;
   experimentId?: string;
+  sourceEventKey?: string;
 }) {
   const client = db();
   if (!client) return null;
@@ -1380,6 +1381,20 @@ export async function recordJamesStrategyComparisonMemory(input: {
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
+
+  const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+    ? existing.last_evidence as Record<string, unknown>
+    : {};
+  if (input.sourceEventKey && priorEvidence.sourceEventKey === input.sourceEventKey) {
+    return {
+      pattern,
+      outcome,
+      confidence: Number(existing?.confidence || 0.5),
+      successCount: Number(existing?.success_count || 0),
+      failureCount: Number(existing?.failure_count || 0),
+      duplicate: true,
+    };
+  }
 
   const successCount = Number(existing?.success_count || 0) + (outcome === "success" ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (outcome === "failure" ? 1 : 0);
@@ -1411,6 +1426,7 @@ export async function recordJamesStrategyComparisonMemory(input: {
       blueprintDiversity: input.blueprintDiversity || null,
       targetContext: input.targetContext,
       experimentId: input.experimentId || null,
+      sourceEventKey: input.sourceEventKey || null,
       outcome,
       lesson: input.improved === false
         ? "Candidate mutation underperformed its retired parent; preserve the parent failure evidence and avoid repeating this mutation without a materially different branch."
