@@ -6,6 +6,7 @@ import {
 } from "./aiProvider";
 import { openRouterProvider } from "./openRouterProvider";
 import { groqProvider } from "./groqProvider";
+import { applyJamesCognitiveBudget, getJamesCognitiveBudget } from "./jamesCognitiveBudget";
 
 export type AIRouterResult = AIGenerateResponse & {
   attempts: string[];
@@ -117,6 +118,10 @@ async function generateWithTimeout(
 export async function generateWithAIRouter(
   request: AIGenerateRequest
 ): Promise<AIRouterResult> {
+  const budget = getJamesCognitiveBudget(request);
+  const budgetedRequest = applyJamesCognitiveBudget(request);
+  console.log(`James Cognitive Budget: task=${budget.taskClass}, maxTokens=${budget.maxOutputTokens}, premium=${budget.premiumAllowed}`);
+
   // RuangKita's primary provider chain is Gemini -> OpenRouter -> Groq.
   // OpenAI remains an additional last-resort fallback when configured.
   const providers = [
@@ -157,7 +162,7 @@ export async function generateWithAIRouter(
 
         const startedAt = Date.now();
         const result = await generateWithTimeout(provider.name, () =>
-          provider.generate(request)
+          provider.generate(budgetedRequest)
         );
 
         console.log(
@@ -290,7 +295,7 @@ export async function* streamWithAIRouter(
           yield { type: "delta", text: chunk };
         }
       } else {
-        const result = await provider.generate(request);
+        const result = await provider.generate(budgetedRequest);
         resolvedModel = result.model;
         if (result.text) {
           emitted = true;
@@ -371,7 +376,7 @@ export async function generateWithAllAIProviders(
         console.log(`James Learning mencoba provider: ${provider.name}`);
         const startedAt = Date.now();
         const result = await generateWithTimeout(provider.name, () =>
-          provider.generate(request)
+          provider.generate(budgetedRequest)
         );
         console.log(`James Learning berhasil menggunakan: ${provider.name} (${Date.now() - startedAt}ms)`);
         return { ...result, attempts };
