@@ -4250,7 +4250,7 @@ export async function recordJamesTournamentOutcomeFeedback(input: {
     console.warn("James tournament outcome memory update failed:", result.error.message);
     return null;
   }
-  return { updated: true, memoryId: row.id, mutation: input.mutationAction || String(nextEvidence.selectedMutation || ""), successCount, failureCount, successRate: Number(successRate.toFixed(3)), confidence: Number(confidence.toFixed(3)), quality };
+  return { updated: true, memoryId: row.id, mutation: input.mutationAction || String(evidence.selectedMutation || ""), successCount, failureCount, successRate: Number(successRate.toFixed(3)), confidence: Number(confidence.toFixed(3)), quality };
 }
 
 export function runJamesStrategyTournament(
