@@ -38,9 +38,22 @@ export async function recordJamesGameTestLearning(
   blueprint: GameBlueprint,
   report: TestReport,
   attempt: number,
+  sourceEventKey?: string,
 ) {
   const client = db();
   if (!client) return null;
+
+  if (sourceEventKey) {
+    const { data: priorReflection } = await client
+      .from("james_reflections")
+      .select("id, lesson, confidence, created_at")
+      .eq("user_id", SYSTEM_USER_ID)
+      .ilike("evidence", "%\"sourceEventKey\":\"%" + sourceEventKey.replace(/"/g, "\\\"") + "%")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (priorReflection?.id) return priorReflection;
+  }
 
   const failed = Array.isArray(report.hardFailures) ? report.hardFailures : [];
   const warnings = Array.isArray(report.softWarnings) ? report.softWarnings : [];
@@ -87,6 +100,7 @@ export async function recordJamesGameTestLearning(
     confidence,
     evidence: clean(
       JSON.stringify({
+        sourceEventKey: sourceEventKey || null,
         attempt,
         passed,
         runtimeOk: report.runtimeOk,
@@ -149,9 +163,28 @@ export async function recordJamesGameBrainEvidence(
   blueprint: GameBlueprint,
   report: TestReport,
   attempt: number,
+  sourceEventKey?: string,
 ) {
   const client = db();
   if (!client) return null;
+
+  if (sourceEventKey) {
+    const { data: priorEvaluation } = await client
+      .from("james_self_evaluations")
+      .select("id, outcome, quality_score, created_at, evidence")
+      .eq("evidence->>source_event_key", sourceEventKey)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (priorEvaluation?.id) {
+      return {
+        selfEvaluationId: priorEvaluation.id,
+        outcome: priorEvaluation.outcome,
+        quality: Number(priorEvaluation.quality_score || 0),
+        duplicate: true,
+      };
+    }
+  }
 
   const evidence = gameCapabilities(report);
   const quality = gameQuality(report);
