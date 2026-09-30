@@ -3804,11 +3804,40 @@ export async function claimJamesGameExperiment(input: { userId?: string | null }
   return data;
 }
 
+function getJamesBlueprintFingerprint(blueprint: any) {
+  const stable = (value: any): string => {
+    if (value === null || value === undefined) return "";
+    if (Array.isArray(value)) return "[" + value.map(stable).join("|") + "]";
+    if (typeof value === "object") return "{" + Object.keys(value).sort().map((key) => key + ":" + stable(value[key])).join("|") + "}";
+    return String(value);
+  };
+  const relevant = {
+    genre: blueprint?.genre,
+    world: blueprint?.world,
+    mechanics: blueprint?.mechanics,
+    playerActions: blueprint?.playerActions,
+    controls: blueprint?.controls,
+    objective: blueprint?.objective,
+    progression: blueprint?.progression,
+    coreLoop: blueprint?.coreLoop,
+  };
+  return [...stable(relevant)].reduce((sum, char) => ((sum * 31) + char.charCodeAt(0)) >>> 0, 7).toString(36);
+}
+
 export async function applyJamesAutonomousMutationToExperimentBlueprint(blueprint: any, targetContext?: string) {
   const directive = await getJamesMutationDirective(targetContext);
+  const mutatedBlueprint = applyJamesMutationDirectiveToBlueprint(blueprint, directive);
+  const beforeFingerprint = getJamesBlueprintFingerprint(blueprint);
+  const afterFingerprint = getJamesBlueprintFingerprint(mutatedBlueprint);
   return {
     directive,
-    blueprint: applyJamesMutationDirectiveToBlueprint(blueprint, directive),
+    blueprint: mutatedBlueprint,
+    diversity: {
+      beforeFingerprint,
+      afterFingerprint,
+      structurallyChanged: beforeFingerprint !== afterFingerprint,
+      mutationVerified: beforeFingerprint !== afterFingerprint,
+    },
   };
 }
 
