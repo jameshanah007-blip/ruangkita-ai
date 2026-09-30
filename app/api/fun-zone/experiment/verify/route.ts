@@ -203,6 +203,12 @@ export async function POST(request: Request) {
           ? strategyMeta.baselineValidatedStrategyId
           : null,
         strategyComparison,
+        // Persist diversity at the trial-evidence level because the lifecycle
+        // RPC uses this field to decide whether a candidate is structurally
+        // different enough to validate.
+        blueprintDiversity: strategyMeta.diversity && typeof strategyMeta.diversity === "object"
+          ? strategyMeta.diversity
+          : null,
         // The sandbox report is the fresh outcome attached to this exact
         // strategy identity. Keep the observable checks with the evidence so
         // lifecycle decisions can be audited without reconstructing the run.
