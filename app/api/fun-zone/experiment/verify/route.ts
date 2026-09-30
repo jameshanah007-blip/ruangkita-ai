@@ -130,8 +130,10 @@ export async function POST(request: Request) {
         verified ? 0.9 : Math.max(0.1, 0.6 - hardFailures.length * 0.12 - softWarnings.length * 0.03)
       ));
       const outcome = verified ? "success" : hardFailures.length > 0 ? "failure" : "partial";
+      const sourceEventKey = "strategy-revalidation:" + revalidationJobId + ":experiment:" + experimentId + ":attempt:" + attempt;
       const evidence = {
         source: "fun-zone-post-verification-callback",
+        sourceEventKey,
         experimentId,
         revalidationJobId,
         status: nextStatus,
@@ -139,13 +141,18 @@ export async function POST(request: Request) {
         hardFailures: hardFailures.slice(0, 10),
         softWarnings: softWarnings.slice(0, 10),
       };
-      const { error: strategyTrialError } = await client.from("james_meta_strategy_trials").insert({
-        strategy_id: strategyId,
-        scenario_key: "fun-zone-sandbox:" + experimentId,
-        outcome,
-        quality,
-        evidence,
-      });
+      const { data: strategyTrial, error: strategyTrialError } = await client
+        .from("james_meta_strategy_trials")
+        .upsert({
+          strategy_id: strategyId,
+          scenario_key: "fun-zone-sandbox:" + experimentId,
+          outcome,
+          quality,
+          evidence,
+          source_event_key: sourceEventKey,
+        }, { onConflict: "source_event_key", ignoreDuplicates: false })
+        .select("id,source_event_key")
+        .maybeSingle();
       if (strategyTrialError) {
         console.warn("James strategy post-verification feedback unavailable:", strategyTrialError.message);
       } else {
