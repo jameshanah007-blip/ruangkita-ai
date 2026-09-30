@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { generateWithAIRouter, generateWithAllAIProviders } from "../../../core/ai/aiRouter";
+import { generateWithAllAIProviders } from "../../../core/ai/aiRouter";
 import { refreshJamesProviderCapabilities } from "../../tools/jamesProviderCapabilities";
 import { getJamesGoals, saveJamesGoal } from "../../tools/jamesGoals";
+import { reserveJamesLearningCalls, getJamesDailyLearningBudget } from "../../tools/jamesLearningBudget";
 import {
   addGlobalCandidate,
   getGlobalCandidates,
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const budgetReserved = await reserveJamesLearningCalls(1);
+    const budgetReserved = await reserveJamesLearningCalls(4);
     if (!budgetReserved) {
       return NextResponse.json({
         ok: true,
@@ -109,7 +110,7 @@ Aturan:
 - Goal harus dapat dievaluasi pada sesi belajar berikutnya.
 `;
 
-    const primary = await generateWithAIRouter({
+    const primary = await generateWithAllAIProviders({
       prompt,
       systemInstruction:
         "Kamu adalah learning strategist untuk James. Bandingkan kemampuan provider secara faktual dan hasilkan JSON valid.",
@@ -117,7 +118,7 @@ Aturan:
       maxOutputTokens: 2500,
     });
 
-    const results = [primary];
+    const results = primary;
 
     const proposals = results
       .map((result) => ({ provider: result.provider, data: extractJson(result.text) }))
@@ -222,13 +223,13 @@ Keluarkan JSON SAJA:
       const validationBudget = await reserveJamesLearningCalls(1);
       if (!validationBudget) break;
 
-      const validatorResults = [await generateWithAIRouter({
+      const validatorResults = await generateWithAllAIProviders({
         prompt: validationPrompt,
         systemInstruction:
           "Kamu adalah validator independen untuk global knowledge James. Jangan mengarang fakta. Nilai hanya kandidat yang diberikan.",
         temperature: 0.1,
         maxOutputTokens: 500,
-      })];
+      });
 
       for (const validator of validatorResults) {
         const parsed = extractJson(validator.text) as Record<string, unknown> | null;
