@@ -2788,6 +2788,13 @@ export async function createJamesGameExperimentPlan() {
   const retirementContext = retiredStrategyDirective
     ? " Retired-strategy synthesis directive: " + retiredStrategyDirective.synthesisPrompt
     : "";
+  const synthesizedStrategyContext = synthesizedRetiredStrategy
+    ? " Newly synthesized candidate strategy: \"" +
+      synthesizedRetiredStrategy.strategy +
+      "\". Candidate status=" + String(synthesizedRetiredStrategy.status || "candidate") +
+      ". Strategy ID=" + String(synthesizedRetiredStrategy.strategyId || "pending") +
+      ". This candidate must be exercised in this experiment and judged only from fresh sandbox evidence."
+    : "";
   const capabilityPrompt =
     key.includes("input")
       ? "Create a small game focused on reliable keyboard and touch movement with an alternate input path."
@@ -2806,7 +2813,7 @@ export async function createJamesGameExperimentPlan() {
   return {
     status: "experiment",
     title: "James Game Brain experiment: " + String(target.capability_name),
-    prompt: capabilityPrompt + relevantKnowledgeContext + knowledgeContext + coreSkillContext + contradictionContext + corroborationContext + contextualContext + transferContext + metaStrategyContext + retirementContext + tournamentContext + recoveryContext +
+    prompt: capabilityPrompt + relevantKnowledgeContext + knowledgeContext + coreSkillContext + contradictionContext + corroborationContext + contextualContext + transferContext + metaStrategyContext + retirementContext + synthesizedStrategyContext + tournamentContext + recoveryContext +
       (learningMode.mode === "explore" && exploration?.novelMechanic
         ? " Exploration directive: deliberately test the novel mechanic \""+ exploration.novelMechanic + "\" instead of repeating the most recent proven mechanic set. Compare its evidence against the current strategy."
         : " Exploitation directive: reuse proven strategy components first, while preserving regression checks and measurable evidence."),
