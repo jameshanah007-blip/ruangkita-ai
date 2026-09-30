@@ -1,0 +1,18 @@
+name: James Strategy Revalidation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 5 * * *"
+
+jobs:
+  revalidation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Schedule stale and regressed strategies
+        env:
+          APP_URL: ${{ secrets.RUANGKITA_APP_URL }}
+          JAMES_LEARNING_SECRET: ${{ secrets.JAMES_LEARNING_SECRET }}
+        run: |
+          test -n "$APP_URL"
+          curl --fail-with-body -X POST "$APP_URL/api/ai/james-strategy-heartbeat"             -H "Authorization: Bearer $JAMES_LEARNING_SECRET"
