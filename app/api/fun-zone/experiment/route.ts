@@ -82,8 +82,14 @@ export async function POST(request: Request) {
       if (result.experimentId) {
         const client = db();
         if (client) {
-          const existingLearning = result.plan?.synthesizedRetiredStrategy?.strategyId
-            ? { strategyId: result.plan.synthesizedRetiredStrategy.strategyId, strategyKey: result.plan.synthesizedRetiredStrategy.strategyKey, strategySelectionSource: "retired-strategy-synthesis" }
+          const { data: existingExperiment } = await client
+            .from("james_game_experiments")
+            .select("learning_result")
+            .eq("id", result.experimentId)
+            .maybeSingle();
+          const existingLearning = existingExperiment?.learning_result &&
+            typeof existingExperiment.learning_result === "object"
+            ? existingExperiment.learning_result as Record<string, unknown>
             : {};
           await client.from("james_game_experiments").update({
             blueprint: result.blueprint,
