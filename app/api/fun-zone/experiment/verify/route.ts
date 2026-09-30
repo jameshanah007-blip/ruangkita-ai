@@ -53,6 +53,20 @@ export async function POST(request: Request) {
 
     let strategyFeedback: unknown = null;
     if (strategyId) {
+      const { error: usageError } = await client.rpc("record_james_meta_strategy_usage", {
+        p_strategy_id: strategyId,
+        p_experiment_id: experimentId,
+        p_attempt: attempt,
+        p_usage_state: "verified",
+        p_evidence: {
+          source: "fun-zone-verification",
+          passed: report.passed === true,
+          status: report.passed === true ? "verified" : "not_verified",
+        },
+      });
+      if (usageError) {
+        throw new Error("Strategy usage evidence could not be persisted: " + usageError.message);
+      }
       const hardFailures = Array.isArray(report.hardFailures) ? report.hardFailures : [];
       const softWarnings = Array.isArray(report.softWarnings) ? report.softWarnings : [];
       const verified = report.passed === true;
