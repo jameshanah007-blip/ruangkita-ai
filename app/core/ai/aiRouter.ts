@@ -272,6 +272,16 @@ export async function* streamWithAIRouter(
       console.log(`AI Router streaming mencoba provider: ${provider.name}`);
       const startedAt = Date.now();
 
+      let resolvedModel = provider.name === "gemini"
+        ? "gemini-3.6-flash"
+        : provider.name === "groq"
+          ? "openai/gpt-oss-20b"
+          : provider.name === "openrouter"
+            ? "openrouter/free"
+            : provider.name === "openai"
+              ? "gpt-5.6-luna"
+              : "unknown";
+
       if (provider.generateStream) {
         for await (const chunk of provider.generateStream(request)) {
           if (!chunk) continue;
@@ -281,6 +291,7 @@ export async function* streamWithAIRouter(
         }
       } else {
         const result = await provider.generate(request);
+        resolvedModel = result.model;
         if (result.text) {
           emitted = true;
           fullText = result.text;
@@ -297,19 +308,10 @@ export async function* streamWithAIRouter(
         `AI Router streaming berhasil menggunakan: ${provider.name} (${Date.now() - startedAt}ms)`
       );
 
-      const model =
-        provider.name === "gemini"
-          ? "gemini-3.6-flash"
-          : provider.name === "groq"
-            ? "openai/gpt-oss-20b"
-            : provider.name === "openrouter"
-              ? "openrouter/free"
-              : "unknown";
-
       yield {
         type: "done",
         provider: provider.name,
-        model,
+        model: resolvedModel,
         text: fullText,
         attempts,
       };
@@ -366,11 +368,18 @@ export async function generateWithAllAIProviders(
     availableProviders.map(async (provider) => {
       const attempts: string[] = [];
       try {
+        console.log(`James Learning mencoba provider: ${provider.name}`);
+        const startedAt = Date.now();
         const result = await generateWithTimeout(provider.name, () =>
           provider.generate(request)
         );
+        console.log(`James Learning berhasil menggunakan: ${provider.name} (${Date.now() - startedAt}ms)`);
         return { ...result, attempts };
       } catch (error) {
+        console.error(`James Learning provider ${provider.name} gagal:`, {
+          message: getErrorMessage(error),
+          status: getErrorStatus(error),
+        });
         attempts.push(
           `${provider.name}: ${getErrorMessage(error)}`
         );
