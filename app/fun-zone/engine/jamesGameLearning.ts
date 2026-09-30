@@ -2320,6 +2320,7 @@ export function arbitrateJamesEvidence(
 export async function resolveJamesCoreSkillConflict(
   capabilityKey: string,
   observed: { competence: number; confidence: number; passed: boolean; quality: number; evidence: number },
+  sourceEventKey?: string,
 ) {
   const client = db();
   if (!client || !capabilityKey.startsWith("fun-zone-core:")) return null;
@@ -2341,6 +2342,10 @@ export async function resolveJamesCoreSkillConflict(
   const previousEvidence = current.last_evidence && typeof current.last_evidence === "object"
     ? current.last_evidence as Record<string, unknown>
     : {};
+  if (sourceEventKey && previousEvidence.sourceEventKey === sourceEventKey && previousEvidence.conflictResult) {
+    return previousEvidence.conflictResult;
+  }
+
   const previousHistory = Array.isArray(previousEvidence.history) ? previousEvidence.history : [];
   const historicalCandidates = previousHistory.slice(0, 6).map((item) => {
     const entry = item && typeof item === "object" ? item as Record<string, unknown> : {};
@@ -2407,6 +2412,19 @@ export async function resolveJamesCoreSkillConflict(
       : "Continue validating this generalized skill in diverse contexts.",
     last_evidence: {
       source: "core-skill-conflict-resolution",
+      sourceEventKey: sourceEventKey || null,
+      conflictResult: {
+        capabilityKey,
+        conflict,
+        previousCompetence: Number(oldCompetence.toFixed(3)),
+        observedQuality: Number(observedQuality.toFixed(3)),
+        competence: Number(competence.toFixed(3)),
+        confidence: Number(confidence.toFixed(3)),
+        status,
+        nextAction: conflict
+          ? "Run another contextual experiment before increasing confidence."
+          : "Continue diverse contextual validation.",
+      },
       conflict,
       previousCompetence: oldCompetence,
       observedQuality,
