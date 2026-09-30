@@ -2770,7 +2770,7 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
     .from("james_experiences")
     .select("pattern,strategy,confidence,success_count,failure_count,last_evidence")
     .eq("status", "active")
-    .eq("capabilities", ["fun-zone-strategy-comparison", "retired-strategy-learning"])
+    .contains("capabilities", ["fun-zone-strategy-comparison", "retired-strategy-learning"])
     .ilike("pattern", "fun-zone:strategy-comparison:" + String(retired.id) + ":%")
     .order("updated_at", { ascending: false })
     .limit(10);
