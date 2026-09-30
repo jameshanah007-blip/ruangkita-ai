@@ -1283,6 +1283,7 @@ export async function evaluateJamesMutationOutcome(
   experimentPrompt: string,
   blueprint: any,
   report: { passed?: boolean; hardFailures?: string[]; softWarnings?: string[] },
+  sourceEventKey?: string,
 ) {
   const directive = await getJamesMutationDirective(String(blueprint?.world || "fun-zone"));
   const passed = report.passed === true;
@@ -1297,6 +1298,7 @@ export async function evaluateJamesMutationOutcome(
         targetContext: String(blueprint?.world || "fun-zone") + ":" + String(blueprint?.genre || "unknown"),
         mutation: action,
         outcome,
+        sourceEventKey,
       })
     : null;
 
@@ -1317,6 +1319,7 @@ export async function recordJamesStrategyLineage(input: {
   targetContext: string;
   mutation: string;
   outcome?: "success" | "failure" | "candidate";
+  sourceEventKey?: string;
 }) {
   const client = db();
   if (!client) return null;
@@ -1325,11 +1328,18 @@ export async function recordJamesStrategyLineage(input: {
   const strategy = "Parent: " + input.parentStrategy + " -> Child: " + input.childStrategy;
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence")
+    .select("id,success_count,failure_count,confidence,last_evidence")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
+
+  const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+    ? existing.last_evidence as Record<string, unknown>
+    : {};
+  if (input.sourceEventKey && priorEvidence.sourceEventKey === input.sourceEventKey) {
+    return { pattern, confidence: Number(existing?.confidence || 0.5), successCount: Number(existing?.success_count || 0), failureCount: Number(existing?.failure_count || 0), duplicate: true };
+  }
 
   const successCount = Number(existing?.success_count || 0) + (input.outcome === "success" ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (input.outcome === "failure" ? 1 : 0);
@@ -1354,6 +1364,7 @@ export async function recordJamesStrategyLineage(input: {
       targetContext: input.targetContext,
       outcome: input.outcome || "candidate",
       recordedAt: new Date().toISOString(),
+      sourceEventKey: input.sourceEventKey || null,
     },
   };
 
