@@ -102,8 +102,6 @@ export async function learnJamesMetaStrategy(input: MetaInput) {
       const success = Number(similar.success_count || 0) + 1;
       const empirical = success / Math.max(1, evidence + Number(similar.failure_count || 0));
       const nextConfidence = Math.min(0.99, Number(similar.confidence || 0.5) * 0.4 + Math.max(empirical, confidence) * 0.6);
-      const status = evidence >= 3 && nextConfidence >= 0.78 ? "active" : "candidate";
-
       const { data: updated } = await supabase
         .from("james_meta_strategies")
         .update({
@@ -273,8 +271,6 @@ export async function evaluateJamesMetaStrategies(input: {
         0.05,
         Math.min(0.99, previousConfidence * 0.35 + empirical * 0.65)
       );
-      const shouldRetire = failure >= 3 && empirical < 0.45;
-
       const { data: saved } = await supabase
         .from("james_meta_strategies")
         .update({
@@ -282,7 +278,6 @@ export async function evaluateJamesMetaStrategies(input: {
           success_count: success,
           failure_count: failure,
           confidence: nextConfidence,
-          status: shouldRetire ? "retired" : "active",
           updated_at: new Date().toISOString(),
         })
         .eq("id", id)
