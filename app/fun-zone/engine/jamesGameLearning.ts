@@ -2818,6 +2818,32 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
   const mutationTournament = runJamesMutationTournament(empiricalMutationEvidence, failedMutations);
   const tournamentMutation = mutationTournament[0]?.action || null;
 
+  if (mutationTournament.length) {
+    await recordJamesTournamentMemory({
+      targetContext: String(retired.id) + ":" + String(retired.task_class || input.taskClass || "fun-zone-game-director"),
+      winnerStrategy: tournamentMutation || "no-selected-mutation",
+      winnerScore: Number(mutationTournament[0]?.score || 0),
+      winnerSuccessRate: mutationTournament[0]
+        ? Number((mutationTournament[0].successCount / Math.max(1, mutationTournament[0].successCount + mutationTournament[0].failureCount)).toFixed(4))
+        : 0,
+      winnerConfidence: mutationTournament[0]
+        ? Number(mutationTournament[0].averageQuality || 0)
+        : 0,
+      selectedMutation: tournamentMutation,
+      excludedMutations: failedMutations,
+      reason: "Tournament result persisted before synthesis so future runs can reuse both the ranking and the evidence behind the ranking.",
+      rankings: mutationTournament.slice(0, 5).map((entry) => ({
+        rank: entry.rank,
+        strategy: entry.action,
+        score: entry.score,
+        successRate: entry.successCount / Math.max(1, entry.successCount + entry.failureCount),
+        confidence: entry.averageQuality,
+        evidenceCount: entry.successCount + entry.failureCount,
+        explorationBonus: entry.explorationBonus,
+      })),
+    });
+  }
+
   let mutation = chooseJamesStrategyMutation({
     compositionScore: Math.max(0, Number(retired.confidence || 0) - 0.2),
     confidence: Number(retired.confidence || 0),
@@ -4031,6 +4057,9 @@ export async function createJamesGameExperimentJob(input: {
   winnerScore: number;
   winnerSuccessRate: number;
   winnerConfidence: number;
+  selectedMutation?: string | null;
+  excludedMutations?: string[];
+  reason?: string;
   rankings: Array<{
     rank: number;
     strategy: string;
@@ -4038,6 +4067,7 @@ export async function createJamesGameExperimentJob(input: {
     successRate: number;
     confidence: number;
     evidenceCount: number;
+    explorationBonus?: number;
   }>;
 }) {
   const client = db();
@@ -4072,6 +4102,9 @@ export async function createJamesGameExperimentJob(input: {
       winnerScore: input.winnerScore,
       winnerSuccessRate: input.winnerSuccessRate,
       winnerConfidence: input.winnerConfidence,
+      selectedMutation: input.selectedMutation || input.winnerStrategy,
+      excludedMutations: Array.from(new Set(input.excludedMutations || [])).slice(0, 12),
+      reason: input.reason || "Tournament ranking combined empirical success, quality, diversity, parent improvement, and uncertainty-driven exploration.",
       rankings: input.rankings.slice(0, 5),
       targetContext: input.targetContext,
       recordedAt: new Date().toISOString(),
