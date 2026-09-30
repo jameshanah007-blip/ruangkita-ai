@@ -226,7 +226,60 @@ export async function POST(request: Request) {
       if (error) throw error;
     }
     const coreSkillConflicts = [];
-    for (const skill of generalizedSkills || []) {
+    const { data: coreStage, error: coreStageError } = await client
+      .from("james_experiment_verification_ledger")
+      .select("*")
+      .eq("experiment_id", experimentId)
+      .eq("attempt", attempt)
+      .single();
+    if (coreStageError) throw coreStageError;
+
+    if (coreStage.skills_completed && coreStage.final_payload?.coreSkillConflicts) {
+      coreSkillConflicts.push(...(Array.isArray(coreStage.final_payload.coreSkillConflicts)
+        ? coreStage.final_payload.coreSkillConflicts
+        : []));
+    } else {
+      for (const skill of generalizedSkills || []) {
+        const conflict = await resolveJamesCoreSkillConflict(skill.capabilityKey, {
+          competence: skill.competence,
+          confidence: skill.confidence,
+          passed: report.passed === true,
+          quality: gameQuality(report),
+          evidence: 1,
+        });
+        if (conflict) {
+          coreSkillConflicts.push(conflict);
+          if (conflict.conflict) {
+            await recordJamesKnowledgeContradiction({
+              capabilityKey: skill.capabilityKey,
+              previousQuality: conflict.previousCompetence,
+              observedQuality: conflict.observedQuality,
+              observedContext: String(blueprint.world) + ":" + String(blueprint.genre),
+              resolution: conflict.nextAction,
+            });
+          }
+          await recordJamesCoreSkillLineage(skill.capabilityKey, {
+            source: "fun-zone-experiment-verification",
+            quality: gameQuality(report),
+            passed: report.passed === true,
+            context: String(blueprint.world) + ":" + String(blueprint.genre) + ":" + blueprint.mechanics.slice(0, 4).join("+"),
+            previousCompetence: conflict.previousCompetence,
+            newCompetence: conflict.competence,
+            newConfidence: conflict.confidence,
+            reason: conflict.conflict ? "Conflicting evidence detected." : "Evidence reinforced generalized skill.",
+          });
+        }
+      }
+    }
+    const { error: coreCheckpointError } = await client
+      .from("james_experiment_verification_ledger")
+      .update({
+        stage: "strategy_feedback_started",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", coreStage.id)
+      .eq("finalized", false);
+    if (coreCheckpointError) throw coreCheckpointError;
       const conflict = await resolveJamesCoreSkillConflict(skill.capabilityKey, {
         competence: skill.competence,
         confidence: skill.confidence,
