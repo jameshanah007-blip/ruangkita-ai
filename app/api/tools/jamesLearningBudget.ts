@@ -10,7 +10,7 @@ function db() {
 }
 
 function configuredLimit() {
-  const value = Number(process.env.JAMES_DAILY_LEARNING_CALL_BUDGET ?? 8);
+  const value = Number(process.env.JAMES_DAILY_LEARNING_CALL_BUDGET ?? 10);
   return Number.isFinite(value) ? Math.max(1, Math.min(100, Math.floor(value))) : 8;
 }
 
