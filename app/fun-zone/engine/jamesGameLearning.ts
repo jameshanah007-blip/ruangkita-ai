@@ -2559,6 +2559,56 @@ export async function getJamesRetiredStrategySynthesisDirective(input: { strateg
   };
 }
 
+async function persistJamesRetiredStrategyCandidate(directive: {
+  retiredStrategyId: string;
+  taskClass: string | null;
+  strategy: string;
+  synthesisPrompt: string;
+  directive: { action: string; reason: string };
+}) {
+  const client = db();
+  if (!client) return null;
+
+  const taskClass = directive.taskClass || "fun-zone-game-director";
+  const mutationAction = clean(directive.directive.action, 120).replace(/[^a-zA-Z0-9_-]+/g, "-");
+  const strategyKey = clean(
+    "meta:" + taskClass + ":retired:" + directive.retiredStrategyId + ":mutation:" + mutationAction,
+    500,
+  );
+  const strategy = clean(
+    "New branch synthesized from retired strategy " + directive.retiredStrategyId +
+      ". Do not resurrect the retired identity. Apply mutation '" +
+      directive.directive.action + "'. Preserve the failure as evidence and verify the new branch with fresh sandbox evidence.",
+    1000,
+  );
+  const sourcePatterns = [
+    "retired:" + directive.retiredStrategyId,
+    "mutation:" + directive.directive.action,
+    "task:" + taskClass,
+  ];
+
+  const { data, error } = await client.rpc("synthesize_james_meta_strategy", {
+    p_strategy_key: strategyKey,
+    p_task_class: taskClass,
+    p_strategy: strategy,
+    p_source_patterns: sourcePatterns,
+    p_confidence: 0.5,
+  });
+
+  if (error) {
+    console.warn("James retired-strategy candidate persistence unavailable:", error.message);
+    return null;
+  }
+
+  return {
+    strategyId: typeof data === "string" ? data : null,
+    strategyKey,
+    taskClass,
+    strategy,
+    sourcePatterns,
+  };
+}
+
 export async function createJamesGameExperimentPlan() {
   const client = db();
   if (!client) return null;
@@ -2654,6 +2704,9 @@ export async function createJamesGameExperimentPlan() {
   const validatedMetaStrategies = await getJamesValidatedMetaStrategies({ taskClass: key, limit: 5 });
   const selectedMetaStrategy = [...validatedMetaStrategies].sort((a, b) => b.relevanceScore - a.relevanceScore)[0] || null;
   const retiredStrategyDirective = await getJamesRetiredStrategySynthesisDirective({ taskClass: key });
+  const synthesizedRetiredStrategy = retiredStrategyDirective
+    ? await persistJamesRetiredStrategyCandidate(retiredStrategyDirective)
+    : null;
   const contextualMemory = await getJamesContextualLearningMemory("unknown", String(target.capability_name), []);
   const transferCandidate = contextualMemory[0] || null;
   const generalizedTransfer = (transferKnowledge || []).find((item) => item.transferable) || null;
@@ -2742,6 +2795,7 @@ export async function createJamesGameExperimentPlan() {
     composedKnowledge,
     selectedMetaStrategy,
     validatedMetaStrategies: validatedMetaStrategies.slice(0, 5),
+    synthesizedRetiredStrategy,
   };
 }
 
