@@ -2022,6 +2022,7 @@ export async function recordJamesCoreSkillLineage(
     previousConfidence?: number;
     newConfidence?: number;
     reason?: string;
+    sourceEventKey?: string;
   },
 ) {
   const client = db();
@@ -2037,6 +2038,9 @@ export async function recordJamesCoreSkillLineage(
   const previous = current?.last_evidence && typeof current.last_evidence === "object"
     ? current.last_evidence as Record<string, unknown>
     : {};
+  if (evidence.sourceEventKey && previous.sourceEventKey === evidence.sourceEventKey) {
+    return previous.current || null;
+  }
 
   const lineage = {
     source: evidence.source,
@@ -2048,6 +2052,7 @@ export async function recordJamesCoreSkillLineage(
     previousConfidence: evidence.previousConfidence ?? null,
     newConfidence: evidence.newConfidence ?? null,
     reason: evidence.reason || null,
+    sourceEventKey: evidence.sourceEventKey || null,
     recordedAt: new Date().toISOString(),
     previousEvidence: previous,
   };
@@ -2081,6 +2086,7 @@ export async function recordJamesKnowledgeContradiction(input: {
   previousContext?: string | null;
   observedContext?: string | null;
   resolution: string;
+  sourceEventKey?: string;
 }) {
   const client = db();
   if (!client || !input.capabilityKey.startsWith("fun-zone-core:")) return null;
@@ -2089,11 +2095,26 @@ export async function recordJamesKnowledgeContradiction(input: {
   const strategy = "Preserve contradiction history and require contextual evidence before resolving conflicting knowledge.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence,capabilities")
+    .select("id,success_count,failure_count,confidence,capabilities,last_evidence")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
+
+  const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+    ? existing.last_evidence as Record<string, unknown>
+    : {};
+  if (input.sourceEventKey && priorEvidence.sourceEventKey === input.sourceEventKey) {
+    return {
+      pattern,
+      contradictionMagnitude: Number(Math.abs(input.observedQuality - input.previousQuality).toFixed(3)),
+      previousContext: input.previousContext || null,
+      observedContext: input.observedContext || null,
+      resolution: input.resolution,
+      confidence: Number(existing?.confidence || 0.1),
+      duplicate: true,
+    };
+  }
 
   const contradictionMagnitude = Math.abs(input.observedQuality - input.previousQuality);
   const successCount = Number(existing?.success_count || 0);
@@ -2112,6 +2133,11 @@ export async function recordJamesKnowledgeContradiction(input: {
       "fun-zone-knowledge-arbitration",
       "fun-zone-contradiction-memory",
     ],
+    last_evidence: {
+      ...priorEvidence,
+      sourceEventKey: input.sourceEventKey || null,
+      contradictionMagnitude: Number(contradictionMagnitude.toFixed(3)),
+    },
     status: "active",
   };
 
