@@ -3558,6 +3558,7 @@ export async function evaluateJamesExploreExploitImpact(
   experimentPrompt: string | null | undefined,
   blueprint: GameBlueprint,
   report: TestReport,
+  sourceEventKey?: string,
 ) {
   const client = db();
   if (!client || typeof experimentPrompt !== "string") return null;
@@ -3605,11 +3606,29 @@ export async function evaluateJamesExploreExploitImpact(
   const strategy = "Use " + mode + " mode when its measured experiment quality improves over the comparable prior strategy.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count")
+    .select("id,success_count,failure_count,last_evidence")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", strategyPattern)
     .eq("strategy", strategy)
     .maybeSingle();
+
+  const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+    ? existing.last_evidence as Record<string, unknown>
+    : {};
+  if (sourceEventKey && priorEvidence.sourceEventKey === sourceEventKey) {
+    const priorTotal = Number(existing?.success_count || 0) + Number(existing?.failure_count || 0);
+    return {
+      mode,
+      evaluated: true,
+      currentQuality,
+      baselineQuality,
+      improvement,
+      better,
+      successRate: Number((priorTotal ? Number(existing?.success_count || 0) / priorTotal : 0).toFixed(3)),
+      confidence: 0,
+      duplicate: true,
+    };
+  }
 
   const successCount = Number(existing?.success_count || 0) + (better ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (better ? 0 : 1);
@@ -3626,6 +3645,15 @@ export async function evaluateJamesExploreExploitImpact(
     failure_count: failureCount,
     capabilities: ["fun-zone-strategy-selection"],
     status,
+    last_evidence: {
+      source: "learning-mode",
+      sourceEventKey: sourceEventKey || null,
+      mode,
+      better,
+      improvement,
+      baselineQuality,
+      currentQuality,
+    },
   };
 
   if (existing?.id) await client.from("james_experiences").update(memory).eq("id", existing.id);
