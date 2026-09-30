@@ -117,14 +117,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Experiment verification state changed before persistence." }, { status: 409 });
     }
 
-    // Feed autonomous strategy-revalidation experiments back into the strategy loop.
-    // The strategy/job identifiers are carried in learning_result by the sandbox bridge.
+    // Feed strategy-aware experiments back into the strategy loop.
+    // Revalidation jobs carry both strategyId and revalidationJobId; newly
+    // synthesized candidates only need strategyId to receive fresh evidence.
     const strategyMeta = (experiment.learning_result && typeof experiment.learning_result === "object")
       ? experiment.learning_result as Record<string, unknown>
       : {};
     const strategyId = typeof strategyMeta.strategyId === "string" ? strategyMeta.strategyId : "";
     const revalidationJobId = typeof strategyMeta.revalidationJobId === "string" ? strategyMeta.revalidationJobId : "";
-    if (strategyId && revalidationJobId) {
+    if (strategyId) {
       const hardFailures = Array.isArray(report.hardFailures) ? report.hardFailures : [];
       const softWarnings = Array.isArray(report.softWarnings) ? report.softWarnings : [];
       const quality = Math.max(0, Math.min(1,
@@ -161,10 +162,12 @@ export async function POST(request: Request) {
         // The bridge is fail-open so evidence recording is not blocked if the
         // lifecycle migration has not reached this deployment yet.
         await reconcileJamesMetaStrategyLifecycle(strategyId);
-        await client.from("james_meta_strategy_revalidation_queue")
-          .update({ status: "completed", completed_at: new Date().toISOString(), evidence })
-          .eq("id", revalidationJobId)
-          .eq("status", "running");
+        if (revalidationJobId) {
+          await client.from("james_meta_strategy_revalidation_queue")
+            .update({ status: "completed", completed_at: new Date().toISOString(), evidence })
+            .eq("id", revalidationJobId)
+            .eq("status", "running");
+        }
       }
     }
 
