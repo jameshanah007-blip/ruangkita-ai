@@ -1345,6 +1345,10 @@ export async function evaluateJamesMutationOutcome(
       })
     : null;
 
+  if (directive.winner?.strategy && !lineage) {
+    throw new Error("Strategy lineage could not be persisted; mutation outcome must be retried.");
+  }
+
   return {
     action,
     outcome,
