@@ -603,6 +603,7 @@ export default function FunZonePage() {
     }
 
     setError("");
+    setPrompt("");
     setBlueprint(null);
     setGameHtml("");
     setTitle("");
@@ -917,6 +918,7 @@ const handleSandboxGameHtmlChange =
 
 
   function createAnotherGame() {
+    setPrompt("");
     setExperimentId(null);
     setExperimentClaimToken(null);
     setStage(
@@ -1017,184 +1019,38 @@ const handleSandboxError =
       <section className="mx-auto max-w-7xl px-6 py-10 md:py-16">
 
         {stage === "idle" && (
-          <>
-            <div className="mx-auto max-w-4xl text-center">
-
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.25em] text-cyan-400">
-
-                <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-400" />
-
+          <div className="mx-auto max-w-4xl pt-8 md:pt-16">
+            <div className="text-center">
+              <div className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.25em] text-cyan-400">
                 AI GAME LABORATORY
-
-              </div>
-
-              <h1 className="mt-6 text-4xl font-black tracking-tight md:text-6xl">
-
-                Describe a game.
-
-                <br />
-
-                <span className="text-cyan-400">
-                  AI builds it.
-                </span>
-
-              </h1>
-
-              <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-400">
-                Ceritakan game yang ada
-                di pikiranmu. James akan
-                memahami ide tersebut,
-                membuat blueprint secara mandiri,
-                mengompilasi game, menguji,
-                dan terus memperbaikinya.
-              </p>
-
-            </div>
-
-            <div className="mx-auto mt-10 max-w-4xl">
-              <div className="rounded-3xl border border-cyan-400/15 bg-cyan-400/[0.035] p-6 text-center md:p-8">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-2xl">✦</div>
-                <h2 className="mt-5 text-2xl font-black md:text-3xl">Bicara langsung dengan James</h2>
-                <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-400">
-                  Tidak ada daftar genre yang harus kamu pilih. Tulis saja game yang kamu bayangkan,
-                  bahkan jika idenya belum lengkap. James akan memahami maksudmu, menentukan desain game,
-                  memilih mekanik yang sesuai, lalu membangunnya dengan James Autonomous Brain. Provider AI hanya menjadi peningkat opsional, bukan ketergantungan.
-                </p>
               </div>
             </div>
 
-            <div className="mx-auto mt-12 max-w-4xl">
+            <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-cyan-950/20 md:p-6">
+              <textarea
+                id="game-prompt"
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                maxLength={3000}
+                rows={8}
+                autoFocus
+                placeholder="Ceritakan game yang ingin kamu buat..."
+                aria-label="Permintaan pembuatan game"
+                className="w-full resize-none rounded-2xl border border-white/10 bg-slate-950/70 px-5 py-4 text-base leading-7 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
+              />
 
-              <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-cyan-950/20 md:p-6">
-
-                {savedLabSession && savedGameHtml && (
-                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-cyan-400">Game terakhir tersimpan</p>
-                      <p className="mt-1 text-sm text-slate-400">{savedLabSession.artifact?.title || savedLabSession.blueprint?.title || "AI Game"}</p>
-                    </div>
-                    <button type="button" onClick={resumeSavedGame} className="rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-400/20">Lanjutkan</button>
-                  </div>
-                )}
-
-                <label
-                  htmlFor="game-prompt"
-                  className="mb-3 block text-sm font-semibold text-slate-300"
-                >
-                  Ceritakan game yang
-                  ingin kamu buat
-                </label>
-
-                <textarea
-                  id="game-prompt"
-                  value={prompt}
-                  onChange={(event) =>
-                    setPrompt(
-                      event.target.value
-                    )
-                  }
-                  maxLength={3000}
-                  rows={6}
-                  placeholder="Ceritakan game yang ada di pikiranmu. Contoh: Aku ingin game tentang penyelamatan di laut saat badai, dengan kapal yang harus mencari korban dan kembali ke pelabuhan. Kamu boleh menulis ide sederhana atau sangat detail."
-                  className="w-full resize-none rounded-2xl border border-white/10 bg-slate-950/70 px-5 py-4 text-base leading-7 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
-                />
-
-                <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
-
-                  <span>
-                    Bebas. Tulis dengan bahasamu sendiri. James akan menentukan genre, mekanik, kontrol, dunia, objective, dan cara terbaik untuk membangunnya.
-                  </span>
-
-                  <span>
-                    {prompt.length}/3000
-                  </span>
-
-                </div>
-
-                {error && (
-                  <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-400/5 p-4 text-sm leading-6 text-red-200">
-                    {error}
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    void buildGame();
-                  }}
-                  disabled={
-                    isGenerating ||
-                    !prompt.trim()
-                  }
-                  className="mt-6 w-full rounded-2xl bg-cyan-500 px-6 py-4 text-base font-black text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {isGenerating
-                    ? "AI LABORATORY IS WORKING..."
-                    : "✓ BUILD MY GAME"}
-                </button>
-
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  void buildGame();
+                }}
+                disabled={isGenerating || !prompt.trim()}
+                className="mt-4 w-full rounded-2xl bg-cyan-500 px-6 py-4 text-base font-black text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {isGenerating ? "BUILDING..." : "BUILD MY GAME"}
+              </button>
             </div>
-
-            <div className="mx-auto mt-8 grid max-w-4xl gap-3 sm:grid-cols-3">
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-
-                <div className="text-2xl">
-                  🧠
-                </div>
-
-                <h3 className="mt-3 font-bold">
-                  AI Director
-                </h3>
-
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  Memahami prompt bebas
-                  dan membuat Game
-                  Blueprint.
-                </p>
-
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-
-                <div className="text-2xl">
-                  🛠️
-                </div>
-
-                <h3 className="mt-3 font-bold">
-                  AI Builder
-                </h3>
-
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  Mengubah blueprint menjadi dunia,
-                  mekanik, aturan, visual, dan
-                  game playable tanpa provider.
-                </p>
-
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-
-                <div className="text-2xl">
-                  🧪
-                </div>
-
-                <h3 className="mt-3 font-bold">
-                  AI Test Lab
-                </h3>
-
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  Menjalankan game
-                  dalam isolated
-                  runtime dan
-                  melakukan testing.
-                </p>
-
-              </div>
-
-            </div>
-          </>
+          </div>
         )}
 
         {showLaboratory && (
