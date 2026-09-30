@@ -171,16 +171,26 @@ export async function recordJamesGameBrainEvidence(
   if (sourceEventKey) {
     const { data: priorEvaluation } = await client
       .from("james_self_evaluations")
-      .select("id, outcome, quality_score, created_at, evidence")
+      .select("id, outcome, quality_score, created_at, strengths, weaknesses, evidence")
       .eq("evidence->>source_event_key", sourceEventKey)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (priorEvaluation?.id) {
+      const priorEvidence = priorEvaluation.evidence && typeof priorEvaluation.evidence === "object"
+        ? priorEvaluation.evidence as Record<string, unknown>
+        : {};
       return {
-        selfEvaluationId: priorEvaluation.id,
         outcome: priorEvaluation.outcome,
         quality: Number(priorEvaluation.quality_score || 0),
+        capabilities: Array.isArray(priorEvaluation.strengths) ? priorEvaluation.strengths : [],
+        failedCapabilities: Array.isArray(priorEvaluation.weaknesses) ? priorEvaluation.weaknesses : [],
+        selfEvaluationId: priorEvaluation.id,
+        consolidationEvidence: null,
+        transferEvidence: null,
+        crossContextTested: false,
+        adaptationPlan: [],
+        strategyComparison: priorEvidence.strategy_comparison || null,
         duplicate: true,
       };
     }
