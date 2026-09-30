@@ -3648,6 +3648,7 @@ export async function promoteJamesExplorationResult(
   experimentPrompt: string | null | undefined,
   blueprint: GameBlueprint,
   report: TestReport,
+  sourceEventKey?: string,
 ) {
   const client = db();
   if (!client || typeof experimentPrompt !== "string" || !experimentPrompt.includes("Exploration directive:")) {
@@ -3662,11 +3663,24 @@ export async function promoteJamesExplorationResult(
   const strategy = "Exploration strategy: test novel mechanic set " + mechanics + " and promote it only when runtime evidence passes.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence")
+    .select("id,success_count,failure_count,confidence,last_evidence")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
+
+  const priorEvidence = existing?.last_evidence && typeof existing.last_evidence === "object"
+    ? existing.last_evidence as Record<string, unknown>
+    : {};
+  if (sourceEventKey && priorEvidence.sourceEventKey === sourceEventKey) {
+    return {
+      explored: true,
+      promoted: report.passed,
+      successRate: Number((Number(existing?.success_count || 0) / Math.max(1, Number(existing?.success_count || 0) + Number(existing?.failure_count || 0))).toFixed(3)),
+      confidence: Number(existing?.confidence || 0),
+      duplicate: true,
+    };
+  }
 
   const successCount = Number(existing?.success_count || 0) + (report.passed ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (report.passed ? 0 : 1);
@@ -3684,6 +3698,12 @@ export async function promoteJamesExplorationResult(
     failure_count: failureCount,
     capabilities: blueprint.mechanics.slice(0, 6).map((mechanic) => "fun-zone-mechanic:" + mechanic),
     status,
+    last_evidence: {
+      source: "exploration-promotion",
+      sourceEventKey: sourceEventKey || null,
+      passed: report.passed === true,
+      mechanics,
+    },
   };
 
   const result = existing?.id
