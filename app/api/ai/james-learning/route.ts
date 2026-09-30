@@ -37,6 +37,7 @@ export async function POST(request: Request) {
     const capabilities = await refreshJamesProviderCapabilities();
     const goals = await getJamesGoals(undefined, 12);
     const globalCandidates = await getGlobalCandidates(12);
+    const learningPriorities = await rankJamesLearningPriorities(5);
 
     const prompt = `
 James sedang menjalankan sesi pengembangan mandiri terjadwal.
