@@ -135,6 +135,55 @@ export async function POST(request: Request) {
       const sourceEventKey = revalidationJobId
         ? "strategy-revalidation:" + revalidationJobId + ":experiment:" + experimentId + ":attempt:" + attempt
         : "strategy-experiment:" + strategyId + ":experiment:" + experimentId + ":attempt:" + attempt;
+
+      // Resolve the retired parent from the candidate's immutable source lineage.
+      // This makes candidate-vs-parent comparison causal instead of relying on
+      // the nearest historical game fingerprint.
+      let parentStrategyId: string | null = null;
+      let parentQuality: number | null = null;
+      let parentEvidenceCount = 0;
+      if (strategyMeta.strategySelectionSource === "retired-strategy-synthesis") {
+        const { data: candidateRow } = await client
+          .from("james_meta_strategy_synthesis")
+          .select("source_patterns")
+          .eq("id", strategyId)
+          .maybeSingle();
+        const patterns = Array.isArray(candidateRow?.source_patterns)
+          ? candidateRow.source_patterns.filter((value): value is string => typeof value === "string")
+          : [];
+        const retiredPattern = patterns.find((value) => value.startsWith("retired:"));
+        parentStrategyId = retiredPattern ? retiredPattern.slice("retired:".length) : null;
+
+        if (parentStrategyId) {
+          const { data: parentTrials } = await client
+            .from("james_meta_strategy_trials")
+            .select("quality,outcome,created_at")
+            .eq("strategy_id", parentStrategyId)
+            .order("created_at", { ascending: false })
+            .limit(20);
+          parentEvidenceCount = parentTrials?.length || 0;
+          if (parentEvidenceCount) {
+            parentQuality = Number((
+              parentTrials!.reduce((sum, trial) => sum + Number(trial.quality || 0), 0) /
+              parentEvidenceCount
+            ).toFixed(4));
+          }
+        }
+      }
+
+      const candidateImprovement = parentQuality === null
+        ? null
+        : Number((quality - parentQuality).toFixed(4));
+      const strategyComparison = {
+        comparisonType: parentStrategyId ? "retired-parent-vs-new-candidate" : "candidate-only",
+        parentStrategyId,
+        parentQuality,
+        parentEvidenceCount,
+        candidateStrategyId: strategyId,
+        candidateQuality: quality,
+        improvement: candidateImprovement,
+        improved: candidateImprovement === null ? null : candidateImprovement > 0,
+      };
       const evidence = {
         source: "fun-zone-post-verification-callback",
         sourceEventKey,
@@ -153,6 +202,7 @@ export async function POST(request: Request) {
         baselineValidatedStrategyId: typeof strategyMeta.baselineValidatedStrategyId === "string"
           ? strategyMeta.baselineValidatedStrategyId
           : null,
+        strategyComparison,
         // The sandbox report is the fresh outcome attached to this exact
         // strategy identity. Keep the observable checks with the evidence so
         // lifecycle decisions can be audited without reconstructing the run.
