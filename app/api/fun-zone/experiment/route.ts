@@ -82,10 +82,18 @@ export async function POST(request: Request) {
       if (result.experimentId) {
         const client = db();
         if (client) {
+          const existingLearning = result.plan?.synthesizedRetiredStrategy?.strategyId
+            ? { strategyId: result.plan.synthesizedRetiredStrategy.strategyId, strategyKey: result.plan.synthesizedRetiredStrategy.strategyKey, strategySelectionSource: "retired-strategy-synthesis" }
+            : {};
           await client.from("james_game_experiments").update({
             blueprint: result.blueprint,
             game_html: result.gameHtml,
             status: "pending_verification",
+            learning_result: {
+              ...existingLearning,
+              diversity: mutated.diversity,
+              mutationAction: mutationDirective.action,
+            },
           }).eq("id", result.experimentId);
         }
       }
