@@ -15,7 +15,10 @@
     {
       "path": "/api/fun-zone/experiment/watchdog",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/ai/james-learning-worker",
+      "schedule": "30 3 * * *"
     }
   ]
 }
-
