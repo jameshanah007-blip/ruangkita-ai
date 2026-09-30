@@ -221,7 +221,7 @@ export async function POST(request: Request) {
 
     const generalizedSkills = knowledgeStage.skills_completed && knowledgeStage.skills_result
       ? knowledgeStage.skills_result
-      : await promoteJamesGeneralizedGameSkills(8);
+      : await promoteJamesGeneralizedGameSkills(8, `generalized-skills:${experimentId}:${attempt}`);
     if (!knowledgeStage.skills_completed) {
       const { error } = await client.from("james_experiment_verification_ledger").update({
         skills_completed: true, skills_result: generalizedSkills, stage: "knowledge_started", updated_at: new Date().toISOString()
