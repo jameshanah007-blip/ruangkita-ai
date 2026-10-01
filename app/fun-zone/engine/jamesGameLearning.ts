@@ -553,32 +553,35 @@ export async function recordJamesGameBrainEvidence(
 
   const existing = await client
     .from("james_experiences")
-    .select("id, success_count, failure_count, confidence, capabilities")
+    .select("id, success_count, failure_count, confidence, capabilities, last_source_event_key")
     .eq("pattern", pattern)
     .eq("status", "active")
     .maybeSingle();
 
   if (existing.data?.id) {
-    const oldSuccess = Number(existing.data.success_count || 0);
-    const oldFailure = Number(existing.data.failure_count || 0);
-    const successCount = oldSuccess + (passed ? 1 : 0);
-    const failureCount = oldFailure + (passed ? 0 : 1);
-    const total = successCount + failureCount;
-    const confidence = Math.max(0.05, Math.min(0.99, total ? successCount / total : quality));
+    if (existing.data.last_source_event_key !== eventKey) {
+      const oldSuccess = Number(existing.data.success_count || 0);
+      const oldFailure = Number(existing.data.failure_count || 0);
+      const successCount = oldSuccess + (passed ? 1 : 0);
+      const failureCount = oldFailure + (passed ? 0 : 1);
+      const total = successCount + failureCount;
+      const confidence = Math.max(0.05, Math.min(0.99, total ? successCount / total : quality));
 
-    await client
-      .from("james_experiences")
-      .update({
-        success_count: successCount,
-        failure_count: failureCount,
-        confidence,
-        capabilities: [...new Set([
-          ...(Array.isArray(existing.data.capabilities) ? existing.data.capabilities : []),
-          ...capabilities,
-        ])].slice(0, 12),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", existing.data.id);
+      await client
+        .from("james_experiences")
+        .update({
+          success_count: successCount,
+          failure_count: failureCount,
+          confidence,
+          capabilities: [...new Set([
+            ...(Array.isArray(existing.data.capabilities) ? existing.data.capabilities : []),
+            ...capabilities,
+          ])].slice(0, 12),
+          last_source_event_key: eventKey,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.data.id);
+    }
   } else {
     const inserted = await client
       .from("james_experiences")
@@ -593,6 +596,7 @@ export async function recordJamesGameBrainEvidence(
         failure_count: passed ? 0 : 1,
         confidence: quality,
         status: "active",
+        last_source_event_key: eventKey,
       })
       .select("id")
       .maybeSingle();
