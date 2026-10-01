@@ -66,7 +66,18 @@ export async function POST(request: Request) {
           p_strategy_id: claimedStrategyId,
         });
         if (integrityError) throw new Error("Strategy integrity verification failed: " + integrityError.message);
-        if (!integrity?.ok) throw new Error("Strategy integrity mismatch: execution does not match the attributed strategy.");
+        if (!integrity?.ok) {
+          await client.rpc("record_james_strategy_integrity_conflict", {
+            p_strategy_id: claimedStrategyId,
+            p_experiment_id: claimed.id,
+            p_attempt: Number(claimed.attempt || 0),
+            p_expected_fingerprint: typeof integrity?.expectedFingerprint === "string" ? integrity.expectedFingerprint : "",
+            p_selected_fingerprint: typeof integrity?.selectedFingerprint === "string" ? integrity.selectedFingerprint : "",
+            p_executed_fingerprint: typeof integrity?.executedFingerprint === "string" ? integrity.executedFingerprint : "",
+            p_verified_fingerprint: typeof integrity?.verifiedFingerprint === "string" ? integrity.verifiedFingerprint : "",
+          });
+          throw new Error("Strategy integrity mismatch: execution does not match the attributed strategy.");
+        }
       }
       return NextResponse.json({
         success: true, claimed: true, status: "running", experimentId: claimed.id,
