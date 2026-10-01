@@ -114,7 +114,7 @@ begin
         else '[]'::jsonb
       end,
       v_status,
-      p_event_key,
+      v_event_key,
       coalesce(p_last_evidence, '{}'::jsonb)
     )
     returning id into v_existing.id;
