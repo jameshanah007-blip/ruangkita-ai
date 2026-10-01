@@ -227,7 +227,7 @@ export async function POST(request: Request) {
           newCompetence: conflict.competence,
           newConfidence: conflict.confidence,
           reason: conflict.conflict ? "Conflicting evidence detected." : "Evidence reinforced generalized skill.",
-        });
+        }, learningEventKey);
       }
     }
     const verified = report.passed === true;
