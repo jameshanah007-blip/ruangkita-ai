@@ -1609,7 +1609,7 @@ export async function getJamesKnowledgeVersions(limit = 12) {
   });
 }
 
-export async function versionJamesConsolidatedKnowledge(limit = 8) {
+export async function versionJamesConsolidatedKnowledge(limit = 8, learningEventKey?: string) {
   const client = db();
   if (!client) return [];
 
@@ -1621,12 +1621,13 @@ export async function versionJamesConsolidatedKnowledge(limit = 8) {
     const strategy = "Knowledge version: " + item.principle;
     const { data: existing } = await client
       .from("james_experiences")
-      .select("id,success_count,failure_count,confidence,last_evidence,capabilities")
+       .select("id,success_count,failure_count,confidence,last_evidence,capabilities,last_source_event_key")
       .eq("user_id", SYSTEM_USER_ID)
       .eq("pattern", pattern)
       .eq("strategy", strategy)
       .maybeSingle();
 
+    if (learningEventKey && existing?.last_source_event_key === learningEventKey) continue;
     const previousVersion = Number(existing?.last_evidence?.version || 0);
     const version = previousVersion + 1;
     const memory = {
@@ -1638,6 +1639,7 @@ export async function versionJamesConsolidatedKnowledge(limit = 8) {
       failure_count: Number(existing?.failure_count || 0) + (item.successRate < 0.75 ? 1 : 0),
       capabilities: item.capabilities,
       status: "active",
+      ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
       last_evidence: {
         source: "knowledge-consolidation",
         version,
