@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - debug/build-check-38c44ab
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
