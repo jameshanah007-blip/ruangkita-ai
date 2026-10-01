@@ -43,7 +43,7 @@ begin
 
   if found then
     if v_existing.last_source_event_key = p_event_key then
-      return jsonb_build_object('applied', false, 'duplicate', true, 'id', v_existing.id);
+      return jsonb_build_object('applied', false, 'duplicate', true, 'id', v_existing.id, 'evidence_count', v_existing.evidence_count);
     end if;
 
     v_old_evidence := coalesce(v_existing.evidence_count, 0);
@@ -76,7 +76,7 @@ begin
            updated_at = now()
      where id = v_existing.id;
 
-    return jsonb_build_object('applied', true, 'duplicate', false, 'id', v_existing.id);
+    return jsonb_build_object('applied', true, 'duplicate', false, 'id', v_existing.id, 'evidence_count', v_next_evidence);
   end if;
 
   insert into public.james_experience_consolidations (
