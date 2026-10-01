@@ -57,10 +57,8 @@ begin
       and src.strategy = s.strategy
       and src.status <> 'retired';
 
-    -- Legacy columns are incompatible with the new RPC contract and are removed.
-    alter table public.james_meta_strategy_synthesis
-      -- Legacy synthesis columns are intentionally retained for compatibility.
-      -- The new revalidation fields are canonical for the autonomous synthesis loop.
+    -- Legacy synthesis columns remain for backward compatibility.
+    -- New fields below are the canonical revalidation/synthesis contract.
 
     alter table public.james_meta_strategy_synthesis
       alter column source_event_key set not null,
