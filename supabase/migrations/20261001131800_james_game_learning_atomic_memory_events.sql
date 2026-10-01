@@ -37,7 +37,7 @@ begin
   select *
     into v_existing
     from public.james_experiences
-   where user_id = 'system:fun-zone'
+   where user_id is null
      and pattern = p_pattern
      and strategy = p_strategy
      and status in ('active', 'blocked')
@@ -102,7 +102,7 @@ begin
       user_id, pattern, strategy, confidence, success_count, failure_count,
       capabilities, status, last_source_event_key, last_evidence
     ) values (
-      'system:fun-zone',
+      null,
       p_pattern,
       p_strategy,
       v_confidence,
