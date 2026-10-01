@@ -29,7 +29,29 @@ export function resolveJamesSocialAssociationLearning(
     .filter((item) => item.confidence >= 0.7);
 }
 
-export function rankJamesSocialAssociations(associations, userRequest) {
+export function resolveJamesSocialAssociationUsageLessons(lessons) {
+  if (!Array.isArray(lessons)) return new Map();
+
+  const decisions = new Map();
+
+  for (const lesson of lessons) {
+    if (typeof lesson !== "string") continue;
+    const text = normalize(lesson);
+
+    const useMore = text.match(/^gunakan association sosial (.+?) ketika relevan$/);
+    const useLess = text.match(/^kurangi penggunaan association sosial (.+?) ketika tidak relevan$/);
+
+    if (useMore?.[1]) {
+      decisions.set(useMore[1], "use_more");
+    } else if (useLess?.[1]) {
+      decisions.set(useLess[1], "use_less");
+    }
+  }
+
+  return decisions;
+}
+
+export function rankJamesSocialAssociations(associations, userRequest, usageLessons = []) {
   const unique = [...new Map(
     associations.map((item) => [buildJamesSocialAssociationKey(item.personName, item.relationship), item]),
   ).values()]
@@ -38,12 +60,14 @@ export function rankJamesSocialAssociations(associations, userRequest) {
 
   if (!unique.length) return [];
 
+  const usageDecisions = resolveJamesSocialAssociationUsageLessons(usageLessons);
   const request = normalize(userRequest);
   const socialSignals = /\b(halo|hai|saya|aku|nama|siapa|teman|temanku|kelas|sekelas|keluarga|saudara|kakak|adik)\b/i;
   const introductionSignal = /\b(?:saya|aku|nama saya|nama aku)\s*[:=]?\s*[a-zà-ÿ]/i;
 
   return unique
     .map((item) => {
+      const associationKey = buildJamesSocialAssociationKey(item.personName, item.relationship);
       const personMentioned = request.includes(normalize(item.personName));
       const relationshipMentioned =
         request.includes(normalize(item.relationship)) ||
@@ -56,6 +80,10 @@ export function rankJamesSocialAssociations(associations, userRequest) {
       if (relationshipMentioned) relevance += 3;
       if (conversationalSignal) relevance += 1;
       if (introduction) relevance += 1;
+
+      const usageDecision = usageDecisions.get(associationKey);
+      if (usageDecision === "use_more") relevance += 2;
+      if (usageDecision === "use_less" && !personMentioned && !relationshipMentioned) relevance -= 3;
 
       return { item, relevance };
     })
