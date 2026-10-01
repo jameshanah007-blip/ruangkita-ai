@@ -178,7 +178,7 @@ export async function processJamesStrategyRevalidationQueue(limit=3){
           "Create a NEW generic candidate strategy only if the evidence supports a useful improvement or clarification.",
           "Never resurrect or modify a retired strategy. Do not include personal data, credentials, tokens, secrets, emails, phone numbers, or verification codes.",
           "The output confidence must reflect the evidence and must be >= 0.75 to create a candidate.",
-          "Return JSON only: {\\"taskClass\\":\\"...\\",\\"strategy\\":\\"...\\",\\"capabilities\\":[],\\"confidence\\":0.0,\\"reason\\":\\"...\\"}",
+          "Return JSON only with fields: taskClass, strategy, capabilities (array), confidence (number), reason (string).",
           "DURABLE EVIDENCE:",evidenceSummary
         ].join("\n"),
         systemInstruction:"You are James Strategy Revalidation and Synthesis Engine. Evidence is authoritative; do not invent results.",
