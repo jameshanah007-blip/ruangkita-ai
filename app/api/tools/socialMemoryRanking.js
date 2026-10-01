@@ -2,9 +2,13 @@ function normalize(value) {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+export function buildJamesSocialAssociationKey(personName, relationship) {
+  return `${normalize(personName)}|${normalize(relationship)}`;
+}
+
 export function rankJamesSocialAssociations(associations, userRequest) {
   const unique = [...new Map(
-    associations.map((item) => [normalize(item.personName) + ":" + item.relationship, item]),
+    associations.map((item) => [buildJamesSocialAssociationKey(item.personName, item.relationship), item]),
   ).values()]
     .filter((item) => item.confidence >= 0.8)
     .slice(0, 5);
@@ -35,5 +39,8 @@ export function rankJamesSocialAssociations(associations, userRequest) {
     .filter(({ relevance }) => relevance > 0)
     .sort((a, b) => b.relevance - a.relevance || b.item.confidence - a.item.confidence)
     .slice(0, 3)
-    .map(({ item }) => item);
+    .map(({ item }) => ({
+      ...item,
+      associationKey: buildJamesSocialAssociationKey(item.personName, item.relationship),
+    }));
 }
