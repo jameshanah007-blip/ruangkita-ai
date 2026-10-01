@@ -493,51 +493,16 @@ export async function recordJamesGameBrainEvidence(
     console.warn("James game experience persistence failed:", experienceAggregateError.message);
   }
 
-  const existingConsolidation = await client
-    .from("james_experience_consolidations")
-    .select("id, evidence_count, confidence, capabilities, last_source_event_key")
-    .is("user_id", null)
-    .eq("merged_pattern", "fun-zone-game-brain")
-    .eq("status", "active")
-    .maybeSingle();
+  const { error: consolidationError } = await client.rpc("record_james_game_consolidation_event", {
+    p_pattern: "fun-zone-game-brain",
+    p_strategy: strategy,
+    p_capabilities: capabilities,
+    p_quality: quality,
+    p_event_key: eventKey,
+  });
 
-  const oldEvidence = Number(existingConsolidation.data?.evidence_count || 0);
-  const nextEvidence = oldEvidence + 1;
-  const nextConfidence = Math.max(
-    0.05,
-    Math.min(0.99, Number(existingConsolidation.data?.confidence || 0.5) * 0.35 + quality * 0.65),
-  );
-  const mergedCapabilities = [...new Set([
-    ...(Array.isArray(existingConsolidation.data?.capabilities) ? existingConsolidation.data.capabilities : []),
-    ...capabilities,
-  ])].slice(0, 20);
-
-  if (existingConsolidation.data?.id) {
-    if (existingConsolidation.data.last_source_event_key !== eventKey) {
-      await client
-        .from("james_experience_consolidations")
-        .update({
-          evidence_count: nextEvidence,
-          confidence: nextConfidence,
-          capabilities: mergedCapabilities,
-          merged_strategy: strategy,
-          last_source_event_key: eventKey,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existingConsolidation.data.id);
-    }
-  } else {
-    await client.from("james_experience_consolidations").insert({
-      user_id: null,
-      source_experience_ids: [],
-      merged_pattern: "fun-zone-game-brain",
-      merged_strategy: strategy,
-      capabilities: mergedCapabilities,
-      confidence: quality,
-      evidence_count: 1,
-      status: "active",
-      last_source_event_key: eventKey,
-    });
+  if (consolidationError) {
+    console.warn("James game consolidation persistence failed:", consolidationError.message);
   }
 
   const transferEvidence = transferTests
