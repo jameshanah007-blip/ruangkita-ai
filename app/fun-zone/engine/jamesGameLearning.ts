@@ -317,7 +317,7 @@ export async function recordJamesGameBrainEvidence(
     const { error: aggregateError } = await client.rpc("record_james_game_experience_event", {
       p_pattern: pattern,
       p_strategy: synthesizedStrategy,
-      p_user_id: SYSTEM_USER_ID,
+      p_user_id: null,
       p_passed: true,
       p_quality: quality,
       p_capabilities: capabilities,
