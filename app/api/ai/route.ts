@@ -437,7 +437,10 @@ Aturan:
         input.conversationId,
         input.userRequest,
         proposals,
-        recentFeedback.map((item) => item.feedback).filter(Boolean)
+        [
+          ...recentFeedback.map((item) => item.feedback).filter(Boolean),
+          input.socialMemoryContext || "",
+        ].filter(Boolean)
       );
     }
 
@@ -553,6 +556,40 @@ function mergeLearningProposals(
   const candidates = new Map<string, JamesEvolutionProposal[]>();
 
   for (const result of results) {
+    const associationItems = Array.isArray(result.data.association_learning)
+      ? result.data.association_learning
+      : [];
+
+    for (const raw of associationItems) {
+      if (!raw || typeof raw !== "object") continue;
+      const item = raw as Record<string, unknown>;
+      const associationKey = cleanReflectionText(item.association_key, 120);
+      const decision = item.decision;
+      const confidence = clampReflectionConfidence(item.confidence);
+      if (
+        !associationKey ||
+        (decision !== "use_more" && decision !== "use_less") ||
+        confidence < 0.70
+      ) continue;
+
+      const proposal: JamesEvolutionProposal = {
+        category: "lesson",
+        key: `social_association:${associationKey}`,
+        value:
+          decision === "use_more"
+            ? `gunakan association sosial ${associationKey} ketika relevan`
+            : `kurangi penggunaan association sosial ${associationKey} ketika tidak relevan`,
+        reason: cleanReflectionText(item.reason, 240),
+        confidence,
+        source_excerpt: `association_key=${associationKey}`,
+      };
+
+      const identity = `${proposal.category}:${proposal.key}`;
+      const list = candidates.get(identity) || [];
+      list.push(proposal);
+      candidates.set(identity, list);
+    }
+
     const items = Array.isArray(result.data.proposals) ? result.data.proposals : [];
 
     for (const raw of items) {
