@@ -69,10 +69,8 @@ begin
     update public.james_meta_strategy_revalidation_queue
     set priority = greatest(0, least(100, priority));
 
-    alter table public.james_meta_strategy_revalidation_queue
-      drop column if exists status,
-      drop column if exists scheduled_at,
-      drop column if exists evidence;
+    -- Keep legacy status/scheduled_at/evidence columns for backward compatibility.
+    -- The new state/input_snapshot fields are canonical for the revalidation worker.
 
     alter table public.james_meta_strategy_revalidation_queue
       add constraint james_meta_strategy_revalidation_queue_source_event_key_key
