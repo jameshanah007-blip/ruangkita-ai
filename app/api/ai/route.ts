@@ -969,6 +969,7 @@ function createJamesChatStreamResponse(input: {
   jamesKnowledgeContext: string;
   memoryAvailable: boolean;
   evolutionVersion: number;
+  socialMemoryContext?: string;
 }) {
   const encoder = new TextEncoder();
 
@@ -1020,7 +1021,7 @@ function createJamesChatStreamResponse(input: {
                 conversationId: input.conversationId,
                 userRequest: input.userRequest,
                 assistantResult: resultText,
-                socialMemoryContext,
+                socialMemoryContext: input.socialMemoryContext,
               }),
             ]);
           });
@@ -1915,6 +1916,7 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
         jamesKnowledgeContext,
         memoryAvailable: memory.available,
         evolutionVersion: growth.evolution_version,
+        socialMemoryContext,
       });
     }
 
