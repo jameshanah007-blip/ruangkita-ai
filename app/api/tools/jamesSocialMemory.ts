@@ -188,15 +188,37 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
 
   if (!unique.length) return "";
 
-  const relevant = unique.filter((item) =>
-    normalize(userRequest).includes(normalize(item.personName)) ||
-    /\b(halo|hai|saya|aku|nama|siapa|teman|kelas|keluarga)\b/i.test(userRequest)
-  );
-  const selected = relevant.length ? relevant : unique;
+  const request = normalize(userRequest);
+  const socialSignals = /\b(halo|hai|saya|aku|nama|siapa|teman|temanku|kelas|sekelas|keluarga|saudara|kakak|adik)\b/i;
+  const introductionSignal = /\b(?:saya|aku|nama saya|nama aku)\s*[:=]?\s*[a-zà-ÿ]/i;
+
+  const scored = unique
+    .map((item) => {
+      const personMentioned = request.includes(normalize(item.personName));
+      const relationshipMentioned =
+        request.includes(normalize(item.relationship)) ||
+        (item.relationship === "teman sekelas" && /\b(sekelas|satu kelas)\b/i.test(request));
+      const conversationalSignal = socialSignals.test(request);
+      const introduction = introductionSignal.test(request);
+
+      let relevance = 0;
+      if (personMentioned) relevance += 4;
+      if (relationshipMentioned) relevance += 3;
+      if (conversationalSignal) relevance += 1;
+      if (introduction) relevance += 1;
+
+      return { item, relevance };
+    })
+    .filter(({ relevance }) => relevance > 0)
+    .sort((a, b) => b.relevance - a.relevance || b.item.confidence - a.item.confidence)
+    .slice(0, 3)
+    .map(({ item }) => item);
+
+  if (!scored.length) return "";
 
   return `MEMORI SOSIAL RUANGKITA:
 James memiliki hubungan komunitas yang relevan dengan pengguna saat ini:
-${selected.map((item) => `- ${item.personName}: ${item.relationship} (confidence ${item.confidence.toFixed(2)})`).join("\n")}
+${scored.map((item) => `- ${item.personName}: ${item.relationship} (confidence ${item.confidence.toFixed(2)})`).join("\n")}
 
-Gunakan hubungan ini hanya jika benar-benar relevan dengan percakapan. Jangan mengarang hubungan baru. Jika menyebut hubungan seseorang, gunakan bahasa natural dan jangan membahas database atau mekanisme internal.`;
+Gunakan hubungan ini hanya jika benar-benar relevan dengan percakapan. Jangan mengarang hubungan baru. Jangan mengungkap informasi pribadi pengguna lain yang tidak diperlukan. Jika menyebut hubungan seseorang, gunakan bahasa natural dan jangan membahas database atau mekanisme internal.`;
 }
