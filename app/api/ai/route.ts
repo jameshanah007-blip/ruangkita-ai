@@ -1206,13 +1206,17 @@ export async function POST(request: Request) {
       });
     }
 
-    const [memory, longTermMemories, growth, globalGrowth, socialMemoryContext] = await Promise.all([
+    const [memory, longTermMemories, growth, globalGrowth] = await Promise.all([
       getJamesMemory(userId, conversationId),
       getJamesLongTermMemory(userId, 30),
       getJamesGrowth(userId),
       getGlobalGrowth(20),
-      getJamesSocialMemory(userId, userRequest),
     ]);
+    const socialMemoryContext = await getJamesSocialMemory(
+      userId,
+      userRequest,
+      growth.lessons,
+    );
     const contextResult = buildJamesContext({
       userRequest,
       ...memory,
