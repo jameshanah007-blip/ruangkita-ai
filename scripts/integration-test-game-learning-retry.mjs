@@ -11,6 +11,12 @@ const testProjectRef = process.env.TEST_SUPABASE_PROJECT_REF || "";
 const forbiddenProductionRefs = new Set([
   "mkjtgkefjlpstsdbavke",
 ]);
+if (!url || !key || !appUrl || !cronSecret || !experimentId) {
+  throw new Error(
+    "Integration test requires TEST_SUPABASE_URL, TEST_SUPABASE_SECRET_KEY, TEST_APP_URL, TEST_CRON_SECRET, and TEST_EXPERIMENT_ID.",
+  );
+}
+
 if (testProjectRef && forbiddenProductionRefs.has(testProjectRef)) {
   throw new Error("Refusing to run integration test against the RuangKita production Supabase project.");
 }
@@ -21,7 +27,7 @@ if (appUrl.includes("ruangkita-ai.vercel.app")) {
   throw new Error("Refusing to run integration test against the RuangKita production Vercel URL.");
 }
 
-if (!url || !key || !appUrl || !cronSecret || !experimentId) {
+
   throw new Error(
     "Integration test requires TEST_SUPABASE_URL, TEST_SUPABASE_SECRET_KEY, TEST_APP_URL, TEST_CRON_SECRET, and TEST_EXPERIMENT_ID.",
   );
