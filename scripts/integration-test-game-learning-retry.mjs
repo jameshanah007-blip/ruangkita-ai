@@ -28,10 +28,6 @@ if (appUrl.includes("ruangkita-ai.vercel.app")) {
 }
 
 
-  throw new Error(
-    "Integration test requires TEST_SUPABASE_URL, TEST_SUPABASE_SECRET_KEY, TEST_APP_URL, TEST_CRON_SECRET, and TEST_EXPERIMENT_ID.",
-  );
-}
 if (!Number.isInteger(attempt) || attempt < 1 || attempt >= 5) {
   throw new Error("TEST_ATTEMPT must be an integer from 1 to 4 so the first verification remains retryable.");
 }
@@ -106,6 +102,30 @@ function stable(value) {
   return JSON.stringify(value, Object.keys(value || {}).sort());
 }
 
+async function verifyConcurrently(count = 2) {
+  const requests = Array.from({ length: count }, (_, index) =>
+    fetch(appUrl.replace(/\/$/, "") + "/api/fun-zone/experiment/verify", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer " + cronSecret,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ experimentId, claimToken: "", blueprint, report }),
+    }).then(async (response) => ({
+      index,
+      status: response.status,
+      body: await response.json().catch(() => ({})),
+    })),
+  );
+
+  const results = await Promise.all(requests);
+  const unexpected = results.filter((result) => ![200, 409].includes(result.status));
+  if (unexpected.length) {
+    throw new Error("Concurrent verification produced unexpected HTTP status: " + JSON.stringify(unexpected));
+  }
+  return results;
+}
+
 async function verifyOnce(label) {
   const response = await fetch(appUrl.replace(/\/$/, "") + "/api/fun-zone/experiment/verify", {
     method: "POST",
@@ -133,6 +153,9 @@ if (before.experiment?.status !== "pending_verification") {
 await verifyOnce("first");
 const afterFirst = await snapshot();
 
+await verifyConcurrently(2);
+const afterConcurrent = await snapshot();
+
 await verifyOnce("retry");
 const afterRetry = await snapshot();
 
@@ -147,6 +170,12 @@ const countersAfterRetry = {
   experiences: afterRetry.relevantExperiences,
 };
 
+const countersAfterConcurrent = {
+  consolidationEvidence: afterConcurrent.consolidation?.evidence_count ?? null,
+  selfModel: afterConcurrent.relevantSelfModel,
+  experiences: afterConcurrent.relevantExperiences,
+};
+
 const exactEventCountsStable =
   afterFirst.reflections === afterRetry.reflections &&
   afterFirst.evaluations === afterRetry.evaluations &&
@@ -159,7 +188,8 @@ if (!exactEventCountsStable) {
   }));
 }
 
-if (stable(countersAfterFirst) !== stable(countersAfterRetry)) {
+if (stable(countersAfterFirst) !== stable(countersAfterConcurrent) ||
+    stable(countersAfterFirst) !== stable(countersAfterRetry)) {
   throw new Error("Retry changed aggregate learning state: " + JSON.stringify({
     first: countersAfterFirst,
     retry: countersAfterRetry,
