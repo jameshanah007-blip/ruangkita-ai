@@ -418,7 +418,12 @@ Aturan:
         })
       : false;
 
-    const proposals = mergeLearningProposals(parsedResults);
+    const allowedAssociationKeys = new Set(
+      [...(input.socialMemoryContext || "").matchAll(/association_key=([^\]\s]+)/g)]
+        .map((match) => match[1]?.trim())
+        .filter((value): value is string => Boolean(value))
+    );
+    const proposals = mergeLearningProposals(parsedResults, allowedAssociationKeys);
     const memories = mergeMemoryProposals(parsedResults);
     const curiosity = mergeCuriosity(parsedResults);
 
@@ -551,7 +556,8 @@ function mergeReflectionResults(
 }
 
 function mergeLearningProposals(
-  results: Array<{ provider: string; data: Record<string, unknown> }>
+  results: Array<{ provider: string; data: Record<string, unknown> }>,
+  allowedAssociationKeys: Set<string> = new Set()
 ): JamesEvolutionProposal[] {
   const candidates = new Map<string, JamesEvolutionProposal[]>();
 
@@ -568,6 +574,7 @@ function mergeLearningProposals(
       const confidence = clampReflectionConfidence(item.confidence);
       if (
         !associationKey ||
+        !allowedAssociationKeys.has(associationKey) ||
         (decision !== "use_more" && decision !== "use_less") ||
         confidence < 0.70
       ) continue;
