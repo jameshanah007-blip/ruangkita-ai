@@ -105,7 +105,6 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
     }
   }
 
-  // Direct relationships: the current user's own profile mentions another person.
   for (const identity of identities) {
     if (!identity.user_id || identity.user_id === userId) continue;
     const personName = clean(identity.memory_value, 120);
@@ -123,7 +122,6 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
     }
   }
 
-  // Reverse relationships: another RuangKita member may have described a relationship with the current user.
   if (currentPersonName) {
     const safeCurrentPersonName = safeSearchName(currentPersonName);
     if (!safeCurrentPersonName) return "";
@@ -189,7 +187,7 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
 
   return `MEMORI SOSIAL RUANGKITA:
 James memiliki hubungan komunitas yang relevan dengan pengguna saat ini:
-${scored.map((item) => `- ${item.personName}: ${item.relationship} (confidence ${item.confidence.toFixed(2)})`).join("\n")}
+${scored.map((item) => `- ${item.personName}: ${item.relationship} [association_key=${item.associationKey}] (confidence ${item.confidence.toFixed(2)})`).join("\n")}
 
 Gunakan hubungan ini hanya jika benar-benar relevan dengan percakapan. Jangan mengarang hubungan baru. Jangan mengungkap informasi pribadi pengguna lain yang tidak diperlukan. Jika menyebut hubungan seseorang, gunakan bahasa natural dan jangan membahas database atau mekanisme internal.`;
 }
