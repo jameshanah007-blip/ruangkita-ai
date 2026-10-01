@@ -1287,6 +1287,7 @@ export async function evaluateJamesMutationOutcome(
   experimentPrompt: string,
   blueprint: any,
   report: { passed?: boolean; hardFailures?: string[]; softWarnings?: string[] },
+  learningEventKey?: string,
 ) {
   const directive = await getJamesMutationDirective(String(blueprint?.world || "fun-zone"));
   const passed = report.passed === true;
@@ -1301,6 +1302,7 @@ export async function evaluateJamesMutationOutcome(
         targetContext: String(blueprint?.world || "fun-zone") + ":" + String(blueprint?.genre || "unknown"),
         mutation: action,
         outcome,
+        learningEventKey,
       })
     : null;
 
