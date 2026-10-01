@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 
-const { rankJamesSocialAssociations } = await import("../app/api/tools/socialMemoryRanking.js");
+const {
+  buildJamesSocialAssociationKey,
+  rankJamesSocialAssociations,
+} = await import("../app/api/tools/socialMemoryRanking.js");
 
 const associations = [
   {
@@ -25,6 +28,7 @@ const introduction = rankJamesSocialAssociations(
 assert.equal(introduction.length, 1);
 assert.equal(introduction[0].personName, "Nora");
 assert.equal(introduction[0].relationship, "teman sekelas");
+assert.equal(introduction[0].associationKey, "nora|teman sekelas");
 
 const explicitRelation = rankJamesSocialAssociations(
   associations,
@@ -33,6 +37,13 @@ const explicitRelation = rankJamesSocialAssociations(
 
 assert.equal(explicitRelation.length, 1);
 assert.equal(explicitRelation[0].personName, "Nora");
+assert.equal(explicitRelation[0].associationKey, "nora|teman sekelas");
+
+const normalizedKey = buildJamesSocialAssociationKey(
+  " Nora ",
+  "Teman  Sekelas ",
+);
+assert.equal(normalizedKey, "nora|teman sekelas");
 
 const unrelated = rankJamesSocialAssociations(
   associations,
