@@ -2117,18 +2117,21 @@ export function arbitrateJamesEvidence(
 export async function resolveJamesCoreSkillConflict(
   capabilityKey: string,
   observed: { competence: number; confidence: number; passed: boolean; quality: number; evidence: number },
+  learningEventKey?: string,
 ) {
   const client = db();
   if (!client || !capabilityKey.startsWith("fun-zone-core:")) return null;
 
   const { data: current, error } = await client
     .from("james_self_model")
-    .select("id,competence,confidence,evidence_count,success_count,failure_count,status,last_evidence")
+    .select("id,competence,confidence,evidence_count,success_count,failure_count,status,last_evidence,last_source_event_key")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("capability_key", capabilityKey)
     .maybeSingle();
 
   if (error || !current) return null;
+
+  if (learningEventKey && current.last_source_event_key === learningEventKey) return null;
 
   const oldCompetence = Number(current.competence || 0);
   const oldConfidence = Number(current.confidence || 0);
@@ -2202,6 +2205,7 @@ export async function resolveJamesCoreSkillConflict(
     next_learning_action: conflict
       ? "Resolve conflicting evidence with another fresh contextual experiment before increasing confidence."
       : "Continue validating this generalized skill in diverse contexts.",
+    ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
     last_evidence: {
       source: "core-skill-conflict-resolution",
       conflict,
