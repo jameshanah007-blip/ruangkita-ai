@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 const {
   buildJamesSocialAssociationKey,
   rankJamesSocialAssociations,
+  resolveJamesSocialAssociationLearning,
 } = await import("../app/api/tools/socialMemoryRanking.js");
 
 const associations = [
@@ -67,3 +68,51 @@ const lowConfidence = rankJamesSocialAssociations(
 assert.equal(lowConfidence.length, 0);
 
 console.log("Social Memory behavior tests: PASS");
+
+
+const allowedKeys = new Set(["nora|teman sekelas"]);
+const learnedLess = resolveJamesSocialAssociationLearning(
+  [
+    {
+      association_key: "nora|teman sekelas",
+      decision: "use_less",
+      confidence: 0.91,
+      reason: "Association tidak relevan pada jawaban ini.",
+    },
+    {
+      association_key: "unknown|teman",
+      decision: "use_more",
+      confidence: 0.99,
+      reason: "Tidak boleh diterima karena key tidak tersedia.",
+    },
+  ],
+  allowedKeys,
+);
+
+assert.equal(learnedLess.length, 1);
+assert.equal(learnedLess[0].associationKey, "nora|teman sekelas");
+assert.equal(learnedLess[0].decision, "use_less");
+assert.equal(learnedLess[0].confidence, 0.91);
+
+// Learning controls usage only; it does not contain or mutate the relationship fact.
+assert.equal(
+  learnedLess[0].associationKey,
+  buildJamesSocialAssociationKey("Nora", "teman sekelas"),
+);
+assert.equal(learnedLess[0].decision === "use_less", true);
+
+const belowThreshold = resolveJamesSocialAssociationLearning(
+  [
+    {
+      association_key: "nora|teman sekelas",
+      decision: "use_more",
+      confidence: 0.69,
+      reason: "Bukti belum cukup.",
+    },
+  ],
+  allowedKeys,
+);
+
+assert.equal(belowThreshold.length, 0);
+
+console.log("Social association feedback tests: PASS");
