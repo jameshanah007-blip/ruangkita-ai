@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { rankJamesSocialAssociations, type SocialMemory } from "./socialMemoryRanking";
+import { rankJamesSocialAssociations } from "./socialMemoryRanking.js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
