@@ -28,6 +28,7 @@ begin
 
   update public.james_meta_strategy_revalidation_queue q
   set state='pending',
+      attempts=0,
       updated_at=now(),
       completed_at=null,
       result_snapshot=jsonb_build_object(
