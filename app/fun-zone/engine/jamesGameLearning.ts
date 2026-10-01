@@ -313,44 +313,19 @@ export async function recordJamesGameBrainEvidence(
         capabilities.join(", "),
       1000,
     );
-    const { data: existingStrategy } = await client
-      .from("james_experiences")
-      .select("id, success_count, failure_count, confidence, last_source_event_key")
-      .eq("pattern", pattern)
-      .eq("strategy", synthesizedStrategy)
-      .maybeSingle();
 
-    const successCount = Number(existingStrategy?.success_count || 0) + 1;
-    const failureCount = Number(existingStrategy?.failure_count || 0);
-    const confidence = Math.min(
-      0.99,
-      Math.max(Number(existingStrategy?.confidence || 0.72), 0.72) +
-        Math.min(0.08, successCount * 0.02),
-    );
+    const { error: aggregateError } = await client.rpc("record_james_game_experience_event", {
+      p_pattern: pattern,
+      p_strategy: synthesizedStrategy,
+      p_user_id: SYSTEM_USER_ID,
+      p_passed: true,
+      p_quality: quality,
+      p_capabilities: capabilities,
+      p_event_key: eventKey,
+    });
 
-    const strategyPayload = {
-      user_id: SYSTEM_USER_ID,
-      pattern,
-      strategy: synthesizedStrategy,
-      confidence,
-      success_count: successCount,
-      failure_count: failureCount,
-      capabilities,
-      status: "active",
-    };
-
-    if (existingStrategy?.id) {
-      if (existingStrategy.last_source_event_key !== eventKey) {
-        await client
-          .from("james_experiences")
-          .update({ ...strategyPayload, last_source_event_key: eventKey })
-          .eq("id", existingStrategy.id);
-      }
-    } else {
-      await client.from("james_experiences").insert({
-        ...strategyPayload,
-        last_source_event_key: eventKey,
-      });
+    if (aggregateError) {
+      console.warn("James synthesized experience persistence failed:", aggregateError.message);
     }
   }
 
@@ -473,74 +448,27 @@ export async function recordJamesGameBrainEvidence(
         ? "increase-diversity-and-test"
         : "improve-and-retest";
 
-    const payload = {
-      user_id: SYSTEM_USER_ID,
-      capability_key: item.capability,
-      last_source_event_key: eventKey,
-      capability_name: capabilityNames[item.capability] || item.capability,
-      competence: nextCompetence,
-      confidence: nextConfidence,
-      evidence_count: nextEvidence,
-      success_count: successCount,
-      failure_count: failureCount,
-      teacher_providers: ["james-autonomous"],
-      active_models: ["game-brain-v2"],
-      last_evidence: {
-        source: "fun-zone",
-        attempt,
-        passed: item.passed,
-        quality,
-        weight: item.weight,
-        blueprint: currentPattern,
-        diversity_count: diversityCount,
-        transfer_tested: transferTested,
-        transfer_signal: transferSignal,
-        transfer_weight: transferWeight,
-        transfer_tests: transferTests,
-        transfer_success_rate: transferSuccessRate,
-        adaptation_directive: adaptationDirective,
-      },
-      next_learning_action: nextLearningAction,
-      status,
-    };
+    const { error: selfModelError } = await client.rpc("record_james_game_self_model_event", {
+      p_user_id: SYSTEM_USER_ID,
+      p_capability_key: item.capability,
+      p_capability_name: capabilityNames[item.capability] || item.capability,
+      p_event_key: eventKey,
+      p_passed: item.passed,
+      p_quality: quality,
+      p_weight: item.weight,
+      p_attempt: attempt,
+      p_blueprint: currentPattern,
+      p_diversity_count: diversityCount,
+      p_transfer_tested: transferTested,
+      p_transfer_signal: transferSignal,
+      p_transfer_weight: transferWeight,
+      p_transfer_tests: transferTests,
+      p_transfer_success_rate: transferSuccessRate,
+      p_adaptation_directive: adaptationDirective,
+      p_strategy_fingerprint: strategyFingerprint,
+      p_strategy_comparison: strategyComparison,
+    });
 
-    const { error: historyError } = await client
-      .from("james_capability_mastery_history")
-      .insert({
-        user_id: SYSTEM_USER_ID,
-        source_event_key: eventKey + ":" + item.capability,
-        capability_key: item.capability,
-        previous_competence: previousCompetence,
-        competence: nextCompetence,
-        previous_confidence: previousConfidence,
-        confidence: nextConfidence,
-        evidence_count: nextEvidence,
-        outcome: item.passed ? "success" : "failure",
-        source: "fun-zone",
-        evidence: {
-          attempt,
-          quality,
-          weight: item.weight,
-          blueprint: currentPattern,
-          diversity_count: diversityCount,
-          transfer_tested: transferTested,
-          transfer_signal: transferSignal,
-          transfer_weight: transferWeight,
-          prior_pattern_count: distinctPriorPatterns.length,
-          transfer_tests: transferTests,
-          transfer_success_rate: transferSuccessRate,
-          adaptation_directive: adaptationDirective,
-          strategy_fingerprint: strategyFingerprint,
-          strategy_comparison: strategyComparison,
-        },
-      });
-    if (historyError) {
-      console.warn("James mastery history persistence failed:", historyError.message);
-    }
-
-    const { error: selfModelError } = await client
-      .from("james_self_model")
-      .upsert(payload, { onConflict: "user_id,capability_key" });
     if (selfModelError) {
       console.warn("James game self-model persistence failed:", selfModelError.message);
     }
@@ -551,59 +479,18 @@ export async function recordJamesGameBrainEvidence(
     .map(([capability]) => "Adapt next game strategy for " + capability)
     .slice(0, 8);
 
-  const existing = await client
-    .from("james_experiences")
-    .select("id, success_count, failure_count, confidence, capabilities, last_source_event_key")
-    .eq("pattern", pattern)
-    .eq("status", "active")
-    .maybeSingle();
+  const { error: experienceAggregateError } = await client.rpc("record_james_game_experience_event", {
+    p_pattern: pattern,
+    p_strategy: strategy,
+    p_user_id: null,
+    p_passed: passed,
+    p_quality: quality,
+    p_capabilities: capabilities.length ? capabilities : ["fun-zone-runtime-observability"],
+    p_event_key: eventKey,
+  });
 
-  if (existing.data?.id) {
-    if (existing.data.last_source_event_key !== eventKey) {
-      const oldSuccess = Number(existing.data.success_count || 0);
-      const oldFailure = Number(existing.data.failure_count || 0);
-      const successCount = oldSuccess + (passed ? 1 : 0);
-      const failureCount = oldFailure + (passed ? 0 : 1);
-      const total = successCount + failureCount;
-      const confidence = Math.max(0.05, Math.min(0.99, total ? successCount / total : quality));
-
-      await client
-        .from("james_experiences")
-        .update({
-          success_count: successCount,
-          failure_count: failureCount,
-          confidence,
-          capabilities: [...new Set([
-            ...(Array.isArray(existing.data.capabilities) ? existing.data.capabilities : []),
-            ...capabilities,
-          ])].slice(0, 12),
-          last_source_event_key: eventKey,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existing.data.id);
-    }
-  } else {
-    const inserted = await client
-      .from("james_experiences")
-      .insert({
-        user_id: null,
-        conversation_id: null,
-        task_id: null,
-        pattern,
-        strategy,
-        capabilities: capabilities.length ? capabilities : ["fun-zone-runtime-observability"],
-        success_count: passed ? 1 : 0,
-        failure_count: passed ? 0 : 1,
-        confidence: quality,
-        status: "active",
-        last_source_event_key: eventKey,
-      })
-      .select("id")
-      .maybeSingle();
-
-    if (inserted.error) {
-      console.warn("James game experience persistence failed:", inserted.error.message);
-    }
+  if (experienceAggregateError) {
+    console.warn("James game experience persistence failed:", experienceAggregateError.message);
   }
 
   const existingConsolidation = await client
