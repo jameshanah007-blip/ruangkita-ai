@@ -44,6 +44,17 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
   const supabase = getSupabase();
   if (!supabase || !userId || !userRequest.trim()) return "";
 
+  const { data: ownIdentity } = await supabase
+    .from("james_memories")
+    .select("memory_value, confidence")
+    .eq("user_id", userId)
+    .eq("memory_type", "identity")
+    .eq("status", "active")
+    .order("confidence", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const currentPersonName = clean(ownIdentity?.memory_value, 120);
   const { data: ownRelationships, error: relationshipError } = await supabase
     .from("james_memories")
     .select("memory_key, memory_value, confidence, source_excerpt")
@@ -53,13 +64,12 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
     .order("confidence", { ascending: false })
     .limit(20);
 
-  if (relationshipError || !ownRelationships?.length) return "";
+  if (relationshipError) return "";
 
   const relationshipText = ownRelationships
     .map((item) => `${item.memory_key || ""} ${item.memory_value || ""} ${item.source_excerpt || ""}`)
     .join(" ");
   const names = extractNames(relationshipText);
-  if (!names.length) return "";
 
   const { data: identities, error: identityError } = await supabase
     .from("james_memories")
@@ -72,6 +82,18 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
   if (identityError || !identities?.length) return "";
 
   const associations: SocialMemory[] = [];
+  const identityByUser = new Map<string, { name: string; confidence: number }>();
+  for (const identity of identities) {
+    const name = clean(identity.memory_value, 120);
+    if (identity.user_id && name) {
+      identityByUser.set(identity.user_id, {
+        name,
+        confidence: Number(identity.confidence) || 0,
+      });
+    }
+  }
+
+  // Direct relationships: the current user's own profile mentions another person.
   for (const identity of identities) {
     if (!identity.user_id || identity.user_id === userId) continue;
     const personName = clean(identity.memory_value, 120);
@@ -79,11 +101,38 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
 
     for (const relationship of ownRelationships) {
       const combined = `${relationship.memory_key || ""} ${relationship.memory_value || ""} ${relationship.source_excerpt || ""}`;
-      if (!names.some((name) => normalize(combined).includes(normalize(name)) && normalize(name) === normalize(personName))) continue;
+      if (!normalize(combined).includes(normalize(personName))) continue;
       associations.push({
         personName,
         relationship: relationshipLabel(relationship.memory_key || "", relationship.memory_value || ""),
         confidence: Math.min(Number(relationship.confidence) || 0, Number(identity.confidence) || 0),
+        evidence: clean(relationship.source_excerpt || relationship.memory_value, 240),
+      });
+    }
+  }
+
+  // Reverse relationships: another RuangKita member may have described a relationship with the current user.
+  if (currentPersonName) {
+    const { data: allRelationships } = await supabase
+      .from("james_memories")
+      .select("user_id, memory_key, memory_value, confidence, source_excerpt")
+      .eq("memory_type", "relationship")
+      .eq("status", "active")
+      .order("confidence", { ascending: false })
+      .limit(1000);
+
+    for (const relationship of allRelationships || []) {
+      if (!relationship.user_id || relationship.user_id === userId) continue;
+      const combined = `${relationship.memory_key || ""} ${relationship.memory_value || ""} ${relationship.source_excerpt || ""}`;
+      if (!normalize(combined).includes(normalize(currentPersonName))) continue;
+
+      const sourcePerson = identityByUser.get(relationship.user_id);
+      if (!sourcePerson) continue;
+
+      associations.push({
+        personName: sourcePerson.name,
+        relationship: relationshipLabel(relationship.memory_key || "", relationship.memory_value || ""),
+        confidence: Math.min(Number(relationship.confidence) || 0, sourcePerson.confidence),
         evidence: clean(relationship.source_excerpt || relationship.memory_value, 240),
       });
     }
