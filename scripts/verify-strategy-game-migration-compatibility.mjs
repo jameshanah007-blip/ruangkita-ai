@@ -8,6 +8,7 @@ const migrations = [
   ["315", "supabase/migrations/20261001131500_james_game_learning_event_idempotency.sql"],
   ["316", "supabase/migrations/20261001131600_james_game_learning_atomic_aggregates.sql"],
   ["317", "supabase/migrations/20261001131700_james_game_learning_atomic_consolidation.sql"],
+  ["318", "supabase/migrations/20261001131800_james_game_learning_atomic_memory_events.sql"],
 ];
 
 const files = Object.fromEntries(migrations.map(([id, path]) => [id, fs.readFileSync(path, "utf8")]));
@@ -45,6 +46,11 @@ const required = {
   ],
   "317": [
     "record_james_game_consolidation_event",
+    "pg_advisory_xact_lock",
+    "revoke execute",
+  ],
+  "318": [
+    "record_james_game_memory_event",
     "pg_advisory_xact_lock",
     "revoke execute",
   ],
