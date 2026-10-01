@@ -195,8 +195,8 @@ export async function POST(request: Request) {
     const learningModeImpact = await evaluateJamesExploreExploitImpact(experiment.prompt, blueprint, report, learningEventKey);
     const generalizedSkills = await promoteJamesGeneralizedGameSkills(8, learningEventKey);
     const consolidatedKnowledge = await consolidateJamesGameKnowledge(8);
-    const knowledgeVersions = await versionJamesConsolidatedKnowledge(8);
-    const knowledgeSupersession = await resolveJamesKnowledgeSupersession(8);
+    const knowledgeVersions = await versionJamesConsolidatedKnowledge(8, learningEventKey);
+    const knowledgeSupersession = await resolveJamesKnowledgeSupersession(8, learningEventKey);
     const coreSkillConflicts = [];
     for (const skill of generalizedSkills || []) {
       const conflict = await resolveJamesCoreSkillConflict(skill.capabilityKey, {
