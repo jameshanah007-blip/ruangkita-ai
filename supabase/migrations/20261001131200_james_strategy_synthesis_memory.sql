@@ -59,14 +59,8 @@ begin
 
     -- Legacy columns are incompatible with the new RPC contract and are removed.
     alter table public.james_meta_strategy_synthesis
-      drop column if exists strategy_key,
-      drop column if exists strategy,
-      drop column if exists source_patterns,
-      drop column if exists evidence_count,
-      drop column if exists success_count,
-      drop column if exists failure_count,
-      drop column if exists confidence,
-      drop column if exists status;
+      -- Legacy synthesis columns are intentionally retained for compatibility.
+      -- The new revalidation fields are canonical for the autonomous synthesis loop.
 
     alter table public.james_meta_strategy_synthesis
       alter column source_event_key set not null,
