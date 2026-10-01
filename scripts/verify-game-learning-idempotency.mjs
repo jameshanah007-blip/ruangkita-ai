@@ -55,6 +55,9 @@ if (!verifyFile.includes("resolution: conflict.nextAction,\n            learning
 if (!verifyFile.includes("newConfidence: conflict.confidence,\n          reason: conflict.conflict ?")) {
   throw new Error("Core skill lineage payload is missing");
 }
+if (!verifyFile.includes('reason: conflict.conflict ? "Conflicting evidence detected." : "Evidence reinforced generalized skill.",\n        }, learningEventKey);')) {
+  throw new Error("Core skill lineage learning event key propagation is missing");
+}
 
 for (const column of [
   "james_reflections",
