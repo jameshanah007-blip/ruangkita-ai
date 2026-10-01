@@ -25,6 +25,8 @@ begin
     from public.james_meta_strategy_evidence_conflicts
    where strategy_id=p_strategy_id;
 
+  perform public.refresh_james_meta_strategy_evidence(p_strategy_id);
+
   select
     greatest(0,least(1,coalesce(trust_score,0))),
     greatest(0,least(1,coalesce(lineage_completeness,0))),
