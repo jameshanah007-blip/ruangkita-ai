@@ -40,6 +40,9 @@ jobs:
       - name: Game learning idempotency contract
         run: npm run test:idempotency
 
+      - name: Strategy/Game migration compatibility contract
+        run: npm run test:migration-compatibility
+
       - name: TypeScript
         run: npx tsc --noEmit
 
