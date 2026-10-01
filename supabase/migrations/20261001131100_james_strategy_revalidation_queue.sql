@@ -1,4 +1,106 @@
 -- James Strategy Revalidation Queue + Autonomous Synthesis Loop v1
+-- Upgrade-safe bootstrap: production may already contain the legacy queue schema.
+do $
+begin
+  if to_regclass('public.james_meta_strategy_revalidation_queue') is not null then
+    -- Remove the legacy enqueue overload before its referenced legacy columns are removed.
+    drop function if exists public.enqueue_james_meta_strategy_revalidation(integer,integer);
+
+    alter table public.james_meta_strategy_revalidation_queue
+      drop constraint if exists james_meta_strategy_revalidation_queue_strategy_id_fkey;
+
+    alter table public.james_meta_strategy_revalidation_queue
+      alter column strategy_id drop not null;
+
+    alter table public.james_meta_strategy_revalidation_queue
+      add column if not exists source_event_key text,
+      add column if not exists state text,
+      add column if not exists attempts integer,
+      add column if not exists max_attempts integer,
+      add column if not exists input_snapshot jsonb,
+      add column if not exists result_snapshot jsonb,
+      add column if not exists updated_at timestamptz;
+
+    update public.james_meta_strategy_revalidation_queue
+    set source_event_key = coalesce(source_event_key, 'legacy-revalidation:' || id::text),
+        state = case
+          when coalesce(status,'pending') in ('running','processing') then 'processing'
+          when coalesce(status,'pending') in ('completed','done') then 'completed'
+          when coalesce(status,'blocked','failed') in ('blocked','failed') then 'blocked'
+          else 'pending'
+        end,
+        attempts = coalesce(attempts, 0),
+        max_attempts = coalesce(max_attempts, 3),
+        input_snapshot = coalesce(input_snapshot, evidence, '{}'::jsonb),
+        result_snapshot = coalesce(result_snapshot, '{}'::jsonb),
+        updated_at = coalesce(updated_at, created_at, now());
+
+    -- Legacy queue IDs pointed at james_meta_strategy_synthesis. Re-link by
+    -- task_class + strategy when a corresponding canonical strategy exists.
+    update public.james_meta_strategy_revalidation_queue q
+    set strategy_id = s.id
+    from public.james_meta_strategy_synthesis old_s
+    join public.james_meta_strategies s
+      on s.task_class = old_s.task_class
+     and s.strategy = old_s.strategy
+    where q.strategy_id = old_s.id;
+
+    -- Rows that cannot be mapped safely become unscoped revalidation jobs.
+    update public.james_meta_strategy_revalidation_queue q
+    set strategy_id = null
+    where q.strategy_id is not null
+      and not exists (
+        select 1 from public.james_meta_strategies s where s.id = q.strategy_id
+      );
+
+    alter table public.james_meta_strategy_revalidation_queue
+      alter column source_event_key set not null,
+      alter column state set not null,
+      alter column attempts set not null,
+      alter column max_attempts set not null,
+      alter column input_snapshot set not null,
+      alter column result_snapshot set not null,
+      alter column updated_at set not null;
+
+    alter table public.james_meta_strategy_revalidation_queue
+      alter column priority type integer
+      using greatest(0, least(100, round(coalesce(priority,0.5) * 100)))::integer;
+
+    update public.james_meta_strategy_revalidation_queue
+    set priority = greatest(0, least(100, priority));
+
+    alter table public.james_meta_strategy_revalidation_queue
+      drop column if exists status,
+      drop column if exists scheduled_at,
+      drop column if exists evidence;
+
+    alter table public.james_meta_strategy_revalidation_queue
+      add constraint james_meta_strategy_revalidation_queue_source_event_key_key
+      unique (source_event_key);
+
+    alter table public.james_meta_strategy_revalidation_queue
+      add constraint james_meta_strategy_revalidation_queue_state_check
+      check (state in ('pending','processing','completed','blocked'));
+
+    alter table public.james_meta_strategy_revalidation_queue
+      add constraint james_meta_strategy_revalidation_queue_attempts_check
+      check (attempts >= 0);
+
+    alter table public.james_meta_strategy_revalidation_queue
+      add constraint james_meta_strategy_revalidation_queue_max_attempts_check
+      check (max_attempts between 1 and 10);
+
+    alter table public.james_meta_strategy_revalidation_queue
+      add constraint james_meta_strategy_revalidation_queue_priority_check
+      check (priority between 0 and 100);
+
+    alter table public.james_meta_strategy_revalidation_queue
+      add constraint james_meta_strategy_revalidation_queue_strategy_id_fkey
+      foreign key (strategy_id) references public.james_meta_strategies(id) on delete set null;
+  end if;
+end;
+$;
+
 create table if not exists public.james_meta_strategy_revalidation_queue (
   id uuid primary key default gen_random_uuid(),
   strategy_id uuid references public.james_meta_strategies(id) on delete set null,
