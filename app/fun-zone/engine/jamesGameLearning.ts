@@ -1321,6 +1321,7 @@ export async function recordJamesStrategyLineage(input: {
   targetContext: string;
   mutation: string;
   outcome?: "success" | "failure" | "candidate";
+  learningEventKey?: string;
 }) {
   const client = db();
   if (!client) return null;
@@ -1329,12 +1330,16 @@ export async function recordJamesStrategyLineage(input: {
   const strategy = "Parent: " + input.parentStrategy + " -> Child: " + input.childStrategy;
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence")
+     .select("id,success_count,failure_count,confidence,last_source_event_key")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
 
+  const eventKey = input.learningEventKey || null;
+  if (eventKey && existing?.last_source_event_key === eventKey) {
+    return { pattern, confidence: Number(existing.confidence || 0), successCount: Number(existing.success_count || 0), failureCount: Number(existing.failure_count || 0), duplicate: true };
+  }
   const successCount = Number(existing?.success_count || 0) + (input.outcome === "success" ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (input.outcome === "failure" ? 1 : 0);
   const total = successCount + failureCount;
@@ -1351,6 +1356,7 @@ export async function recordJamesStrategyLineage(input: {
     failure_count: failureCount,
     capabilities: ["fun-zone-strategy-lineage"],
     status: "active",
+    ...(eventKey ? { last_source_event_key: eventKey } : {}),
     last_evidence: {
       parentStrategy: input.parentStrategy,
       childStrategy: input.childStrategy,
