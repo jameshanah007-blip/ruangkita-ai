@@ -185,8 +185,9 @@ export async function POST(request: Request) {
       // the sole authority for candidate/active/retired transitions.
       await reconcileJamesMetaStrategyLifecycle(strategyId);
     }
-    const learning = await recordJamesGameTestLearning(blueprint, report, attempt);
-    const brainEvidence = await recordJamesGameBrainEvidence(blueprint, report, attempt);
+    const learningEventKey = "fun-zone:" + experimentId + ":" + attempt;
+    const learning = await recordJamesGameTestLearning(blueprint, report, attempt, learningEventKey);
+    const brainEvidence = await recordJamesGameBrainEvidence(blueprint, report, attempt, learningEventKey);
     const evolved = await evolveJamesStrategyMemory(blueprint, report);
     const mutationOutcome = await evaluateJamesMutationOutcome(experiment.prompt, blueprint, report);
     const recoveryImpact = await evaluateJamesRecoveryDirectiveImpact(experiment.prompt, blueprint, report);
