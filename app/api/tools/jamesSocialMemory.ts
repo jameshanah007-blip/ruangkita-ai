@@ -132,12 +132,39 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
       .order("confidence", { ascending: false })
       .limit(50);
 
+    const reverseUserIds = [...new Set(
+      (allRelationships || [])
+        .map((relationship) => relationship.user_id)
+        .filter((id): id is string => Boolean(id) && id !== userId)
+    )];
+
+    const { data: reverseIdentities } = reverseUserIds.length
+      ? await supabase
+          .from("james_memories")
+          .select("user_id, memory_value, confidence")
+          .eq("memory_type", "identity")
+          .eq("status", "active")
+          .in("user_id", reverseUserIds)
+          .order("confidence", { ascending: false })
+          .limit(100)
+      : { data: [] };
+
+    const reverseIdentityByUser = new Map<string, { name: string; confidence: number }>();
+    for (const identity of reverseIdentities || []) {
+      const name = clean(identity.memory_value, 120);
+      if (!identity.user_id || !name || reverseIdentityByUser.has(identity.user_id)) continue;
+      reverseIdentityByUser.set(identity.user_id, {
+        name,
+        confidence: Number(identity.confidence) || 0,
+      });
+    }
+
     for (const relationship of allRelationships || []) {
       if (!relationship.user_id || relationship.user_id === userId) continue;
       const combined = `${relationship.memory_key || ""} ${relationship.memory_value || ""} ${relationship.source_excerpt || ""}`;
       if (!normalize(combined).includes(normalize(currentPersonName))) continue;
 
-      const sourcePerson = identityByUser.get(relationship.user_id);
+      const sourcePerson = reverseIdentityByUser.get(relationship.user_id);
       if (!sourcePerson) continue;
 
       associations.push({
