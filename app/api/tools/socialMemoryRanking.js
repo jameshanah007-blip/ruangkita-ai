@@ -2,10 +2,7 @@ function normalize(value: string) {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-export function rankJamesSocialAssociations(
-  associations: SocialMemory[],
-  userRequest: string,
-): SocialMemory[] {
+export function rankJamesSocialAssociations(associations, userRequest): SocialMemory[] {
   const unique = [...new Map(
     associations.map((item) => [normalize(item.personName) + ":" + item.relationship, item]),
   ).values()]
