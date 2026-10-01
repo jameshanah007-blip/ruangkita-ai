@@ -49,8 +49,11 @@ for (const call of [
   if (!verifyFile.includes(call)) throw new Error(`Missing core-skill call: ${call}`);
 }
 
-if (!verifyFile.includes("}, learningEventKey);")) {
-  throw new Error("Core-skill learning event key propagation is missing");
+if (!verifyFile.includes("resolution: conflict.nextAction,\n            learningEventKey,")) {
+  throw new Error("Contradiction memory learning event key propagation is missing");
+}
+if (!verifyFile.includes("newConfidence: conflict.confidence,\n          reason: conflict.conflict ?")) {
+  throw new Error("Core skill lineage payload is missing");
 }
 
 for (const column of [
