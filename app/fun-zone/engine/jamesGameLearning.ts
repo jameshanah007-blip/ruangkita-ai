@@ -2889,10 +2889,19 @@ export async function evaluateJamesRecoveryDirectiveImpact(
     ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
   };
 
-  if (existing?.id) {
-    await client.from("james_experiences").update(memory).eq("id", existing.id);
-  } else {
-    await client.from("james_experiences").insert(memory);
+  const { error: memoryError } = await client.rpc("record_james_game_memory_event", {
+    p_pattern: strategyPattern,
+    p_strategy: strategy,
+    p_event_key: learningEventKey || "",
+    p_success_delta: directiveEffective ? 1 : 0,
+    p_failure_delta: directiveEffective ? 0 : 1,
+    p_capabilities: ["fun-zone-runtime-observability", "fun-zone-restart-integrity"],
+    p_last_evidence: {},
+    p_confidence_mode: "standard",
+  });
+
+  if (memoryError) {
+    console.warn("James recovery directive memory failed:", memoryError.message);
   }
 
   return {
@@ -3057,12 +3066,19 @@ export async function promoteJamesExplorationResult(
     ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
   };
 
-  const result = existing?.id
-    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
-    : await client.from("james_experiences").insert(memory);
+  const { data: memoryResult, error: memoryError } = await client.rpc("record_james_game_memory_event", {
+    p_pattern: pattern,
+    p_strategy: strategy,
+    p_event_key: learningEventKey || "",
+    p_success_delta: report.passed ? 1 : 0,
+    p_failure_delta: report.passed ? 0 : 1,
+    p_capabilities: blueprint.mechanics.slice(0, 6).map((mechanic) => "fun-zone-mechanic:" + mechanic),
+    p_last_evidence: {},
+    p_confidence_mode: "standard",
+  });
 
-  if (result.error) {
-    console.warn("James exploration promotion failed:", result.error.message);
+  if (memoryError) {
+    console.warn("James exploration promotion failed:", memoryError.message);
     return { explored: true, promoted: false, successRate };
   }
 
