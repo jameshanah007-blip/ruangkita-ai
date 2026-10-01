@@ -15,6 +15,8 @@ function db() {
   if (!url || !key) return null;
   return createClient(url, key, { auth:{autoRefreshToken:false,persistSession:false,detectSessionInUrl:false} });
 }
+type JamesSupabaseClient = NonNullable<ReturnType<typeof db>>;
+
 function clean(value: unknown,max=500){return typeof value==="string"?value.trim().slice(0,max):"";}
 function clamp(value: unknown){const n=typeof value==="number"?value:Number(value);return Number.isFinite(n)?Math.max(0,Math.min(1,n)):0;}
 function normalize(value:string){return value.toLowerCase().replace(/[^a-z0-9áéíóúàèìòùâêîôûäëïöüñ\s]/gi," ").replace(/\s+/g," ").trim();}
@@ -85,6 +87,23 @@ export async function learnJamesMetaStrategy(input:MetaInput){
 }
 
 
+
+async function completeRevalidation(
+  supabase: JamesSupabaseClient,
+  jobId: string,
+  state: "completed" | "blocked" | "pending",
+  resultSnapshot: Record<string, unknown>,
+) {
+  const { data, error } = await supabase.rpc("complete_james_meta_strategy_revalidation", {
+    p_id: jobId,
+    p_state: state,
+    p_result_snapshot: resultSnapshot,
+  });
+  if (error) throw new Error("Strategy revalidation completion failed: " + error.message);
+  if (data?.updated !== true) throw new Error("Strategy revalidation completion did not update the claimed job.");
+  return data;
+}
+
 export async function processJamesStrategyRevalidationQueue(limit=3){
   const supabase=db();
   if(!supabase) return {status:"skipped",reason:"Supabase secret configuration is missing.",processed:0,completed:0,blocked:0};
@@ -101,10 +120,7 @@ export async function processJamesStrategyRevalidationQueue(limit=3){
   for(const job of jobs||[]){
     try{
       if(!job.strategy_id){
-        await supabase.rpc("complete_james_meta_strategy_revalidation",{
-          p_id:job.id,p_state:"blocked",
-          p_result_snapshot:{reason:"creation_revalidation_requires_verified_evidence",sourceEventKey:job.source_event_key}
-        });
+        await completeRevalidation(supabase, job.id, "blocked", { reason: "creation_revalidation_requires_verified_evidence", sourceEventKey: job.source_event_key });
         blocked++;
         results.push({id:job.id,state:"blocked",reason:"creation_revalidation_requires_verified_evidence"});
         continue;
@@ -118,16 +134,12 @@ export async function processJamesStrategyRevalidationQueue(limit=3){
 
       if(strategyError) throw new Error("Strategy lookup failed: "+strategyError.message);
       if(!strategy){
-        await supabase.rpc("complete_james_meta_strategy_revalidation",{
-          p_id:job.id,p_state:"blocked",p_result_snapshot:{reason:"strategy_not_found"}
-        });
+        await completeRevalidation(supabase, job.id, "blocked", { reason: "strategy_not_found" });
         blocked++;
         continue;
       }
       if(strategy.status==="retired"){
-        await supabase.rpc("complete_james_meta_strategy_revalidation",{
-          p_id:job.id,p_state:"blocked",p_result_snapshot:{reason:"retired_strategy_is_immutable"}
-        });
+        await completeRevalidation(supabase, job.id, "blocked", { reason: "retired_strategy_is_immutable" });
         blocked++;
         continue;
       }
@@ -149,10 +161,7 @@ export async function processJamesStrategyRevalidationQueue(limit=3){
       if(!evidence || openConflicts>0 || trust<.60 || samples<2){
         const reason=!evidence?"evidence_not_available":openConflicts>0?"open_evidence_conflict":trust<.60?"insufficient_evidence_trust":"insufficient_revalidation_samples";
         const exhausted=Number(job.attempts||0)>=Number(job.max_attempts||3);
-        await supabase.rpc("complete_james_meta_strategy_revalidation",{
-          p_id:job.id,p_state:exhausted?"blocked":"pending",
-          p_result_snapshot:{reason,trustScore:trust,openConflictCount:openConflicts,evidenceCount:samples,retryable:!exhausted}
-        });
+        await completeRevalidation(supabase, job.id, exhausted ? "blocked" : "pending", { reason, trustScore: trust, openConflictCount: openConflicts, evidenceCount: samples, retryable: !exhausted });
         if(exhausted) blocked++;
         results.push({id:job.id,state:exhausted?"blocked":"pending",reason,trustScore:trust,openConflictCount:openConflicts,evidenceCount:samples});
         continue;
@@ -198,10 +207,7 @@ export async function processJamesStrategyRevalidationQueue(limit=3){
         : (Array.isArray(strategy.capabilities)?strategy.capabilities.slice(0,8):[]);
 
       if(!taskClass||!candidateStrategy||candidateConfidence<.75){
-        await supabase.rpc("complete_james_meta_strategy_revalidation",{
-          p_id:job.id,p_state:"blocked",
-          p_result_snapshot:{reason:"synthesis_below_creation_threshold",confidence:candidateConfidence}
-        });
+        await completeRevalidation(supabase, job.id, "blocked", { reason: "synthesis_below_creation_threshold", confidence: candidateConfidence });
         blocked++;
         continue;
       }
@@ -212,10 +218,7 @@ export async function processJamesStrategyRevalidationQueue(limit=3){
       });
       if(creationGuardError) throw new Error("Revalidation creation guard failed: "+creationGuardError.message);
       if(creationGuard?.allowed!==true){
-        await supabase.rpc("complete_james_meta_strategy_revalidation",{
-          p_id:job.id,p_state:"blocked",
-          p_result_snapshot:{reason:creationGuard?.reason||"creation_guard_blocked",decision:creationGuard?.decision||null}
-        });
+        await completeRevalidation(supabase, job.id, "blocked", { reason: creationGuard?.reason || "creation_guard_blocked", decision: creationGuard?.decision || null });
         blocked++;
         continue;
       }
@@ -268,26 +271,24 @@ export async function processJamesStrategyRevalidationQueue(limit=3){
       });
       if(synthesisRecord.error) throw new Error("Strategy synthesis memory persistence failed: "+synthesisRecord.error.message);
 
-      await supabase.rpc("complete_james_meta_strategy_revalidation",{
-        p_id:job.id,p_state:"completed",
-        p_result_snapshot:{
-          reason:"candidate_synthesized",
-          candidateStrategyId:candidate.id,
-          sourceStrategyId:strategy.id,
-          evidenceCount:samples,
-          trustScore:trust,
-          synthesisMemoryId:synthesisRecord.data?.id||null
-        }
+      await completeRevalidation(supabase, job.id, "completed", {
+        reason: "candidate_synthesized",
+        candidateStrategyId: candidate.id,
+        sourceStrategyId: strategy.id,
+        evidenceCount: samples,
+        trustScore: trust,
+        synthesisMemoryId: synthesisRecord.data?.id || null,
       });
       completed++;
       results.push({id:job.id,state:"completed",candidateStrategyId:candidate.id,sourceStrategyId:strategy.id});
     }catch(error){
       const message=error instanceof Error?error.message:String(error);
-      const {data:retry}=await supabase.rpc("complete_james_meta_strategy_revalidation",{
-        p_id:job.id,
-        p_state:Number(job.attempts||0)<Number(job.max_attempts||3)?"pending":"blocked",
-        p_result_snapshot:{reason:"processor_error",error:message.slice(0,2000)}
-      });
+      const retry = await completeRevalidation(
+        supabase,
+        job.id,
+        Number(job.attempts || 0) < Number(job.max_attempts || 3) ? "pending" : "blocked",
+        { reason: "processor_error", error: message.slice(0, 2000) },
+      );
       if(Number(job.attempts||0)>=Number(job.max_attempts||3)) blocked++;
       results.push({id:job.id,state:retry?.state||"pending",error:message.slice(0,2000)});
     }
