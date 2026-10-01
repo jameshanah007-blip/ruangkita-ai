@@ -3003,8 +3003,20 @@ export async function evaluateJamesExploreExploitImpact(
     ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
   };
 
-  if (existing?.id) await client.from("james_experiences").update(memory).eq("id", existing.id);
-  else await client.from("james_experiences").insert(memory);
+  const { error: memoryError } = await client.rpc("record_james_game_memory_event", {
+    p_pattern: strategyPattern,
+    p_strategy: strategy,
+    p_event_key: learningEventKey || "",
+    p_success_delta: better ? 1 : 0,
+    p_failure_delta: better ? 0 : 1,
+    p_capabilities: ["fun-zone-strategy-selection"],
+    p_last_evidence: {},
+    p_confidence_mode: "standard",
+  });
+
+  if (memoryError) {
+    console.warn("James learning-mode memory failed:", memoryError.message);
+  }
 
   return {
     mode,
