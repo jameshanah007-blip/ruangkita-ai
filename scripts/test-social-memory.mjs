@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-const { rankJamesSocialAssociations } = await import("../app/api/tools/socialMemoryRanking.ts");
+const { rankJamesSocialAssociations } = await import("../app/api/tools/socialMemoryRanking.js");
 
 const associations = [
   {
