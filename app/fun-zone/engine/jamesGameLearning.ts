@@ -493,7 +493,7 @@ export async function recordJamesGameBrainEvidence(
     console.warn("James game experience persistence failed:", experienceAggregateError.message);
   }
 
-  const { error: consolidationError } = await client.rpc("record_james_game_consolidation_event", {
+  const { data: consolidationResult, error: consolidationError } = await client.rpc("record_james_game_consolidation_event", {
     p_pattern: "fun-zone-game-brain",
     p_strategy: strategy,
     p_capabilities: capabilities,
@@ -515,7 +515,7 @@ export async function recordJamesGameBrainEvidence(
     capabilities,
     failedCapabilities: failures,
     selfEvaluationId: selfEvaluation.data?.id || null,
-    consolidationEvidence: nextEvidence,
+    consolidationEvidence: typeof consolidationResult?.id === "string" ? consolidationResult.id : null,
     transferEvidence,
     crossContextTested: transferTests > 0,
     adaptationPlan,
