@@ -107,6 +107,35 @@ assert.equal(parsedLessons.get("nora|teman sekelas"), "use_more");
 assert.equal(parsedLessons.get("rina|teman"), "use_less");
 
 
+
+
+const conflictingLessons = resolveJamesSocialAssociationUsageLessons([
+  "gunakan association sosial nora|teman sekelas ketika relevan",
+  "kurangi penggunaan association sosial nora|teman sekelas ketika tidak relevan",
+]);
+assert.equal(conflictingLessons.get("nora|teman sekelas"), "use_less");
+
+const reverseConflictingLessons = resolveJamesSocialAssociationUsageLessons([
+  "kurangi penggunaan association sosial nora|teman sekelas ketika tidak relevan",
+  "gunakan association sosial nora|teman sekelas ketika relevan",
+]);
+assert.equal(reverseConflictingLessons.get("nora|teman sekelas"), "use_more");
+
+const malformedLessons = resolveJamesSocialAssociationUsageLessons([
+  "gunakan association sosial nora|teman sekelas",
+  "lesson biasa",
+  null,
+  42,
+  "kurangi penggunaan association sosial | ketika tidak relevan",
+]);
+assert.equal(malformedLessons.size, 0);
+
+const unrelatedLesson = resolveJamesSocialAssociationUsageLessons([
+  "gunakan association sosial budi|teman ketika relevan",
+]);
+assert.equal(unrelatedLesson.get("nora|teman sekelas"), undefined);
+
+console.log("Social Memory conflict-resolution tests: PASS");
 console.log("Social Memory behavior tests: PASS");
 
 
