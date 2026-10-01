@@ -40,5 +40,8 @@ jobs:
       - name: TypeScript
         run: npx tsc --noEmit
 
+      - name: Social Memory behavior tests
+        run: npm run test:social-memory
+
       - name: Production build
         run: npm run build
