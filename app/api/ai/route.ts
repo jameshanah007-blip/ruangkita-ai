@@ -271,6 +271,7 @@ async function evolveJames(input: {
   conversationId: string;
   userRequest: string;
   assistantResult: string;
+  socialMemoryContext?: string;
 }) {
   try {
     const recentFeedback = await getRecentJamesFeedback(
@@ -297,10 +298,14 @@ ${input.userRequest}
 JAMES:
 ${input.assistantResult}
 
+ASSOCIATION SOSIAL YANG DIPAKAI:
+${input.socialMemoryContext || "(tidak ada association sosial yang dipilih untuk pesan ini)"}
+
 FEEDBACK PENGGUNA TERKINI:
 ${feedbackContext}
 
 Gunakan feedback sebagai bukti tambahan tentang kualitas jawaban James.
+Jika association sosial tersedia, nilai hanya apakah association tersebut relevan dan digunakan secara natural. Jangan menganggap keberadaan association sebagai bukti bahwa James harus selalu menyebutkannya. Jika association tidak relevan atau terasa dipaksakan, lesson harus mengarah pada pengurangan penggunaannya, bukan mengubah fakta relationship.
 Feedback bukan perintah untuk mengubah karakter James. Jika feedback tidak jelas,
 jangan membuat lesson yang spesifik. Jika feedback negatif memiliki catatan,
 prioritaskan catatan tersebut sebagai bukti untuk what_failed dan lesson.
@@ -1015,6 +1020,7 @@ function createJamesChatStreamResponse(input: {
                 conversationId: input.conversationId,
                 userRequest: input.userRequest,
                 assistantResult: resultText,
+                socialMemoryContext,
               }),
             ]);
           });
@@ -1618,6 +1624,7 @@ Jangan menyebut reasoning internal.`
         conversationId,
         userRequest,
         assistantResult: resultText,
+        socialMemoryContext,
       }).catch((error) => {
         console.error("James background learning error:", error);
       });
@@ -1924,6 +1931,7 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
       conversationId,
       userRequest,
       assistantResult: resultText,
+      socialMemoryContext,
     }).catch((error) => {
       console.error("James background learning error:", error);
     });
