@@ -44,41 +44,21 @@ language plpgsql
 security definer
 set search_path=public
 as $$
+declare
+  v_strategy_id uuid;
+  v_payload jsonb;
 begin
-  perform public.refresh_james_meta_strategy_lineage(coalesce(new.strategy_id,new.source_strategy_id,old.strategy_id,old.source_strategy_id));
+  v_payload := coalesce(to_jsonb(new), to_jsonb(old));
+  v_strategy_id := coalesce(
+    nullif(v_payload->>'strategy_id','')::uuid,
+    nullif(v_payload->>'source_strategy_id','')::uuid
+  );
+  if v_strategy_id is not null then
+    perform public.refresh_james_meta_strategy_lineage(v_strategy_id);
+  end if;
   return coalesce(new,old);
 end;
 $$;
-
-drop trigger if exists james_strategy_lineage_mutation_refresh on public.james_meta_strategy_mutation_events;
-create trigger james_strategy_lineage_mutation_refresh
-after insert or update or delete on public.james_meta_strategy_mutation_events
-for each row execute function public.refresh_james_meta_strategy_lineage_trigger();
-
-drop trigger if exists james_strategy_lineage_trial_refresh on public.james_meta_strategy_trials;
-create trigger james_strategy_lineage_trial_refresh
-after insert or update or delete on public.james_meta_strategy_trials
-for each row execute function public.refresh_james_meta_strategy_lineage_trigger();
-
-drop trigger if exists james_strategy_lineage_usage_refresh on public.james_meta_strategy_usage;
-create trigger james_strategy_lineage_usage_refresh
-after insert or update or delete on public.james_meta_strategy_usage
-for each row execute function public.refresh_james_meta_strategy_lineage_trigger();
-
-drop trigger if exists james_strategy_lineage_provenance_refresh on public.james_meta_strategy_evidence_provenance;
-create trigger james_strategy_lineage_provenance_refresh
-after insert or update or delete on public.james_meta_strategy_evidence_provenance
-for each row execute function public.refresh_james_meta_strategy_lineage_trigger();
-
-drop trigger if exists james_strategy_lineage_conflict_refresh on public.james_meta_strategy_evidence_conflicts;
-create trigger james_strategy_lineage_conflict_refresh
-after insert or update or delete on public.james_meta_strategy_evidence_conflicts
-for each row execute function public.refresh_james_meta_strategy_lineage_trigger();
-
-drop trigger if exists james_strategy_lineage_lifecycle_refresh on public.james_meta_strategy_lifecycle_events;
-create trigger james_strategy_lineage_lifecycle_refresh
-after insert or update or delete on public.james_meta_strategy_lifecycle_events
-for each row execute function public.refresh_james_meta_strategy_lineage_trigger();
 
 revoke all on function public.refresh_james_meta_strategy_lineage_trigger() from public,anon,authenticated;
 grant execute on function public.refresh_james_meta_strategy_lineage_trigger() to service_role;
