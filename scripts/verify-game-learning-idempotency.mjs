@@ -55,6 +55,17 @@ if (!verifyFile.includes("resolution: conflict.nextAction,\n            learning
 if (!verifyFile.includes("newConfidence: conflict.confidence,\n          reason: conflict.conflict ?")) {
   throw new Error("Core skill lineage payload is missing");
 }
+
+const gameBrainStart = learningFile.indexOf("export async function recordJamesGameBrainEvidence");
+const gameBrainNext = learningFile.indexOf("export async function ", gameBrainStart + 10);
+const gameBrainBody = learningFile.slice(gameBrainStart, gameBrainNext > 0 ? gameBrainNext : undefined);
+if (!gameBrainBody.includes("last_source_event_key") ||
+    !gameBrainBody.includes("existing.data.last_source_event_key !== eventKey")) {
+  throw new Error("Game Brain experience aggregate is missing retry guard");
+}
+if (!gameBrainBody.includes("last_source_event_key: eventKey")) {
+  throw new Error("Game Brain experience aggregate does not persist learning event key");
+}
 if (!verifyFile.includes('reason: conflict.conflict ? "Conflicting evidence detected." : "Evidence reinforced generalized skill.",\n        }, learningEventKey);')) {
   throw new Error("Core skill lineage learning event key propagation is missing");
 }
