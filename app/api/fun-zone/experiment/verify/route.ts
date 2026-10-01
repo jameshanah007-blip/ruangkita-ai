@@ -143,7 +143,22 @@ export async function POST(request: Request) {
         throw new Error("Strategy evidence provenance could not be persisted; experiment checkpoint remains retryable: " + provenanceError.message);
       }
 
-      // Lifecycle reconciliation runs only after durable feedback and provenance exist.
+      // Detect and resolve evidence conflicts before lifecycle reconciliation.
+      // Unresolved contradictions remain open and block lifecycle transitions.
+      const { error: conflictDetectError } = await client.rpc("detect_james_meta_strategy_evidence_conflicts", {
+        p_strategy_id: strategyId,
+      });
+      if (conflictDetectError) {
+        throw new Error("Strategy evidence conflict detection failed; experiment checkpoint remains retryable: " + conflictDetectError.message);
+      }
+      const { error: conflictResolveError } = await client.rpc("resolve_all_james_meta_strategy_evidence_conflicts", {
+        p_strategy_id: strategyId,
+      });
+      if (conflictResolveError) {
+        throw new Error("Strategy evidence conflict resolution failed; experiment checkpoint remains retryable: " + conflictResolveError.message);
+      }
+
+      // Lifecycle reconciliation runs only after durable feedback, provenance, and conflict resolution.
       // The lifecycle RPC reads the aggregated evidence ledger and remains
       // the sole authority for candidate/active/retired transitions.
       await reconcileJamesMetaStrategyLifecycle(strategyId);
