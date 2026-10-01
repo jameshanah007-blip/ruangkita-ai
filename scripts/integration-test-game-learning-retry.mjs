@@ -6,6 +6,20 @@ const appUrl = process.env.TEST_APP_URL;
 const cronSecret = process.env.TEST_CRON_SECRET;
 const experimentId = process.env.TEST_EXPERIMENT_ID;
 const attempt = Number(process.env.TEST_ATTEMPT || "1");
+const testProjectRef = process.env.TEST_SUPABASE_PROJECT_REF || "";
+
+const forbiddenProductionRefs = new Set([
+  "mkjtgkefjlpstsdbavke",
+]);
+if (testProjectRef && forbiddenProductionRefs.has(testProjectRef)) {
+  throw new Error("Refusing to run integration test against the RuangKita production Supabase project.");
+}
+if (url.includes("mkjtgkefjlpstsdbavke")) {
+  throw new Error("Refusing to run integration test against the RuangKita production Supabase URL.");
+}
+if (appUrl.includes("ruangkita-ai.vercel.app")) {
+  throw new Error("Refusing to run integration test against the RuangKita production Vercel URL.");
+}
 
 if (!url || !key || !appUrl || !cronSecret || !experimentId) {
   throw new Error(
