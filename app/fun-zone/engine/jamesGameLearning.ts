@@ -2018,6 +2018,7 @@ export async function recordJamesKnowledgeContradiction(input: {
   previousContext?: string | null;
   observedContext?: string | null;
   resolution: string;
+  learningEventKey?: string;
 }) {
   const client = db();
   if (!client || !input.capabilityKey.startsWith("fun-zone-core:")) return null;
@@ -2026,11 +2027,13 @@ export async function recordJamesKnowledgeContradiction(input: {
   const strategy = "Preserve contradiction history and require contextual evidence before resolving conflicting knowledge.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence,capabilities")
+    .select("id,success_count,failure_count,confidence,capabilities,last_source_event_key")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
+
+  if (input.learningEventKey && existing?.last_source_event_key === input.learningEventKey) return null;
 
   const contradictionMagnitude = Math.abs(input.observedQuality - input.previousQuality);
   const successCount = Number(existing?.success_count || 0);
@@ -2050,6 +2053,7 @@ export async function recordJamesKnowledgeContradiction(input: {
       "fun-zone-contradiction-memory",
     ],
     status: "active",
+    ...(input.learningEventKey ? { last_source_event_key: input.learningEventKey } : {}),
   };
 
   const result = existing?.id
