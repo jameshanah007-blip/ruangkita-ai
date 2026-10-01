@@ -56,15 +56,18 @@ export async function learnJamesMetaStrategy(input:MetaInput){
       const success=Number(similar.success_count||0)+1;
       const empirical=success/Math.max(1,evidence+Number(similar.failure_count||0));
       const nextConfidence=Math.min(.99,Number(similar.confidence||.5)*.4+Math.max(empirical,confidence)*.6);
-      const {data:updated}=await supabase.from("james_meta_strategies").update({
+      const {data:updated,error:updateError}=await supabase.from("james_meta_strategies").update({
         evidence_count:evidence,success_count:success,confidence:nextConfidence,capabilities,updated_at:new Date().toISOString()
       }).eq("id",similar.id).eq("status","candidate").select("id,task_class,strategy,capabilities,evidence_count,success_count,failure_count,confidence,status").maybeSingle();
-      return updated||null;
+      if (updateError) throw new Error("Meta-strategy mutation persistence failed: " + updateError.message);
+      if (!updated) throw new Error("Meta-strategy mutation was not applied.");
+      return updated;
     }
 
-    const {data:inserted}=await supabase.from("james_meta_strategies").insert({
+    const {data:inserted,error:insertError}=await supabase.from("james_meta_strategies").insert({
       task_class:taskClass,strategy,capabilities,evidence_count:1,success_count:1,confidence,status:"candidate"
     }).select("id,task_class,strategy,capabilities,evidence_count,success_count,failure_count,confidence,status").maybeSingle();
+    if (insertError) throw new Error("Meta-strategy creation persistence failed: " + insertError.message);
     if (inserted?.id) {
       // The creation guard runs before the strategy row exists, so attach the
       // durable creation event to the new strategy after persistence.
