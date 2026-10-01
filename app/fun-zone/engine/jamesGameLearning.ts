@@ -1093,11 +1093,18 @@ export async function resolveJamesKnowledgeSupersession(limit = 12, learningEven
       },
     };
 
-    const write = existing?.id
-      ? await client.from("james_experiences").update(memory).eq("id", existing.id)
-      : await client.from("james_experiences").insert(memory);
+    const { data: memoryResult, error: memoryError } = await client.rpc("record_james_game_memory_event", {
+      p_pattern: pattern,
+      p_strategy: strategy,
+      p_event_key: learningEventKey || "",
+      p_success_delta: improved ? 1 : 0,
+      p_failure_delta: improved ? 0 : 1,
+      p_capabilities: ["fun-zone-knowledge-supersession"],
+      p_last_evidence: memory.last_evidence,
+      p_confidence_override: latest.confidence,
+    });
 
-    if (!write.error) {
+    if (!memoryError) {
       results.push({
         knowledgeKey,
         latestVersion: latest.version,
@@ -1521,11 +1528,18 @@ export async function versionJamesConsolidatedKnowledge(limit = 8, learningEvent
       },
     };
 
-    const result = existing?.id
-      ? await client.from("james_experiences").update(memory).eq("id", existing.id)
-      : await client.from("james_experiences").insert(memory);
+    const { data: memoryResult, error: memoryError } = await client.rpc("record_james_game_memory_event", {
+      p_pattern: pattern,
+      p_strategy: strategy,
+      p_event_key: learningEventKey || "",
+      p_success_delta: item.successRate >= 0.75 ? 1 : 0,
+      p_failure_delta: item.successRate < 0.75 ? 1 : 0,
+      p_capabilities: item.capabilities,
+      p_last_evidence: memory.last_evidence,
+      p_confidence_override: item.confidence,
+    });
 
-    if (!result.error) {
+    if (!memoryError) {
       results.push({
         knowledgeKey: item.knowledgeKey,
         version,
@@ -1919,12 +1933,23 @@ export async function recordJamesKnowledgeContradiction(input: {
     ...(input.learningEventKey ? { last_source_event_key: input.learningEventKey } : {}),
   };
 
-  const result = existing?.id
-    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
-    : await client.from("james_experiences").insert(memory);
+  const { error: memoryError } = await client.rpc("record_james_game_memory_event", {
+    p_pattern: pattern,
+    p_strategy: strategy,
+    p_event_key: input.learningEventKey || "",
+    p_success_delta: 0,
+    p_failure_delta: 1,
+    p_capabilities: [
+      input.capabilityKey,
+      "fun-zone-knowledge-arbitration",
+      "fun-zone-contradiction-memory",
+    ],
+    p_last_evidence: {},
+    p_confidence_mode: "contradiction",
+  });
 
-  if (result.error) {
-    console.warn("James contradiction memory failed:", result.error.message);
+  if (memoryError) {
+    console.warn("James contradiction memory failed:", memoryError.message);
     return null;
   }
 
