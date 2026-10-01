@@ -18,6 +18,7 @@ security invoker
 set search_path = public
 as $$
 declare
+  v_event_key text := nullif(trim(p_event_key), '');
   v_existing public.james_experiences%rowtype;
   v_success integer;
   v_failure integer;
@@ -26,10 +27,6 @@ declare
   v_confidence numeric;
   v_status text;
 begin
-  if nullif(trim(p_event_key), '') is null then
-    raise exception 'p_event_key is required';
-  end if;
-
   perform pg_advisory_xact_lock(
     hashtextextended(
       'memory|' || coalesce(p_pattern, '') || '|' || coalesce(p_strategy, ''),
@@ -48,7 +45,7 @@ begin
    limit 1
    for update;
 
-  if found and v_existing.last_source_event_key = p_event_key then
+  if found and v_event_key is not null and v_existing.last_source_event_key = v_event_key then
     return jsonb_build_object(
       'applied', false,
       'duplicate', true,
@@ -96,7 +93,7 @@ begin
              else coalesce(v_existing.capabilities, '[]'::jsonb)
            end,
            status = v_status,
-           last_source_event_key = p_event_key,
+           last_source_event_key = coalesce(v_event_key, v_existing.last_source_event_key),
            last_evidence = coalesce(p_last_evidence, v_existing.last_evidence),
            updated_at = now()
      where id = v_existing.id;
