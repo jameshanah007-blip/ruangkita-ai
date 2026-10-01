@@ -2897,6 +2897,7 @@ export async function evaluateJamesRecoveryDirectiveImpact(
   experimentPrompt: string | null | undefined,
   blueprint: GameBlueprint,
   report: TestReport,
+  learningEventKey?: string,
 ) {
   const client = db();
   if (!client) return null;
@@ -2953,12 +2954,15 @@ export async function evaluateJamesRecoveryDirectiveImpact(
   const strategy = "Apply recovery directive only when it improves comparable experiment quality without repeating stale-runner execution failures.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence")
+     .select("id,success_count,failure_count,confidence,last_source_event_key")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", strategyPattern)
     .eq("strategy", strategy)
     .maybeSingle();
 
+  if (learningEventKey && existing?.last_source_event_key === learningEventKey) {
+    return { influenced: true, evaluated: true, duplicate: true };
+  }
   const successCount = Number(existing?.success_count || 0) + (directiveEffective ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (directiveEffective ? 0 : 1);
   const total = successCount + failureCount;
@@ -2975,6 +2979,7 @@ export async function evaluateJamesRecoveryDirectiveImpact(
     failure_count: failureCount,
     capabilities: ["fun-zone-runtime-observability", "fun-zone-restart-integrity"],
     status,
+    ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
   };
 
   if (existing?.id) {
@@ -3007,6 +3012,7 @@ export async function evaluateJamesExploreExploitImpact(
   experimentPrompt: string | null | undefined,
   blueprint: GameBlueprint,
   report: TestReport,
+  learningEventKey?: string,
 ) {
   const client = db();
   if (!client || typeof experimentPrompt !== "string") return null;
@@ -3054,12 +3060,15 @@ export async function evaluateJamesExploreExploitImpact(
   const strategy = "Use " + mode + " mode when its measured experiment quality improves over the comparable prior strategy.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count")
+     .select("id,success_count,failure_count,last_source_event_key")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", strategyPattern)
     .eq("strategy", strategy)
     .maybeSingle();
 
+  if (learningEventKey && existing?.last_source_event_key === learningEventKey) {
+    return { mode, evaluated: true, duplicate: true };
+  }
   const successCount = Number(existing?.success_count || 0) + (better ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (better ? 0 : 1);
   const total = successCount + failureCount;
@@ -3075,6 +3084,7 @@ export async function evaluateJamesExploreExploitImpact(
     failure_count: failureCount,
     capabilities: ["fun-zone-strategy-selection"],
     status,
+    ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
   };
 
   if (existing?.id) await client.from("james_experiences").update(memory).eq("id", existing.id);
@@ -3097,6 +3107,7 @@ export async function promoteJamesExplorationResult(
   experimentPrompt: string | null | undefined,
   blueprint: GameBlueprint,
   report: TestReport,
+  learningEventKey?: string,
 ) {
   const client = db();
   if (!client || typeof experimentPrompt !== "string" || !experimentPrompt.includes("Exploration directive:")) {
@@ -3111,12 +3122,15 @@ export async function promoteJamesExplorationResult(
   const strategy = "Exploration strategy: test novel mechanic set " + mechanics + " and promote it only when runtime evidence passes.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence")
+     .select("id,success_count,failure_count,confidence,last_source_event_key")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
 
+  if (learningEventKey && existing?.last_source_event_key === learningEventKey) {
+    return { explored: true, promoted: report.passed, duplicate: true };
+  }
   const successCount = Number(existing?.success_count || 0) + (report.passed ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (report.passed ? 0 : 1);
   const total = successCount + failureCount;
@@ -3133,6 +3147,7 @@ export async function promoteJamesExplorationResult(
     failure_count: failureCount,
     capabilities: blueprint.mechanics.slice(0, 6).map((mechanic) => "fun-zone-mechanic:" + mechanic),
     status,
+    ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
   };
 
   const result = existing?.id
