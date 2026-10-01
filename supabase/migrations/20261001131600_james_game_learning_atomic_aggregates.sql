@@ -134,6 +134,7 @@ declare
   v_success integer;
   v_failure integer;
   v_transfer_success boolean;
+  v_model_found boolean := false;
   v_status text;
   v_next_learning_action text;
 begin
@@ -153,7 +154,9 @@ begin
    limit 1
    for update;
 
-  if found and v_model.last_source_event_key = p_event_key then
+  v_model_found := found;
+
+  if v_model_found and v_model.last_source_event_key = p_event_key then
     return jsonb_build_object('applied', false, 'duplicate', true, 'id', v_model.id);
   end if;
 
@@ -228,7 +231,7 @@ begin
   )
   on conflict (source_event_key) do nothing;
 
-  if not found then
+  if not v_model_found then
     insert into public.james_self_model (
       user_id, capability_key, capability_name, competence, confidence,
       evidence_count, success_count, failure_count, teacher_providers,
