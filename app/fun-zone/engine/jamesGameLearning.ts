@@ -1956,16 +1956,19 @@ export async function recordJamesCoreSkillLineage(
     newConfidence?: number;
     reason?: string;
   },
+  learningEventKey?: string,
 ) {
   const client = db();
   if (!client || !capabilityKey.startsWith("fun-zone-core:")) return null;
 
   const { data: current } = await client
     .from("james_self_model")
-    .select("last_evidence")
+    .select("last_evidence,last_source_event_key")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("capability_key", capabilityKey)
     .maybeSingle();
+
+  if (learningEventKey && current?.last_source_event_key === learningEventKey) return null;
 
   const previous = current?.last_evidence && typeof current.last_evidence === "object"
     ? current.last_evidence as Record<string, unknown>
@@ -1988,6 +1991,7 @@ export async function recordJamesCoreSkillLineage(
   const { error } = await client
     .from("james_self_model")
     .update({
+      ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
       last_evidence: {
         source: "evidence-lineage",
         current: lineage,
