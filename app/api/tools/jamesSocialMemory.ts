@@ -118,8 +118,11 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
       .select("user_id, memory_key, memory_value, confidence, source_excerpt")
       .eq("memory_type", "relationship")
       .eq("status", "active")
+      .or(
+        `memory_key.ilike.%${currentPersonName.replace(/[%_]/g, "")}%,memory_value.ilike.%${currentPersonName.replace(/[%_]/g, "")}%,source_excerpt.ilike.%${currentPersonName.replace(/[%_]/g, "")}%`
+      )
       .order("confidence", { ascending: false })
-      .limit(1000);
+      .limit(50);
 
     for (const relationship of allRelationships || []) {
       if (!relationship.user_id || relationship.user_id === userId) continue;
