@@ -44,6 +44,7 @@ import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from ".
 import { evaluateJamesMetaStrategies, learnJamesMetaStrategy, retrieveJamesMetaStrategiesByCapabilities } from "../tools/jamesMetaLearning";
 import { isRuangKitaProjectQuestion, RUANGKITA_PROJECT_KNOWLEDGE } from "../tools/ruangkitaProjectKnowledge";
 import { getJamesSocialMemory } from "../tools/jamesSocialMemory";
+import { resolveJamesSocialAssociationLearning } from "../tools/socialMemoryRanking.js";
 
 type Intent =
   | "chat"
@@ -562,33 +563,22 @@ function mergeLearningProposals(
   const candidates = new Map<string, JamesEvolutionProposal[]>();
 
   for (const result of results) {
-    const associationItems = Array.isArray(result.data.association_learning)
-      ? result.data.association_learning
-      : [];
+    const associationLearning = resolveJamesSocialAssociationLearning(
+      result.data.association_learning,
+      allowedAssociationKeys
+    );
 
-    for (const raw of associationItems) {
-      if (!raw || typeof raw !== "object") continue;
-      const item = raw as Record<string, unknown>;
-      const associationKey = cleanReflectionText(item.association_key, 120);
-      const decision = item.decision;
-      const confidence = clampReflectionConfidence(item.confidence);
-      if (
-        !associationKey ||
-        !allowedAssociationKeys.has(associationKey) ||
-        (decision !== "use_more" && decision !== "use_less") ||
-        confidence < 0.70
-      ) continue;
-
+    for (const item of associationLearning) {
       const proposal: JamesEvolutionProposal = {
         category: "lesson",
-        key: `social_association:${associationKey}`,
+        key: `social_association:${item.associationKey}`,
         value:
-          decision === "use_more"
-            ? `gunakan association sosial ${associationKey} ketika relevan`
-            : `kurangi penggunaan association sosial ${associationKey} ketika tidak relevan`,
+          item.decision === "use_more"
+            ? `gunakan association sosial ${item.associationKey} ketika relevan`
+            : `kurangi penggunaan association sosial ${item.associationKey} ketika tidak relevan`,
         reason: cleanReflectionText(item.reason, 240),
-        confidence,
-        source_excerpt: `association_key=${associationKey}`,
+        confidence: item.confidence,
+        source_excerpt: `association_key=${item.associationKey}`,
       };
 
       const identity = `${proposal.category}:${proposal.key}`;
