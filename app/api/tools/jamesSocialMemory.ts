@@ -27,7 +27,7 @@ function clean(value: unknown, max: number) {
 }
 
 function safeSearchName(value: string) {
-  return value.replace(/[^\p{L}\p{N} _-]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+  return value.replace(/[^\p{L}\p{N} -]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 120);
 }
 
 function extractNames(text: string) {
