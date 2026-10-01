@@ -50,8 +50,8 @@ export async function reconcileJamesMetaStrategyLifecycle(
   );
 
   if (error) {
-    console.warn("James lifecycle reconciliation failed:", error.message);
-    return null;
+    console.error("James lifecycle reconciliation failed:", error.message);
+    throw new Error("Lifecycle reconciliation failed: " + error.message);
   }
 
   return data as JamesMetaStrategyLifecycleResult;
@@ -77,8 +77,8 @@ export async function reconcileAllJamesMetaStrategyLifecycle(
   );
 
   if (error) {
-    console.warn("James lifecycle bulk reconciliation failed:", error.message);
-    return 0;
+    console.error("James lifecycle bulk reconciliation failed:", error.message);
+    throw new Error("Bulk lifecycle reconciliation failed: " + error.message);
   }
 
   const count = Number(data);
