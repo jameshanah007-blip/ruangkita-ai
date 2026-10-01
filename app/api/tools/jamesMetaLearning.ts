@@ -255,6 +255,23 @@ export async function processJamesStrategyRevalidationQueue(limit=3){
         .is("source_strategy_id",null);
       if(lineageError) throw new Error("Revalidation creation lineage could not be linked: "+lineageError.message);
 
+      const synthesisReason=clean(parsed.reason,1000);
+      const synthesisRecord=await supabase.rpc("record_james_meta_strategy_synthesis",{
+        p_revalidation_id:job.id,
+        p_source_strategy_id:strategy.id,
+        p_candidate_strategy_id:candidate.id,
+        p_source_event_key:"synthesis:"+job.id,
+        p_task_class:taskClass,
+        p_source_strategy:strategy.strategy,
+        p_synthesized_strategy:candidateStrategy,
+        p_capabilities:capabilities,
+        p_source_evidence_snapshot:evidence,
+        p_synthesis_reason:synthesisReason,
+        p_model_confidence:candidateConfidence,
+        p_decision:candidate.id===existing?.id?"duplicate_reused":"candidate_created"
+      });
+      if(synthesisRecord.error) throw new Error("Strategy synthesis memory persistence failed: "+synthesisRecord.error.message);
+
       await supabase.rpc("complete_james_meta_strategy_revalidation",{
         p_id:job.id,p_state:"completed",
         p_result_snapshot:{
@@ -262,7 +279,8 @@ export async function processJamesStrategyRevalidationQueue(limit=3){
           candidateStrategyId:candidate.id,
           sourceStrategyId:strategy.id,
           evidenceCount:samples,
-          trustScore:trust
+          trustScore:trust,
+          synthesisMemoryId:synthesisRecord.data?.id||null
         }
       });
       completed++;
