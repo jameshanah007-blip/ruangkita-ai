@@ -61,9 +61,9 @@ begin
 end;
 $$;
 
-revoke all on function public.verify_james_meta_strategy_integrity(uuid,uuid,uuid)
+revoke all on function public.verify_james_meta_strategy_integrity(uuid,integer,uuid)
 from public, anon, authenticated;
-grant execute on function public.verify_james_meta_strategy_integrity(uuid,uuid,uuid)
+grant execute on function public.verify_james_meta_strategy_integrity(uuid,integer,uuid)
 to service_role;
 
 -- Backfill selected usage from experiment attribution is intentionally omitted:
