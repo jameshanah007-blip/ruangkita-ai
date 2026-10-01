@@ -127,7 +127,7 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
       .eq("memory_type", "relationship")
       .eq("status", "active")
       .or(
-        `memory_key.ilike.%${currentPersonName.replace(/[%_]/g, "")}%,memory_value.ilike.%${currentPersonName.replace(/[%_]/g, "")}%,source_excerpt.ilike.%${currentPersonName.replace(/[%_]/g, "")}%`
+        `memory_key.ilike.%${safeCurrentPersonName}%,memory_value.ilike.%${safeCurrentPersonName}%,source_excerpt.ilike.%${safeCurrentPersonName}%`
       )
       .order("confidence", { ascending: false })
       .limit(50);
