@@ -24,8 +24,6 @@ create index if not exists james_meta_strategy_synthesis_candidate_idx
 alter table public.james_meta_strategy_synthesis enable row level security;
 
 revoke all on table public.james_meta_strategy_synthesis from public,anon,authenticated;
-revoke all on function public.record_james_meta_strategy_synthesis(uuid,uuid,uuid,text,text,text,jsonb,text,numeric,text) from public,anon,authenticated;
-
 create or replace function public.record_james_meta_strategy_synthesis(
   p_revalidation_id uuid,
   p_source_strategy_id uuid,
