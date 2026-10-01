@@ -1,0 +1,26 @@
+name: Debug Build Check
+
+on:
+  push:
+    branches:
+      - debug/build-check-38c44ab
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      SUPABASE_SECRET_KEY: debug-placeholder
+      GEMINI_API_KEY: debug-placeholder
+      OPENAI_API_KEY: debug-placeholder
+      GROQ_API_KEY: debug-placeholder
+      OPENROUTER_API_KEY: debug-placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
