@@ -232,16 +232,12 @@ export async function processJamesStrategyRevalidationQueue(limit=3){
 
       let candidate=existing;
       if(!candidate){
-        const {data:inserted,error:insertError}=await supabase.from("james_meta_strategies").insert({
-          task_class:taskClass,
-          strategy:candidateStrategy,
-          capabilities,
-          evidence_count:0,
-          success_count:0,
-          failure_count:0,
-          confidence:candidateConfidence,
-          status:"candidate"
-        }).select("id,task_class,strategy,capabilities,evidence_count,success_count,failure_count,confidence,status").maybeSingle();
+        const {data:inserted,error:insertError}=await supabase.rpc("create_james_meta_strategy_candidate",{
+          p_task_class:taskClass,
+          p_strategy:candidateStrategy,
+          p_capabilities:capabilities,
+          p_confidence:candidateConfidence
+        });
         if(insertError) throw new Error("Revalidation candidate persistence failed: "+insertError.message);
         candidate=inserted;
       }
