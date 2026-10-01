@@ -84,6 +84,205 @@ export async function learnJamesMetaStrategy(input:MetaInput){
   }catch(error){console.warn("James meta-learning unavailable:",error);return null;}
 }
 
+
+export async function processJamesStrategyRevalidationQueue(limit=3){
+  const supabase=db();
+  if(!supabase) return {status:"skipped",reason:"Supabase secret configuration is missing.",processed:0,completed:0,blocked:0};
+
+  const {data:jobs,error:claimError}=await supabase.rpc("claim_james_meta_strategy_revalidation",{
+    p_limit:Math.min(Math.max(limit,1),10)
+  });
+  if(claimError) throw new Error("Strategy revalidation claim failed: "+claimError.message);
+
+  let completed=0;
+  let blocked=0;
+  const results: unknown[]=[];
+
+  for(const job of jobs||[]){
+    try{
+      if(!job.strategy_id){
+        await supabase.rpc("complete_james_meta_strategy_revalidation",{
+          p_id:job.id,p_state:"blocked",
+          p_result_snapshot:{reason:"creation_revalidation_requires_verified_evidence",sourceEventKey:job.source_event_key}
+        });
+        blocked++;
+        results.push({id:job.id,state:"blocked",reason:"creation_revalidation_requires_verified_evidence"});
+        continue;
+      }
+
+      const {data:strategy,error:strategyError}=await supabase
+        .from("james_meta_strategies")
+        .select("id,task_class,strategy,capabilities,status,confidence,evidence_count")
+        .eq("id",job.strategy_id)
+        .maybeSingle();
+
+      if(strategyError) throw new Error("Strategy lookup failed: "+strategyError.message);
+      if(!strategy){
+        await supabase.rpc("complete_james_meta_strategy_revalidation",{
+          p_id:job.id,p_state:"blocked",p_result_snapshot:{reason:"strategy_not_found"}
+        });
+        blocked++;
+        continue;
+      }
+      if(strategy.status==="retired"){
+        await supabase.rpc("complete_james_meta_strategy_revalidation",{
+          p_id:job.id,p_state:"blocked",p_result_snapshot:{reason:"retired_strategy_is_immutable"}
+        });
+        blocked++;
+        continue;
+      }
+
+      const {data:evidence,error:evidenceError}=await supabase
+        .from("james_meta_strategy_evidence")
+        .select("*")
+        .eq("strategy_id",job.strategy_id)
+        .maybeSingle();
+
+      if(evidenceError) throw new Error("Strategy evidence lookup failed: "+evidenceError.message);
+
+      const trust=clamp((evidence as Record<string,unknown>|null)?.trust_score);
+      const conflicts=Number((evidence as Record<string,unknown>|null)?.conflict_count||0);
+      const resolved=Number((evidence as Record<string,unknown>|null)?.resolved_conflict_count||0);
+      const openConflicts=Math.max(0,conflicts-resolved);
+      const samples=Number((evidence as Record<string,unknown>|null)?.evidence_count||0);
+
+      if(!evidence || openConflicts>0 || trust<.60 || samples<2){
+        await supabase.rpc("complete_james_meta_strategy_revalidation",{
+          p_id:job.id,p_state:"blocked",
+          p_result_snapshot:{
+            reason:!evidence?"evidence_not_available":openConflicts>0?"open_evidence_conflict":trust<.60?"insufficient_evidence_trust":"insufficient_revalidation_samples",
+            trustScore:trust,openConflictCount:openConflicts,evidenceCount:samples
+          }
+        });
+        blocked++;
+        results.push({id:job.id,state:"blocked",trustScore:trust,openConflictCount:openConflicts,evidenceCount:samples});
+        continue;
+      }
+
+      const evidenceSummary=JSON.stringify({
+        taskClass:strategy.task_class,
+        strategy:strategy.strategy,
+        capabilities:Array.isArray(strategy.capabilities)?strategy.capabilities.slice(0,8):[],
+        evidenceCount:samples,
+        confidence:Number((evidence as Record<string,unknown>).confidence||0),
+        outcomeRate:Number((evidence as Record<string,unknown>).outcome_rate||0),
+        avgQuality:Number((evidence as Record<string,unknown>).avg_quality||0),
+        executionRate:Number((evidence as Record<string,unknown>).execution_rate||0),
+        verificationRate:Number((evidence as Record<string,unknown>).verification_rate||0),
+        trustScore:trust,
+        conflictRate:Number((evidence as Record<string,unknown>).conflict_rate||0)
+      });
+
+      const synthesis=await generateWithJamesResourceManager("learning",{
+        prompt:[
+          "Revalidate one James meta-strategy using only the durable evidence below.",
+          "Create a NEW generic candidate strategy only if the evidence supports a useful improvement or clarification.",
+          "Never resurrect or modify a retired strategy. Do not include personal data, credentials, tokens, secrets, emails, phone numbers, or verification codes.",
+          "The output confidence must reflect the evidence and must be >= 0.75 to create a candidate.",
+          "Return JSON only: {"taskClass":"...","strategy":"...","capabilities":[],"confidence":0.0,"reason":"..."}",
+          "DURABLE EVIDENCE:",evidenceSummary
+        ].join("\n"),
+        systemInstruction:"You are James Strategy Revalidation and Synthesis Engine. Evidence is authoritative; do not invent results.",
+        temperature:.1,
+        maxOutputTokens:750
+      });
+
+      const start=synthesis.text.indexOf("{");
+      const end=synthesis.text.lastIndexOf("}");
+      if(start<0||end<=start) throw new Error("Revalidation synthesis returned no JSON.");
+      const parsed=JSON.parse(synthesis.text.slice(start,end+1)) as Record<string,unknown>;
+      const taskClass=normalize(clean(parsed.taskClass,120)).slice(0,120);
+      const candidateStrategy=clean(parsed.strategy,700);
+      const candidateConfidence=clamp(parsed.confidence);
+      const capabilities=Array.isArray(parsed.capabilities)
+        ? [...new Set(parsed.capabilities.filter((x):x is string=>typeof x==="string").map(x=>clean(x,80)).filter(Boolean))].slice(0,8)
+        : (Array.isArray(strategy.capabilities)?strategy.capabilities.slice(0,8):[]);
+
+      if(!taskClass||!candidateStrategy||candidateConfidence<.75){
+        await supabase.rpc("complete_james_meta_strategy_revalidation",{
+          p_id:job.id,p_state:"blocked",
+          p_result_snapshot:{reason:"synthesis_below_creation_threshold",confidence:candidateConfidence}
+        });
+        blocked++;
+        continue;
+      }
+
+      const creationKey="revalidation-create:"+job.id;
+      const {data:creationGuard,error:creationGuardError}=await supabase.rpc("guard_james_meta_strategy_creation",{
+        p_task_class:taskClass,p_strategy:candidateStrategy,p_confidence:candidateConfidence,p_source_event_key:creationKey
+      });
+      if(creationGuardError) throw new Error("Revalidation creation guard failed: "+creationGuardError.message);
+      if(creationGuard?.allowed!==true){
+        await supabase.rpc("complete_james_meta_strategy_revalidation",{
+          p_id:job.id,p_state:"blocked",
+          p_result_snapshot:{reason:creationGuard?.reason||"creation_guard_blocked",decision:creationGuard?.decision||null}
+        });
+        blocked++;
+        continue;
+      }
+
+      const {data:existing,error:existingError}=await supabase
+        .from("james_meta_strategies")
+        .select("id,task_class,strategy,status")
+        .eq("task_class",taskClass)
+        .eq("strategy",candidateStrategy)
+        .neq("status","retired")
+        .limit(1)
+        .maybeSingle();
+      if(existingError) throw new Error("Candidate duplicate check failed: "+existingError.message);
+
+      let candidate=existing;
+      if(!candidate){
+        const {data:inserted,error:insertError}=await supabase.from("james_meta_strategies").insert({
+          task_class:taskClass,
+          strategy:candidateStrategy,
+          capabilities,
+          evidence_count:0,
+          success_count:0,
+          failure_count:0,
+          confidence:candidateConfidence,
+          status:"candidate"
+        }).select("id,task_class,strategy,capabilities,evidence_count,success_count,failure_count,confidence,status").maybeSingle();
+        if(insertError) throw new Error("Revalidation candidate persistence failed: "+insertError.message);
+        candidate=inserted;
+      }
+
+      if(!candidate?.id) throw new Error("Revalidation candidate was not persisted.");
+
+      const {error:lineageError}=await supabase
+        .from("james_meta_strategy_mutation_events")
+        .update({source_strategy_id:candidate.id})
+        .eq("source_event_key",creationKey)
+        .is("source_strategy_id",null);
+      if(lineageError) throw new Error("Revalidation creation lineage could not be linked: "+lineageError.message);
+
+      await supabase.rpc("complete_james_meta_strategy_revalidation",{
+        p_id:job.id,p_state:"completed",
+        p_result_snapshot:{
+          reason:"candidate_synthesized",
+          candidateStrategyId:candidate.id,
+          sourceStrategyId:strategy.id,
+          evidenceCount:samples,
+          trustScore:trust
+        }
+      });
+      completed++;
+      results.push({id:job.id,state:"completed",candidateStrategyId:candidate.id,sourceStrategyId:strategy.id});
+    }catch(error){
+      const message=error instanceof Error?error.message:String(error);
+      const {data:retry}=await supabase.rpc("complete_james_meta_strategy_revalidation",{
+        p_id:job.id,
+        p_state:Number(job.attempts||0)<Number(job.max_attempts||3)?"pending":"blocked",
+        p_result_snapshot:{reason:"processor_error",error:message.slice(0,2000)}
+      });
+      if(Number(job.attempts||0)>=Number(job.max_attempts||3)) blocked++;
+      results.push({id:job.id,state:retry?.state||"pending",error:message.slice(0,2000)});
+    }
+  }
+
+  return {status:"completed",processed:(jobs||[]).length,completed,blocked,results};
+}
+
 export async function retrieveJamesMetaStrategies(taskClass:string,limit=4){
   const supabase=db();if(!supabase||!taskClass)return [];
   const {data,error}=await supabase.from("james_meta_strategies").select("id,task_class,strategy,capabilities,evidence_count,success_count,failure_count,confidence,status").eq("task_class",normalize(taskClass)).eq("status","active").order("confidence",{ascending:false}).limit(Math.min(Math.max(limit,1),8));
