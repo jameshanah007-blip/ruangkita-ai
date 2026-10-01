@@ -515,7 +515,7 @@ export async function recordJamesGameBrainEvidence(
     capabilities,
     failedCapabilities: failures,
     selfEvaluationId: selfEvaluation.data?.id || null,
-    consolidationEvidence: typeof consolidationResult?.id === "string" ? consolidationResult.id : null,
+    consolidationEvidence: typeof consolidationResult?.evidence_count === "number" ? consolidationResult.evidence_count : null,
     transferEvidence,
     crossContextTested: transferTests > 0,
     adaptationPlan,
