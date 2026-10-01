@@ -1,11 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-
-type SocialMemory = {
-  personName: string;
-  relationship: string;
-  confidence: number;
-  evidence: string;
-};
+import { rankJamesSocialAssociations, type SocialMemory } from "./socialMemoryRanking";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
@@ -44,65 +38,6 @@ function relationshipLabel(memoryKey: string, memoryValue: string) {
   return "kenalan";
 }
 
-export function rankJamesSocialAssociations(associations: SocialMemory[], userRequest: string): SocialMemory[] {
-  const unique = [...new Map(associations.map((item) => [`${normalize(item.personName)}:${item.relationship}`, item])).values()]
-    .filter((item) => item.confidence >= 0.8)
-    .slice(0, 5);
-
-  if (!unique.length) return "";
-
-  const request = normalize(userRequest);
-  const socialSignals = /\b(halo|hai|saya|aku|nama|siapa|teman|temanku|kelas|sekelas|keluarga|saudara|kakak|adik)\b/i;
-  const introductionSignal = /\b(?:saya|aku|nama saya|nama aku)\s*[:=]?\s*[a-zà-ÿ]/i;
-
-  const scored = unique
-    .map((item) => {
-      const personMentioned = request.includes(normalize(item.personName));
-      const relationshipMentioned =
-        request.includes(normalize(item.relationship)) ||
-        (item.relationship === "teman sekelas" && /\b(sekelas|satu kelas)\b/i.test(request));
-      const conversationalSignal = socialSignals.test(request);
-      const introduction = introductionSignal.test(request);
-
-      let relevance = 0;
-      if (personMentioned) relevance += 4;
-      if (relationshipMentioned) relevance += 3;
-      if (conversationalSignal) relevance += 1;
-      if (introduction) relevance += 1;
-
-      return { item, relevance };
-    })
-    .filter(({ relevance }) => relevance > 0)
-    .sort((a, b) => b.relevance - a.relevance || b.item.confidence - a.item.confidence)
-    .slice(0, 3)
-    .map(({ item }) => item);
-
-  if (!scored.length) return "";
-
-  if (!unique.length) return [];
-  const request = normalize(userRequest);
-  const socialSignals = /\b(halo|hai|saya|aku|nama|siapa|teman|temanku|kelas|sekelas|keluarga|saudara|kakak|adik)\b/i;
-  const introductionSignal = /\b(?:saya|aku|nama saya|nama aku)\s*[:=]?\s*[a-zà-ÿ]/i;
-  const scored = unique
-    .map((item) => {
-      const personMentioned = request.includes(normalize(item.personName));
-      const relationshipMentioned = request.includes(normalize(item.relationship)) ||
-        (item.relationship === "teman sekelas" && /\b(sekelas|satu kelas)\b/i.test(request));
-      const conversationalSignal = socialSignals.test(request);
-      const introduction = introductionSignal.test(request);
-      let relevance = 0;
-      if (personMentioned) relevance += 4;
-      if (relationshipMentioned) relevance += 3;
-      if (conversationalSignal) relevance += 1;
-      if (introduction) relevance += 1;
-      return { item, relevance };
-    })
-    .filter(({ relevance }) => relevance > 0)
-    .sort((a, b) => b.relevance - a.relevance || b.item.confidence - a.item.confidence)
-    .slice(0, 3)
-    .map(({ item }) => item);
-  return scored;
-}
 export async function getJamesSocialMemory(userId: string, userRequest: string) {
   const supabase = getSupabase();
   if (!supabase || !userId || !userRequest.trim()) return "";
