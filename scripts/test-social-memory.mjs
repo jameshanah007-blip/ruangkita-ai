@@ -126,7 +126,7 @@ const malformedLessons = resolveJamesSocialAssociationUsageLessons([
   "lesson biasa",
   null,
   42,
-  "kurangi penggunaan association sosial | ketika tidak relevan",
+  "kurangi penggunaan association sosial ketika tidak relevan",
 ]);
 assert.equal(malformedLessons.size, 0);
 
