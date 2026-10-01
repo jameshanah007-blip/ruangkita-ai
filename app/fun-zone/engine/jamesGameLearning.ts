@@ -38,7 +38,9 @@ export async function recordJamesGameTestLearning(
   blueprint: GameBlueprint,
   report: TestReport,
   attempt: number,
+  learningEventKey?: string,
 ) {
+  const eventKey = clean(learningEventKey || "fun-zone:unscoped:" + blueprintFingerprint(blueprint) + ":" + attempt, 500);
   const client = db();
   if (!client) return null;
 
@@ -99,6 +101,7 @@ export async function recordJamesGameTestLearning(
       1000,
     ),
     applied_to_growth: false,
+    source_event_key: eventKey,
   };
 
   const { data, error } = await client
@@ -149,8 +152,10 @@ export async function recordJamesGameBrainEvidence(
   blueprint: GameBlueprint,
   report: TestReport,
   attempt: number,
+  learningEventKey?: string,
 ) {
   const client = db();
+  const eventKey = clean(learningEventKey || "fun-zone:unscoped:" + blueprintFingerprint(blueprint) + ":" + attempt, 500);
   if (!client) return null;
 
   const evidence = gameCapabilities(report);
@@ -268,6 +273,7 @@ export async function recordJamesGameBrainEvidence(
       weaknesses: failures,
       improvements: failures.map((item) => "Improve " + item),
       provider_observations: [{ provider: "james-autonomous", model: "game-brain-v2", attempt }],
+      source_event_key: eventKey,
       evidence: {
         source: "fun-zone",
         pattern,
@@ -309,7 +315,7 @@ export async function recordJamesGameBrainEvidence(
     );
     const { data: existingStrategy } = await client
       .from("james_experiences")
-      .select("id, success_count, failure_count, confidence")
+      .select("id, success_count, failure_count, confidence, last_source_event_key")
       .eq("pattern", pattern)
       .eq("strategy", synthesizedStrategy)
       .maybeSingle();
@@ -334,12 +340,17 @@ export async function recordJamesGameBrainEvidence(
     };
 
     if (existingStrategy?.id) {
-      await client
-        .from("james_experiences")
-        .update(strategyPayload)
-        .eq("id", existingStrategy.id);
+      if (existingStrategy.last_source_event_key !== eventKey) {
+        await client
+          .from("james_experiences")
+          .update({ ...strategyPayload, last_source_event_key: eventKey })
+          .eq("id", existingStrategy.id);
+      }
     } else {
-      await client.from("james_experiences").insert(strategyPayload);
+      await client.from("james_experiences").insert({
+        ...strategyPayload,
+        last_source_event_key: eventKey,
+      });
     }
   }
 
@@ -364,7 +375,7 @@ export async function recordJamesGameBrainEvidence(
   for (const item of evidence) {
     const { data: prior } = await client
       .from("james_self_model")
-      .select("id, competence, confidence, evidence_count, success_count, failure_count")
+      .select("id, competence, confidence, evidence_count, success_count, failure_count, last_source_event_key")
       .eq("user_id", SYSTEM_USER_ID)
       .eq("capability_key", item.capability)
       .maybeSingle();
@@ -380,6 +391,10 @@ export async function recordJamesGameBrainEvidence(
       .eq("capability_key", item.capability)
       .order("created_at", { ascending: false })
       .limit(24);
+
+    if (prior?.last_source_event_key === eventKey) {
+      continue;
+    }
 
     const currentPattern = blueprintFingerprint(blueprint);
     const priorPatterns = (priorHistory || [])
@@ -461,6 +476,7 @@ export async function recordJamesGameBrainEvidence(
     const payload = {
       user_id: SYSTEM_USER_ID,
       capability_key: item.capability,
+      last_source_event_key: eventKey,
       capability_name: capabilityNames[item.capability] || item.capability,
       competence: nextCompetence,
       confidence: nextConfidence,
@@ -492,6 +508,7 @@ export async function recordJamesGameBrainEvidence(
       .from("james_capability_mastery_history")
       .insert({
         user_id: SYSTEM_USER_ID,
+        source_event_key: eventKey + ":" + item.capability,
         capability_key: item.capability,
         previous_competence: previousCompetence,
         competence: nextCompetence,
@@ -587,7 +604,7 @@ export async function recordJamesGameBrainEvidence(
 
   const existingConsolidation = await client
     .from("james_experience_consolidations")
-    .select("id, evidence_count, confidence, capabilities")
+    .select("id, evidence_count, confidence, capabilities, last_source_event_key")
     .is("user_id", null)
     .eq("merged_pattern", "fun-zone-game-brain")
     .eq("status", "active")
@@ -605,16 +622,19 @@ export async function recordJamesGameBrainEvidence(
   ])].slice(0, 20);
 
   if (existingConsolidation.data?.id) {
-    await client
-      .from("james_experience_consolidations")
-      .update({
-        evidence_count: nextEvidence,
-        confidence: nextConfidence,
-        capabilities: mergedCapabilities,
-        merged_strategy: strategy,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", existingConsolidation.data.id);
+    if (existingConsolidation.data.last_source_event_key !== eventKey) {
+      await client
+        .from("james_experience_consolidations")
+        .update({
+          evidence_count: nextEvidence,
+          confidence: nextConfidence,
+          capabilities: mergedCapabilities,
+          merged_strategy: strategy,
+          last_source_event_key: eventKey,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingConsolidation.data.id);
+    }
   } else {
     await client.from("james_experience_consolidations").insert({
       user_id: null,
@@ -625,6 +645,7 @@ export async function recordJamesGameBrainEvidence(
       confidence: quality,
       evidence_count: 1,
       status: "active",
+      last_source_event_key: eventKey,
     });
   }
 
