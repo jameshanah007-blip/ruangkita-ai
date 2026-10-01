@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       });
       if (integrityError) throw new Error("Strategy integrity verification failed; experiment checkpoint remains retryable: " + integrityError.message);
       if (!integrity?.ok) {
-        await client.rpc("record_james_strategy_integrity_conflict", {
+        const { error: conflictError } = await client.rpc("record_james_strategy_integrity_conflict", {
           p_strategy_id: strategyId,
           p_experiment_id: experimentId,
           p_attempt: attempt,
@@ -83,6 +83,9 @@ export async function POST(request: Request) {
           p_executed_fingerprint: typeof integrity?.executedFingerprint === "string" ? integrity.executedFingerprint : "",
           p_verified_fingerprint: typeof integrity?.verifiedFingerprint === "string" ? integrity.verifiedFingerprint : "",
         });
+        if (conflictError) {
+          throw new Error("Strategy integrity mismatch could not be recorded: " + conflictError.message);
+        }
         throw new Error("Strategy integrity mismatch; verification checkpoint remains retryable.");
       }
 
