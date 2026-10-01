@@ -38,7 +38,9 @@ export async function recordJamesGameTestLearning(
   blueprint: GameBlueprint,
   report: TestReport,
   attempt: number,
+  learningEventKey?: string,
 ) {
+  const eventKey = clean(learningEventKey || "fun-zone:unscoped:" + blueprintFingerprint(blueprint) + ":" + attempt, 500);
   const client = db();
   if (!client) return null;
 
@@ -99,6 +101,7 @@ export async function recordJamesGameTestLearning(
       1000,
     ),
     applied_to_growth: false,
+    source_event_key: eventKey,
   };
 
   const { data, error } = await client
@@ -149,8 +152,10 @@ export async function recordJamesGameBrainEvidence(
   blueprint: GameBlueprint,
   report: TestReport,
   attempt: number,
+  learningEventKey?: string,
 ) {
   const client = db();
+  const eventKey = clean(learningEventKey || "fun-zone:unscoped:" + blueprintFingerprint(blueprint) + ":" + attempt, 500);
   if (!client) return null;
 
   const evidence = gameCapabilities(report);
@@ -268,6 +273,7 @@ export async function recordJamesGameBrainEvidence(
       weaknesses: failures,
       improvements: failures.map((item) => "Improve " + item),
       provider_observations: [{ provider: "james-autonomous", model: "game-brain-v2", attempt }],
+      source_event_key: eventKey,
       evidence: {
         source: "fun-zone",
         pattern,
@@ -307,39 +313,19 @@ export async function recordJamesGameBrainEvidence(
         capabilities.join(", "),
       1000,
     );
-    const { data: existingStrategy } = await client
-      .from("james_experiences")
-      .select("id, success_count, failure_count, confidence")
-      .eq("pattern", pattern)
-      .eq("strategy", synthesizedStrategy)
-      .maybeSingle();
 
-    const successCount = Number(existingStrategy?.success_count || 0) + 1;
-    const failureCount = Number(existingStrategy?.failure_count || 0);
-    const confidence = Math.min(
-      0.99,
-      Math.max(Number(existingStrategy?.confidence || 0.72), 0.72) +
-        Math.min(0.08, successCount * 0.02),
-    );
+    const { error: aggregateError } = await client.rpc("record_james_game_experience_event", {
+      p_pattern: pattern,
+      p_strategy: synthesizedStrategy,
+      p_user_id: null,
+      p_passed: true,
+      p_quality: quality,
+      p_capabilities: capabilities,
+      p_event_key: eventKey,
+    });
 
-    const strategyPayload = {
-      user_id: SYSTEM_USER_ID,
-      pattern,
-      strategy: synthesizedStrategy,
-      confidence,
-      success_count: successCount,
-      failure_count: failureCount,
-      capabilities,
-      status: "active",
-    };
-
-    if (existingStrategy?.id) {
-      await client
-        .from("james_experiences")
-        .update(strategyPayload)
-        .eq("id", existingStrategy.id);
-    } else {
-      await client.from("james_experiences").insert(strategyPayload);
+    if (aggregateError) {
+      console.warn("James synthesized experience persistence failed:", aggregateError.message);
     }
   }
 
@@ -364,7 +350,7 @@ export async function recordJamesGameBrainEvidence(
   for (const item of evidence) {
     const { data: prior } = await client
       .from("james_self_model")
-      .select("id, competence, confidence, evidence_count, success_count, failure_count")
+      .select("id, competence, confidence, evidence_count, success_count, failure_count, last_source_event_key")
       .eq("user_id", SYSTEM_USER_ID)
       .eq("capability_key", item.capability)
       .maybeSingle();
@@ -380,6 +366,10 @@ export async function recordJamesGameBrainEvidence(
       .eq("capability_key", item.capability)
       .order("created_at", { ascending: false })
       .limit(24);
+
+    if (prior?.last_source_event_key === eventKey) {
+      continue;
+    }
 
     const currentPattern = blueprintFingerprint(blueprint);
     const priorPatterns = (priorHistory || [])
@@ -458,72 +448,27 @@ export async function recordJamesGameBrainEvidence(
         ? "increase-diversity-and-test"
         : "improve-and-retest";
 
-    const payload = {
-      user_id: SYSTEM_USER_ID,
-      capability_key: item.capability,
-      capability_name: capabilityNames[item.capability] || item.capability,
-      competence: nextCompetence,
-      confidence: nextConfidence,
-      evidence_count: nextEvidence,
-      success_count: successCount,
-      failure_count: failureCount,
-      teacher_providers: ["james-autonomous"],
-      active_models: ["game-brain-v2"],
-      last_evidence: {
-        source: "fun-zone",
-        attempt,
-        passed: item.passed,
-        quality,
-        weight: item.weight,
-        blueprint: currentPattern,
-        diversity_count: diversityCount,
-        transfer_tested: transferTested,
-        transfer_signal: transferSignal,
-        transfer_weight: transferWeight,
-        transfer_tests: transferTests,
-        transfer_success_rate: transferSuccessRate,
-        adaptation_directive: adaptationDirective,
-      },
-      next_learning_action: nextLearningAction,
-      status,
-    };
+    const { error: selfModelError } = await client.rpc("record_james_game_self_model_event", {
+      p_user_id: SYSTEM_USER_ID,
+      p_capability_key: item.capability,
+      p_capability_name: capabilityNames[item.capability] || item.capability,
+      p_event_key: eventKey,
+      p_passed: item.passed,
+      p_quality: quality,
+      p_weight: item.weight,
+      p_attempt: attempt,
+      p_blueprint: currentPattern,
+      p_diversity_count: diversityCount,
+      p_transfer_tested: transferTested,
+      p_transfer_signal: transferSignal,
+      p_transfer_weight: transferWeight,
+      p_transfer_tests: transferTests,
+      p_transfer_success_rate: transferSuccessRate,
+      p_adaptation_directive: adaptationDirective,
+      p_strategy_fingerprint: strategyFingerprint,
+      p_strategy_comparison: strategyComparison,
+    });
 
-    const { error: historyError } = await client
-      .from("james_capability_mastery_history")
-      .insert({
-        user_id: SYSTEM_USER_ID,
-        capability_key: item.capability,
-        previous_competence: previousCompetence,
-        competence: nextCompetence,
-        previous_confidence: previousConfidence,
-        confidence: nextConfidence,
-        evidence_count: nextEvidence,
-        outcome: item.passed ? "success" : "failure",
-        source: "fun-zone",
-        evidence: {
-          attempt,
-          quality,
-          weight: item.weight,
-          blueprint: currentPattern,
-          diversity_count: diversityCount,
-          transfer_tested: transferTested,
-          transfer_signal: transferSignal,
-          transfer_weight: transferWeight,
-          prior_pattern_count: distinctPriorPatterns.length,
-          transfer_tests: transferTests,
-          transfer_success_rate: transferSuccessRate,
-          adaptation_directive: adaptationDirective,
-          strategy_fingerprint: strategyFingerprint,
-          strategy_comparison: strategyComparison,
-        },
-      });
-    if (historyError) {
-      console.warn("James mastery history persistence failed:", historyError.message);
-    }
-
-    const { error: selfModelError } = await client
-      .from("james_self_model")
-      .upsert(payload, { onConflict: "user_id,capability_key" });
     if (selfModelError) {
       console.warn("James game self-model persistence failed:", selfModelError.message);
     }
@@ -534,98 +479,30 @@ export async function recordJamesGameBrainEvidence(
     .map(([capability]) => "Adapt next game strategy for " + capability)
     .slice(0, 8);
 
-  const existing = await client
-    .from("james_experiences")
-    .select("id, success_count, failure_count, confidence, capabilities")
-    .eq("pattern", pattern)
-    .eq("status", "active")
-    .maybeSingle();
+  const { error: experienceAggregateError } = await client.rpc("record_james_game_experience_event", {
+    p_pattern: pattern,
+    p_strategy: strategy,
+    p_user_id: null,
+    p_passed: passed,
+    p_quality: quality,
+    p_capabilities: capabilities.length ? capabilities : ["fun-zone-runtime-observability"],
+    p_event_key: eventKey,
+  });
 
-  if (existing.data?.id) {
-    const oldSuccess = Number(existing.data.success_count || 0);
-    const oldFailure = Number(existing.data.failure_count || 0);
-    const successCount = oldSuccess + (passed ? 1 : 0);
-    const failureCount = oldFailure + (passed ? 0 : 1);
-    const total = successCount + failureCount;
-    const confidence = Math.max(0.05, Math.min(0.99, total ? successCount / total : quality));
-
-    await client
-      .from("james_experiences")
-      .update({
-        success_count: successCount,
-        failure_count: failureCount,
-        confidence,
-        capabilities: [...new Set([
-          ...(Array.isArray(existing.data.capabilities) ? existing.data.capabilities : []),
-          ...capabilities,
-        ])].slice(0, 12),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", existing.data.id);
-  } else {
-    const inserted = await client
-      .from("james_experiences")
-      .insert({
-        user_id: null,
-        conversation_id: null,
-        task_id: null,
-        pattern,
-        strategy,
-        capabilities: capabilities.length ? capabilities : ["fun-zone-runtime-observability"],
-        success_count: passed ? 1 : 0,
-        failure_count: passed ? 0 : 1,
-        confidence: quality,
-        status: "active",
-      })
-      .select("id")
-      .maybeSingle();
-
-    if (inserted.error) {
-      console.warn("James game experience persistence failed:", inserted.error.message);
-    }
+  if (experienceAggregateError) {
+    console.warn("James game experience persistence failed:", experienceAggregateError.message);
   }
 
-  const existingConsolidation = await client
-    .from("james_experience_consolidations")
-    .select("id, evidence_count, confidence, capabilities")
-    .is("user_id", null)
-    .eq("merged_pattern", "fun-zone-game-brain")
-    .eq("status", "active")
-    .maybeSingle();
+  const { data: consolidationResult, error: consolidationError } = await client.rpc("record_james_game_consolidation_event", {
+    p_pattern: "fun-zone-game-brain",
+    p_strategy: strategy,
+    p_capabilities: capabilities,
+    p_quality: quality,
+    p_event_key: eventKey,
+  });
 
-  const oldEvidence = Number(existingConsolidation.data?.evidence_count || 0);
-  const nextEvidence = oldEvidence + 1;
-  const nextConfidence = Math.max(
-    0.05,
-    Math.min(0.99, Number(existingConsolidation.data?.confidence || 0.5) * 0.35 + quality * 0.65),
-  );
-  const mergedCapabilities = [...new Set([
-    ...(Array.isArray(existingConsolidation.data?.capabilities) ? existingConsolidation.data.capabilities : []),
-    ...capabilities,
-  ])].slice(0, 20);
-
-  if (existingConsolidation.data?.id) {
-    await client
-      .from("james_experience_consolidations")
-      .update({
-        evidence_count: nextEvidence,
-        confidence: nextConfidence,
-        capabilities: mergedCapabilities,
-        merged_strategy: strategy,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", existingConsolidation.data.id);
-  } else {
-    await client.from("james_experience_consolidations").insert({
-      user_id: null,
-      source_experience_ids: [],
-      merged_pattern: "fun-zone-game-brain",
-      merged_strategy: strategy,
-      capabilities: mergedCapabilities,
-      confidence: quality,
-      evidence_count: 1,
-      status: "active",
-    });
+  if (consolidationError) {
+    console.warn("James game consolidation persistence failed:", consolidationError.message);
   }
 
   const transferEvidence = transferTests
@@ -638,7 +515,7 @@ export async function recordJamesGameBrainEvidence(
     capabilities,
     failedCapabilities: failures,
     selfEvaluationId: selfEvaluation.data?.id || null,
-    consolidationEvidence: nextEvidence,
+    consolidationEvidence: typeof consolidationResult?.evidence_count === "number" ? consolidationResult.evidence_count : null,
     transferEvidence,
     crossContextTested: transferTests > 0,
     adaptationPlan,
@@ -967,7 +844,7 @@ export function selectJamesLearningMode(input: {
   };
 }
 
-export async function promoteJamesGeneralizedGameSkills(limit = 8) {
+export async function promoteJamesGeneralizedGameSkills(limit = 8, learningEventKey?: string) {
   const client = db();
   if (!client) return [];
 
@@ -980,11 +857,12 @@ export async function promoteJamesGeneralizedGameSkills(limit = 8) {
     const strategy = "Generalized Game Brain skill: reuse proven capabilities across contexts only after contextual verification.";
     const { data: existing } = await client
       .from("james_self_model")
-      .select("id,competence,confidence,evidence_count,success_count,failure_count")
+       .select("id,competence,confidence,evidence_count,success_count,failure_count,last_source_event_key")
       .eq("user_id", SYSTEM_USER_ID)
       .eq("capability_key", capabilityKey)
       .maybeSingle();
 
+    if (learningEventKey && existing?.last_source_event_key === learningEventKey) continue;
     const evidenceCount = Number(existing?.evidence_count || 0) + item.evidenceCount;
     const successCount = Number(existing?.success_count || 0) + Math.round(item.evidenceCount * item.successRate);
     const failureCount = Math.max(0, evidenceCount - successCount);
@@ -1010,6 +888,7 @@ export async function promoteJamesGeneralizedGameSkills(limit = 8) {
       },
       next_learning_action: "Verify this generalized skill in a new context and update competence from evidence.",
       status: competence >= 0.85 && confidence >= 0.8 ? "strong" : competence >= 0.7 ? "competent" : "developing",
+      ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
     };
 
     const result = existing?.id
@@ -1142,7 +1021,7 @@ export async function evaluateJamesContextTransfer(
   };
 }
 
-export async function resolveJamesKnowledgeSupersession(limit = 12) {
+export async function resolveJamesKnowledgeSupersession(limit = 12, learningEventKey?: string) {
   const client = db();
   if (!client) return [];
 
@@ -1184,11 +1063,13 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
     const strategy = "Resolve knowledge version supersession using context overlap and evidence improvement.";
     const { data: existing } = await client
       .from("james_experiences")
-      .select("id")
+       .select("id,last_source_event_key")
       .eq("user_id", SYSTEM_USER_ID)
       .eq("pattern", pattern)
       .eq("strategy", strategy)
       .maybeSingle();
+
+    if (learningEventKey && existing?.last_source_event_key === learningEventKey) continue;
 
     const memory = {
       user_id: SYSTEM_USER_ID,
@@ -1199,6 +1080,7 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
       failure_count: improved ? 0 : 1,
       capabilities: ["fun-zone-knowledge-supersession"],
       status: "active",
+      ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
       last_evidence: {
         knowledgeKey,
         latestVersion: latest.version,
@@ -1211,11 +1093,18 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
       },
     };
 
-    const write = existing?.id
-      ? await client.from("james_experiences").update(memory).eq("id", existing.id)
-      : await client.from("james_experiences").insert(memory);
+    const { data: memoryResult, error: memoryError } = await client.rpc("record_james_game_memory_event", {
+      p_pattern: pattern,
+      p_strategy: strategy,
+      p_event_key: learningEventKey || "",
+      p_success_delta: improved ? 1 : 0,
+      p_failure_delta: improved ? 0 : 1,
+      p_capabilities: ["fun-zone-knowledge-supersession"],
+      p_last_evidence: memory.last_evidence,
+      p_confidence_override: latest.confidence,
+    });
 
-    if (!write.error) {
+    if (!memoryError) {
       results.push({
         knowledgeKey,
         latestVersion: latest.version,
@@ -1266,6 +1155,7 @@ export async function evaluateJamesMutationOutcome(
   experimentPrompt: string,
   blueprint: any,
   report: { passed?: boolean; hardFailures?: string[]; softWarnings?: string[] },
+  learningEventKey?: string,
 ) {
   const directive = await getJamesMutationDirective(String(blueprint?.world || "fun-zone"));
   const passed = report.passed === true;
@@ -1280,6 +1170,7 @@ export async function evaluateJamesMutationOutcome(
         targetContext: String(blueprint?.world || "fun-zone") + ":" + String(blueprint?.genre || "unknown"),
         mutation: action,
         outcome,
+        learningEventKey,
       })
     : null;
 
@@ -1300,6 +1191,7 @@ export async function recordJamesStrategyLineage(input: {
   targetContext: string;
   mutation: string;
   outcome?: "success" | "failure" | "candidate";
+  learningEventKey?: string;
 }) {
   const client = db();
   if (!client) return null;
@@ -1308,12 +1200,16 @@ export async function recordJamesStrategyLineage(input: {
   const strategy = "Parent: " + input.parentStrategy + " -> Child: " + input.childStrategy;
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence")
+     .select("id,success_count,failure_count,confidence,last_source_event_key")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
 
+  const eventKey = input.learningEventKey || null;
+  if (eventKey && existing?.last_source_event_key === eventKey) {
+    return { pattern, confidence: Number(existing.confidence || 0), successCount: Number(existing.success_count || 0), failureCount: Number(existing.failure_count || 0), duplicate: true };
+  }
   const successCount = Number(existing?.success_count || 0) + (input.outcome === "success" ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (input.outcome === "failure" ? 1 : 0);
   const total = successCount + failureCount;
@@ -1330,6 +1226,7 @@ export async function recordJamesStrategyLineage(input: {
     failure_count: failureCount,
     capabilities: ["fun-zone-strategy-lineage"],
     status: "active",
+    ...(eventKey ? { last_source_event_key: eventKey } : {}),
     last_evidence: {
       parentStrategy: input.parentStrategy,
       childStrategy: input.childStrategy,
@@ -1340,16 +1237,23 @@ export async function recordJamesStrategyLineage(input: {
     },
   };
 
-  const result = existing?.id
-    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
-    : await client.from("james_experiences").insert(memory);
+  const { data: memoryResult, error: memoryError } = await client.rpc("record_james_game_memory_event", {
+    p_pattern: pattern,
+    p_strategy: strategy,
+    p_event_key: eventKey,
+    p_success_delta: input.outcome === "success" ? 1 : 0,
+    p_failure_delta: input.outcome === "failure" ? 1 : 0,
+    p_capabilities: ["fun-zone-strategy-lineage"],
+    p_last_evidence: memory.last_evidence,
+    p_confidence_mode: "weighted-existing",
+  });
 
-  if (result.error) {
-    console.warn("James strategy lineage recording failed:", result.error.message);
+  if (memoryError) {
+    console.warn("James strategy lineage recording failed:", memoryError.message);
     return null;
   }
 
-  return { pattern, confidence: Number(confidence.toFixed(3)), successCount, failureCount };
+  return { pattern, confidence: Number(memoryResult?.confidence ?? confidence), successCount: Number(memoryResult?.success_count ?? successCount), failureCount: Number(memoryResult?.failure_count ?? failureCount) };
 }
 
 export async function evolveJamesComposedStrategy(input: {
@@ -1578,7 +1482,7 @@ export async function getJamesKnowledgeVersions(limit = 12) {
   });
 }
 
-export async function versionJamesConsolidatedKnowledge(limit = 8) {
+export async function versionJamesConsolidatedKnowledge(limit = 8, learningEventKey?: string) {
   const client = db();
   if (!client) return [];
 
@@ -1590,12 +1494,13 @@ export async function versionJamesConsolidatedKnowledge(limit = 8) {
     const strategy = "Knowledge version: " + item.principle;
     const { data: existing } = await client
       .from("james_experiences")
-      .select("id,success_count,failure_count,confidence,last_evidence,capabilities")
+       .select("id,success_count,failure_count,confidence,last_evidence,capabilities,last_source_event_key")
       .eq("user_id", SYSTEM_USER_ID)
       .eq("pattern", pattern)
       .eq("strategy", strategy)
       .maybeSingle();
 
+    if (learningEventKey && existing?.last_source_event_key === learningEventKey) continue;
     const previousVersion = Number(existing?.last_evidence?.version || 0);
     const version = previousVersion + 1;
     const memory = {
@@ -1607,6 +1512,7 @@ export async function versionJamesConsolidatedKnowledge(limit = 8) {
       failure_count: Number(existing?.failure_count || 0) + (item.successRate < 0.75 ? 1 : 0),
       capabilities: item.capabilities,
       status: "active",
+      ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
       last_evidence: {
         source: "knowledge-consolidation",
         version,
@@ -1622,11 +1528,18 @@ export async function versionJamesConsolidatedKnowledge(limit = 8) {
       },
     };
 
-    const result = existing?.id
-      ? await client.from("james_experiences").update(memory).eq("id", existing.id)
-      : await client.from("james_experiences").insert(memory);
+    const { data: memoryResult, error: memoryError } = await client.rpc("record_james_game_memory_event", {
+      p_pattern: pattern,
+      p_strategy: strategy,
+      p_event_key: learningEventKey || "",
+      p_success_delta: item.successRate >= 0.75 ? 1 : 0,
+      p_failure_delta: item.successRate < 0.75 ? 1 : 0,
+      p_capabilities: item.capabilities,
+      p_last_evidence: memory.last_evidence,
+      p_confidence_override: item.confidence,
+    });
 
-    if (!result.error) {
+    if (!memoryError) {
       results.push({
         knowledgeKey: item.knowledgeKey,
         version,
@@ -1920,16 +1833,19 @@ export async function recordJamesCoreSkillLineage(
     newConfidence?: number;
     reason?: string;
   },
+  learningEventKey?: string,
 ) {
   const client = db();
   if (!client || !capabilityKey.startsWith("fun-zone-core:")) return null;
 
   const { data: current } = await client
     .from("james_self_model")
-    .select("last_evidence")
+    .select("last_evidence,last_source_event_key")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("capability_key", capabilityKey)
     .maybeSingle();
+
+  if (learningEventKey && current?.last_source_event_key === learningEventKey) return null;
 
   const previous = current?.last_evidence && typeof current.last_evidence === "object"
     ? current.last_evidence as Record<string, unknown>
@@ -1952,6 +1868,7 @@ export async function recordJamesCoreSkillLineage(
   const { error } = await client
     .from("james_self_model")
     .update({
+      ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
       last_evidence: {
         source: "evidence-lineage",
         current: lineage,
@@ -1978,6 +1895,7 @@ export async function recordJamesKnowledgeContradiction(input: {
   previousContext?: string | null;
   observedContext?: string | null;
   resolution: string;
+  learningEventKey?: string;
 }) {
   const client = db();
   if (!client || !input.capabilityKey.startsWith("fun-zone-core:")) return null;
@@ -1986,11 +1904,13 @@ export async function recordJamesKnowledgeContradiction(input: {
   const strategy = "Preserve contradiction history and require contextual evidence before resolving conflicting knowledge.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence,capabilities")
+    .select("id,success_count,failure_count,confidence,capabilities,last_source_event_key")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
+
+  if (input.learningEventKey && existing?.last_source_event_key === input.learningEventKey) return null;
 
   const contradictionMagnitude = Math.abs(input.observedQuality - input.previousQuality);
   const successCount = Number(existing?.success_count || 0);
@@ -2010,14 +1930,26 @@ export async function recordJamesKnowledgeContradiction(input: {
       "fun-zone-contradiction-memory",
     ],
     status: "active",
+    ...(input.learningEventKey ? { last_source_event_key: input.learningEventKey } : {}),
   };
 
-  const result = existing?.id
-    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
-    : await client.from("james_experiences").insert(memory);
+  const { error: memoryError } = await client.rpc("record_james_game_memory_event", {
+    p_pattern: pattern,
+    p_strategy: strategy,
+    p_event_key: input.learningEventKey || "",
+    p_success_delta: 0,
+    p_failure_delta: 1,
+    p_capabilities: [
+      input.capabilityKey,
+      "fun-zone-knowledge-arbitration",
+      "fun-zone-contradiction-memory",
+    ],
+    p_last_evidence: {},
+    p_confidence_mode: "contradiction",
+  });
 
-  if (result.error) {
-    console.warn("James contradiction memory failed:", result.error.message);
+  if (memoryError) {
+    console.warn("James contradiction memory failed:", memoryError.message);
     return null;
   }
 
@@ -2073,18 +2005,21 @@ export function arbitrateJamesEvidence(
 export async function resolveJamesCoreSkillConflict(
   capabilityKey: string,
   observed: { competence: number; confidence: number; passed: boolean; quality: number; evidence: number },
+  learningEventKey?: string,
 ) {
   const client = db();
   if (!client || !capabilityKey.startsWith("fun-zone-core:")) return null;
 
   const { data: current, error } = await client
     .from("james_self_model")
-    .select("id,competence,confidence,evidence_count,success_count,failure_count,status,last_evidence")
+    .select("id,competence,confidence,evidence_count,success_count,failure_count,status,last_evidence,last_source_event_key")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("capability_key", capabilityKey)
     .maybeSingle();
 
   if (error || !current) return null;
+
+  if (learningEventKey && current.last_source_event_key === learningEventKey) return null;
 
   const oldCompetence = Number(current.competence || 0);
   const oldConfidence = Number(current.confidence || 0);
@@ -2158,6 +2093,7 @@ export async function resolveJamesCoreSkillConflict(
     next_learning_action: conflict
       ? "Resolve conflicting evidence with another fresh contextual experiment before increasing confidence."
       : "Continue validating this generalized skill in diverse contexts.",
+    ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
     last_evidence: {
       source: "core-skill-conflict-resolution",
       conflict,
@@ -2868,6 +2804,7 @@ export async function evaluateJamesRecoveryDirectiveImpact(
   experimentPrompt: string | null | undefined,
   blueprint: GameBlueprint,
   report: TestReport,
+  learningEventKey?: string,
 ) {
   const client = db();
   if (!client) return null;
@@ -2924,12 +2861,15 @@ export async function evaluateJamesRecoveryDirectiveImpact(
   const strategy = "Apply recovery directive only when it improves comparable experiment quality without repeating stale-runner execution failures.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence")
+     .select("id,success_count,failure_count,confidence,last_source_event_key")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", strategyPattern)
     .eq("strategy", strategy)
     .maybeSingle();
 
+  if (learningEventKey && existing?.last_source_event_key === learningEventKey) {
+    return { influenced: true, evaluated: true, duplicate: true };
+  }
   const successCount = Number(existing?.success_count || 0) + (directiveEffective ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (directiveEffective ? 0 : 1);
   const total = successCount + failureCount;
@@ -2946,12 +2886,22 @@ export async function evaluateJamesRecoveryDirectiveImpact(
     failure_count: failureCount,
     capabilities: ["fun-zone-runtime-observability", "fun-zone-restart-integrity"],
     status,
+    ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
   };
 
-  if (existing?.id) {
-    await client.from("james_experiences").update(memory).eq("id", existing.id);
-  } else {
-    await client.from("james_experiences").insert(memory);
+  const { error: memoryError } = await client.rpc("record_james_game_memory_event", {
+    p_pattern: strategyPattern,
+    p_strategy: strategy,
+    p_event_key: learningEventKey || "",
+    p_success_delta: directiveEffective ? 1 : 0,
+    p_failure_delta: directiveEffective ? 0 : 1,
+    p_capabilities: ["fun-zone-runtime-observability", "fun-zone-restart-integrity"],
+    p_last_evidence: {},
+    p_confidence_mode: "standard",
+  });
+
+  if (memoryError) {
+    console.warn("James recovery directive memory failed:", memoryError.message);
   }
 
   return {
@@ -2978,6 +2928,7 @@ export async function evaluateJamesExploreExploitImpact(
   experimentPrompt: string | null | undefined,
   blueprint: GameBlueprint,
   report: TestReport,
+  learningEventKey?: string,
 ) {
   const client = db();
   if (!client || typeof experimentPrompt !== "string") return null;
@@ -3025,12 +2976,15 @@ export async function evaluateJamesExploreExploitImpact(
   const strategy = "Use " + mode + " mode when its measured experiment quality improves over the comparable prior strategy.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count")
+     .select("id,success_count,failure_count,last_source_event_key")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", strategyPattern)
     .eq("strategy", strategy)
     .maybeSingle();
 
+  if (learningEventKey && existing?.last_source_event_key === learningEventKey) {
+    return { mode, evaluated: true, duplicate: true };
+  }
   const successCount = Number(existing?.success_count || 0) + (better ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (better ? 0 : 1);
   const total = successCount + failureCount;
@@ -3046,10 +3000,23 @@ export async function evaluateJamesExploreExploitImpact(
     failure_count: failureCount,
     capabilities: ["fun-zone-strategy-selection"],
     status,
+    ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
   };
 
-  if (existing?.id) await client.from("james_experiences").update(memory).eq("id", existing.id);
-  else await client.from("james_experiences").insert(memory);
+  const { error: memoryError } = await client.rpc("record_james_game_memory_event", {
+    p_pattern: strategyPattern,
+    p_strategy: strategy,
+    p_event_key: learningEventKey || "",
+    p_success_delta: better ? 1 : 0,
+    p_failure_delta: better ? 0 : 1,
+    p_capabilities: ["fun-zone-strategy-selection"],
+    p_last_evidence: {},
+    p_confidence_mode: "standard",
+  });
+
+  if (memoryError) {
+    console.warn("James learning-mode memory failed:", memoryError.message);
+  }
 
   return {
     mode,
@@ -3068,6 +3035,7 @@ export async function promoteJamesExplorationResult(
   experimentPrompt: string | null | undefined,
   blueprint: GameBlueprint,
   report: TestReport,
+  learningEventKey?: string,
 ) {
   const client = db();
   if (!client || typeof experimentPrompt !== "string" || !experimentPrompt.includes("Exploration directive:")) {
@@ -3082,12 +3050,15 @@ export async function promoteJamesExplorationResult(
   const strategy = "Exploration strategy: test novel mechanic set " + mechanics + " and promote it only when runtime evidence passes.";
   const { data: existing } = await client
     .from("james_experiences")
-    .select("id,success_count,failure_count,confidence")
+     .select("id,success_count,failure_count,confidence,last_source_event_key")
     .eq("user_id", SYSTEM_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
 
+  if (learningEventKey && existing?.last_source_event_key === learningEventKey) {
+    return { explored: true, promoted: report.passed, duplicate: true };
+  }
   const successCount = Number(existing?.success_count || 0) + (report.passed ? 1 : 0);
   const failureCount = Number(existing?.failure_count || 0) + (report.passed ? 0 : 1);
   const total = successCount + failureCount;
@@ -3104,14 +3075,22 @@ export async function promoteJamesExplorationResult(
     failure_count: failureCount,
     capabilities: blueprint.mechanics.slice(0, 6).map((mechanic) => "fun-zone-mechanic:" + mechanic),
     status,
+    ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
   };
 
-  const result = existing?.id
-    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
-    : await client.from("james_experiences").insert(memory);
+  const { data: memoryResult, error: memoryError } = await client.rpc("record_james_game_memory_event", {
+    p_pattern: pattern,
+    p_strategy: strategy,
+    p_event_key: learningEventKey || "",
+    p_success_delta: report.passed ? 1 : 0,
+    p_failure_delta: report.passed ? 0 : 1,
+    p_capabilities: blueprint.mechanics.slice(0, 6).map((mechanic) => "fun-zone-mechanic:" + mechanic),
+    p_last_evidence: {},
+    p_confidence_mode: "standard",
+  });
 
-  if (result.error) {
-    console.warn("James exploration promotion failed:", result.error.message);
+  if (memoryError) {
+    console.warn("James exploration promotion failed:", memoryError.message);
     return { explored: true, promoted: false, successRate };
   }
 
