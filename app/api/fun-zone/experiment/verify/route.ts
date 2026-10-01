@@ -215,6 +215,7 @@ export async function POST(request: Request) {
             observedQuality: conflict.observedQuality,
             observedContext: String(blueprint.world) + ":" + String(blueprint.genre),
             resolution: conflict.nextAction,
+            learningEventKey,
           });
         }
         await recordJamesCoreSkillLineage(skill.capabilityKey, {
