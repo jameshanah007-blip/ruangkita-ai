@@ -107,7 +107,43 @@ export async function POST(request: Request) {
         throw new Error("Strategy feedback could not be persisted; experiment checkpoint remains retryable.");
       }
 
-      // Lifecycle reconciliation runs only after durable feedback exists.
+      const feedbackRecord = strategyFeedback as Record<string, unknown>;
+      const trialId =
+        typeof feedbackRecord.id === "string" ? feedbackRecord.id : null;
+      const { data: usageRows } = await client
+        .from("james_meta_strategy_usage")
+        .select("id")
+        .eq("strategy_id", strategyId)
+        .eq("experiment_id", experimentId)
+        .eq("attempt", attempt)
+        .eq("usage_state", "verified")
+        .limit(1);
+      const usageId = usageRows?.[0]?.id || null;
+
+      const { error: provenanceError } = await client.rpc("record_james_strategy_evidence_provenance", {
+        p_strategy_id: strategyId,
+        p_trial_id: trialId,
+        p_experiment_id: experimentId,
+        p_usage_id: usageId,
+        p_source_type: "verification",
+        p_source_event_key: "verification:" + experimentId + ":" + attempt + ":" + strategyId,
+        p_quality_score: quality,
+        p_provenance: {
+          source: "fun-zone-post-verification-feedback",
+          experimentId,
+          attempt,
+          strategyId,
+          passed: verified,
+          outcome,
+          usageId,
+          trialId,
+        },
+      });
+      if (provenanceError) {
+        throw new Error("Strategy evidence provenance could not be persisted; experiment checkpoint remains retryable: " + provenanceError.message);
+      }
+
+      // Lifecycle reconciliation runs only after durable feedback and provenance exist.
       // The lifecycle RPC reads the aggregated evidence ledger and remains
       // the sole authority for candidate/active/retired transitions.
       await reconcileJamesMetaStrategyLifecycle(strategyId);
