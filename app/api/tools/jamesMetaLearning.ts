@@ -147,15 +147,14 @@ export async function processJamesStrategyRevalidationQueue(limit=3){
       const samples=Number((evidence as Record<string,unknown>|null)?.evidence_count||0);
 
       if(!evidence || openConflicts>0 || trust<.60 || samples<2){
+        const reason=!evidence?"evidence_not_available":openConflicts>0?"open_evidence_conflict":trust<.60?"insufficient_evidence_trust":"insufficient_revalidation_samples";
+        const exhausted=Number(job.attempts||0)>=Number(job.max_attempts||3);
         await supabase.rpc("complete_james_meta_strategy_revalidation",{
-          p_id:job.id,p_state:"blocked",
-          p_result_snapshot:{
-            reason:!evidence?"evidence_not_available":openConflicts>0?"open_evidence_conflict":trust<.60?"insufficient_evidence_trust":"insufficient_revalidation_samples",
-            trustScore:trust,openConflictCount:openConflicts,evidenceCount:samples
-          }
+          p_id:job.id,p_state:exhausted?"blocked":"pending",
+          p_result_snapshot:{reason,trustScore:trust,openConflictCount:openConflicts,evidenceCount:samples,retryable:!exhausted}
         });
-        blocked++;
-        results.push({id:job.id,state:"blocked",trustScore:trust,openConflictCount:openConflicts,evidenceCount:samples});
+        if(exhausted) blocked++;
+        results.push({id:job.id,state:exhausted?"blocked":"pending",reason,trustScore:trust,openConflictCount:openConflicts,evidenceCount:samples});
         continue;
       }
 
