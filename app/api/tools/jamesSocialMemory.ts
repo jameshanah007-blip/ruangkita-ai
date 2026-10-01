@@ -82,14 +82,22 @@ export async function getJamesSocialMemory(userId: string, userRequest: string, 
     .join(" ");
   const names = extractNames(relationshipText);
 
-  const { data: identities, error: identityError } = await supabase
-    .from("james_memories")
-    .select("user_id, memory_key, memory_value, confidence, source_excerpt")
-    .eq("memory_type", "identity")
-    .eq("status", "active")
-    .in("memory_value", names)
-    .order("confidence", { ascending: false })
-    .limit(100);
+  const identityFilters = names
+    .map((name) => safeSearchName(name))
+    .filter(Boolean)
+    .map((name) => `memory_value.ilike.${name}`)
+    .join(",");
+
+  const { data: identities, error: identityError } = identityFilters
+    ? await supabase
+        .from("james_memories")
+        .select("user_id, memory_key, memory_value, confidence, source_excerpt")
+        .eq("memory_type", "identity")
+        .eq("status", "active")
+        .or(identityFilters)
+        .order("confidence", { ascending: false })
+        .limit(100)
+    : { data: [], error: null };
 
   if (identityError || !identities?.length) return "";
 
