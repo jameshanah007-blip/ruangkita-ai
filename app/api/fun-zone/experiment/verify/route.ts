@@ -67,6 +67,14 @@ export async function POST(request: Request) {
       if (usageError) {
         throw new Error("Strategy usage evidence could not be persisted: " + usageError.message);
       }
+      const { data: integrity, error: integrityError } = await client.rpc("verify_james_meta_strategy_integrity", {
+        p_experiment_id: experimentId,
+        p_attempt: attempt,
+        p_strategy_id: strategyId,
+      });
+      if (integrityError) throw new Error("Strategy integrity verification failed; experiment checkpoint remains retryable: " + integrityError.message);
+      if (!integrity?.ok) throw new Error("Strategy integrity mismatch; verification checkpoint remains retryable.");
+
       const hardFailures = Array.isArray(report.hardFailures) ? report.hardFailures : [];
       const softWarnings = Array.isArray(report.softWarnings) ? report.softWarnings : [];
       const verified = report.passed === true;
