@@ -6,6 +6,7 @@ import {
 } from "../../../tools/jamesAutonomousGoals";
 import { runJamesAutonomousBrain } from "../../../tools/jamesAutonomousBrain";
 import { createJamesGameExperimentJob, getJamesPendingExperiment } from "../../../../fun-zone/engine/jamesGameLearning";
+import { processJamesStrategyRevalidationQueue } from "../../../tools/jamesMetaLearning";
 
 export const maxDuration = 300;
 
@@ -28,21 +29,22 @@ async function runStrategyMaintenance() {
   const client = db();
   if (!client) return { status: "skipped", reason: "Supabase secret configuration is missing." };
 
-  const [recovery, reconciliation] = await Promise.all([
-    client.rpc("recover_all_james_meta_strategy_integrity"),
-    client.rpc("reconcile_all_james_meta_strategy_lifecycle", {
-      p_min_samples: 4,
-      p_promote_score: 0.75,
-      p_retire_score: 0.35,
-    }),
-  ]);
-
+  const recovery = await client.rpc("recover_all_james_meta_strategy_integrity");
   if (recovery.error) throw new Error("Strategy integrity recovery failed: " + recovery.error.message);
+
+  const revalidation = await processJamesStrategyRevalidationQueue(3);
+
+  const reconciliation = await client.rpc("reconcile_all_james_meta_strategy_lifecycle", {
+    p_min_samples: 4,
+    p_promote_score: 0.75,
+    p_retire_score: 0.35,
+  });
   if (reconciliation.error) throw new Error("Strategy lifecycle reconciliation failed: " + reconciliation.error.message);
 
   return {
     status: "completed",
     recovery: recovery.data,
+    revalidation,
     reconciledStrategies: reconciliation.data,
   };
 }
