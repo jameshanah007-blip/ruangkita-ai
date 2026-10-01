@@ -988,7 +988,7 @@ export function selectJamesLearningMode(input: {
   };
 }
 
-export async function promoteJamesGeneralizedGameSkills(limit = 8) {
+export async function promoteJamesGeneralizedGameSkills(limit = 8, learningEventKey?: string) {
   const client = db();
   if (!client) return [];
 
@@ -1001,11 +1001,12 @@ export async function promoteJamesGeneralizedGameSkills(limit = 8) {
     const strategy = "Generalized Game Brain skill: reuse proven capabilities across contexts only after contextual verification.";
     const { data: existing } = await client
       .from("james_self_model")
-      .select("id,competence,confidence,evidence_count,success_count,failure_count")
+       .select("id,competence,confidence,evidence_count,success_count,failure_count,last_source_event_key")
       .eq("user_id", SYSTEM_USER_ID)
       .eq("capability_key", capabilityKey)
       .maybeSingle();
 
+    if (learningEventKey && existing?.last_source_event_key === learningEventKey) continue;
     const evidenceCount = Number(existing?.evidence_count || 0) + item.evidenceCount;
     const successCount = Number(existing?.success_count || 0) + Math.round(item.evidenceCount * item.successRate);
     const failureCount = Math.max(0, evidenceCount - successCount);
@@ -1031,6 +1032,7 @@ export async function promoteJamesGeneralizedGameSkills(limit = 8) {
       },
       next_learning_action: "Verify this generalized skill in a new context and update competence from evidence.",
       status: competence >= 0.85 && confidence >= 0.8 ? "strong" : competence >= 0.7 ? "competent" : "developing",
+      ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
     };
 
     const result = existing?.id
