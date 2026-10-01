@@ -60,6 +60,13 @@ export async function POST(request: Request) {
         if (usageError) {
           throw new Error("Strategy execution receipt could not be persisted: " + usageError.message);
         }
+        const { data: integrity, error: integrityError } = await client.rpc("verify_james_meta_strategy_integrity", {
+          p_experiment_id: claimed.id,
+          p_attempt: Number(claimed.attempt || 0),
+          p_strategy_id: claimedStrategyId,
+        });
+        if (integrityError) throw new Error("Strategy integrity verification failed: " + integrityError.message);
+        if (!integrity?.ok) throw new Error("Strategy integrity mismatch: execution does not match the attributed strategy.");
       }
       return NextResponse.json({
         success: true, claimed: true, status: "running", experimentId: claimed.id,
@@ -93,11 +100,12 @@ export async function POST(request: Request) {
       if (result.experimentId) {
         const client = db();
         if (client) {
-          await client.from("james_game_experiments").update({
+          const { error: updateError } = await client.from("james_game_experiments").update({
             blueprint: result.blueprint,
             game_html: result.gameHtml,
             status: "pending_verification",
           }).eq("id", result.experimentId);
+          if (updateError) throw new Error("Experiment artifact update could not be persisted: " + updateError.message);
         }
       }
       return NextResponse.json({
