@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:idempotency": "node scripts/verify-game-learning-idempotency.mjs",
-    "test:integration:idempotency": "node scripts/integration-test-game-learning-retry.mjs"
+    "test:integration:idempotency": "node scripts/integration-test-game-learning-retry.mjs",
+    "test:migration-compatibility": "node scripts/verify-strategy-game-migration-compatibility.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
