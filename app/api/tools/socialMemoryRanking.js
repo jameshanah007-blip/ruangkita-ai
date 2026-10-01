@@ -6,6 +6,29 @@ export function buildJamesSocialAssociationKey(personName, relationship) {
   return `${normalize(personName)}|${normalize(relationship)}`;
 }
 
+export function resolveJamesSocialAssociationLearning(
+  associationLearning,
+  allowedAssociationKeys,
+) {
+  if (!Array.isArray(associationLearning)) return [];
+
+  return associationLearning
+    .filter((item) =>
+      item &&
+      typeof item === "object" &&
+      typeof item.association_key === "string" &&
+      allowedAssociationKeys.has(item.association_key.trim()) &&
+      (item.decision === "use_more" || item.decision === "use_less")
+    )
+    .map((item) => ({
+      associationKey: item.association_key.trim(),
+      decision: item.decision,
+      confidence: Math.max(0, Math.min(1, Number(item.confidence) || 0)),
+      reason: typeof item.reason === "string" ? item.reason.trim().slice(0, 240) : "",
+    }))
+    .filter((item) => item.confidence >= 0.7);
+}
+
 export function rankJamesSocialAssociations(associations, userRequest) {
   const unique = [...new Map(
     associations.map((item) => [buildJamesSocialAssociationKey(item.personName, item.relationship), item]),
