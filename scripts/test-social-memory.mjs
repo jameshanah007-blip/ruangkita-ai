@@ -4,6 +4,7 @@ const {
   buildJamesSocialAssociationKey,
   rankJamesSocialAssociations,
   resolveJamesSocialAssociationLearning,
+  resolveJamesSocialAssociationUsageLessons,
 } = await import("../app/api/tools/socialMemoryRanking.js");
 
 const associations = [
@@ -66,6 +67,45 @@ const lowConfidence = rankJamesSocialAssociations(
 );
 
 assert.equal(lowConfidence.length, 0);
+
+
+const useLessRanked = rankJamesSocialAssociations(
+  associations,
+  "Halo James, saya Asi.",
+  ["kurangi penggunaan association sosial nora|teman sekelas ketika tidak relevan"],
+);
+assert.equal(useLessRanked.length, 0);
+
+const explicitAfterUseLess = rankJamesSocialAssociations(
+  associations,
+  "Saya sedang membicarakan Nora.",
+  ["kurangi penggunaan association sosial nora|teman sekelas ketika tidak relevan"],
+);
+assert.equal(explicitAfterUseLess.length, 1);
+assert.equal(explicitAfterUseLess[0].associationKey, "nora|teman sekelas");
+
+const useMoreRanked = rankJamesSocialAssociations(
+  [
+    ...associations,
+    {
+      personName: "Rina",
+      relationship: "teman",
+      confidence: 0.9,
+      evidence: "Rina adalah teman Asi.",
+    },
+  ],
+  "Halo James, saya Asi.",
+  ["gunakan association sosial rina|teman ketika relevan"],
+);
+assert.equal(useMoreRanked[0].associationKey, "rina|teman");
+
+const parsedLessons = resolveJamesSocialAssociationUsageLessons([
+  "gunakan association sosial nora|teman sekelas ketika relevan",
+  "kurangi penggunaan association sosial rina|teman ketika tidak relevan",
+]);
+assert.equal(parsedLessons.get("nora|teman sekelas"), "use_more");
+assert.equal(parsedLessons.get("rina|teman"), "use_less");
+
 
 console.log("Social Memory behavior tests: PASS");
 
