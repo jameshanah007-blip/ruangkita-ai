@@ -25,6 +25,10 @@ function clean(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
+function safeSearchName(value: string) {
+  return value.replace(/[^\p{L}\p{N} _-]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+}
+
 function extractNames(text: string) {
   const matches = text.match(/\b[A-ZÀ-Ý][a-zà-ÿ]{1,30}\b/g) || [];
   return [...new Set(matches.map((name) => name.trim()))].slice(0, 5);
@@ -76,8 +80,9 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
     .select("user_id, memory_key, memory_value, confidence, source_excerpt")
     .eq("memory_type", "identity")
     .eq("status", "active")
+    .in("memory_value", names)
     .order("confidence", { ascending: false })
-    .limit(500);
+    .limit(100);
 
   if (identityError || !identities?.length) return "";
 
@@ -113,6 +118,9 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
 
   // Reverse relationships: another RuangKita member may have described a relationship with the current user.
   if (currentPersonName) {
+    const safeCurrentPersonName = safeSearchName(currentPersonName);
+    if (!safeCurrentPersonName) return "";
+
     const { data: allRelationships } = await supabase
       .from("james_memories")
       .select("user_id, memory_key, memory_value, confidence, source_excerpt")
