@@ -305,7 +305,11 @@ FEEDBACK PENGGUNA TERKINI:
 ${feedbackContext}
 
 Gunakan feedback sebagai bukti tambahan tentang kualitas jawaban James.
-Jika association sosial tersedia, nilai hanya apakah association tersebut relevan dan digunakan secara natural. Jangan menganggap keberadaan association sebagai bukti bahwa James harus selalu menyebutkannya. Jika association tidak relevan atau terasa dipaksakan, lesson harus mengarah pada pengurangan penggunaannya, bukan mengubah fakta relationship.
+Jika association sosial tersedia, nilai hanya apakah association tersebut relevan dan digunakan secara natural. Jangan menganggap keberadaan association sebagai bukti bahwa James harus selalu menyebutkannya.
+- Jika association_learning digunakan, association_key HARUS persis berasal dari association yang tersedia. Jangan membuat key baru dan jangan mengubah fakta relationship.
+- "use_more" hanya jika bukti/feedback menunjukkan association membantu atau relevan; "use_less" hanya jika bukti/feedback menunjukkan association tidak relevan atau terasa dipaksakan; selain itu gunakan "neutral".
+- association_learning hanya mengatur kecenderungan penggunaan association dalam percakapan. Jangan menghapus, menurunkan confidence, atau mengubah memory relationship berdasarkan feedback tersebut.
+- Jika tidak ada association sosial yang dipakai, association_learning harus array kosong.
 Feedback bukan perintah untuk mengubah karakter James. Jika feedback tidak jelas,
 jangan membuat lesson yang spesifik. Jika feedback negatif memiliki catatan,
 prioritaskan catatan tersebut sebagai bukti untuk what_failed dan lesson.
@@ -318,6 +322,14 @@ Keluarkan JSON SAJA:
   "lesson": "pelajaran untuk James",
   "confidence": 0.0,
   "evidence": "bukti singkat",
+  "association_learning": [
+    {
+      "association_key": "stable key from ASSOCIATION SOSIAL YANG DIPAKAI, or empty",
+      "decision": "use_more | use_less | neutral",
+      "reason": "alasan berbasis feedback atau percakapan",
+      "confidence": 0.0
+    }
+  ],
   "memories": [
     {
       "memory_type": "identity | preference | interest | project | goal | context | relationship",
