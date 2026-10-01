@@ -65,6 +65,18 @@ export async function learnJamesMetaStrategy(input:MetaInput){
     const {data:inserted}=await supabase.from("james_meta_strategies").insert({
       task_class:taskClass,strategy,capabilities,evidence_count:1,success_count:1,confidence,status:"candidate"
     }).select("id,task_class,strategy,capabilities,evidence_count,success_count,failure_count,confidence,status").maybeSingle();
+    if (inserted?.id) {
+      // The creation guard runs before the strategy row exists, so attach the
+      // durable creation event to the new strategy after persistence.
+      const { error:lineageError } = await supabase
+        .from("james_meta_strategy_mutation_events")
+        .update({ source_strategy_id: inserted.id })
+        .eq("source_event_key", creationKey)
+        .is("source_strategy_id", null);
+      if (lineageError) {
+        throw new Error("Strategy creation lineage could not be linked: " + lineageError.message);
+      }
+    }
     return inserted||null;
   }catch(error){console.warn("James meta-learning unavailable:",error);return null;}
 }
