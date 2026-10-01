@@ -1230,16 +1230,23 @@ export async function recordJamesStrategyLineage(input: {
     },
   };
 
-  const result = existing?.id
-    ? await client.from("james_experiences").update(memory).eq("id", existing.id)
-    : await client.from("james_experiences").insert(memory);
+  const { data: memoryResult, error: memoryError } = await client.rpc("record_james_game_memory_event", {
+    p_pattern: pattern,
+    p_strategy: strategy,
+    p_event_key: eventKey,
+    p_success_delta: input.outcome === "success" ? 1 : 0,
+    p_failure_delta: input.outcome === "failure" ? 1 : 0,
+    p_capabilities: ["fun-zone-strategy-lineage"],
+    p_last_evidence: memory.last_evidence,
+    p_confidence_mode: "weighted-existing",
+  });
 
-  if (result.error) {
-    console.warn("James strategy lineage recording failed:", result.error.message);
+  if (memoryError) {
+    console.warn("James strategy lineage recording failed:", memoryError.message);
     return null;
   }
 
-  return { pattern, confidence: Number(confidence.toFixed(3)), successCount, failureCount };
+  return { pattern, confidence: Number(memoryResult?.confidence ?? confidence), successCount: Number(memoryResult?.success_count ?? successCount), failureCount: Number(memoryResult?.failure_count ?? failureCount) };
 }
 
 export async function evolveJamesComposedStrategy(input: {
