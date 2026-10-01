@@ -45,7 +45,7 @@ function relationshipLabel(memoryKey: string, memoryValue: string) {
   return "kenalan";
 }
 
-export async function getJamesSocialMemory(userId: string, userRequest: string) {
+export async function getJamesSocialMemory(userId: string, userRequest: string, usageLessons: string[] = []) {
   const supabase = getSupabase();
   if (!supabase || !userId || !userRequest.trim()) return "";
 
@@ -181,7 +181,7 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
     }
   }
 
-  const scored = rankJamesSocialAssociations(associations, userRequest);
+  const scored = rankJamesSocialAssociations(associations, userRequest, usageLessons);
 
   if (!scored.length) return "";
 
