@@ -1,6 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { rankJamesSocialAssociations } from "./socialMemoryRanking.js";
 
+type SocialMemory = {
+  personName: string;
+  relationship: string;
+  confidence: number;
+  evidence: string;
+};
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
 
