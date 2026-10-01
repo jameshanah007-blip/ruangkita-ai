@@ -6,6 +6,7 @@ const migrations = [
   ["313", "supabase/migrations/20261001131300_james_strategy_revalidation_wakeup.sql"],
   ["314", "supabase/migrations/20261001131400_james_strategy_candidate_concurrency.sql"],
   ["315", "supabase/migrations/20261001131500_james_game_learning_event_idempotency.sql"],
+  ["316", "supabase/migrations/20261001131600_james_game_learning_atomic_aggregates.sql"],
 ];
 
 const files = Object.fromEntries(migrations.map(([id, path]) => [id, fs.readFileSync(path, "utf8")]));
@@ -34,6 +35,12 @@ const required = {
   "314": [
     "james_meta_strategies_nonretired_task_strategy_uidx",
     "create_james_meta_strategy_candidate",
+  ],
+  "316": [
+    "record_james_game_experience_event",
+    "record_james_game_self_model_event",
+    "pg_advisory_xact_lock",
+    "revoke execute",
   ],
   "315": [
     "james_reflections_source_event_key_uidx",
