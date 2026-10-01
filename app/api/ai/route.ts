@@ -43,6 +43,7 @@ import { isOmantoVerified } from "./verify-identity/route";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
 import { evaluateJamesMetaStrategies, learnJamesMetaStrategy, retrieveJamesMetaStrategiesByCapabilities } from "../tools/jamesMetaLearning";
 import { isRuangKitaProjectQuestion, RUANGKITA_PROJECT_KNOWLEDGE } from "../tools/ruangkitaProjectKnowledge";
+import { getJamesSocialMemory } from "../tools/jamesSocialMemory";
 
 type Intent =
   | "chat"
@@ -1152,11 +1153,12 @@ export async function POST(request: Request) {
       });
     }
 
-    const [memory, longTermMemories, growth, globalGrowth] = await Promise.all([
+    const [memory, longTermMemories, growth, globalGrowth, socialMemoryContext] = await Promise.all([
       getJamesMemory(userId, conversationId),
       getJamesLongTermMemory(userId, 30),
       getJamesGrowth(userId),
       getGlobalGrowth(20),
+      getJamesSocialMemory(userId, userRequest),
     ]);
     const contextResult = buildJamesContext({
       userRequest,
@@ -1165,7 +1167,7 @@ export async function POST(request: Request) {
       growth,
       globalGrowth,
     });
-    const memoryContext = contextResult.context;
+    const memoryContext = [contextResult.context, socialMemoryContext].filter(Boolean).join("\n\n");
 
     const activeKnowledgeContext = globalGrowth.length
       ? `ACTIVE JAMES KNOWLEDGE:
