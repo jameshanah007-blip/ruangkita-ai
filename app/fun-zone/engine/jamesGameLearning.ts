@@ -307,39 +307,35 @@ export async function recordJamesGameBrainEvidence(
         capabilities.join(", "),
       1000,
     );
-    const { data: existingStrategy } = await client
-      .from("james_experiences")
-      .select("id, success_count, failure_count, confidence")
-      .eq("pattern", pattern)
-      .eq("strategy", synthesizedStrategy)
-      .maybeSingle();
-
-    const successCount = Number(existingStrategy?.success_count || 0) + 1;
-    const failureCount = Number(existingStrategy?.failure_count || 0);
-    const confidence = Math.min(
-      0.99,
-      Math.max(Number(existingStrategy?.confidence || 0.72), 0.72) +
-        Math.min(0.08, successCount * 0.02),
+    const eventKey = clean(
+      "fun-zone:game-brain-synthesis:" + strategyFingerprint + ":attempt:" + attempt,
+      1000,
+    );
+    const { data: memoryResult, error: memoryError } = await client.rpc(
+      "record_james_game_memory_event",
+      {
+        p_pattern: pattern,
+        p_strategy: synthesizedStrategy,
+        p_event_key: eventKey,
+        p_success_delta: 1,
+        p_failure_delta: 0,
+        p_capabilities: capabilities,
+        p_last_evidence: {
+          source: "fun-zone",
+          mutation: "synthesized-strategy",
+          attempt,
+          strategyFingerprint,
+          capabilities,
+          quality,
+          recordedAt: new Date().toISOString(),
+        },
+        p_confidence_mode: "weighted-existing",
+        p_confidence_override: null,
+      },
     );
 
-    const strategyPayload = {
-      user_id: SYSTEM_USER_ID,
-      pattern,
-      strategy: synthesizedStrategy,
-      confidence,
-      success_count: successCount,
-      failure_count: failureCount,
-      capabilities,
-      status: "active",
-    };
-
-    if (existingStrategy?.id) {
-      await client
-        .from("james_experiences")
-        .update(strategyPayload)
-        .eq("id", existingStrategy.id);
-    } else {
-      await client.from("james_experiences").insert(strategyPayload);
+    if (memoryError) {
+      console.warn("James synthesized strategy memory persistence failed:", memoryError.message);
     }
   }
 
