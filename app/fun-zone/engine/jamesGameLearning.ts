@@ -1165,7 +1165,7 @@ export async function evaluateJamesContextTransfer(
   };
 }
 
-export async function resolveJamesKnowledgeSupersession(limit = 12) {
+export async function resolveJamesKnowledgeSupersession(limit = 12, learningEventKey?: string) {
   const client = db();
   if (!client) return [];
 
@@ -1207,11 +1207,13 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
     const strategy = "Resolve knowledge version supersession using context overlap and evidence improvement.";
     const { data: existing } = await client
       .from("james_experiences")
-      .select("id")
+       .select("id,last_source_event_key")
       .eq("user_id", SYSTEM_USER_ID)
       .eq("pattern", pattern)
       .eq("strategy", strategy)
       .maybeSingle();
+
+    if (learningEventKey && existing?.last_source_event_key === learningEventKey) continue;
 
     const memory = {
       user_id: SYSTEM_USER_ID,
@@ -1222,6 +1224,7 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
       failure_count: improved ? 0 : 1,
       capabilities: ["fun-zone-knowledge-supersession"],
       status: "active",
+      ...(learningEventKey ? { last_source_event_key: learningEventKey } : {}),
       last_evidence: {
         knowledgeKey,
         latestVersion: latest.version,
