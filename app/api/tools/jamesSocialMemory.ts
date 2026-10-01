@@ -58,7 +58,13 @@ export async function getJamesSocialMemory(userId: string, userRequest: string) 
     .limit(1)
     .maybeSingle();
 
-  const currentPersonName = clean(ownIdentity?.memory_value, 120);
+  const storedPersonName = clean(ownIdentity?.memory_value, 120);
+  const currentPersonName =
+    storedPersonName ||
+    clean(
+      userRequest.match(/\b(?:saya|aku|nama saya|nama aku)\s*[:=]?\s*([A-ZÀ-Ý][a-zà-ÿ]{1,30})\b/i)?.[1],
+      120
+    );
   const { data: ownRelationships, error: relationshipError } = await supabase
     .from("james_memories")
     .select("memory_key, memory_value, confidence, source_excerpt")
