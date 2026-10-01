@@ -205,7 +205,7 @@ export async function POST(request: Request) {
         passed: report.passed === true,
         quality: gameQuality(report),
         evidence: 1,
-      });
+      }, learningEventKey);
       if (conflict) {
         coreSkillConflicts.push(conflict);
         if (conflict.conflict) {
