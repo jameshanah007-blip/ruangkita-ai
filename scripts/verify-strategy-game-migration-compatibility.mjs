@@ -11,7 +11,7 @@ const migrations = [
 const files = Object.fromEntries(migrations.map(([id, path]) => [id, fs.readFileSync(path, "utf8")]));
 
 for (const id of ["311", "312"]) {
-  if (/drop\\s+column\\s+if\\s+exists/i.test(files[id])) {
+  if (/drop\s+column\s+if\s+exists/i.test(files[id])) {
     throw new Error("Migration " + id + " must retain legacy columns for upgrade compatibility.");
   }
 }
