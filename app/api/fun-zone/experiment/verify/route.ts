@@ -73,7 +73,18 @@ export async function POST(request: Request) {
         p_strategy_id: strategyId,
       });
       if (integrityError) throw new Error("Strategy integrity verification failed; experiment checkpoint remains retryable: " + integrityError.message);
-      if (!integrity?.ok) throw new Error("Strategy integrity mismatch; verification checkpoint remains retryable.");
+      if (!integrity?.ok) {
+        await client.rpc("record_james_strategy_integrity_conflict", {
+          p_strategy_id: strategyId,
+          p_experiment_id: experimentId,
+          p_attempt: attempt,
+          p_expected_fingerprint: typeof integrity?.expectedFingerprint === "string" ? integrity.expectedFingerprint : "",
+          p_selected_fingerprint: typeof integrity?.selectedFingerprint === "string" ? integrity.selectedFingerprint : "",
+          p_executed_fingerprint: typeof integrity?.executedFingerprint === "string" ? integrity.executedFingerprint : "",
+          p_verified_fingerprint: typeof integrity?.verifiedFingerprint === "string" ? integrity.verifiedFingerprint : "",
+        });
+        throw new Error("Strategy integrity mismatch; verification checkpoint remains retryable.");
+      }
 
       const hardFailures = Array.isArray(report.hardFailures) ? report.hardFailures : [];
       const softWarnings = Array.isArray(report.softWarnings) ? report.softWarnings : [];
