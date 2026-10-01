@@ -193,7 +193,7 @@ export async function POST(request: Request) {
     const recoveryImpact = await evaluateJamesRecoveryDirectiveImpact(experiment.prompt, blueprint, report, learningEventKey);
     const explorationPromotion = await promoteJamesExplorationResult(experiment.prompt, blueprint, report, learningEventKey);
     const learningModeImpact = await evaluateJamesExploreExploitImpact(experiment.prompt, blueprint, report, learningEventKey);
-    const generalizedSkills = await promoteJamesGeneralizedGameSkills(8);
+    const generalizedSkills = await promoteJamesGeneralizedGameSkills(8, learningEventKey);
     const consolidatedKnowledge = await consolidateJamesGameKnowledge(8);
     const knowledgeVersions = await versionJamesConsolidatedKnowledge(8);
     const knowledgeSupersession = await resolveJamesKnowledgeSupersession(8);
