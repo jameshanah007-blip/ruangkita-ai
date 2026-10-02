@@ -19,6 +19,8 @@ function makeId() {
   return crypto.randomUUID();
 }
 
+const SHARED_DEVICE_SESSION_KEY = "ruangkita-shared-device-session-v1";
+
 export default function AIExecutor() {
   const [request, setRequest] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -36,16 +38,34 @@ export default function AIExecutor() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    // Setiap kali halaman Tanya Saya dibuka, mulai dengan percakapan baru.
-    // Riwayat lama tetap tersimpan di Supabase dan tidak dihapus, tetapi tidak
-    // ditampilkan otomatis di layar.
-    void fetch("/api/ai/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    })
-      .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Session James gagal dibuat.");
+    // Pengguna anonim pada perangkat bersama mendapat identitas baru saat tab
+    // baru dibuka. sessionStorage tetap ada saat reload pada tab yang sama,
+    // sehingga reload tidak memutus kontinuitas James. Pengguna yang login
+    // tidak dipaksa berganti identitas.
+    const hasTabSession = sessionStorage.getItem(SHARED_DEVICE_SESSION_KEY) === "active";
+
+    const initializeSession = async () => {
+      try {
+        const sessionResponse = await fetch("/api/ai/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        const sessionData = await sessionResponse.json();
+        if (!sessionResponse.ok) {
+          throw new Error(sessionData.error || "Session James gagal dibuat.");
+        }
+
+        let data = sessionData;
+        if (!hasTabSession && sessionData.authenticated === false) {
+          const switchResponse = await fetch("/api/auth/switch-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          });
+          data = await switchResponse.json();
+          if (!switchResponse.ok) {
+            throw new Error(data.error || "Session pengguna bersama gagal dibuat.");
+          }
+        }
 
         const nextUserId = typeof data.userId === "string" ? data.userId : "";
         const nextConversationId = typeof data.conversationId === "string" ? data.conversationId : "";
@@ -54,18 +74,21 @@ export default function AIExecutor() {
           throw new Error("Session James tidak lengkap.");
         }
 
+        sessionStorage.setItem(SHARED_DEVICE_SESSION_KEY, "active");
         setUserId(nextUserId);
         setConversationId(nextConversationId);
         setMessages([]);
         setRequest("");
-      })
-      .catch((error) => {
+        setOmantoVerified(false);
+      } catch (error) {
         console.error("James new session error:", error);
         setError(error instanceof Error ? error.message : "Session James gagal dibuat.");
-      })
-      .finally(() => {
+      } finally {
         setMemoryReady(true);
-      });
+      }
+    };
+
+    void initializeSession();
   }, []);
 
   useEffect(() => {
@@ -100,6 +123,7 @@ export default function AIExecutor() {
       setError("");
       setOmantoVerified(false);
       setVerificationOpen(false);
+      sessionStorage.setItem(SHARED_DEVICE_SESSION_KEY, "active");
       setVerificationCode("");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Gagal mengganti pengguna.");
