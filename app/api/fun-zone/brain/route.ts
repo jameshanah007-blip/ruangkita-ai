@@ -1,3 +1,4 @@
+import { resolveLegacyUserId } from "../../auth/cloudIdentity";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -422,10 +423,15 @@ Jangan memberikan penjelasan tambahan.
 JSON harus valid.
 `;
 
-export async function POST(
-  request: Request
-) {
+export async function POST(request: Request) {
   try {
+    const userId = await resolveLegacyUserId();
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: "Session James tidak valid." },
+        { status: 403 },
+      );
+    }
     const body =
       await request.json();
 
