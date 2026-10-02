@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAuthClientForRoute, getLegacyCookieUserId, linkAuthUser, LEGACY_USER_COOKIE, AUTH_ACCESS_COOKIE, AUTH_REFRESH_COOKIE } from "../cloudIdentity";
+import { getAuthClientForRoute, getLegacyCookieUserId, linkAuthUser, signLegacyUserId, LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, AUTH_ACCESS_COOKIE, AUTH_REFRESH_COOKIE } from "../cloudIdentity";
 
 export async function POST(request: Request) {
   try {
@@ -43,6 +43,19 @@ export async function POST(request: Request) {
       path: "/",
       maxAge: 60 * 60 * 24 * 365,
     });
+    const legacySignature = signLegacyUserId(legacyId);
+    if (legacySignature) {
+      response.cookies.set({
+        name: LEGACY_USER_SIGNATURE_COOKIE,
+        value: legacySignature,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    }
+
     response.cookies.set({
       name: AUTH_ACCESS_COOKIE,
       value: result.data.session.access_token,
