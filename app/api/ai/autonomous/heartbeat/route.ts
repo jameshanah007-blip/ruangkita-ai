@@ -44,6 +44,9 @@ export async function GET(request: Request) {
         });
 
         await updateJamesAutonomousGoal(goal.id, {
+          userId: goal.user_id,
+          conversationId: goal.conversation_id,
+        }, {
           status: result.verified ? "completed" : "failed",
           last_result: result.answer.slice(0, 12000),
           last_error: result.verified ? null : result.nextAction,
@@ -57,6 +60,9 @@ export async function GET(request: Request) {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         await updateJamesAutonomousGoal(goal.id, {
+          userId: goal.user_id,
+          conversationId: goal.conversation_id,
+        }, {
           status: "failed",
           last_error: message.slice(0, 4000),
         });
