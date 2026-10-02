@@ -81,6 +81,8 @@ export async function POST(request: Request) {
         { success: false, error: "Blueprint atau test report terlalu besar." },
         { status: 413 },
       );
+    }
+
     const attempt = Math.max(1, Math.min(5, Number(body?.attempt || 1)));
 
     if (!blueprint || !report) {
