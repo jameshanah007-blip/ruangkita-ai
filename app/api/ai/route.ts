@@ -1650,7 +1650,10 @@ Jangan menyebut reasoning internal.`
 
       if (agentResult.verified && agentResult.taskId) {
         void (async () => {
-          const task = await getJamesAgentTask(agentResult.taskId || "");
+          const task = await getJamesAgentTask(agentResult.taskId || "", {
+            userId,
+            conversationId,
+          });
           if (!task) return;
 
           const learnedExperience = await learnJamesExperience({
