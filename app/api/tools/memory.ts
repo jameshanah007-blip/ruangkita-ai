@@ -274,19 +274,13 @@ export async function getJamesRelevantConversationMessages(
 function extractExplicitJamesMemories(userRequest: string): JamesMemoryProposal[] {
   const proposals: JamesMemoryProposal[]=[];
   const cleanName=(value:string)=>value.trim().replace(/^[,.:;!?]+|[,.:;!?]+$/g,"").slice(0,80);
-  const blockedIdentityWords = new Set([
-    "james","kamu","aku","saya","sudah","pernah","baru","sedang","akan","telah",
-    "masih","tidak","bukan","punya","memiliki","berkenalan","bertemu","tinggal",
-    "bekerja","belajar","juga","kelas","sekolah","teman","dengan","yang","ini",
-    "itu","dan","atau","karena","untuk","dari","ke","di","adalah","seorang"
-  ]);
   const identityPatterns=[
     /\b(?:halo|hai)?\s*(?:james[,! ]+)?(?:saya|aku)\s+(?:adalah\s+)?([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i,
     /\b(?:nama saya|namaku|nama aku)\s+(?:adalah\s+)?([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i,
   ];
   for(const pattern of identityPatterns){
     const match=userRequest.match(pattern); if(!match?.[1]) continue;
-    const name=cleanName(match[1]); if(!name || blockedIdentityWords.has(name.toLowerCase())) continue;
+    const name=cleanName(match[1]); if(!name||/^(james|kamu|aku|saya|sudah|pernah|baru|sedang|akan|telah|masih|tidak|bukan|punya|memiliki|berkenalan|bertemu|tinggal|bekerja|belajar)$/i.test(name)) continue;
     proposals.push({memory_type:"identity",memory_key:"self_name:"+name.toLowerCase(),memory_value:name,memory_action:"upsert",confidence:0.99,source_excerpt:match[0].trim().slice(0,400),expires_in_days:null}); break;
   }
   const relationshipPatterns=[
@@ -332,7 +326,7 @@ export async function getJamesLongTermMemory(userId: string, limit = 30): Promis
     .eq("status", "active")
     .order("confidence", { ascending: false })
     .order("updated_at", { ascending: false })
-    .limit(Math.min(Math.max(limit * 3, 30), 100));
+    .limit(Math.min(Math.max(limit, 1), 50));
 
   if (error) {
     console.error("James long-term memory read error:", error.message);
@@ -351,8 +345,7 @@ export async function getJamesLongTermMemory(userId: string, limit = 30): Promis
       return String(b.last_confirmed_at || "").localeCompare(
         String(a.last_confirmed_at || "")
       );
-    })
-    .slice(0, Math.min(Math.max(limit, 1), 50));
+    });
 }
 
 export async function saveJamesMemoryProposals(
