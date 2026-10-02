@@ -70,6 +70,49 @@ export async function getJamesMemory(userId: string, conversationId: string) {
   };
 }
 
+export async function getJamesPreviousConversationMessages(
+  userId: string,
+  currentConversationId: string,
+  limit = 40,
+): Promise<MemoryMessage[]> {
+  const supabase = getSupabase();
+
+  if (
+    !supabase ||
+    !validId(userId) ||
+    !validId(currentConversationId)
+  ) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("ai_messages")
+    .select("role, content, created_at, conversation_id")
+    .eq("user_id", userId)
+    .neq("conversation_id", currentConversationId)
+    .order("created_at", { ascending: false })
+    .limit(Math.min(Math.max(limit, 1), 80));
+
+  if (error) {
+    console.error("James previous conversation memory read error:", error.message);
+    return [];
+  }
+
+  return [...(data || [])]
+    .filter(
+      (message) =>
+        (message.role === "user" || message.role === "assistant") &&
+        typeof message.content === "string" &&
+        message.content.trim()
+    )
+    .reverse()
+    .map((message) => ({
+      role: message.role as "user" | "assistant",
+      content: message.content,
+      created_at: message.created_at,
+    }));
+}
+
 export type JamesLongTermMemory = {
   id: string;
   memory_type: "identity" | "preference" | "interest" | "project" | "goal" | "context" | "relationship";
@@ -497,8 +540,7 @@ export async function saveJamesTurn(input: {
         role: "assistant",
         content: input.assistantMessage,
         intent: input.intent,
-        tool: input.tool,
-      },
+        tool: input.tool,      },
     ]);
 
   if (messageError) {
