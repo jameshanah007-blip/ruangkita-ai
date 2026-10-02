@@ -31,11 +31,28 @@ export async function POST(request: Request) {
     if (readError) throw readError;
     if (!experiment) return NextResponse.json({ success: false, error: "Experiment job tidak ditemukan." }, { status: 404 });
 
-    if (experiment.status === "running" && experiment.runner_token && experiment.runner_token !== claimToken) {
-      return NextResponse.json({ success: false, error: "Experiment sedang dijalankan runner lain." }, { status: 409 });
+    // Verification must be bound to an active runner lease. Pending jobs must
+    // first be claimed by the internal verifier so their evidence cannot be
+    // attached to an arbitrary experiment without a matching claim token.
+    if (
+      experiment.status !== "running" ||
+      !experiment.runner_token ||
+      !claimToken ||
+      experiment.runner_token !== claimToken
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Experiment verification requires an active runner claim." },
+        { status: 409 },
+      );
     }
-    if (experiment.status !== "running" && experiment.status !== "pending_verification") {
-      return NextResponse.json({ success: false, error: "Experiment tidak berada pada state yang dapat diverifikasi.", status: experiment.status }, { status: 409 });
+
+    const submittedBlueprint = JSON.stringify(blueprint);
+    const storedBlueprint = JSON.stringify(experiment.blueprint);
+    if (submittedBlueprint !== storedBlueprint) {
+      return NextResponse.json(
+        { success: false, error: "Blueprint tidak cocok dengan experiment yang sedang diverifikasi." },
+        { status: 409 },
+      );
     }
 
     const attempt = Number(report.attempt || experiment.attempt || 0);
