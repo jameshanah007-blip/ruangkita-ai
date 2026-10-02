@@ -265,6 +265,13 @@ export async function POST(
         ? body.prompt.trim()
         : "";
 
+    if (prompt.length > 12000) {
+      return NextResponse.json(
+        { success: false, stage: "director", error: "Prompt terlalu panjang. Maksimum 12.000 karakter." },
+        { status: 413 },
+      );
+    }
+
     if (!prompt) {
       return NextResponse.json(
         {
