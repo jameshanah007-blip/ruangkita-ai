@@ -999,7 +999,7 @@ function sanitizeJamesFinalResponse(text: string): string {
     .replace(/^\s*(User Safety|Safety|Safety Check)\s*:\s*(safe|unsafe|allowed|blocked)\s*$/gim, "")
     .replace(/^\s*(User Safety|Safety|Safety Check)\s*:\s*(safe|unsafe|allowed|blocked)\s*\n/gim, "")
     .trim();
-  return cleaned || text.trim();
+  return cleaned;
 }
 
 function validUuid(value: unknown): value is string {
@@ -1048,7 +1048,8 @@ function createJamesChatStreamResponse(input: {
 
           provider = event.provider;
           model = event.model;
-          resultText = sanitizeJamesFinalResponse(event.text);
+          resultText = sanitizeJamesFinalResponse(event.text) ||
+            "Maaf, aku belum bisa menyusun jawaban yang valid untuk pertanyaan itu. Coba tanyakan lagi dengan cara yang berbeda.";
 
           if (resultText.trim()) {
             controller.enqueue(encodeEvent({
