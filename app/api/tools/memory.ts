@@ -274,7 +274,10 @@ export async function getJamesRelevantConversationMessages(
 function extractExplicitJamesMemories(userRequest: string): JamesMemoryProposal[] {
   const proposals: JamesMemoryProposal[]=[];
   const cleanName=(value:string)=>value.trim().replace(/^[,.:;!?]+|[,.:;!?]+$/g,"").slice(0,80);
-  const blockedIdentityWords = new Set([\n    "james","kamu","aku","saya","sudah","pernah","baru","sedang","akan","telah",\n    "masih","tidak","bukan","punya","memiliki","berkenalan","bertemu","tinggal",\n    "bekerja","belajar","juga","kelas","sekolah","teman","dengan","yang","ini",\n    "itu","dan","atau","karena","untuk","dari","ke","di","adalah","seorang"\n  ]);
+  const blockedIdentityWords = new Set([
+    "james","kamu","aku","saya","sudah","pernah","baru","sedang","akan","telah",\n    "masih","tidak","bukan","punya","memiliki","berkenalan","bertemu","tinggal",
+    "bekerja","belajar","juga","kelas","sekolah","teman","dengan","yang","ini",\n    "itu","dan","atau","karena","untuk","dari","ke","di","adalah","seorang"
+  ]);
   const identityPatterns=[
     /\b(?:halo|hai)?\s*(?:james[,! ]+)?(?:saya|aku)\s+(?:adalah\s+)?([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i,
     /\b(?:nama saya|namaku|nama aku)\s+(?:adalah\s+)?([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i,
