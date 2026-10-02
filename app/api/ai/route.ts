@@ -1285,6 +1285,13 @@ export async function POST(request: Request) {
     const contextResult = buildJamesContext({
       userRequest,
       ...memory,
+      // Cross-conversation continuity is restricted to this userId.
+      // These rows were retrieved with the same user boundary above.
+      messages: [
+        ...previousConversationMessages,
+        ...relevantConversationMessages,
+        ...(memory.messages || []),
+      ],
       longTermMemories,
       growth,
       globalGrowth,
