@@ -492,6 +492,13 @@ export async function POST(request: Request) {
         .filter(Boolean)
         .join("\n");
 
+    if (userPrompt.length > 12000 || legacyGenre.length > 1000 || legacyMood.length > 1000 || legacyTheme.length > 2000) {
+      return NextResponse.json(
+        { success: false, stage: "director", error: "Input game terlalu panjang." },
+        { status: 413 },
+      );
+    }
+
     if (!combinedPrompt) {
       return NextResponse.json(
         {
