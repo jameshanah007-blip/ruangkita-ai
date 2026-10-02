@@ -112,6 +112,10 @@ export async function POST(request: Request) {
     }
     const body = await request.json();
 
+    if (JSON.stringify(body).length > 30000) {
+      return NextResponse.json({ success: false, error: "Game state terlalu besar." }, { status: 413 });
+    }
+
     const gameState =
       body?.gameState as GameState | undefined;
 
