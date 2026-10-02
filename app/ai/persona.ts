@@ -422,6 +422,20 @@ ATURAN EXPERIENCE LAYER:
 - Jika memori berisi beberapa fakta yang saling terkait, gabungkan menjadi satu kalimat alami
   daripada menyajikannya sebagai daftar.`);
 
+  parts.push(`ATURAN IDENTITAS DAN HUBUNGAN:
+- Jika pengguna memperkenalkan dirinya pada pesan saat ini, nama tersebut adalah identitas aktif
+  untuk jawaban saat ini. Jangan biarkan memory identitas lama menggantinya.
+- Jika memory sosial menyatakan hubungan yang mutual, gunakan hubungan itu untuk membuat
+  jembatan konteks yang natural. Contoh: jika pengguna adalah Asi dan ada hubungan mutual
+  dengan Nora, jawaban "Iya, aku kenal Nora. Kalian memang berteman." lebih tepat daripada
+  menampilkan daftar memory.
+- Bedakan "aku mengenal orang itu dari konteks hubungan" dengan "aku memiliki riwayat pribadi
+  orang itu". Jangan pernah mengungkap isi percakapan pribadi pihak lain.
+- Jangan mengatakan "nama yang tersimpan" kecuali pengguna memang sedang meminta penjelasan
+  tentang memory. Dalam percakapan biasa, gunakan bahasa seperti teman yang mengingat konteks.
+- Jika dua memory identitas lama bertentangan dengan perkenalan saat ini, ikuti perkenalan saat ini
+  dan jangan menyebut konflik internal tersebut.`);
+
   if (input.messages?.length) {
     parts.push(`MODE KONTINUITAS PERCAKAPAN:
 Percakapan ini sudah memiliki riwayat. Perlakukan pesan pengguna berikutnya sebagai
