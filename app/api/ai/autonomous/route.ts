@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { isOmantoVerified } from "../verify-identity/route";
+import { LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, verifyLegacyUserIdSignature } from "../auth/cloudIdentity";
+import { cookies } from "next/headers";
 import { runJamesAutonomousBrain, type JamesAutonomyMode } from "../../tools/jamesAutonomousBrain";
 import { createJamesAutonomousGoal } from "../../tools/jamesAutonomousGoals";
 
@@ -14,7 +16,17 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const userId = typeof body.userId === "string" ? body.userId.trim() : "";
+    const cookieStore = await cookies();
+    const sessionUserId = cookieStore.get(LEGACY_USER_COOKIE)?.value || "";
+    const sessionSignature = cookieStore.get(LEGACY_USER_SIGNATURE_COOKIE)?.value;
+    if (!verifyLegacyUserIdSignature(sessionUserId, sessionSignature)) {
+      return NextResponse.json(
+        { error: "Sesi James tidak valid. Silakan buat sesi James terlebih dahulu." },
+        { status: 401 },
+      );
+    }
+    const requestedUserId = typeof body.userId === "string" ? body.userId.trim() : "";
+    const userId = sessionUserId;
     const conversationId =
       typeof body.conversationId === "string" ? body.conversationId.trim() : "";
     const goal = typeof body.goal === "string" ? body.goal.trim() : "";
@@ -30,7 +42,14 @@ export async function POST(request: Request) {
           ? 5
           : 2;
 
-    if (!userId || !conversationId || !goal) {
+    if (requestedUserId && requestedUserId !== userId) {
+      return NextResponse.json(
+        { error: "userId tidak sesuai dengan sesi James." },
+        { status: 403 },
+      );
+    }
+
+    if (!conversationId || !goal) {
       return NextResponse.json(
         { error: "userId, conversationId, and goal are required." },
         { status: 400 },
@@ -63,9 +82,18 @@ export async function POST(request: Request) {
       });
     }
 
+    const sessionConversationId = cookieStore.get("ruangkita-session-conversation")?.value || "";
+    const effectiveConversationId = sessionConversationId || conversationId;
+    if (conversationId && sessionConversationId && conversationId !== sessionConversationId) {
+      return NextResponse.json(
+        { error: "conversationId tidak sesuai dengan sesi James." },
+        { status: 403 },
+      );
+    }
+
     const result = await runJamesAutonomousBrain({
       userId,
-      conversationId,
+      conversationId: effectiveConversationId,
       goal,
       mode,
       maxCycles,
