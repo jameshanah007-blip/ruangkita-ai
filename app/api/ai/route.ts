@@ -111,7 +111,9 @@ function requestsConversationRecall(request: string) {
     /\btopik (kita )?(tadi|sebelumnya)/,
     /\bpercakapan (tadi|sebelumnya)/,
     /\bchat (tadi|sebelumnya|yang lalu)\b/,
-    /\bobrolan (tadi|sebelumnya|yang lalu)\b/
+    /\bobrolan (tadi|sebelumnya|yang lalu)\b/,
+    /\b(?:apakah\s+)?(?:kamu|james)\s+(?:masih\s+)?kenal\s+(?:saya|aku|[a-zà-öø-ÿ][a-zà-öø-ÿ'_-]{1,40})\b/,
+    /\b(?:kamu|james)\s+(?:masih\s+)?kenal\s+(?:saya|aku|[a-zà-öø-ÿ][a-zà-öø-ÿ'_-]{1,40})\b/
   ].some((pattern) => pattern.test(text));
 }
 
@@ -1460,7 +1462,7 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
         .slice(-40);
 
       const asksIdentity = /\b(?:siapa|apa)\s+(?:nama|namaku|nama saya)\b|\bsiapa namaku\b/i.test(userRequest);
-      const asksPersonalMemory = /\b(?:apa yang (?:kamu|james) ingat(?: tentang)?|(?:kamu|james) (?:masih )?ingat (?:saya|aku))\b/i.test(userRequest);
+      const asksPersonalMemory = /\b(?:apa yang (?:kamu|james) ingat(?: tentang)?|(?:kamu|james) (?:masih )?ingat (?:saya|aku)|(?:apakah\s+)?(?:kamu|james) (?:masih\s+)?kenal\s+(?:saya|aku|[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40}))\b/i.test(userRequest);
       const identityMemories = longTermMemories.filter(
         (memory) => memory.memory_type === "identity" && memory.status === "active"
       );
