@@ -120,35 +120,42 @@ function requestsConversationRecall(request: string) {
 function buildConversationRecallResponse(
   messages: Array<{ role: "user" | "assistant"; content: string }>
 ) {
-  const previous = messages.filter((message) => message.content.trim());
+  const previous = messages
+    .filter((message) => message.content.trim())
+    .slice(-12);
 
   if (!previous.length) {
-    return "Belum ada percakapan sebelumnya yang tersimpan di sesi ini.";
+    return "";
   }
 
-  const recentUserMessages = previous
-    .filter((message) => message.role === "user")
-    .slice(-4);
-
-  if (!recentUserMessages.length) {
-    return "Tadi belum ada pesan pengguna yang bisa aku jadikan acuan.";
-  }
-
-  const topics = recentUserMessages.map((message) => {
-    const content = message.content.trim().replace(/\s+/g, " ");
-    return content.length > 240 ? `“${content.slice(0, 237)}...”` : `“${content}”`;
-  });
-
-  if (topics.length === 1) {
-    return `Tadi kita sedang membicarakan: ${topics[0]}`;
-  }
-
-  return [
-    "Tadi kita sedang membicarakan beberapa hal berikut:",
-    ...topics.map((topic, index) => `${index + 1}. ${topic}`),
-  ].join("\n");
+  // Keep conversation evidence available to James without pre-formatting it
+  // as a numbered "database report". The model must synthesize the answer.
+  return previous
+    .map((message) => {
+      const speaker = message.role === "assistant" ? "James" : "Pengguna";
+      const content = message.content.trim().replace(/\s+/g, " ");
+      return `${speaker}: ${content.length > 500 ? content.slice(0, 497) + "..." : content}`;
+    })
+    .join("\n");
 }
 
+function extractRecallSubject(
+  request: string,
+  activeName: string | null
+) {
+  const match = request.match(
+    /\b(?:tentang|mengenai|soal|kalau|jika)\s+([A-ZÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i
+  );
+
+  const directName = request.match(
+    /\b(?:kenal|ingat|ingat tentang|ingat soal)\s+([A-ZÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i
+  );
+
+  const candidate = match?.[1] || directName?.[1] || null;
+  if (!candidate) return activeName;
+  if (/^(saya|aku|kamu|dia|itu|james)$/i.test(candidate)) return activeName;
+  return candidate.trim();
+}
 
 function extractExplicitIdentityNames(
   messages: Array<{ role: "user" | "assistant"; content: string }>
@@ -1493,19 +1500,28 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
         null;
 
       const conversationHistoryText = buildConversationRecallResponse(recallMessages);
-      const hasConversationHistory = !conversationHistoryText.startsWith("Belum ada percakapan sebelumnya");
+      const hasConversationHistory = Boolean(conversationHistoryText.trim());
+      const recallSubject = extractRecallSubject(userRequest, memoryName);
 
-      // Retrieval stays deterministic, but James synthesizes the facts instead of
-      // returning a database-style memory dump.
+      const relevantFacts = stableMemories
+        .slice(0, 10)
+        .map((memory) =>
+          `- ${memory.memory_type}: ${memory.memory_value}`
+        )
+        .join("\n");
+
       const recallContext = [
-        "IDENTITAS AKTIF YANG PALING KUAT: " + (memoryName || "(belum diketahui)"),
-        stableMemories.length
-          ? "MEMORI PRIBADI YANG RELEVAN:\n" + stableMemories.slice(0, 8).map((memory) =>
-              "- " + memory.memory_type + ": " + memory.memory_value
-            ).join("\n")
+        `IDENTITAS AKTIF: ${memoryName || "(belum diketahui)"}`,
+        `SUBJEK YANG DITANYAKAN: ${recallSubject || "(belum jelas)"}`,
+        relevantFacts
+          ? "FAKTA YANG TERSEDIA DAN RELEVAN:\n" + relevantFacts
           : "",
-        hasConversationHistory ? "RIWAYAT YANG RELEVAN:\n" + conversationHistoryText : "",
-        socialMemoryContext ? "KONTEKS RELASI SOSIAL YANG AMAN:\n" + socialMemoryContext : "",
+        socialMemoryContext
+          ? "RELASI SOSIAL YANG AMAN UNTUK DISEBUT:\n" + socialMemoryContext
+          : "",
+        hasConversationHistory
+          ? "BUKTI DARI PERCAKAPAN SEBELUMNYA (gunakan sebagai bukti, jangan tampilkan sebagai daftar):\n" + conversationHistoryText
+          : "",
       ].filter(Boolean).join("\n\n");
 
       const recallPrompt = `
@@ -1514,25 +1530,35 @@ ${recallContext}
 PESAN PENGGUNA:
 "${userRequest}"
 
-Tugasmu menjawab pesan ini sebagai James dalam percakapan yang sedang berlangsung.
+Tugasmu: jawab sebagai James yang benar-benar memahami konteks, bukan sebagai mesin pencari database.
 
-PENTING:
-- Jangan menjawab seperti database, laporan, atau hasil query.
-- Jangan mengatakan "nama yang tersimpan", "data yang tersimpan", "memory menunjukkan", atau menampilkan daftar memory/riwayat mentah.
-- Jika pengguna bertanya apakah kamu mengenalnya, jawab berdasarkan hubungan dan percakapan yang benar-benar tersedia. Hubungkan fakta yang relevan menjadi satu jawaban natural.
-- Jika pengguna bertanya tentang orang lain, pahami bahwa orang itu berbeda dari pengguna aktif. Jangan mengganti identitas pengguna aktif hanya karena nama orang tersebut muncul.
-- Jika hubungan dengan orang itu tersedia secara aman, sebutkan secara natural.
+ATURAN PEMAHAMAN SUBJEK:
+- IDENTITAS AKTIF adalah orang yang sedang berbicara denganmu. Jangan menggantinya hanya karena nama orang lain disebut.
+- Jika SUBJEK YANG DITANYAKAN sama dengan IDENTITAS AKTIF, jawab tentang pengguna aktif.
+- Jika SUBJEK YANG DITANYAKAN adalah nama lain seperti Asi, anggap itu orang lain. Gunakan hanya fakta/relasi yang memang tersedia.
+- Jika pengguna bertanya "apa lagi yang kamu ingat tentang Nora", gabungkan fakta tentang Nora menjadi narasi singkat. Jangan mengulang daftar percakapan.
+- Jika pengguna bertanya "kalau Asi apa yang kamu ingat tentang dia", hubungkan fakta relasinya secara natural, misalnya bahwa pengguna pernah bercerita bahwa mereka berteman sejak kelas 2 SD, jika fakta itu memang tersedia.
+- Jangan mengubah fakta "berteman" menjadi hubungan yang lebih kuat atau berbeda.
+
+ATURAN NARASI:
+- Jangan menjawab seperti database, laporan, hasil query, atau dump memory.
+- Jangan mengatakan "nama yang tersimpan", "data yang tersimpan", "memory menunjukkan", "dari riwayat percakapan yang tersimpan", atau padanan lainnya.
+- Jangan membuat daftar bernomor atau bullet berisi isi memori kecuali pengguna secara eksplisit meminta daftar.
+- Jangan mengutip ulang kalimat pengguna satu per satu.
+- Gabungkan fakta yang saling berkaitan menjadi 1–3 kalimat yang mengalir.
+- Utamakan bentuk seperti: "Iya, aku ingat kamu pernah cerita bahwa..." atau "Iya, tentang Asi aku ingat kamu pernah bilang..."
+- Jika hanya ada satu fakta, cukup gunakan satu fakta itu. Jangan mengisi kekosongan dengan dugaan.
+- Jika tidak ada fakta tambahan yang benar-benar relevan, katakan dengan natural bahwa yang kamu ingat baru sebatas fakta tersebut.
+- Jika bukti tidak cukup, jujur dan jangan mengarang.
 - Jangan mengungkap percakapan pribadi pengguna lain.
-- Jangan menyebut database, retrieval, provider, atau mekanisme internal.
-- Jangan mengulang seluruh riwayat. Ambil hanya fakta yang membantu menjawab.
-- Jika bukti tidak cukup, katakan secara jujur bahwa kamu belum cukup mengenal orang tersebut.
+- Jangan menyebut database, retrieval, provider, context, prompt, atau mekanisme internal.
 - Untuk pertanyaan sederhana, jawab 1–3 kalimat.
 `;
 
       const resultText = await callJamesAI(
         recallPrompt,
         buildJamesSystemInstruction(
-          "Kamu sedang menjawab pertanyaan tentang ingatan dan hubungan dalam percakapan. Sintesis fakta yang tersedia menjadi respons yang hangat dan natural. Jangan menjadi mesin daftar memori."
+          "Kamu sedang melakukan conversational memory synthesis. Tugasmu bukan menampilkan isi memori, tetapi memahami siapa subjek pertanyaan, fakta apa yang relevan, bagaimana fakta-fakta itu saling berhubungan, lalu menyampaikannya sebagai percakapan natural. Jika fakta relasi tersedia, gunakan relasi tersebut sebagai jembatan antarfakta."
         ),
         memoryContext
       );
