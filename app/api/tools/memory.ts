@@ -280,7 +280,7 @@ function extractExplicitJamesMemories(userRequest: string): JamesMemoryProposal[
   ];
   for(const pattern of identityPatterns){
     const match=userRequest.match(pattern); if(!match?.[1]) continue;
-    const name=cleanName(match[1]); if(!name||/^(james|kamu|aku|saya)$/i.test(name)) continue;
+    const name=cleanName(match[1]); if(!name||/^(james|kamu|aku|saya|sudah|pernah|baru|sedang|akan|telah|masih|tidak|bukan|punya|memiliki|berkenalan|bertemu|tinggal|bekerja|belajar)$/i.test(name)) continue;
     proposals.push({memory_type:"identity",memory_key:"self_name:"+name.toLowerCase(),memory_value:name,memory_action:"upsert",confidence:0.99,source_excerpt:match[0].trim().slice(0,400),expires_in_days:null}); break;
   }
   const relationshipPatterns=[
