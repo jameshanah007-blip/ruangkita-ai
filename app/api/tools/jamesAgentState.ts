@@ -71,6 +71,7 @@ export async function createJamesAgentTask(input: {
 
 export async function updateJamesAgentTask(
   taskId: string | null,
+  owner: { userId: string; conversationId: string },
   patch: {
     status?: JamesAgentTaskState["status"];
     currentStep?: number;
@@ -79,7 +80,12 @@ export async function updateJamesAgentTask(
     outputs?: Record<string, string>;
   }
 ) {
-  if (!taskId || !safeId(taskId)) return false;
+  if (
+    !taskId ||
+    !safeId(taskId) ||
+    !safeId(owner.userId) ||
+    !safeId(owner.conversationId)
+  ) return false;
 
   const db = getDb();
   if (!db) return false;
@@ -109,6 +115,8 @@ export async function updateJamesAgentTask(
       .from("james_agent_tasks")
       .select("state")
       .eq("id", taskId)
+      .eq("user_id", owner.userId)
+      .eq("conversation_id", owner.conversationId)
       .maybeSingle();
 
     values.state = {
@@ -120,7 +128,9 @@ export async function updateJamesAgentTask(
   const { error } = await db
     .from("james_agent_tasks")
     .update(values)
-    .eq("id", taskId);
+    .eq("id", taskId)
+    .eq("user_id", owner.userId)
+    .eq("conversation_id", owner.conversationId);
 
   if (error) {
     console.warn("James agent task update unavailable:", error.message);
@@ -171,14 +181,24 @@ export async function getLatestJamesAgentTask(userId: string, conversationId: st
   } satisfies JamesAgentTaskState;
 }
 
-export async function getJamesAgentTask(taskId: string) {
+export async function getJamesAgentTask(
+  taskId: string,
+  owner: { userId: string; conversationId: string },
+) {
   const db = getDb();
-  if (!db || !safeId(taskId)) return null;
+  if (
+    !db ||
+    !safeId(taskId) ||
+    !safeId(owner.userId) ||
+    !safeId(owner.conversationId)
+  ) return null;
 
   const { data, error } = await db
     .from("james_agent_tasks")
     .select("id, user_id, conversation_id, request, status, current_step, max_steps, state, updated_at")
     .eq("id", taskId)
+    .eq("user_id", owner.userId)
+    .eq("conversation_id", owner.conversationId)
     .maybeSingle();
 
   if (error || !data) {
@@ -213,15 +233,23 @@ export async function getJamesAgentTask(taskId: string) {
   } satisfies JamesAgentTaskState;
 }
 
-export async function completeJamesAgentTask(taskId: string | null, outputs: Record<string, string>) {
-  return updateJamesAgentTask(taskId, {
+export async function completeJamesAgentTask(
+  taskId: string | null,
+  owner: { userId: string; conversationId: string },
+  outputs: Record<string, string>,
+) {
+  return updateJamesAgentTask(taskId, owner, {
     status: "completed",
     outputs,
   });
 }
 
-export async function failJamesAgentTask(taskId: string | null, outputs: Record<string, string>) {
-  return updateJamesAgentTask(taskId, {
+export async function failJamesAgentTask(
+  taskId: string | null,
+  owner: { userId: string; conversationId: string },
+  outputs: Record<string, string>,
+) {
+  return updateJamesAgentTask(taskId, owner, {
     status: "failed",
     outputs,
   });
