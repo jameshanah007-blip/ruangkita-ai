@@ -75,6 +75,12 @@ export async function POST(request: Request) {
     const body = await request.json();
     const blueprint = body?.blueprint as GameBlueprint | undefined;
     const report = body?.report as TestReport | undefined;
+
+    if (JSON.stringify(blueprint || {}).length > 30000 || JSON.stringify(report || {}).length > 20000) {
+      return NextResponse.json(
+        { success: false, error: "Blueprint atau test report terlalu besar." },
+        { status: 413 },
+      );
     const attempt = Math.max(1, Math.min(5, Number(body?.attempt || 1)));
 
     if (!blueprint || !report) {
