@@ -2,6 +2,9 @@ import { createClient } from "@supabase/supabase-js";
 import type { GameBlueprint, TestReport } from "../laboratory/types";
 
 const SYSTEM_USER_ID = "system:fun-zone";
+// james_experiences.user_id is UUID-typed; keep the textual system identity for
+// text-keyed learning tables and use a dedicated UUID only for experience memory.
+const SYSTEM_EXPERIENCE_USER_ID = "00000000-0000-0000-0000-000000000002";
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -562,7 +565,7 @@ export async function recordJamesGameBrainEvidence(
     const inserted = await client
       .from("james_experiences")
       .insert({
-        user_id: null,
+        user_id: SYSTEM_EXPERIENCE_USER_ID,
         conversation_id: null,
         task_id: null,
         pattern,
@@ -808,7 +811,7 @@ export async function getJamesRecoveryDirectives(limit = 4) {
   const { data, error } = await client
     .from("james_experiences")
     .select("pattern, strategy, confidence, success_count, failure_count, capabilities, updated_at")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("status", "active")
     .like("pattern", "fun-zone:queue:stale-runner-recovery%")
     .order("updated_at", { ascending: false })
@@ -842,7 +845,7 @@ export async function getJamesStrategyExploration() {
     client
       .from("james_experiences")
       .select("strategy,success_count,failure_count,confidence,status,updated_at")
-      .eq("user_id", SYSTEM_USER_ID)
+      .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
       .like("pattern", "fun-zone:exploration:%")
       .order("updated_at", { ascending: false })
       .limit(20),
@@ -1033,7 +1036,7 @@ export async function consolidateJamesTransferKnowledge(limit = 12) {
   const { data, error } = await client
     .from("james_experiences")
     .select("pattern,strategy,confidence,success_count,failure_count,capabilities,status")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .like("pattern", "fun-zone:transfer:%")
     .eq("status", "active")
     .order("confidence", { ascending: false })
@@ -1102,7 +1105,7 @@ export async function evaluateJamesContextTransfer(
   const { data: existing } = await client
     .from("james_experiences")
     .select("id,success_count,failure_count,confidence")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
@@ -1114,7 +1117,7 @@ export async function evaluateJamesContextTransfer(
   const confidence = Math.min(0.99, Math.max(0.1, 0.45 + successRate * 0.45 + Math.min(0.1, total * 0.01)));
   const status = successRate < 0.4 && failureCount >= 3 ? "blocked" : "active";
   const memory = {
-    user_id: SYSTEM_USER_ID,
+    user_id: SYSTEM_EXPERIENCE_USER_ID,
     pattern,
     strategy,
     confidence,
@@ -1181,13 +1184,13 @@ export async function resolveJamesKnowledgeSupersession(limit = 12) {
     const { data: existing } = await client
       .from("james_experiences")
       .select("id")
-      .eq("user_id", SYSTEM_USER_ID)
+      .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
       .eq("pattern", pattern)
       .eq("strategy", strategy)
       .maybeSingle();
 
     const memory = {
-      user_id: SYSTEM_USER_ID,
+      user_id: SYSTEM_EXPERIENCE_USER_ID,
       pattern,
       strategy,
       confidence: latest.confidence,
@@ -1234,7 +1237,7 @@ export async function getJamesStrategyLineage(targetContext?: string, limit = 12
   let query = client
     .from("james_experiences")
     .select("pattern,strategy,confidence,success_count,failure_count,last_evidence,status")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("status", "active")
     .eq("capabilities", ["fun-zone-strategy-lineage"])
     .order("confidence", { ascending: false })
@@ -1305,7 +1308,7 @@ export async function recordJamesStrategyLineage(input: {
   const { data: existing } = await client
     .from("james_experiences")
     .select("id,success_count,failure_count,confidence")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
@@ -1318,7 +1321,7 @@ export async function recordJamesStrategyLineage(input: {
     : 0.5));
 
   const memory = {
-    user_id: SYSTEM_USER_ID,
+    user_id: SYSTEM_EXPERIENCE_USER_ID,
     pattern,
     strategy,
     confidence,
@@ -1362,7 +1365,7 @@ export async function evolveJamesComposedStrategy(input: {
   const { data: prior } = await client
     .from("james_experiences")
     .select("id,confidence,success_count,failure_count")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("pattern", basePattern)
     .eq("strategy", strategy)
     .maybeSingle();
@@ -1399,7 +1402,7 @@ export async function promoteJamesComposedStrategy(
   const { data: existing } = await client
     .from("james_experiences")
     .select("id,success_count,failure_count")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
@@ -1411,7 +1414,7 @@ export async function promoteJamesComposedStrategy(
   const confidence = Math.min(0.99, Math.max(0.1, composition.confidence * 0.7 + successRate * 0.3));
 
   const memory = {
-    user_id: SYSTEM_USER_ID,
+    user_id: SYSTEM_EXPERIENCE_USER_ID,
     pattern,
     strategy,
     confidence,
@@ -1483,7 +1486,7 @@ export async function retrieveJamesRelevantKnowledge(input: { world: string; gen
   const tokens = [input.world, input.genre, ...input.mechanics.slice(0, 6), input.capabilityKey || ""].map(String).map((v) => v.toLowerCase()).filter(Boolean);
   const { data, error } = await client.from("james_experiences")
     .select("pattern,strategy,confidence,success_count,failure_count,capabilities,status,last_evidence")
-    .eq("user_id", SYSTEM_USER_ID).eq("status", "active").like("pattern", "fun-zone:%").limit(40);
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID).eq("status", "active").like("pattern", "fun-zone:%").limit(40);
   if (error) {
     console.warn("James relevant knowledge retrieval failed:", error.message);
     return [];
@@ -1509,7 +1512,7 @@ export async function getJamesActiveKnowledge(limit = 10) {
   const { data, error } = await client
     .from("james_experiences")
     .select("pattern,strategy,confidence,last_evidence,status")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("status", "active")
     .like("pattern", "fun-zone:knowledge-supersession:%")
     .order("confidence", { ascending: false })
@@ -1544,7 +1547,7 @@ export async function getJamesKnowledgeVersions(limit = 12) {
   const { data, error } = await client
     .from("james_experiences")
     .select("pattern,strategy,confidence,success_count,failure_count,last_evidence,status")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .like("pattern", "fun-zone:knowledge-version:%")
     .eq("status", "active")
     .order("updated_at", { ascending: false })
@@ -1587,7 +1590,7 @@ export async function versionJamesConsolidatedKnowledge(limit = 8) {
     const { data: existing } = await client
       .from("james_experiences")
       .select("id,success_count,failure_count,confidence,last_evidence,capabilities")
-      .eq("user_id", SYSTEM_USER_ID)
+      .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
       .eq("pattern", pattern)
       .eq("strategy", strategy)
       .maybeSingle();
@@ -1595,7 +1598,7 @@ export async function versionJamesConsolidatedKnowledge(limit = 8) {
     const previousVersion = Number(existing?.last_evidence?.version || 0);
     const version = previousVersion + 1;
     const memory = {
-      user_id: SYSTEM_USER_ID,
+      user_id: SYSTEM_EXPERIENCE_USER_ID,
       pattern,
       strategy,
       confidence: item.confidence,
@@ -1643,7 +1646,7 @@ export async function consolidateJamesGameKnowledge(limit = 8) {
   const { data, error } = await client
     .from("james_experiences")
     .select("pattern,strategy,confidence,success_count,failure_count,capabilities,status,updated_at")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("status", "active")
     .like("pattern", "fun-zone:%")
     .order("updated_at", { ascending: false })
@@ -1719,7 +1722,7 @@ export async function getJamesContradictionMemory(limit = 6) {
   const { data, error } = await client
     .from("james_experiences")
     .select("pattern,strategy,confidence,success_count,failure_count,capabilities,status")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .like("pattern", "fun-zone:contradiction:%")
     .eq("status", "active")
     .order("confidence", { ascending: false })
@@ -1751,7 +1754,7 @@ export async function getJamesContextualLearningMemory(
   const { data, error } = await client
     .from("james_experiences")
     .select("pattern,strategy,confidence,success_count,failure_count,capabilities,status")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("status", "active")
     .like("pattern", "fun-zone:%")
     .order("confidence", { ascending: false })
@@ -1800,7 +1803,7 @@ export async function getJamesLearningModeMemory() {
   const { data, error } = await client
     .from("james_experiences")
     .select("pattern,confidence,success_count,failure_count,status")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .like("pattern", "fun-zone:learning-mode:%")
     .order("updated_at", { ascending: false })
     .limit(4);
@@ -1856,7 +1859,7 @@ export async function getJamesEvidenceReliability(source: string) {
   const { data, error } = await client
     .from("james_experiences")
     .select("strategy,success_count,failure_count,confidence")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("status", "active")
     .limit(60);
 
@@ -1983,7 +1986,7 @@ export async function recordJamesKnowledgeContradiction(input: {
   const { data: existing } = await client
     .from("james_experiences")
     .select("id,success_count,failure_count,confidence,capabilities")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
@@ -1994,7 +1997,7 @@ export async function recordJamesKnowledgeContradiction(input: {
   const total = successCount + failureCount;
   const confidence = Math.min(0.99, Math.max(0.1, 0.45 + Math.min(0.45, total * 0.05)));
   const memory = {
-    user_id: SYSTEM_USER_ID,
+    user_id: SYSTEM_EXPERIENCE_USER_ID,
     pattern,
     strategy,
     confidence,
@@ -2400,7 +2403,7 @@ export async function getJamesTournamentMemory(targetContext?: string, limit = 6
   let query = client
     .from("james_experiences")
     .select("pattern,strategy,confidence,success_count,failure_count,last_evidence")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("status", "active")
     .eq("capabilities", ["fun-zone-strategy-tournament"])
     .order("confidence", { ascending: false })
@@ -2921,7 +2924,7 @@ export async function evaluateJamesRecoveryDirectiveImpact(
   const { data: existing } = await client
     .from("james_experiences")
     .select("id,success_count,failure_count,confidence")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("pattern", strategyPattern)
     .eq("strategy", strategy)
     .maybeSingle();
@@ -3022,7 +3025,7 @@ export async function evaluateJamesExploreExploitImpact(
   const { data: existing } = await client
     .from("james_experiences")
     .select("id,success_count,failure_count")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("pattern", strategyPattern)
     .eq("strategy", strategy)
     .maybeSingle();
@@ -3079,7 +3082,7 @@ export async function promoteJamesExplorationResult(
   const { data: existing } = await client
     .from("james_experiences")
     .select("id,success_count,failure_count,confidence")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
@@ -3092,7 +3095,7 @@ export async function promoteJamesExplorationResult(
   const status = successRate < 0.4 && failureCount >= 3 ? "blocked" : "active";
 
   const memory = {
-    user_id: SYSTEM_USER_ID,
+    user_id: SYSTEM_EXPERIENCE_USER_ID,
     pattern,
     strategy,
     confidence,
@@ -3561,7 +3564,7 @@ export async function createJamesGameExperimentJob(input: {
   const existing = await client
     .from("james_experiences")
     .select("id,success_count,failure_count,confidence")
-    .eq("user_id", SYSTEM_USER_ID)
+    .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("pattern", pattern)
     .eq("strategy", strategy)
     .maybeSingle();
@@ -3573,7 +3576,7 @@ export async function createJamesGameExperimentJob(input: {
   ));
 
   const memory = {
-    user_id: SYSTEM_USER_ID,
+    user_id: SYSTEM_EXPERIENCE_USER_ID,
     pattern,
     strategy,
     confidence,
