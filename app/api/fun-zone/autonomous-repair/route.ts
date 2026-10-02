@@ -1,5 +1,6 @@
 import { LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, verifyLegacyUserIdSignature } from "../../auth/cloudIdentity";
 import { NextResponse } from "next/server";
+import { consumeJamesRateLimit } from "../../tools/jamesRateLimit";
 import type { GameBlueprint, TestReport } from "../../../fun-zone/laboratory/types";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
 
@@ -62,6 +63,13 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, error: "Sesi James tidak valid. Silakan buat sesi James terlebih dahulu." },
         { status: 401 },
+      );
+    }
+    const rateLimit = await consumeJamesRateLimit(sessionUserId);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Batas penggunaan Autonomous Repair tercapai." },
+        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } },
       );
     }
     const body = await request.json();
