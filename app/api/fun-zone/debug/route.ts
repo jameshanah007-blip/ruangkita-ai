@@ -1,4 +1,5 @@
 import { resolveLegacyUserId } from "../../auth/cloudIdentity";
+import { consumeJamesRateLimit } from "../../tools/jamesRateLimit";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -727,6 +728,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, error: "Session James tidak valid." },
         { status: 403 },
+      );
+    }
+
+    const rateLimit = await consumeJamesRateLimit(userId);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Batas penggunaan James tercapai. Silakan coba lagi setelah beberapa saat." },
+        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } },
       );
     }
     const body = await request.json();
