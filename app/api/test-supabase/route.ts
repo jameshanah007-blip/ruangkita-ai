@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isOmantoVerified } from "../ai/verify-identity/route";
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!isOmantoVerified(request)) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
 
