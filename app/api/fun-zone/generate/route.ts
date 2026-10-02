@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveLegacyUserId } from "../../auth/cloudIdentity";
+import { consumeJamesRateLimit } from "../../tools/jamesRateLimit";
 import { createClient } from "@supabase/supabase-js";
 import { GameSpecificationSchema } from "../../../fun-zone/engine/gameSchema";
 import { generateLocalGame } from "../../../fun-zone/engine/localGenerator";
@@ -332,6 +333,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, error: "Session James tidak valid." },
         { status: 403 },
+      );
+    }
+
+    const rateLimit = await consumeJamesRateLimit(userId);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Batas penggunaan Fun Zone Generator tercapai." },
+        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } },
       );
     }
 
