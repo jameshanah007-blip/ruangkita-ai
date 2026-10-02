@@ -1239,7 +1239,7 @@ export async function getJamesStrategyLineage(targetContext?: string, limit = 12
     .select("pattern,strategy,confidence,success_count,failure_count,last_evidence,status")
     .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("status", "active")
-    .eq("capabilities", ["fun-zone-strategy-lineage"])
+    .contains("capabilities", ["fun-zone-strategy-lineage"])
     .order("confidence", { ascending: false })
     .limit(Math.max(1, Math.min(30, limit)));
 
@@ -2405,7 +2405,7 @@ export async function getJamesTournamentMemory(targetContext?: string, limit = 6
     .select("pattern,strategy,confidence,success_count,failure_count,last_evidence")
     .eq("user_id", SYSTEM_EXPERIENCE_USER_ID)
     .eq("status", "active")
-    .eq("capabilities", ["fun-zone-strategy-tournament"])
+    .contains("capabilities", ["fun-zone-strategy-tournament"])
     .order("confidence", { ascending: false })
     .limit(Math.max(1, Math.min(20, limit)));
 
