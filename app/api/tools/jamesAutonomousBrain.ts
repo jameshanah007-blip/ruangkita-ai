@@ -298,7 +298,10 @@ export async function runJamesAutonomousBrain(input: {
         if (agent.verified) {
           const task = agent.taskId
             ? await import("./jamesAgentState").then((mod) =>
-                mod.getJamesAgentTask(agent.taskId || "")
+                mod.getJamesAgentTask(agent.taskId || "", {
+                  userId: input.userId,
+                  conversationId: input.conversationId,
+                })
               )
             : null;
 
