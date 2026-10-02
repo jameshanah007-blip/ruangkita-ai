@@ -196,7 +196,6 @@ function memoryExpiry(memoryType: JamesLongTermMemory["memory_type"], days?: num
   return new Date(Date.now() + safeDays * 86400000).toISOString();
 }
 
-
 export async function getJamesRelevantConversationMessages(
   userId: string,
   currentConversationId: string,
@@ -205,242 +204,64 @@ export async function getJamesRelevantConversationMessages(
 ): Promise<MemoryMessage[]> {
   const supabase = getSupabase();
   if (!supabase || !validId(userId) || !validId(currentConversationId)) return [];
-
   const stopWords = new Set([
-    "apa", "apakah", "yang", "dan", "atau", "dari", "dengan", "untuk",
-    "kamu", "aku", "saya", "kita", "masih", "pernah", "ingat", "tentang",
-    "sebelumnya", "percakapan", "chat", "obrolan", "siapa", "namaku",
-    "nama", "coba", "lihat", "ini", "itu", "the", "and", "what", "who",
-    "did", "you", "remember",
+    "apa","apakah","yang","dan","atau","dari","dengan","untuk","kamu","aku","saya",
+    "kita","masih","pernah","ingat","tentang","sebelumnya","percakapan","chat",
+    "obrolan","siapa","namaku","nama","coba","lihat","ini","itu","the","and","what",
+    "who","did","you","remember",
   ]);
-
-  const terms = [...new Set(
-    userRequest
-      .toLowerCase()
-      .replace(/[^a-z0-9\u00c0-\u024f\u1e00-\u1eff\s-]/gi, " ")
-      .split(/\s+/)
-      .map((term) => term.trim())
-      .filter((term) => term.length >= 3 && !stopWords.has(term))
-  )].slice(0, 12);
-
-  const { data, error } = await supabase
-    .from("ai_messages")
+  const terms=[...new Set(userRequest.toLowerCase()
+    .replace(/[^a-z0-9\u00c0-\u024f\u1e00-\u1eff\s-]/gi," ")
+    .split(/\s+/).map(term=>term.trim())
+    .filter(term=>term.length>=3&&!stopWords.has(term)))].slice(0,12);
+  const {data,error}=await supabase.from("ai_messages")
     .select("role, content, created_at, conversation_id")
-    .eq("user_id", userId)
-    .neq("conversation_id", currentConversationId)
-    .order("created_at", { ascending: false })
-    .limit(200);
-
-  if (error) {
-    console.error("James relevant conversation memory read error:", error.message);
-    return [];
-  }
-
-  const scored = (data || [])
-    .filter(
-      (message) =>
-        (message.role === "user" || message.role === "assistant") &&
-        typeof message.content === "string" &&
-        message.content.trim()
-    )
-    .map((message) => {
-      const words = new Set(
-        message.content
-          .toLowerCase()
-          .split(/\s+/)
-          .map((word) =>
-            word.replace(
-              /^[^a-z0-9\u00c0-\u024f\u1e00-\u1eff]+|[^a-z0-9\u00c0-\u024f\u1e00-\u1eff]+$/gi,
-              ""
-            )
-          )
-      );
-      const score =
-        terms.reduce((sum, term) => sum + (words.has(term) ? 3 : 0), 0) +
-        (message.role === "user" ? 1 : 0);
-
-      return {
-        message: {
-          role: message.role as "user" | "assistant",
-          content: message.content,
-          created_at: message.created_at,
-        },
-        score,
-      };
-    })
-    .filter((item) => (terms.length ? item.score > 0 : true))
-    .sort(
-      (a, b) =>
-        b.score - a.score ||
-        String(b.message.created_at || "").localeCompare(
-          String(a.message.created_at || "")
-        )
-    )
-    .slice(0, Math.min(Math.max(limit, 1), 40))
-    .map((item) => item.message);
-
-  return scored.sort((a, b) =>
-    String(a.created_at || "").localeCompare(String(b.created_at || ""))
-  );
+    .eq("user_id",userId).neq("conversation_id",currentConversationId)
+    .order("created_at",{ascending:false}).limit(200);
+  if(error){console.error("James relevant conversation memory read error:",error.message);return[];}
+  const scored=(data||[]).filter(message=>
+    (message.role==="user"||message.role==="assistant")&&typeof message.content==="string"&&message.content.trim()
+  ).map(message=>{
+    const words=new Set(message.content.toLowerCase().split(/\s+/).map(word=>
+      word.replace(/^[^a-z0-9\u00c0-\u024f\u1e00-\u1eff]+|[^a-z0-9\u00c0-\u024f\u1e00-\u1eff]+$/gi,"")
+    ));
+    const score=terms.reduce((sum,term)=>sum+(words.has(term)?3:0),0)+(message.role==="user"?1:0);
+    return {message:{role:message.role as "user"|"assistant",content:message.content,created_at:message.created_at},score};
+  }).filter(item=>terms.length?item.score>0:true)
+    .sort((a,b)=>b.score-a.score||String(b.message.created_at||"").localeCompare(String(a.message.created_at||"")))
+    .slice(0,Math.min(Math.max(limit,1),40)).map(item=>item.message);
+  return scored.sort((a,b)=>String(a.created_at||"").localeCompare(String(b.created_at||"")));
 }
 
 function extractExplicitJamesMemories(userRequest: string): JamesMemoryProposal[] {
-  const proposals: JamesMemoryProposal[] = [];
-  const cleanName = (value: string) =>
-    value.trim().replace(/^[,.:;!?]+|[,.:;!?]+$/g, "").slice(0, 80);
-
-  const identityPatterns = [
+  const proposals: JamesMemoryProposal[]=[];
+  const cleanName=(value:string)=>value.trim().replace(/^[,.:;!?]+|[,.:;!?]+$/g,"").slice(0,80);
+  const identityPatterns=[
     /\b(?:halo|hai)?\s*(?:james[,! ]+)?(?:saya|aku)\s+(?:adalah\s+)?([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i,
     /\b(?:nama saya|namaku|nama aku)\s+(?:adalah\s+)?([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i,
   ];
-
-  for (const pattern of identityPatterns) {
-    const match = userRequest.match(pattern);
-    if (!match?.[1]) continue;
-    const name = cleanName(match[1]);
-    if (!name || /^(james|kamu|aku|saya)$/i.test(name)) continue;
-
-    proposals.push({
-      memory_type: "identity",
-      memory_key: "self_name:" + name.toLowerCase(),
-      memory_value: name,
-      memory_action: "upsert",
-      confidence: 0.99,
-      source_excerpt: match[0].trim().slice(0, 400),
-      expires_in_days: null,
-    });
-    break;
+  for(const pattern of identityPatterns){
+    const match=userRequest.match(pattern); if(!match?.[1]) continue;
+    const name=cleanName(match[1]); if(!name||/^(james|kamu|aku|saya)$/i.test(name)) continue;
+    proposals.push({memory_type:"identity",memory_key:"self_name:"+name.toLowerCase(),memory_value:name,memory_action:"upsert",confidence:0.99,source_excerpt:match[0].trim().slice(0,400),expires_in_days:null}); break;
   }
-
-  const relationshipPatterns = [
+  const relationshipPatterns=[
     /\b(?:saya|aku)\s+punya\s+teman\s+namanya\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i,
     /\b([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\s+(?:juga\s+)?teman\s+(?:saya|aku)\b/i,
     /\b([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\s+adalah\s+teman\s+(?:saya|aku)\b/i,
   ];
-
-  for (const pattern of relationshipPatterns) {
-    const match = userRequest.match(pattern);
-    if (!match?.[1]) continue;
-    const name = cleanName(match[1]);
-    if (!name || /^(james|kamu|aku|saya)$/i.test(name)) continue;
-
-    proposals.push({
-      memory_type: "relationship",
-      memory_key: "friend:" + name.toLowerCase(),
-      memory_value: name + " adalah teman pengguna.",
-      memory_action: "upsert",
-      confidence: 0.98,
-      source_excerpt: match[0].trim().slice(0, 400),
-      expires_in_days: null,
-    });
-    break;
+  for(const pattern of relationshipPatterns){
+    const match=userRequest.match(pattern); if(!match?.[1]) continue;
+    const name=cleanName(match[1]); if(!name||/^(james|kamu|aku|saya)$/i.test(name)) continue;
+    proposals.push({memory_type:"relationship",memory_key:"friend:"+name.toLowerCase(),memory_value:name+" adalah teman pengguna.",memory_action:"upsert",confidence:0.98,source_excerpt:match[0].trim().slice(0,400),expires_in_days:null}); break;
   }
-
-  return proposals.slice(0, 3);
+  return proposals.slice(0,3);
 }
 
-export async function saveExplicitJamesMemories(
-  userId: string,
-  conversationId: string,
-  userRequest: string,
-) {
-  const proposals = extractExplicitJamesMemories(userRequest);
-  if (!proposals.length) return;
-  await saveJamesMemoryProposals(userId, conversationId, userRequest, proposals);
-}
-
-export async function getJamesLongTermMemory(userId: string, limit = 30): Promise<JamesLongTermMemory[]> {");
-        const matches = content.match(new RegExp(`\\\\b${escaped}\\\\b`, "gi"));
-        score += (matches?.length || 0) * 3;
-      }
-
-      if (message.role === "user") score += 1;
-
-      return {
-        message: {
-          role: message.role as "user" | "assistant",
-          content: message.content,
-          created_at: message.created_at,
-        },
-        score,
-      };
-    })
-    .filter((item) => terms.length ? item.score > 0 : true)
-    .sort((a, b) =>
-      b.score - a.score ||
-      String(b.message.created_at || "").localeCompare(String(a.message.created_at || ""))
-    )
-    .slice(0, Math.min(Math.max(limit, 1), 40))
-    .map((item) => item.message);
-
-  return messages.sort((a, b) =>
-    String(a.created_at || "").localeCompare(String(b.created_at || ""))
-  );
-}
-
-function extractExplicitJamesMemories(userRequest: string): JamesMemoryProposal[] {
-  const proposals: JamesMemoryProposal[] = [];
-  const cleanName = (value: string) =>
-    value.trim().replace(/^[,.:;!?]+|[,.:;!?]+$/g, "").slice(0, 80);
-
-  const identityPatterns = [
-    /\b(?:halo|hai)?\\s*(?:james[,! ]+)?(?:saya|aku)\\s+(?:adalah\\s+)?([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\\b/i,
-    /\b(?:nama saya|namaku|nama aku)\\s+(?:adalah\\s+)?([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\\b/i,
-  ];
-
-  for (const pattern of identityPatterns) {
-    const match = userRequest.match(pattern);
-    if (!match?.[1]) continue;
-    const name = cleanName(match[1]);
-    if (!name || /^(james|kamu|aku|saya)$/i.test(name)) continue;
-
-    proposals.push({
-      memory_type: "identity",
-      memory_key: `self_name:${name.toLowerCase()}`,
-      memory_value: name,
-      memory_action: "upsert",
-      confidence: 0.99,
-      source_excerpt: match[0].trim().slice(0, 400),
-      expires_in_days: null,
-    });
-    break;
-  }
-
-  const relationshipPatterns = [
-    /\b(?:saya|aku)\\s+punya\\s+teman\\s+namanya\\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\\b/i,
-    /\b([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\\s+(?:juga\\s+)?teman\\s+(?:saya|aku)\\b/i,
-    /\b([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\\s+adalah\\s+teman\\s+(?:saya|aku)\\b/i,
-  ];
-
-  for (const pattern of relationshipPatterns) {
-    const match = userRequest.match(pattern);
-    if (!match?.[1]) continue;
-    const name = cleanName(match[1]);
-    if (!name || /^(james|kamu|aku|saya)$/i.test(name)) continue;
-
-    proposals.push({
-      memory_type: "relationship",
-      memory_key: `friend:${name.toLowerCase()}`,
-      memory_value: `${name} adalah teman pengguna.`,
-      memory_action: "upsert",
-      confidence: 0.98,
-      source_excerpt: match[0].trim().slice(0, 400),
-      expires_in_days: null,
-    });
-    break;
-  }
-
-  return proposals.slice(0, 3);
-}
-
-export async function saveExplicitJamesMemories(
-  userId: string,
-  conversationId: string,
-  userRequest: string,
-) {
-  const proposals = extractExplicitJamesMemories(userRequest);
-  if (!proposals.length) return;
-  await saveJamesMemoryProposals(userId, conversationId, userRequest, proposals);
+export async function saveExplicitJamesMemories(userId:string,conversationId:string,userRequest:string){
+  const proposals=extractExplicitJamesMemories(userRequest);
+  if(!proposals.length)return;
+  await saveJamesMemoryProposals(userId,conversationId,userRequest,proposals);
 }
 
 export async function getJamesLongTermMemory(userId: string, limit = 30): Promise<JamesLongTermMemory[]> {
