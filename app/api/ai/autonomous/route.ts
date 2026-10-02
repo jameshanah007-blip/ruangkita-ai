@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isOmantoVerified } from "../verify-identity/route";
-import { LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, verifyLegacyUserIdSignature } from "../auth/cloudIdentity";
+import { LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, verifyLegacyUserIdSignature } from "../../auth/cloudIdentity";
 import { runJamesAutonomousBrain, type JamesAutonomyMode } from "../../tools/jamesAutonomousBrain";
 import { createJamesAutonomousGoal } from "../../tools/jamesAutonomousGoals";
 
