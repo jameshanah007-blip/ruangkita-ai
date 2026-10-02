@@ -1460,16 +1460,41 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
         .slice(-40);
 
       const asksIdentity = /\b(?:siapa|apa)\s+(?:nama|namaku|nama saya)\b|\bsiapa namaku\b/i.test(userRequest);
-      const identityNames = extractExplicitIdentityNames(recallMessages);
+      const asksPersonalMemory = /\b(?:apa yang (?:kamu|james) ingat(?: tentang)?|(?:kamu|james) (?:masih )?ingat (?:saya|aku))\b/i.test(userRequest);
+      const identityMemories = longTermMemories.filter(
+        (memory) => memory.memory_type === "identity" && memory.status === "active"
+      );
+      const stableMemories = longTermMemories.filter(
+        (memory) =>
+          memory.status === "active" &&
+          memory.memory_type !== "identity" &&
+          ["relationship", "project", "goal", "preference", "interest", "context"].includes(memory.memory_type)
+      );
+      const memoryName =
+        identityMemories.find((memory) => memory.memory_key === "user_name")?.memory_value ||
+        identityMemories.find((memory) => memory.memory_key?.startsWith("self_name:"))?.memory_value ||
+        extractExplicitIdentityNames(recallMessages)[0] ||
+        null;
 
       const resultText =
-        asksIdentity && identityNames.length === 1
-          ? "Dari percakapan kita sebelumnya, kamu pernah memperkenalkan diri sebagai **" + identityNames[0] + "**."
-          : asksIdentity && identityNames.length > 1
-            ? "Aku menemukan beberapa nama yang pernah dipakai untuk memperkenalkan diri di percakapan kita: " +
-              identityNames.map((name) => "**" + name + "**").join(", ") +
-              ". Karena ada lebih dari satu, aku belum bisa memastikan siapa yang sedang berbicara sekarang."
-            : buildConversationRecallResponse(recallMessages);
+        asksPersonalMemory && (memoryName || stableMemories.length)
+          ? [
+              memoryName ? "Ya, aku masih mengingatmu." : "Aku punya beberapa memori tentang pengguna ini.",
+              memoryName ? "Nama yang tersimpan: **" + memoryName + "**." : "",
+              stableMemories.length
+                ? [
+                    "Hal lain yang tersimpan dari percakapan sebelumnya:",
+                    ...stableMemories.slice(0, 8).map((memory) => "- " + memory.memory_value),
+                  ].join("\n")
+                : "",
+            ].filter(Boolean).join("\n")
+          : asksIdentity && memoryName
+            ? "Dari memori yang tersimpan, kamu pernah memperkenalkan diri sebagai **" + memoryName + "**."
+            : asksIdentity && extractExplicitIdentityNames(recallMessages).length > 1
+              ? "Aku menemukan beberapa nama yang pernah dipakai untuk memperkenalkan diri di percakapan kita: " +
+                extractExplicitIdentityNames(recallMessages).map((name) => "**" + name + "**").join(", ") +
+                ". Karena ada lebih dari satu, aku belum bisa memastikan siapa yang sedang berbicara sekarang."
+              : buildConversationRecallResponse(recallMessages);
 
       await saveActivity(userRequest, "chat", "conversation-memory", resultText);
       await saveJames(userId, conversationId, userRequest, resultText, "chat", "conversation-memory");
