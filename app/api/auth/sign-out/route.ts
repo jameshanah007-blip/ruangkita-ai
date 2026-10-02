@@ -3,6 +3,7 @@ import {
   AUTH_ACCESS_COOKIE,
   AUTH_REFRESH_COOKIE,
   LEGACY_USER_COOKIE,
+  LEGACY_USER_SIGNATURE_COOKIE,
 } from "../cloudIdentity";
 
 export async function POST() {
@@ -12,6 +13,7 @@ export async function POST() {
     AUTH_ACCESS_COOKIE,
     AUTH_REFRESH_COOKIE,
     LEGACY_USER_COOKIE,
+    LEGACY_USER_SIGNATURE_COOKIE,
   ]) {
     response.cookies.set({
       name,
