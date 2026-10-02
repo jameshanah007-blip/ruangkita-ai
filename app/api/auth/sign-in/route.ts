@@ -27,7 +27,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // If this browser already has an anonymous James identity, claim it for the\n    // authenticated account instead of silently creating a new legacy identity.\n    // This preserves the long-term memories created before the first login.\n    const existingAnonymousLegacyId = await getLegacyCookieUserId();\n    const legacyId = await linkAuthUser(result.data.user.id, existingAnonymousLegacyId);
+    // Claim the current anonymous James identity when this is the first login.
+    const existingAnonymousLegacyId = await getLegacyCookieUserId();
+    const legacyId = await linkAuthUser(result.data.user.id, existingAnonymousLegacyId);
     const response = NextResponse.json({
       success: true,
       user: { id: result.data.user.id, email: result.data.user.email },
