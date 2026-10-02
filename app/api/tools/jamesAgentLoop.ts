@@ -247,7 +247,9 @@ export async function runJamesAgentLoop(input: {
           outputs[action.id] = "Dependency cycle atau dependency yang tidak dapat diselesaikan.";
         }
 
-        await updateJamesAgentTask(taskId, { actions, outputs });
+        await updateJamesAgentTask(taskId, {
+          userId: input.userId || "",
+          conversationId: input.conversationId || "", actions, outputs });
         break;
       }
 
@@ -410,7 +412,11 @@ export async function runJamesAgentLoop(input: {
 
       if (verification.verified && verification.answer) {
         const citations = allCapabilityResults.flatMap((item) => item.citations || []);
-        await completeJamesAgentTask(taskId, outputs);
+        await completeJamesAgentTask(
+          taskId,
+          { userId: input.userId || "", conversationId: input.conversationId || "" },
+          outputs,
+        );
         steps.push({
           iteration,
           stage: "complete",
@@ -505,7 +511,11 @@ export async function runJamesAgentLoop(input: {
   if (recovery.verified && recovery.answer) {
     await completeJamesAgentTask(taskId, outputs);
   } else {
-    await failJamesAgentTask(taskId, outputs);
+    await failJamesAgentTask(
+      taskId,
+      { userId: input.userId || "", conversationId: input.conversationId || "" },
+      outputs,
+    );
   }
 
   const citations = allCapabilityResults.flatMap((item) => item.citations || []);
