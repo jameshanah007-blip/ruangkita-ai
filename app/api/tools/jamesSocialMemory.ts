@@ -82,112 +82,31 @@ export async function getJamesSocialMemory(userId: string, userRequest: string, 
     .join(" ");
   const names = extractNames(relationshipText);
 
-  const identityFilters = names
-    .map((name) => safeSearchName(name))
-    .filter(Boolean)
-    .map((name) => `memory_value.ilike.${name}`)
-    .join(",");
-
-  const { data: identities, error: identityError } = identityFilters
-    ? await supabase
-        .from("james_memories")
-        .select("user_id, memory_key, memory_value, confidence, source_excerpt")
-        .eq("memory_type", "identity")
-        .eq("status", "active")
-        .or(identityFilters)
-        .order("confidence", { ascending: false })
-        .limit(100)
-    : { data: [], error: null };
-
-  if (identityError || !identities?.length) return "";
-
-  const associations: SocialMemory[] = [];
-  const identityByUser = new Map<string, { name: string; confidence: number }>();
-  for (const identity of identities) {
-    const name = clean(identity.memory_value, 120);
-    if (identity.user_id && name) {
-      identityByUser.set(identity.user_id, {
-        name,
-        confidence: Number(identity.confidence) || 0,
-      });
-    }
-  }
-
-  for (const identity of identities) {
-    if (!identity.user_id || identity.user_id === userId) continue;
-    const personName = clean(identity.memory_value, 120);
-    if (!personName || !names.some((name) => normalize(name) === normalize(personName))) continue;
-
-    for (const relationship of ownRelationships) {
+  // Privacy boundary: social memory may use only the current user's own
+  // relationship memories. Do not query identity/relationship rows belonging
+  // to other users merely because a shared name appears in memory.
+  // Cross-user relationship discovery would turn private memories into an
+  // implicit directory and could leak whether another user knows someone.
+  const associations: SocialMemory[] = ownRelationships
+    .flatMap((relationship) => {
       const combined = `${relationship.memory_key || ""} ${relationship.memory_value || ""} ${relationship.source_excerpt || ""}`;
-      if (!normalize(combined).includes(normalize(personName))) continue;
-      associations.push({
-        personName,
-        relationship: relationshipLabel(relationship.memory_key || "", relationship.memory_value || ""),
-        confidence: Math.min(Number(relationship.confidence) || 0, Number(identity.confidence) || 0),
-        evidence: clean(relationship.source_excerpt || relationship.memory_value, 240),
-      });
-    }
-  }
+      const matchedName = names.find((name) =>
+        normalize(combined).includes(normalize(name))
+      );
 
-  if (currentPersonName) {
-    const safeCurrentPersonName = safeSearchName(currentPersonName);
-    if (!safeCurrentPersonName) return "";
+      if (!matchedName) return [];
 
-    const { data: allRelationships } = await supabase
-      .from("james_memories")
-      .select("user_id, memory_key, memory_value, confidence, source_excerpt")
-      .eq("memory_type", "relationship")
-      .eq("status", "active")
-      .or(
-        `memory_key.ilike.%${safeCurrentPersonName}%,memory_value.ilike.%${safeCurrentPersonName}%,source_excerpt.ilike.%${safeCurrentPersonName}%`
-      )
-      .order("confidence", { ascending: false })
-      .limit(50);
-
-    const reverseUserIds = [...new Set(
-      (allRelationships || [])
-        .map((relationship) => relationship.user_id)
-        .filter((id): id is string => Boolean(id) && id !== userId)
-    )];
-
-    const { data: reverseIdentities } = reverseUserIds.length
-      ? await supabase
-          .from("james_memories")
-          .select("user_id, memory_value, confidence")
-          .eq("memory_type", "identity")
-          .eq("status", "active")
-          .in("user_id", reverseUserIds)
-          .order("confidence", { ascending: false })
-          .limit(100)
-      : { data: [] };
-
-    const reverseIdentityByUser = new Map<string, { name: string; confidence: number }>();
-    for (const identity of reverseIdentities || []) {
-      const name = clean(identity.memory_value, 120);
-      if (!identity.user_id || !name || reverseIdentityByUser.has(identity.user_id)) continue;
-      reverseIdentityByUser.set(identity.user_id, {
-        name,
-        confidence: Number(identity.confidence) || 0,
-      });
-    }
-
-    for (const relationship of allRelationships || []) {
-      if (!relationship.user_id || relationship.user_id === userId) continue;
-      const combined = `${relationship.memory_key || ""} ${relationship.memory_value || ""} ${relationship.source_excerpt || ""}`;
-      if (!normalize(combined).includes(normalize(currentPersonName))) continue;
-
-      const sourcePerson = reverseIdentityByUser.get(relationship.user_id);
-      if (!sourcePerson) continue;
-
-      associations.push({
-        personName: sourcePerson.name,
-        relationship: relationshipLabel(relationship.memory_key || "", relationship.memory_value || ""),
-        confidence: Math.min(Number(relationship.confidence) || 0, sourcePerson.confidence),
-        evidence: clean(relationship.source_excerpt || relationship.memory_value, 240),
-      });
-    }
-  }
+      return [{
+        personName: matchedName,
+        relationship: relationshipLabel(
+          relationship.memory_key || "",
+          relationship.memory_value || ""
+        ),
+        confidence: Number(relationship.confidence) || 0,
+        evidence: "",
+      }];
+    })
+    .slice(0, 20);
 
   const scored = rankJamesSocialAssociations(associations, userRequest, usageLessons);
 
