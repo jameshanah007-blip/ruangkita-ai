@@ -5,6 +5,7 @@ import { webSearch } from "../tools/webSearch";
 import { logActivity } from "../tools/logActivity";
 import {
   getJamesMemory,
+  getJamesPreviousConversationMessages,
   getJamesLongTermMemory,
   saveJamesMemoryProposals,
   saveJamesTurn,
@@ -101,11 +102,13 @@ function requestsConversationRecall(request: string) {
     /\btadi kita (sedang )?(membicarakan|ngobrol|bahas)/,
     /\bkita tadi (sedang )?(membicarakan|ngobrol|bahas)/,
     /\byang tadi (apa|gimana|tentang apa)/,
-    /\bkamu ingat( apa)?( yang)? tadi/,
-    /\bkamu masih ingat/,
+    /\bkamu (masih )?ingat\b/,
+    /\bjames (masih )?ingat\b/,
     /\bapa yang kita (bahas|bicarakan|obrolkan)/,
     /\btopik (kita )?(tadi|sebelumnya)/,
-    /\bpercakapan (tadi|sebelumnya)/
+    /\bpercakapan (tadi|sebelumnya)/,
+    /\bchat (tadi|sebelumnya|yang lalu)\b/,
+    /\bobrolan (tadi|sebelumnya|yang lalu)\b/
   ].some((pattern) => pattern.test(text));
 }
 
@@ -497,8 +500,7 @@ function mergeReflectionResults(
 
     if (!candidates.length) return "";
 
-    const groups = new Map<string, typeof candidates>();
-    for (const candidate of candidates) {
+    const groups = new Map<string, typeof candidates>();    for (const candidate of candidates) {
       const key = candidate.value.toLowerCase().replace(/\s+/g, " ").trim();
       const group = groups.get(key) || [];
       group.push(candidate);
@@ -997,7 +999,6 @@ function sanitizeJamesFinalResponse(text: string): string {
     .replace(/^\s*(User Safety|Safety|Safety Check)\s*:\s*(safe|unsafe|allowed|blocked)\s*$/gim, "")
     .replace(/^\s*(User Safety|Safety|Safety Check)\s*:\s*(safe|unsafe|allowed|blocked)\s*\n/gim, "")
     .trim();
-
   return cleaned || text.trim();
 }
 
@@ -1042,16 +1043,19 @@ function createJamesChatStreamResponse(input: {
         for await (const event of brainStream) {
           if (event.type === "delta") {
             resultText += event.text;
-            controller.enqueue(encodeEvent({
-              type: "delta",
-              text: event.text,
-            }));
             continue;
           }
 
           provider = event.provider;
           model = event.model;
-          resultText = event.text;
+          resultText = sanitizeJamesFinalResponse(event.text);
+
+          if (resultText.trim()) {
+            controller.enqueue(encodeEvent({
+              type: "delta",
+              text: resultText,
+            }));
+          }
 
           after(async () => {
             await Promise.allSettled([
@@ -1230,8 +1234,9 @@ export async function POST(request: Request) {
       });
     }
 
-    const [memory, longTermMemories, growth, globalGrowth] = await Promise.all([
+    const [memory, previousConversationMessages, longTermMemories, growth, globalGrowth] = await Promise.all([
       getJamesMemory(userId, conversationId),
+      getJamesPreviousConversationMessages(userId, conversationId, 40),
       getJamesLongTermMemory(userId, 30),
       getJamesGrowth(userId),
       getGlobalGrowth(20),
@@ -1389,7 +1394,17 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
     }
 
     if (requestsConversationRecall(userRequest)) {
-      const resultText = buildConversationRecallResponse(memory.messages);
+      const recallMessages = [
+        ...previousConversationMessages,
+        ...memory.messages,
+      ]
+        .filter((message) => message.content.trim())
+        .sort((a, b) =>
+          String(a.created_at || "").localeCompare(String(b.created_at || ""))
+        )
+        .slice(-40);
+
+      const resultText = buildConversationRecallResponse(recallMessages);
 
       await saveActivity(userRequest, "chat", "conversation-memory", resultText);
       await saveJames(userId, conversationId, userRequest, resultText, "chat", "conversation-memory");
@@ -1497,8 +1512,7 @@ ${providerContext}
 
 Tugasmu adalah menyusun jawaban berdasarkan HASIL KONSULTASI ASLI di atas.
 JANGAN mengatakan bahwa James tidak dapat mengakses Gemini, OpenAI, Groq, atau provider lain jika provider tersebut tercantum di daftar provider berhasil.
-JANGAN mengganti hasil konsultasi dengan pengetahuan umum bawaanmu.
-Jika pengguna meminta apa yang didapatkan dari provider, jelaskan secara eksplisit hasil dari masing-masing provider yang tersedia.
+JANGAN mengganti hasil konsultasi dengan pengetahuan umum bawaanmu.Jika pengguna meminta apa yang didapatkan dari provider, jelaskan secara eksplisit hasil dari masing-masing provider yang tersedia.
 Jika provider berbeda pendapat, jelaskan perbedaannya.
 Jangan mengklaim provider berhasil jika provider tersebut tidak ada di daftar.
 Jangan menyebut reasoning internal.`
@@ -1997,7 +2011,6 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
         socialMemoryContext,
       });
     }
-
     const resultText = await callJamesAI(
       chatPrompt,
       rememberInstruction,
