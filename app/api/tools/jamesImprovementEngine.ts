@@ -244,6 +244,7 @@ export async function evolveJamesImprovementGoal(input: {
     .from("james_improvement_goals")
     .select("*")
     .eq("id", input.improvementGoalId)
+    .eq("user_id", input.userId)
     .maybeSingle();
 
   if (error || !goal) return null;
@@ -258,7 +259,8 @@ export async function evolveJamesImprovementGoal(input: {
       status: proposal.status === "approved" ? "queued" : "blocked",
       evolution_proposal_id: proposal.proposalId,
     })
-    .eq("id", input.improvementGoalId);
+    .eq("id", input.improvementGoalId)
+    .eq("user_id", input.userId);
 
   return {
     ...goal,
