@@ -416,13 +416,18 @@ Aturan:
 - Lesson harus tentang peningkatan bantuan/komunikasi James.
 `;
 
-    const providerResults = await generateWithAllAIProviders({
+    // Learning must not fan out to every provider after every chat.
+    // That pattern consumed all free quotas and amplified fallback failures.
+    // Use the same resilient router once; learning remains best-effort and
+    // never blocks the user's response.
+    const learningResult = await generateWithAIRouter({
       prompt: reflectionPrompt,
       systemInstruction:
-        "Kamu adalah salah satu dari beberapa learning engines James. Berikan refleksi yang jujur, ringkas, berbasis bukti, dan JSON valid tanpa markdown.",
+        "Kamu adalah learning engine James. Berikan refleksi yang jujur, ringkas, berbasis bukti, dan JSON valid tanpa markdown.",
       temperature: 0.2,
-      maxOutputTokens: 2500,
+      maxOutputTokens: 1800,
     });
+    const providerResults = [learningResult];
 
     const parsedResults = providerResults
       .map((result) => ({
@@ -1091,29 +1096,35 @@ function createJamesChatStreamResponse(input: {
           }
 
           after(async () => {
-            await Promise.allSettled([
-              saveActivity(input.userRequest, input.intent, provider, resultText),
-              saveJamesTurn({
+            await saveActivity(input.userRequest, input.intent, provider, resultText);
+            try {
+              // Persist the conversation before inserting long-term memories.
+              // james_memories.conversation_id has a foreign key to ai_conversations;
+              // running these concurrently can race and intermittently fail.
+              await saveJamesTurn({
                 userId: input.userId,
                 conversationId: input.conversationId,
                 userMessage: input.userRequest,
                 assistantMessage: resultText,
                 intent: input.intent,
                 tool: provider,
-              }),
-              saveExplicitJamesMemories(
+              });
+              await saveExplicitJamesMemories(
                 input.userId,
                 input.conversationId,
                 input.userRequest
-              ),
-              evolveJames({
-                userId: input.userId,
-                conversationId: input.conversationId,
-                userRequest: input.userRequest,
-                assistantResult: resultText,
-                socialMemoryContext: input.socialMemoryContext,
-              }),
-            ]);
+              );
+            } catch (error) {
+              console.error("Gagal menyimpan memori James:", error);
+            }
+
+            await evolveJames({
+              userId: input.userId,
+              conversationId: input.conversationId,
+              userRequest: input.userRequest,
+              assistantResult: resultText,
+              socialMemoryContext: input.socialMemoryContext,
+            });
           });
 
           controller.enqueue(encodeEvent({

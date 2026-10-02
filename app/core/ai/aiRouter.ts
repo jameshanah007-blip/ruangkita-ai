@@ -24,10 +24,11 @@ const PROVIDER_TIMEOUTS_MS: Record<string, number> = {
   openai: 8_000,
 };
 const DEFAULT_PROVIDER_TIMEOUT_MS = 10_000;
-const MAX_TRANSIENT_RETRIES = 0;
+const MAX_TRANSIENT_RETRIES = 1;
 const DEFAULT_TRANSIENT_RETRY_MS = 750;
 const MAX_TRANSIENT_RETRY_MS = 4_000;
 const TRANSIENT_COOLDOWN_MS = 30_000;
+const USER_FACING_PROVIDER_ERROR = "James sedang kehabisan jalur AI yang tersedia. Provider utama sedang terkena batas penggunaan, dan jalur cadangan juga belum dapat dipakai. Coba lagi beberapa detik lagi.";
 const DAILY_QUOTA_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 // Best-effort cooldown for warm serverless instances.
@@ -253,10 +254,12 @@ export async function generateWithAIRouter(
   }
 
   const error = new Error(
-    `Semua AI provider gagal. ${attempts.join(" | ")}`
+    USER_FACING_PROVIDER_ERROR
   ) as ProviderError;
 
   error.provider = "ai-router";
+  (error as ProviderError & { attempts?: string[] }).attempts = attempts;
+  console.error("AI Router exhausted all providers:", attempts);
   throw error;
 }
 
