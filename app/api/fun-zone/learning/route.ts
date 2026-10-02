@@ -11,6 +11,15 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    const workerSecret = process.env.CRON_SECRET || process.env.JAMES_AUTONOMY_CRON_SECRET;
+    const authorization = request.headers.get("authorization") || "";
+    if (!workerSecret || authorization !== "Bearer " + workerSecret) {
+      return NextResponse.json(
+        { success: false, error: "Learning engine hanya dapat dipanggil oleh worker internal." },
+        { status: 401 },
+      );
+    }
+
     const cookieHeader = request.headers.get("cookie") || "";
     const readCookie = (name: string) => cookieHeader
       .split(";")
