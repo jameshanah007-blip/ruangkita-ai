@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { isOmantoVerified } from "../verify-identity/route";
 import { LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, verifyLegacyUserIdSignature } from "../auth/cloudIdentity";
-import { cookies } from "next/headers";
 import { runJamesAutonomousBrain, type JamesAutonomyMode } from "../../tools/jamesAutonomousBrain";
 import { createJamesAutonomousGoal } from "../../tools/jamesAutonomousGoals";
 
@@ -16,9 +15,14 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const cookieStore = await cookies();
-    const sessionUserId = cookieStore.get(LEGACY_USER_COOKIE)?.value || "";
-    const sessionSignature = cookieStore.get(LEGACY_USER_SIGNATURE_COOKIE)?.value;
+    const cookieHeader = request.headers.get("cookie") || "";
+    const readCookie = (name: string) => cookieHeader
+      .split(";")
+      .map((item) => item.trim())
+      .find((item) => item.startsWith(`${name}=`))
+      ?.slice(name.length + 1) || "";
+    const sessionUserId = readCookie(LEGACY_USER_COOKIE);
+    const sessionSignature = readCookie(LEGACY_USER_SIGNATURE_COOKIE);
     if (!verifyLegacyUserIdSignature(sessionUserId, sessionSignature)) {
       return NextResponse.json(
         { error: "Sesi James tidak valid. Silakan buat sesi James terlebih dahulu." },
@@ -82,7 +86,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const sessionConversationId = cookieStore.get("ruangkita-session-conversation")?.value || "";
+    const sessionConversationId = readCookie("ruangkita-session-conversation");
     const effectiveConversationId = sessionConversationId || conversationId;
     if (conversationId && sessionConversationId && conversationId !== sessionConversationId) {
       return NextResponse.json(
