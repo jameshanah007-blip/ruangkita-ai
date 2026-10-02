@@ -326,10 +326,59 @@ export function buildJamesMemoryContext(input: {
       value: memory.memory_value,
       confidence: memory.confidence,
     }));
+
+    // Give the model a small, deterministic association layer. The database
+    // stores facts independently; this layer shows how words/facts can belong
+    // together without merging users or inventing a relationship.
+    const stopWords = new Set([
+      "yang","dan","atau","dengan","untuk","dari","adalah","pengguna","user",
+      "saya","aku","kamu","james","ini","itu","punya","memiliki","tentang",
+      "the","and","with","for","from",
+    ]);
+    const normalizeWords = (value: string) =>
+      value.toLowerCase()
+        .replace(/[^\\p{L}\\p{N}\\s_-]/gu, " ")
+        .split(/\\s+/)
+        .map((word) => word.trim())
+        .filter((word) => word.length >= 3 && !stopWords.has(word));
+
+    const associationMap = new Map<string, Set<string>>();
+    for (const memory of input.longTermMemories) {
+      const source = `${memory.memory_key || ""} ${memory.memory_value || ""}`;
+      const words = [...new Set(normalizeWords(source))].slice(0, 12);
+      for (const word of words) {
+        const related = associationMap.get(word) || new Set<string>();
+        for (const other of words) {
+          if (other !== word) related.add(other);
+        }
+        associationMap.set(word, related);
+      }
+    }
+
+    const associations = [...associationMap.entries()]
+      .filter(([, related]) => related.size > 0)
+      .slice(0, 30)
+      .map(([word, related]) => `${word} → ${[...related].slice(0, 5).join(", ")}`)
+      .join("\n");
+
     parts.push(`MEMORI JANGKA PANJANG YANG TERVALIDASI:
 ${JSON.stringify(memories)}
 
-Gunakan memori ini hanya jika relevan dengan percakapan. Memori adalah fakta yang pernah dinyatakan atau dikonfirmasi pengguna, bukan izin untuk menebak hal lain.`);
+RELEVANCE MAP MEMORI:
+${associations || "(belum ada hubungan kata yang cukup kuat)"}
+
+ATURAN MENGGUNAKAN MEMORI:
+- Memori adalah fakta yang pernah dinyatakan atau dikonfirmasi pengguna.
+- Gunakan hubungan kata di RELEVANCE MAP untuk menemukan fakta yang saling berkaitan,
+  lalu rangkai fakta tersebut menjadi kalimat yang natural.
+- Jangan sekadar menyalin memory_key atau daftar fakta mentah ke jawaban.
+- Jika pengguna menyebut satu kata/nama yang berkaitan dengan beberapa memori,
+  hubungkan hanya memori yang relevan dengan maksud pertanyaan.
+- Jangan membuat hubungan baru hanya karena dua kata terlihat mirip.
+- Jangan mengambil memori milik pengguna lain dan jangan menggabungkan identitas hanya
+  karena nama pengguna sama.
+- Jika hubungan belum cukup jelas, jawab dengan fakta yang memang terverifikasi atau
+  tanyakan klarifikasi singkat.`);
   }
 
   if (input.globalGrowth?.length) {
@@ -356,6 +405,22 @@ ATURAN EXPERIENCE LAYER:
 - Jika perkembangan tidak relevan, abaikan dan jawab secara normal.
 - Jangan mengubah fakta pengguna hanya karena ada perkembangan karakter James.`);
   }
+
+  parts.push(`GAYA BICARA NATURAL JAMES:
+- Tulis seperti teman bicara yang sedang memahami konteks, bukan seperti laporan database.
+- Utamakan kalimat yang mengalir: subjek → tindakan/keadaan → konteks yang relevan.
+- Jangan memulai jawaban dengan pola kaku seperti "Berdasarkan memori yang tersedia...",
+  "Memori menunjukkan...", atau "Saya memiliki informasi...".
+- Jika mengingat sesuatu, sebutkan secara wajar: "Iya, aku ingat kamu pernah cerita tentang..."
+  lalu sambungkan dengan konteks yang memang tersimpan.
+- Hindari mengulang nama pengguna terlalu sering.
+- Jangan memaksakan semua memori ke satu jawaban. Pilih 1–3 fakta yang paling relevan.
+- Gunakan "aku" untuk James dan "kamu" untuk pengguna, kecuali konteks meminta bentuk lain.
+- Variasikan pembuka dan struktur kalimat agar tidak terdengar seperti template.
+- Untuk pertanyaan sederhana, cukup 1–3 kalimat. Untuk pertanyaan kompleks, jelaskan bertahap
+  tetapi tetap terasa seperti percakapan manusia.
+- Jika memori berisi beberapa fakta yang saling terkait, gabungkan menjadi satu kalimat alami
+  daripada menyajikannya sebagai daftar.`);
 
   if (input.messages?.length) {
     parts.push(`MODE KONTINUITAS PERCAKAPAN:
