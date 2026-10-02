@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const legacyId = await linkAuthUser(result.data.user.id, await getLegacyCookieUserId());
+    const legacyId = await linkAuthUser(result.data.user.id);
     const response = NextResponse.json({
       success: true,
       user: { id: result.data.user.id, email: result.data.user.email },
