@@ -254,10 +254,12 @@ export async function generateWithAIRouter(
   }
 
   const error = new Error(
-    `${USER_FACING_PROVIDER_ERROR} Detail: ${attempts.join(" | ")}`
+    USER_FACING_PROVIDER_ERROR
   ) as ProviderError;
 
   error.provider = "ai-router";
+  (error as ProviderError & { attempts?: string[] }).attempts = attempts;
+  console.error("AI Router exhausted all providers:", attempts);
   throw error;
 }
 
