@@ -1,3 +1,4 @@
+import { LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, verifyLegacyUserIdSignature } from "../../auth/cloudIdentity";
 import { NextResponse } from "next/server";
 import type { GameBlueprint, TestReport } from "../../../fun-zone/laboratory/types";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
@@ -49,6 +50,20 @@ function evolveBlueprint(blueprint: GameBlueprint, report: TestReport, attempt: 
 
 export async function POST(request: Request) {
   try {
+    const cookieHeader = request.headers.get("cookie") || "";
+    const readCookie = (name: string) => cookieHeader
+      .split(";")
+      .map((item) => item.trim())
+      .find((item) => item.startsWith(`${name}=`))
+      ?.slice(name.length + 1) || "";
+    const sessionUserId = readCookie(LEGACY_USER_COOKIE);
+    const sessionSignature = readCookie(LEGACY_USER_SIGNATURE_COOKIE);
+    if (!verifyLegacyUserIdSignature(sessionUserId, sessionSignature)) {
+      return NextResponse.json(
+        { success: false, error: "Sesi James tidak valid. Silakan buat sesi James terlebih dahulu." },
+        { status: 401 },
+      );
+    }
     const body = await request.json();
     const blueprint = body?.blueprint as GameBlueprint | undefined;
     const report = body?.report as TestReport | undefined;
