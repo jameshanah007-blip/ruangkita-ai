@@ -1612,6 +1612,7 @@ Jangan menyebut reasoning internal.`
 
       if (experiences.length) {
         void recordJamesExperienceOutcome({
+          userId,
           experienceIds: experiences
             .map((experience) => experience.id)
             .filter((id): id is string => typeof id === "string"),
