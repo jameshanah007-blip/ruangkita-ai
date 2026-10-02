@@ -1121,6 +1121,13 @@ export async function POST(request: Request) {
     const userRequest =
       typeof body?.request === "string" ? body.request.trim() : "";
 
+    if (userRequest.length > 12000) {
+      return NextResponse.json(
+        { error: "Permintaan terlalu panjang. Maksimum 12.000 karakter." },
+        { status: 413 },
+      );
+    }
+
     const claimsOmanto = /\b(?:saya|aku)\s+(?:adalah\s+)?omanto\b/i.test(userRequest);
     const omantoVerified = isOmantoVerified(request);
 
