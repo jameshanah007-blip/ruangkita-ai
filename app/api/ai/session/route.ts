@@ -1,4 +1,4 @@
-import { resolveLegacyUserId } from "../../auth/cloudIdentity";
+import { getAuthenticatedUser, resolveLegacyUserId } from "../../auth/cloudIdentity";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
@@ -12,7 +12,7 @@ function validUuid(value: string | undefined): value is string {
   return typeof value === "string" && /^[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}$/.test(value);
 }
 
-function buildSessionResponse(userId: string, conversationId: string) {
+function buildSessionResponse(userId: string, conversationId: string, authenticated: boolean) {
   const memoryAvailable = Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SECRET_KEY
   );
@@ -21,6 +21,7 @@ function buildSessionResponse(userId: string, conversationId: string) {
     userId,
     conversationId,
     memoryAvailable,
+    authenticated,
   });
 
   response.cookies.set({
@@ -67,14 +68,15 @@ export async function GET() {
     ? storedConversationId
     : crypto.randomUUID();
 
-  return buildSessionResponse(userId, conversationId);
+  return buildSessionResponse(userId, conversationId, Boolean(await getAuthenticatedUser()));
 }
 
 export async function POST() {
   try {
+    const authenticated = Boolean(await getAuthenticatedUser());
     const userId = await resolveLegacyUserId();
     const conversationId = crypto.randomUUID();
-    return buildSessionResponse(userId, conversationId);
+    return buildSessionResponse(userId, conversationId, authenticated);
   } catch (error) {
     console.error("James new conversation session error:", error);
     return NextResponse.json(
