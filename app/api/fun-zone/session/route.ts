@@ -88,17 +88,21 @@ export async function POST(request: Request) {
         startedAt, finishedAt,
       } = body;
 
-      if (!sessionId || !gameTitle || !db) {
+      const userId = await resolveLegacyUserId();
+
+      if (!sessionId || !gameTitle || !db || !userId) {
         return NextResponse.json(
-          { success: false, error: "Data session tidak lengkap." },
-          { status: 400 }
+          { success: false, error: "Session James tidak valid atau data session tidak lengkap." },
+          { status: 403 }
         );
       }
+
+      const ownedSessionId = userId + ":" + sessionId;
 
       const { data, error } = await db
         .from("fun_sessions")
         .upsert({
-          session_id: sessionId,
+          session_id: ownedSessionId,
           game_title: gameTitle,
           game_theme: gameTheme || null,
           game_genre: gameGenre || null,
