@@ -40,6 +40,7 @@ import { evaluateJamesTask } from "../tools/jamesSelfEvaluation";
 import { formatJamesConsolidationContext, formatJamesExperienceContext, learnJamesExperience, recordJamesExperienceOutcome, retrieveJamesConsolidations, retrieveJamesExperiences, resolveJamesExperienceConflict } from "../tools/jamesExperience";
 import { getJamesAgentTask } from "../tools/jamesAgentState";
 import { isOmantoVerified } from "./verify-identity/route";
+import { LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, verifyLegacyUserIdSignature } from "../auth/cloudIdentity";
 import { interpretJamesTrainingInstruction, isJamesTrainingInstruction } from "../tools/jamesTraining";
 import { evaluateJamesMetaStrategies, learnJamesMetaStrategy, retrieveJamesMetaStrategiesByCapabilities } from "../tools/jamesMetaLearning";
 import { isRuangKitaProjectQuestion, RUANGKITA_PROJECT_KNOWLEDGE } from "../tools/ruangkitaProjectKnowledge";
@@ -1130,26 +1131,30 @@ export async function POST(request: Request) {
     }
 
     const cookieStore = await cookies();
-    const cookieUserId = cookieStore.get("ruangkita-session-user")?.value;
+    const cookieUserId = cookieStore.get(LEGACY_USER_COOKIE)?.value;
+    const cookieUserSignature = cookieStore.get(LEGACY_USER_SIGNATURE_COOKIE)?.value;
     const cookieConversationId = cookieStore.get("ruangkita-session-conversation")?.value;
 
-    // The server-issued session is authoritative whenever it exists.
-    // Request-body IDs remain only as a compatibility fallback for clients
-    // that have not received the session cookie yet.
-    const hasValidSessionUser = validUuid(cookieUserId);
-    const hasValidSessionConversation = validUuid(cookieConversationId);
+    // Identity for /api/ai must come only from a server-issued, HMAC-bound
+    // legacy session. Never accept userId from the request body as an
+    // authorization fallback; doing so would allow cross-user memory access.
+    if (
+      !validUuid(cookieUserId) ||
+      !verifyLegacyUserIdSignature(cookieUserId, cookieUserSignature)
+    ) {
+      return NextResponse.json(
+        { error: "Sesi James tidak valid atau sudah kedaluwarsa. Silakan buat sesi James terlebih dahulu." },
+        { status: 401 }
+      );
+    }
 
-    const userId = hasValidSessionUser
-      ? cookieUserId
-      : validUuid(body?.userId)
-        ? body.userId
-        : crypto.randomUUID();
-
-    const conversationId = hasValidSessionConversation
+    // Conversation IDs are scoped to the signed user identity by every
+    // memory query/write. A missing or invalid cookie gets a fresh ID rather
+    // than trusting a client-supplied conversationId.
+    const userId = cookieUserId;
+    const conversationId = validUuid(cookieConversationId)
       ? cookieConversationId
-      : validUuid(body?.conversationId)
-        ? body.conversationId
-        : crypto.randomUUID();
+      : crypto.randomUUID();
 
     const trainingRequest = isJamesTrainingInstruction(userRequest);
     if (trainingRequest && omantoVerified) {
