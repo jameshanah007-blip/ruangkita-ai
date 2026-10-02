@@ -2,6 +2,7 @@ import { resolveLegacyUserId } from "../../auth/cloudIdentity";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
+import { LEGACY_USER_SIGNATURE_COOKIE, signLegacyUserId } from "../../auth/cloudIdentity";
 
 const USER_COOKIE = "ruangkita-session-user";
 const CONVERSATION_COOKIE = "ruangkita-session-conversation";
@@ -31,6 +32,19 @@ function buildSessionResponse(userId: string, conversationId: string) {
     path: "/",
     maxAge: MAX_AGE,
   });
+
+  const signature = signLegacyUserId(userId);
+  if (signature) {
+    response.cookies.set({
+      name: LEGACY_USER_SIGNATURE_COOKIE,
+      value: signature,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: MAX_AGE,
+    });
+  }
 
   response.cookies.set({
     name: CONVERSATION_COOKIE,
