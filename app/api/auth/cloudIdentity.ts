@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 export const LEGACY_USER_COOKIE = "ruangkita-session-user";
 export const AUTH_ACCESS_COOKIE = "ruangkita-auth-access";
 export const AUTH_REFRESH_COOKIE = "ruangkita-auth-refresh";
+export const LEGACY_USER_SIGNATURE_COOKIE = "ruangkita-session-user-sig";
 
 function getUrl() {
   return process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -50,6 +51,29 @@ export async function getLegacyCookieUserId() {
   return typeof value === "string" && /^[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}$/.test(value)
     ? value
     : null;
+}
+
+function getSessionSigningSecret() {
+  return getSecretKey();
+}
+
+export function signLegacyUserId(userId: string) {
+  const secret = getSessionSigningSecret();
+  if (!secret) return null;
+  return crypto.createHmac("sha256", secret).update(userId).digest("hex");
+}
+
+export function verifyLegacyUserIdSignature(userId: string, signature: string | undefined) {
+  const expected = signLegacyUserId(userId);
+  if (!expected || !signature || !/^[0-9a-f]{64}$/i.test(signature)) return false;
+
+  const expectedBuffer = Buffer.from(expected, "hex");
+  const receivedBuffer = Buffer.from(signature, "hex");
+
+  return (
+    expectedBuffer.length === receivedBuffer.length &&
+    crypto.timingSafeEqual(expectedBuffer, receivedBuffer)
+  );
 }
 
 export async function getAuthenticatedUser(): Promise<User | null> {
