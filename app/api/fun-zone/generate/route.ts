@@ -327,6 +327,14 @@ export async function POST(request: Request) {
         : "surprise";
 
     const userId = await resolveLegacyUserId();
+
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: "Session James tidak valid." },
+        { status: 403 },
+      );
+    }
+
     const history = await getHistory(userId);
 
     const recentThemes =
