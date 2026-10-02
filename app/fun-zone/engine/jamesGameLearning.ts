@@ -2937,7 +2937,7 @@ export async function evaluateJamesRecoveryDirectiveImpact(
   const status = rate < 0.4 && failureCount >= 3 ? "blocked" : "active";
 
   const memory = {
-    user_id: SYSTEM_USER_ID,
+    user_id: SYSTEM_EXPERIENCE_USER_ID,
     pattern: strategyPattern,
     strategy,
     confidence,
@@ -3037,7 +3037,7 @@ export async function evaluateJamesExploreExploitImpact(
   const confidence = Math.min(0.99, Math.max(0.1, 0.45 + successRate * 0.45 + Math.min(0.1, total * 0.01)));
   const status = successRate < 0.4 && failureCount >= 3 ? "blocked" : "active";
   const memory = {
-    user_id: SYSTEM_USER_ID,
+    user_id: SYSTEM_EXPERIENCE_USER_ID,
     pattern: strategyPattern,
     strategy,
     confidence,
