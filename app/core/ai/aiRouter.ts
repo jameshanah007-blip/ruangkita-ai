@@ -121,7 +121,7 @@ async function generateWithTimeout(
       error.provider = providerName;
       error.status = 408;
       reject(error);
-    }, PROVIDER_TIMEOUT_MS);
+    }, timeoutMs);
   });
 
   try {
