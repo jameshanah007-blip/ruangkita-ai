@@ -1,4 +1,3 @@
-import { LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, verifyLegacyUserIdSignature } from "../../auth/cloudIdentity";
 import { NextResponse } from "next/server";
 import type { GameBlueprint, TestReport } from "../../../fun-zone/laboratory/types";
 import {
