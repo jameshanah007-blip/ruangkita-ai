@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAuthClientForRoute, getLegacyCookieUserId, linkAuthUser, signLegacyUserId, LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, AUTH_ACCESS_COOKIE, AUTH_REFRESH_COOKIE } from "../cloudIdentity";
+import { getAuthClientForRoute, linkAuthUser, signLegacyUserId, LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, AUTH_ACCESS_COOKIE, AUTH_REFRESH_COOKIE } from "../cloudIdentity";
 
 export async function POST(request: Request) {
   try {
