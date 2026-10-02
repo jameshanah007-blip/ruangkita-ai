@@ -138,17 +138,27 @@ export async function getJamesSocialMemory(userId: string, userRequest: string, 
       )];
 
       for (const candidateId of candidateIds) {
-        const { data: reciprocal } = await supabase
+        const { data: reciprocalByValue } = await supabase
           .from("james_memories")
           .select("memory_key, memory_value, source_excerpt, confidence")
           .eq("user_id", candidateId)
           .eq("memory_type", "relationship")
           .eq("status", "active")
-          .or(
-            "memory_value.ilike.%" + currentName + "%,source_excerpt.ilike.%" + currentName + "%"
-          )
+          .ilike("memory_value", "%" + currentName + "%")
           .order("confidence", { ascending: false })
           .limit(1);
+
+        const reciprocal = reciprocalByValue?.length
+          ? reciprocalByValue
+          : (await supabase
+              .from("james_memories")
+              .select("memory_key, memory_value, source_excerpt, confidence")
+              .eq("user_id", candidateId)
+              .eq("memory_type", "relationship")
+              .eq("status", "active")
+              .ilike("source_excerpt", "%" + currentName + "%")
+              .order("confidence", { ascending: false })
+              .limit(1)).data;
 
         if (reciprocal?.length) {
           mutualAssociations.push({
