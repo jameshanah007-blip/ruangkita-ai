@@ -6,8 +6,10 @@ import { logActivity } from "../tools/logActivity";
 import {
   getJamesMemory,
   getJamesPreviousConversationMessages,
+  getJamesRelevantConversationMessages,
   getJamesLongTermMemory,
   saveJamesMemoryProposals,
+  saveExplicitJamesMemories,
   saveJamesTurn,
   type JamesMemoryProposal,
 } from "../tools/memory";
@@ -952,6 +954,7 @@ function saveJames(
         intent,
         tool,
       });
+      await saveExplicitJamesMemories(userId, conversationId, userRequest);
     } catch (error) {
       console.error("Gagal menyimpan memori James:", error);
     }
@@ -1235,9 +1238,10 @@ export async function POST(request: Request) {
       });
     }
 
-    const [memory, previousConversationMessages, longTermMemories, growth, globalGrowth] = await Promise.all([
+    const [memory, previousConversationMessages, relevantConversationMessages, longTermMemories, growth, globalGrowth] = await Promise.all([
       getJamesMemory(userId, conversationId),
       getJamesPreviousConversationMessages(userId, conversationId, 40),
+      getJamesRelevantConversationMessages(userId, conversationId, userRequest, 20),
       getJamesLongTermMemory(userId, 30),
       getJamesGrowth(userId),
       getGlobalGrowth(20),
@@ -1397,6 +1401,7 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
     if (requestsConversationRecall(userRequest)) {
       const recallMessages = [
         ...previousConversationMessages,
+        ...relevantConversationMessages,
         ...memory.messages,
       ]
         .filter((message) => message.content.trim())
