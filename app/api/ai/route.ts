@@ -1483,41 +1483,59 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
           memory.memory_type !== "identity" &&
           ["relationship", "project", "goal", "preference", "interest", "context"].includes(memory.memory_type)
       );
+      const explicitNames = extractExplicitIdentityNames(recallMessages);
+      // The latest explicit self-introduction in this users own history is stronger
+      // than an older identity row, preventing stale identities from becoming the speaker.
       const memoryName =
+        explicitNames.at(-1) ||
         identityMemories.find((memory) => memory.memory_key === "user_name")?.memory_value ||
         identityMemories.find((memory) => memory.memory_key?.startsWith("self_name:"))?.memory_value ||
-        extractExplicitIdentityNames(recallMessages)[0] ||
         null;
 
       const conversationHistoryText = buildConversationRecallResponse(recallMessages);
       const hasConversationHistory = !conversationHistoryText.startsWith("Belum ada percakapan sebelumnya");
 
-      const resultText =
-        asksPersonalMemory && (memoryName || stableMemories.length || hasConversationHistory)
-          ? [
-              memoryName ? "Ya, aku masih mengingatmu." : "Aku punya beberapa memori tentang pengguna ini.",
-              memoryName ? "Nama yang tersimpan: **" + memoryName + "**." : "",
-              stableMemories.length
-                ? [
-                    "Hal lain yang tersimpan dari percakapan sebelumnya:",
-                    ...stableMemories.slice(0, 8).map((memory) => "- " + memory.memory_value),
-                  ].join("\n")
-                : "",
-              hasConversationHistory
-                ? [
-                    "Dari riwayat percakapan yang tersimpan:",
-                    conversationHistoryText,
-                  ].join("\n")
-                : "",
-            ].filter(Boolean).join("\n")
-          : asksIdentity && memoryName
-            ? "Dari memori yang tersimpan, kamu pernah memperkenalkan diri sebagai **" + memoryName + "**."
-            : asksIdentity && extractExplicitIdentityNames(recallMessages).length > 1
-              ? "Aku menemukan beberapa nama yang pernah dipakai untuk memperkenalkan diri di percakapan kita: " +
-                extractExplicitIdentityNames(recallMessages).map((name) => "**" + name + "**").join(", ") +
-                ". Karena ada lebih dari satu, aku belum bisa memastikan siapa yang sedang berbicara sekarang."
-              : buildConversationRecallResponse(recallMessages);
+      // Retrieval stays deterministic, but James synthesizes the facts instead of
+      // returning a database-style memory dump.
+      const recallContext = [
+        "IDENTITAS AKTIF YANG PALING KUAT: " + (memoryName || "(belum diketahui)"),
+        stableMemories.length
+          ? "MEMORI PRIBADI YANG RELEVAN:\n" + stableMemories.slice(0, 8).map((memory) =>
+              "- " + memory.memory_type + ": " + memory.memory_value
+            ).join("\n")
+          : "",
+        hasConversationHistory ? "RIWAYAT YANG RELEVAN:\n" + conversationHistoryText : "",
+        socialMemoryContext ? "KONTEKS RELASI SOSIAL YANG AMAN:\n" + socialMemoryContext : "",
+      ].filter(Boolean).join("\n\n");
 
+      const recallPrompt = `
+${recallContext}
+
+PESAN PENGGUNA:
+"${userRequest}"
+
+Tugasmu menjawab pesan ini sebagai James dalam percakapan yang sedang berlangsung.
+
+PENTING:
+- Jangan menjawab seperti database, laporan, atau hasil query.
+- Jangan mengatakan "nama yang tersimpan", "data yang tersimpan", "memory menunjukkan", atau menampilkan daftar memory/riwayat mentah.
+- Jika pengguna bertanya apakah kamu mengenalnya, jawab berdasarkan hubungan dan percakapan yang benar-benar tersedia. Hubungkan fakta yang relevan menjadi satu jawaban natural.
+- Jika pengguna bertanya tentang orang lain, pahami bahwa orang itu berbeda dari pengguna aktif. Jangan mengganti identitas pengguna aktif hanya karena nama orang tersebut muncul.
+- Jika hubungan dengan orang itu tersedia secara aman, sebutkan secara natural.
+- Jangan mengungkap percakapan pribadi pengguna lain.
+- Jangan menyebut database, retrieval, provider, atau mekanisme internal.
+- Jangan mengulang seluruh riwayat. Ambil hanya fakta yang membantu menjawab.
+- Jika bukti tidak cukup, katakan secara jujur bahwa kamu belum cukup mengenal orang tersebut.
+- Untuk pertanyaan sederhana, jawab 1–3 kalimat.
+`;
+
+      const resultText = await callJamesAI(
+        recallPrompt,
+        buildJamesSystemInstruction(
+          "Kamu sedang menjawab pertanyaan tentang ingatan dan hubungan dalam percakapan. Sintesis fakta yang tersedia menjadi respons yang hangat dan natural. Jangan menjadi mesin daftar memori."
+        ),
+        memoryContext
+      );
       await saveActivity(userRequest, "chat", "conversation-memory", resultText);
       await saveJames(userId, conversationId, userRequest, resultText, "chat", "conversation-memory");
 
