@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAuthClientForRoute, linkAuthUser, signLegacyUserId, LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, AUTH_ACCESS_COOKIE, AUTH_REFRESH_COOKIE } from "../cloudIdentity";
+import { getAuthClientForRoute, linkAuthUser, signLegacyUserId, getLegacyCookieUserId, LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, AUTH_ACCESS_COOKIE, AUTH_REFRESH_COOKIE } from "../cloudIdentity";
 
 export async function POST(request: Request) {
   try {
@@ -27,7 +27,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const legacyId = await linkAuthUser(result.data.user.id);
+    // Claim the current anonymous James identity when this is the first login.
+    const existingAnonymousLegacyId = await getLegacyCookieUserId();
+    const legacyId = await linkAuthUser(result.data.user.id, existingAnonymousLegacyId);
     const response = NextResponse.json({
       success: true,
       user: { id: result.data.user.id, email: result.data.user.email },
