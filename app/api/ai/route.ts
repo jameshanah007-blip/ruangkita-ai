@@ -1091,29 +1091,35 @@ function createJamesChatStreamResponse(input: {
           }
 
           after(async () => {
-            await Promise.allSettled([
-              saveActivity(input.userRequest, input.intent, provider, resultText),
-              saveJamesTurn({
+            await saveActivity(input.userRequest, input.intent, provider, resultText);
+            try {
+              // Persist the conversation before inserting long-term memories.
+              // james_memories.conversation_id has a foreign key to ai_conversations;
+              // running these concurrently can race and intermittently fail.
+              await saveJamesTurn({
                 userId: input.userId,
                 conversationId: input.conversationId,
                 userMessage: input.userRequest,
                 assistantMessage: resultText,
                 intent: input.intent,
                 tool: provider,
-              }),
-              saveExplicitJamesMemories(
+              });
+              await saveExplicitJamesMemories(
                 input.userId,
                 input.conversationId,
                 input.userRequest
-              ),
-              evolveJames({
-                userId: input.userId,
-                conversationId: input.conversationId,
-                userRequest: input.userRequest,
-                assistantResult: resultText,
-                socialMemoryContext: input.socialMemoryContext,
-              }),
-            ]);
+              );
+            } catch (error) {
+              console.error("Gagal menyimpan memori James:", error);
+            }
+
+            await evolveJames({
+              userId: input.userId,
+              conversationId: input.conversationId,
+              userRequest: input.userRequest,
+              assistantResult: resultText,
+              socialMemoryContext: input.socialMemoryContext,
+            });
           });
 
           controller.enqueue(encodeEvent({
