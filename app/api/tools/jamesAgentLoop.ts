@@ -297,11 +297,15 @@ export async function runJamesAgentLoop(input: {
           });
         }
 
-        await updateJamesAgentTask(taskId, {
-          currentStep: executedThisIteration,
-          actions,
-          outputs,
-        });
+        await updateJamesAgentTask(
+          taskId,
+          { userId: input.userId || "", conversationId: input.conversationId || "" },
+          {
+            currentStep: executedThisIteration,
+            actions,
+            outputs,
+          },
+        );
       }
     }
 
