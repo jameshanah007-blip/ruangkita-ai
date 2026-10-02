@@ -3,6 +3,7 @@ import { isOmantoVerified } from "../verify-identity/route";
 import { LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, verifyLegacyUserIdSignature } from "../../auth/cloudIdentity";
 import { runJamesAutonomousBrain, type JamesAutonomyMode } from "../../tools/jamesAutonomousBrain";
 import { createJamesAutonomousGoal } from "../../tools/jamesAutonomousGoals";
+import { consumeJamesRateLimit } from "../../tools/jamesRateLimit";
 
 export async function POST(request: Request) {
   try {
@@ -27,6 +28,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Sesi James tidak valid. Silakan buat sesi James terlebih dahulu." },
         { status: 401 },
+      );
+    }
+
+    const rateLimit = await consumeJamesRateLimit(sessionUserId);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Batas penggunaan Autonomous Brain tercapai. Silakan coba lagi setelah beberapa saat." },
+        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } },
       );
     }
     const requestedUserId = typeof body.userId === "string" ? body.userId.trim() : "";
