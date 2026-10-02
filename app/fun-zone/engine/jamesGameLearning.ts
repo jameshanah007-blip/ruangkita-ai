@@ -560,7 +560,8 @@ export async function recordJamesGameBrainEvidence(
         ])].slice(0, 12),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", existing.data.id);
+      .eq("id", existing.data.id)
+      .eq("user_id", SYSTEM_EXPERIENCE_USER_ID);
   } else {
     const inserted = await client
       .from("james_experiences")
@@ -613,7 +614,8 @@ export async function recordJamesGameBrainEvidence(
         merged_strategy: strategy,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", existingConsolidation.data.id);
+      .eq("id", existingConsolidation.data.id)
+      .is("user_id", null);
   } else {
     await client.from("james_experience_consolidations").insert({
       user_id: null,
