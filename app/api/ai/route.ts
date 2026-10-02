@@ -416,13 +416,18 @@ Aturan:
 - Lesson harus tentang peningkatan bantuan/komunikasi James.
 `;
 
-    const providerResults = await generateWithAllAIProviders({
+    // Learning must not fan out to every provider after every chat.
+    // That pattern consumed all free quotas and amplified fallback failures.
+    // Use the same resilient router once; learning remains best-effort and
+    // never blocks the user's response.
+    const learningResult = await generateWithAIRouter({
       prompt: reflectionPrompt,
       systemInstruction:
-        "Kamu adalah salah satu dari beberapa learning engines James. Berikan refleksi yang jujur, ringkas, berbasis bukti, dan JSON valid tanpa markdown.",
+        "Kamu adalah learning engine James. Berikan refleksi yang jujur, ringkas, berbasis bukti, dan JSON valid tanpa markdown.",
       temperature: 0.2,
-      maxOutputTokens: 2500,
+      maxOutputTokens: 1800,
     });
+    const providerResults = [learningResult];
 
     const parsedResults = providerResults
       .map((result) => ({
