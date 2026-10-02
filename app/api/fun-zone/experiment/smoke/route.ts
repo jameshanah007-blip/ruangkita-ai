@@ -68,7 +68,8 @@ export async function GET(request: Request) {
           game_html: gameHtml,
           status: "pending_verification",
         })
-        .eq("id", result.experimentId);
+        .eq("id", result.experimentId)
+        .eq("user_id", "system:game-brain-smoke-test");
 
       if (error) throw new Error("Smoke test persistence update failed: " + error.message);
       persisted = true;
