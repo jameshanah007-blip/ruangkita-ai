@@ -324,7 +324,7 @@ export async function POST(request: Request) {
 
     const mood =
       typeof body?.mood === "string"
-        ? body.mood.trim()
+        ? body.mood.trim().slice(0, 500)
         : "surprise";
 
     const userId = await resolveLegacyUserId();
