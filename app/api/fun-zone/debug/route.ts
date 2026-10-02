@@ -745,6 +745,10 @@ export async function POST(request: Request) {
         ? body.gameHtml
         : "";
 
+    if (gameHtml.length > 400000) {
+      return NextResponse.json({ success: false, error: "Game HTML terlalu besar. Maksimum 400 KB." }, { status: 413 });
+    }
+
     const errorMessage =
       typeof body?.errorMessage === "string"
         ? body.errorMessage.trim().slice(0, 2000)
