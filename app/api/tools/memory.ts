@@ -275,8 +275,10 @@ function extractExplicitJamesMemories(userRequest: string): JamesMemoryProposal[
   const proposals: JamesMemoryProposal[]=[];
   const cleanName=(value:string)=>value.trim().replace(/^[,.:;!?]+|[,.:;!?]+$/g,"").slice(0,80);
   const blockedIdentityWords = new Set([
-    "james","kamu","aku","saya","sudah","pernah","baru","sedang","akan","telah",\n    "masih","tidak","bukan","punya","memiliki","berkenalan","bertemu","tinggal",
-    "bekerja","belajar","juga","kelas","sekolah","teman","dengan","yang","ini",\n    "itu","dan","atau","karena","untuk","dari","ke","di","adalah","seorang"
+    "james","kamu","aku","saya","sudah","pernah","baru","sedang","akan","telah",
+    "masih","tidak","bukan","punya","memiliki","berkenalan","bertemu","tinggal",
+    "bekerja","belajar","juga","kelas","sekolah","teman","dengan","yang","ini",
+    "itu","dan","atau","karena","untuk","dari","ke","di","adalah","seorang"
   ]);
   const identityPatterns=[
     /\b(?:halo|hai)?\s*(?:james[,! ]+)?(?:saya|aku)\s+(?:adalah\s+)?([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i,
@@ -349,7 +351,8 @@ export async function getJamesLongTermMemory(userId: string, limit = 30): Promis
       return String(b.last_confirmed_at || "").localeCompare(
         String(a.last_confirmed_at || "")
       );
-    });
+    })
+    .slice(0, Math.min(Math.max(limit, 1), 50));
 }
 
 export async function saveJamesMemoryProposals(
