@@ -1023,6 +1023,10 @@ export async function POST(request: Request) {
     const blueprint =
       body?.blueprint;
 
+    if (JSON.stringify(blueprint || {}).length > 30000) {
+      return NextResponse.json({ success: false, error: "Blueprint terlalu besar." }, { status: 413 });
+    }
+
     if (!isValidBlueprint(blueprint)) {
       return NextResponse.json(
         {
