@@ -60,6 +60,14 @@ export async function POST(request: Request) {
       );
     }
 
+    const sessionConversationId = readCookie("ruangkita-session-conversation");
+    if (!sessionConversationId || conversationId !== sessionConversationId) {
+      return NextResponse.json(
+        { error: "conversationId tidak sesuai dengan sesi James." },
+        { status: 403 },
+      );
+    }
+
     if (body.persistGoal === true) {
       const savedGoal = await createJamesAutonomousGoal({
         userId,
@@ -86,14 +94,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const sessionConversationId = readCookie("ruangkita-session-conversation");
-    const effectiveConversationId = sessionConversationId || conversationId;
-    if (conversationId && sessionConversationId && conversationId !== sessionConversationId) {
-      return NextResponse.json(
-        { error: "conversationId tidak sesuai dengan sesi James." },
-        { status: 403 },
-      );
-    }
+    const effectiveConversationId = sessionConversationId;
 
     const result = await runJamesAutonomousBrain({
       userId,
