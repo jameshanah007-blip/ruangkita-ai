@@ -222,7 +222,7 @@ export async function getJamesRelevantConversationMessages(
   const scored=(data||[]).filter(message=>
     (message.role==="user"||message.role==="assistant")&&typeof message.content==="string"&&message.content.trim()
   ).map(message=>{
-    const words=new Set(message.content.toLowerCase().split(/\s+/).map(word=>
+    const words=new Set(message.content.toLowerCase().split(/\s+/).map((word: string) =>
       word.replace(/^[^a-z0-9\u00c0-\u024f\u1e00-\u1eff]+|[^a-z0-9\u00c0-\u024f\u1e00-\u1eff]+$/gi,"")
     ));
     const score=terms.reduce((sum,term)=>sum+(words.has(term)?3:0),0)+(message.role==="user"?1:0);
