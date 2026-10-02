@@ -186,6 +186,7 @@ export function buildJamesContext(input: ContextInput) {
 
   // Stable identity/project/goal memories should not disappear just because
   // the current message uses different words.
+  const queryTerms = terms(query).map(normalizeChatWord);
   const priorityMemories = memoryCandidates
     .filter(({ memory }) =>
       memory.memory_type === "identity" ||
@@ -193,11 +194,20 @@ export function buildJamesContext(input: ContextInput) {
       memory.memory_type === "project" ||
       memory.memory_type === "goal"
     )
-    .sort((a, b) =>
-      b.priority - a.priority ||
-      (Number(b.memory.confidence) || 0) - (Number(a.memory.confidence) || 0) ||
-      b.index - a.index
-    )
+    .sort((a, b) => {
+      const explicitIdentityA =
+        a.memory.memory_type === "identity" &&
+        queryTerms.includes(normalizeChatWord(String(a.memory.memory_value || "").toLowerCase()));
+      const explicitIdentityB =
+        b.memory.memory_type === "identity" &&
+        queryTerms.includes(normalizeChatWord(String(b.memory.memory_value || "").toLowerCase()));
+      return (
+        Number(explicitIdentityB) - Number(explicitIdentityA) ||
+        b.priority - a.priority ||
+        (Number(b.memory.confidence) || 0) - (Number(a.memory.confidence) || 0) ||
+        b.index - a.index
+      );
+    })
     .slice(0, 6)
     .map(({ memory }) => memory);
 
