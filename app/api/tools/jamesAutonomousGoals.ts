@@ -93,15 +93,18 @@ export async function getDueJamesAutonomousGoals(limit = 1) {
 
 export async function updateJamesAutonomousGoal(
   id: string,
+  owner: { userId: string; conversationId: string },
   patch: Partial<Pick<JamesAutonomousGoal, "status" | "next_run_at" | "last_run_at" | "attempts" | "last_result" | "last_error">>,
 ) {
   const client = db();
-  if (!client) return;
+  if (!client || !id || !owner.userId || !owner.conversationId) return;
 
   const { error } = await client
     .from("james_autonomous_goals")
     .update(patch)
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", owner.userId)
+    .eq("conversation_id", owner.conversationId);
 
   if (error) throw new Error("Gagal memperbarui autonomous goal: " + error.message);
 }
