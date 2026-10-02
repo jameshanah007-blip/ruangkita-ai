@@ -196,6 +196,44 @@ function memoryExpiry(memoryType: JamesLongTermMemory["memory_type"], days?: num
   return new Date(Date.now() + safeDays * 86400000).toISOString();
 }
 
+export async function getJamesPreviousConversationSummaries(
+  userId: string,
+  currentConversationId: string,
+  limit = 20,
+): Promise<MemoryMessage[]> {
+  const supabase = getSupabase();
+
+  if (!supabase || !validId(userId) || !validId(currentConversationId)) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("ai_conversations")
+    .select("id, summary, updated_at")
+    .eq("user_id", userId)
+    .neq("id", currentConversationId)
+    .not("summary", "is", null)
+    .order("updated_at", { ascending: false })
+    .limit(Math.min(Math.max(limit, 1), 40));
+
+  if (error) {
+    console.error("James conversation summary memory read error:", error.message);
+    return [];
+  }
+
+  return (data || [])
+    .filter(
+      (conversation) =>
+        typeof conversation.summary === "string" &&
+        conversation.summary.trim()
+    )
+    .map((conversation) => ({
+      role: "assistant" as const,
+      content: `Ringkasan percakapan sebelumnya (conversation ${conversation.id}): ${conversation.summary.trim().slice(0, 3000)}`,
+      created_at: conversation.updated_at,
+    }));
+}
+
 export async function getJamesRelevantConversationMessages(
   userId: string,
   currentConversationId: string,
