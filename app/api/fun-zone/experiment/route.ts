@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { consumeJamesRateLimit } from "../../tools/jamesRateLimit";
 import { createClient } from "@supabase/supabase-js";
 import { applyJamesAutonomousMutationToExperimentBlueprint, claimJamesGameExperiment, createJamesGameExperimentJob, getJamesPendingExperiment, revalidateJamesCoreSkills } from "../../../fun-zone/engine/jamesGameLearning";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
@@ -72,6 +73,14 @@ export async function POST(request: Request) {
 
     const userId = getSignedSessionUser(request);
     if (!userId) return NextResponse.json({ success: false, error: "Session James tidak valid." }, { status: 403 });
+
+    const rateLimit = await consumeJamesRateLimit(userId);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Batas penggunaan Fun Zone Experiment tercapai." },
+        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } },
+      );
+    }
 
     const pending = await getJamesPendingExperiment({ userId });
     if (pending) return NextResponse.json({
