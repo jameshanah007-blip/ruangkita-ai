@@ -329,17 +329,19 @@ export function formatJamesExperienceContext(experiences: JamesExperience[]) {
 }
 
 export async function recordJamesExperienceOutcome(input: {
+  userId: string;
   experienceIds: string[];
   verified: boolean;
 }) {
   const supabase = db();
   const ids = input.experienceIds.filter(safeId).slice(0, 10);
-  if (!supabase || !ids.length) return 0;
+  if (!supabase || !safeId(input.userId) || !ids.length) return 0;
 
   const { data, error } = await supabase
     .from("james_experiences")
     .select("id, success_count, failure_count, confidence, status")
     .in("id", ids)
+    .eq("user_id", input.userId)
     .eq("status", "active");
 
   if (error || !data?.length) return 0;
@@ -373,7 +375,8 @@ export async function recordJamesExperienceOutcome(input: {
         status: shouldRetire ? "retired" : "active",
         updated_at: new Date().toISOString(),
       })
-      .eq("id", item.id);
+      .eq("id", item.id)
+      .eq("user_id", input.userId);
 
     if (!updateError) updated += 1;
   }
