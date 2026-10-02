@@ -38,43 +38,30 @@ export default function AIExecutor() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    // Pengguna anonim pada perangkat bersama mendapat identitas baru saat tab
-    // baru dibuka. sessionStorage tetap ada saat reload pada tab yang sama,
-    // sehingga reload tidak memutus kontinuitas James. Pengguna yang login
-    // tidak dipaksa berganti identitas.
-    const hasTabSession = sessionStorage.getItem(SHARED_DEVICE_SESSION_KEY) === "active";
-
+    // Membuat conversation baru tidak boleh membuat userId baru.
+    // userId tetap berasal dari server cookie yang sudah ditandatangani,
+    // sehingga conversation lama tetap dapat ditemukan lintas sesi.
+    // Untuk berpindah ke orang lain pada perangkat yang sama, gunakan
+    // tombol "Ganti pengguna" secara eksplisit.
     const initializeSession = async () => {
       try {
-        const sessionResponse = await fetch("/api/ai/session", {
+        const response = await fetch("/api/ai/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
         });
-        const sessionData = await sessionResponse.json();
-        if (!sessionResponse.ok) {
-          throw new Error(sessionData.error || "Session James gagal dibuat.");
-        }
-
-        let data = sessionData;
-        if (!hasTabSession && sessionData.authenticated === false) {
-          const switchResponse = await fetch("/api/auth/switch-user", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-          });
-          data = await switchResponse.json();
-          if (!switchResponse.ok) {
-            throw new Error(data.error || "Session pengguna bersama gagal dibuat.");
-          }
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Session James gagal dibuat.");
         }
 
         const nextUserId = typeof data.userId === "string" ? data.userId : "";
-        const nextConversationId = typeof data.conversationId === "string" ? data.conversationId : "";
+        const nextConversationId =
+          typeof data.conversationId === "string" ? data.conversationId : "";
 
         if (!nextUserId || !nextConversationId) {
           throw new Error("Session James tidak lengkap.");
         }
 
-        sessionStorage.setItem(SHARED_DEVICE_SESSION_KEY, "active");
         setUserId(nextUserId);
         setConversationId(nextConversationId);
         setMessages([]);
@@ -82,7 +69,11 @@ export default function AIExecutor() {
         setOmantoVerified(false);
       } catch (error) {
         console.error("James new session error:", error);
-        setError(error instanceof Error ? error.message : "Session James gagal dibuat.");
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Session James gagal dibuat."
+        );
       } finally {
         setMemoryReady(true);
       }
