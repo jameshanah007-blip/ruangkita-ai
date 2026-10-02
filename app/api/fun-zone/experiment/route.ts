@@ -53,6 +53,10 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
 
+    if (JSON.stringify(body).length > 40000) {
+      return NextResponse.json({ success: false, error: "Experiment payload terlalu besar." }, { status: 413 });
+    }
+
     if (body?.mode === "revalidate") {
       if (!authorizedWorker(request)) return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
       const result = await revalidateJamesCoreSkills(12);
