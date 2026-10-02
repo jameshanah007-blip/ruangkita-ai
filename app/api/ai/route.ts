@@ -1489,8 +1489,11 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
         extractExplicitIdentityNames(recallMessages)[0] ||
         null;
 
+      const conversationHistoryText = buildConversationRecallResponse(recallMessages);
+      const hasConversationHistory = !conversationHistoryText.startsWith("Belum ada percakapan sebelumnya");
+
       const resultText =
-        asksPersonalMemory && (memoryName || stableMemories.length)
+        asksPersonalMemory && (memoryName || stableMemories.length || hasConversationHistory)
           ? [
               memoryName ? "Ya, aku masih mengingatmu." : "Aku punya beberapa memori tentang pengguna ini.",
               memoryName ? "Nama yang tersimpan: **" + memoryName + "**." : "",
@@ -1498,6 +1501,12 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
                 ? [
                     "Hal lain yang tersimpan dari percakapan sebelumnya:",
                     ...stableMemories.slice(0, 8).map((memory) => "- " + memory.memory_value),
+                  ].join("\n")
+                : "",
+              hasConversationHistory
+                ? [
+                    "Dari riwayat percakapan yang tersimpan:",
+                    conversationHistoryText,
                   ].join("\n")
                 : "",
             ].filter(Boolean).join("\n")
