@@ -81,6 +81,7 @@ export async function GET(request: Request) {
       .select("id,success_count,failure_count,confidence")
       .eq("pattern", pattern)
       .eq("strategy", strategy)
+      .eq("user_id", "system:fun-zone")
       .maybeSingle();
 
     const successCount = Number(existing?.success_count || 0) + stale.length;
@@ -98,7 +99,7 @@ export async function GET(request: Request) {
     };
 
     if (existing?.id) {
-      await client.from("james_experiences").update(experience).eq("id", existing.id);
+      await client.from("james_experiences").update(experience).eq("id", existing.id).eq("user_id", "system:fun-zone");
     } else {
       await client.from("james_experiences").insert(experience);
     }
