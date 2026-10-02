@@ -6,6 +6,7 @@ import { logActivity } from "../tools/logActivity";
 import {
   getJamesMemory,
   getJamesPreviousConversationMessages,
+  getJamesPreviousConversationSummaries,
   getJamesRelevantConversationMessages,
   getJamesLongTermMemory,
   saveJamesMemoryProposals,
@@ -1269,9 +1270,10 @@ export async function POST(request: Request) {
       });
     }
 
-    const [memory, previousConversationMessages, relevantConversationMessages, longTermMemories, growth, globalGrowth] = await Promise.all([
+    const [memory, previousConversationMessages, previousConversationSummaries, relevantConversationMessages, longTermMemories, growth, globalGrowth] = await Promise.all([
       getJamesMemory(userId, conversationId),
       getJamesPreviousConversationMessages(userId, conversationId, 40),
+      getJamesPreviousConversationSummaries(userId, conversationId, 20),
       getJamesRelevantConversationMessages(userId, conversationId, userRequest, 20),
       getJamesLongTermMemory(userId, 30),
       getJamesGrowth(userId),
@@ -1288,6 +1290,7 @@ export async function POST(request: Request) {
       // Cross-conversation continuity is restricted to this userId.
       // These rows were retrieved with the same user boundary above.
       messages: [
+        ...previousConversationSummaries,
         ...previousConversationMessages,
         ...relevantConversationMessages,
         ...(memory.messages || []),
@@ -1439,8 +1442,8 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
     if (requestsConversationRecall(userRequest)) {
       const recallMessages = [
         ...(relevantConversationMessages.length
-          ? relevantConversationMessages
-          : [...previousConversationMessages, ...memory.messages]),
+          ? [...relevantConversationMessages, ...previousConversationSummaries]
+          : [...previousConversationSummaries, ...previousConversationMessages, ...memory.messages]),
       ]
         .filter((message) => message.content.trim())
         .sort((a, b) =>
