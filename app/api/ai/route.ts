@@ -1072,6 +1072,11 @@ function createJamesChatStreamResponse(input: {
                 intent: input.intent,
                 tool: provider,
               }),
+              saveExplicitJamesMemories(
+                input.userId,
+                input.conversationId,
+                input.userRequest
+              ),
               evolveJames({
                 userId: input.userId,
                 conversationId: input.conversationId,
