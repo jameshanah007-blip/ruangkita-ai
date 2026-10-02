@@ -28,6 +28,7 @@ const MAX_TRANSIENT_RETRIES = 1;
 const DEFAULT_TRANSIENT_RETRY_MS = 750;
 const MAX_TRANSIENT_RETRY_MS = 4_000;
 const TRANSIENT_COOLDOWN_MS = 30_000;
+const MAX_STREAM_RATE_LIMIT_WAIT_MS = 8_500;
 const USER_FACING_PROVIDER_ERROR = "James sedang kehabisan jalur AI yang tersedia. Provider utama sedang terkena batas penggunaan, dan jalur cadangan juga belum dapat dipakai. Coba lagi beberapa detik lagi.";
 const DAILY_QUOTA_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
@@ -294,73 +295,103 @@ export async function* streamWithAIRouter(
     let emitted = false;
     let fullText = "";
 
-    try {
-      console.log(`AI Router streaming mencoba provider: ${provider.name}`);
-      const startedAt = Date.now();
+    let streamRetry = 0;
+    while (streamRetry <= 1) {
+      try {
+        console.log(`AI Router streaming mencoba provider: ${provider.name}${streamRetry ? " (retry rate-limit)" : ""}`);
+        const startedAt = Date.now();
 
-      let resolvedModel = provider.name === "gemini"
-        ? "gemini-3.6-flash"
-        : provider.name === "groq"
-          ? "openai/gpt-oss-20b"
-          : provider.name === "openrouter"
-            ? "openrouter/free"
-            : provider.name === "openai"
-              ? "gpt-5.6-luna"
-              : "unknown";
+        let resolvedModel = provider.name === "gemini"
+          ? "gemini-3.6-flash"
+          : provider.name === "groq"
+            ? "openai/gpt-oss-20b"
+            : provider.name === "openrouter"
+              ? "openrouter/free"
+              : provider.name === "openai"
+                ? "gpt-5.6-luna"
+                : "unknown";
 
-      if (provider.generateStream) {
-        for await (const chunk of provider.generateStream(request)) {
-          if (!chunk) continue;
-          emitted = true;
-          fullText += chunk;
-          yield { type: "delta", text: chunk };
+        if (provider.generateStream) {
+          for await (const chunk of provider.generateStream(request)) {
+            if (!chunk) continue;
+            emitted = true;
+            fullText += chunk;
+            yield { type: "delta", text: chunk };
+          }
+        } else {
+          const result = await provider.generate(request);
+          resolvedModel = result.model;
+          if (result.text) {
+            emitted = true;
+            fullText = result.text;
+            yield { type: "delta", text: result.text };
+          }
         }
-      } else {
-        const result = await provider.generate(request);
-        resolvedModel = result.model;
-        if (result.text) {
-          emitted = true;
-          fullText = result.text;
-          yield { type: "delta", text: result.text };
+
+        if (!fullText.trim()) {
+          throw new Error(`${provider.name} tidak menghasilkan output teks.`);
         }
+
+        providerCooldownUntil.delete(provider.name);
+        console.log(
+          `AI Router streaming berhasil menggunakan: ${provider.name} (${Date.now() - startedAt}ms)`
+        );
+
+        yield {
+          type: "done",
+          provider: provider.name,
+          model: resolvedModel,
+          text: fullText,
+          attempts,
+        };
+        return;
+      } catch (error) {
+        const message = getErrorMessage(error);
+        const status = getErrorStatus(error);
+        const detail = status
+          ? `${provider.name}: HTTP ${status} - ${message}`
+          : `${provider.name}: ${message}`;
+        attempts.push(detail);
+
+        console.error(`AI provider streaming ${provider.name} gagal:`, {
+          message,
+          status,
+          emitted,
+          retry: streamRetry,
+        });
+
+        if (isDailyQuotaError(error)) {
+          providerCooldownUntil.set(provider.name, Date.now() + DAILY_QUOTA_COOLDOWN_MS);
+          break;
+        }
+
+        if (emitted) throw error;
+
+        const retryAfterMs = getRetryAfterMs(error);
+        const canRetryRateLimit =
+          status === 429 &&
+          retryAfterMs !== undefined &&
+          retryAfterMs <= MAX_STREAM_RATE_LIMIT_WAIT_MS &&
+          streamRetry === 0;
+
+        if (canRetryRateLimit) {
+          const waitMs = Math.max(250, retryAfterMs);
+          providerCooldownUntil.set(provider.name, Date.now() + waitMs);
+          console.warn(`Provider ${provider.name} terkena rate limit; mencoba kembali setelah ${waitMs}ms.`);
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          providerCooldownUntil.delete(provider.name);
+          streamRetry += 1;
+          continue;
+        }
+
+        if (status === 429 || status === 503 || status === 504) {
+          providerCooldownUntil.set(
+            provider.name,
+            Date.now() + TRANSIENT_COOLDOWN_MS
+          );
+        }
+        break;
       }
-
-      if (!fullText.trim()) {
-        throw new Error(`${provider.name} tidak menghasilkan output teks.`);
-      }
-
-      providerCooldownUntil.delete(provider.name);
-      console.log(
-        `AI Router streaming berhasil menggunakan: ${provider.name} (${Date.now() - startedAt}ms)`
-      );
-
-      yield {
-        type: "done",
-        provider: provider.name,
-        model: resolvedModel,
-        text: fullText,
-        attempts,
-      };
-      return;
-    } catch (error) {
-      const message = getErrorMessage(error);
-      const status = getErrorStatus(error);
-      const detail = status
-        ? `${provider.name}: HTTP ${status} - ${message}`
-        : `${provider.name}: ${message}`;
-      attempts.push(detail);
-
-      console.error(`AI provider streaming ${provider.name} gagal:`, {
-        message,
-        status,
-        emitted,
-      });
-
-      if (isDailyQuotaError(error)) {
-        providerCooldownUntil.set(provider.name, Date.now() + DAILY_QUOTA_COOLDOWN_MS);
-      }
-
-      if (emitted) throw error;
     }
   }
 
