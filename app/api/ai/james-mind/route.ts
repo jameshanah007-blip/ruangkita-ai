@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isOmantoVerified } from "../verify-identity/route";
 import { getGlobalGrowth } from "../../tools/jamesGlobalLearning";
 import { getJamesGoals } from "../../tools/jamesGoals";
 import { getJamesFeedbackStats } from "../../tools/jamesEvolution";
@@ -10,7 +11,11 @@ function db() {
   return url && key ? createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } }) : null;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!isOmantoVerified(request)) {
+    return NextResponse.json({ error: "James Mind requires verified Omanto identity." }, { status: 403 });
+  }
+
   try {
     const supabase = db();
     const [globalGrowth, goals, feedbackStats] = await Promise.all([
