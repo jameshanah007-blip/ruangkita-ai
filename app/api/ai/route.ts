@@ -146,6 +146,32 @@ function buildConversationRecallResponse(
   ].join("\n");
 }
 
+
+function extractExplicitIdentityNames(
+  messages: Array<{ role: "user" | "assistant"; content: string }>
+) {
+  const names: string[] = [];
+
+  for (const message of messages) {
+    if (message.role !== "user") continue;
+
+    const matches = [
+      message.content.match(/\b(?:halo|hai)?\s*(?:james[,! ]+)?(?:saya|aku)\s+(?:adalah\s+)?([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i),
+      message.content.match(/\b(?:nama saya|namaku|nama aku)\s+(?:adalah\s+)?([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i),
+    ];
+
+    for (const match of matches) {
+      const name = match?.[1]?.trim();
+      if (!name || /^(james|kamu|aku|saya)$/i.test(name)) continue;
+      if (!names.some((item) => item.toLowerCase() === name.toLowerCase())) {
+        names.push(name);
+      }
+    }
+  }
+
+  return names;
+}
+
 function detectIntent(request: string): Intent {
   const text = request.toLowerCase();
 
@@ -1405,17 +1431,35 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
 
     if (requestsConversationRecall(userRequest)) {
       const recallMessages = [
-        ...previousConversationMessages,
-        ...relevantConversationMessages,
-        ...memory.messages,
+        ...(relevantConversationMessages.length
+          ? relevantConversationMessages
+          : [...previousConversationMessages, ...memory.messages]),
       ]
         .filter((message) => message.content.trim())
         .sort((a, b) =>
           String(a.created_at || "").localeCompare(String(b.created_at || ""))
         )
+        .filter((message, index, all) =>
+          all.findIndex(
+            (candidate) =>
+              candidate.role === message.role &&
+              candidate.content === message.content &&
+              candidate.created_at === message.created_at
+          ) === index
+        )
         .slice(-40);
 
-      const resultText = buildConversationRecallResponse(recallMessages);
+      const asksIdentity = /\b(?:siapa|apa)\s+(?:nama|namaku|nama saya)\b|\bsiapa namaku\b/i.test(userRequest);
+      const identityNames = extractExplicitIdentityNames(recallMessages);
+
+      const resultText =
+        asksIdentity && identityNames.length === 1
+          ? "Dari percakapan kita sebelumnya, kamu pernah memperkenalkan diri sebagai **" + identityNames[0] + "**."
+          : asksIdentity && identityNames.length > 1
+            ? "Aku menemukan beberapa nama yang pernah dipakai untuk memperkenalkan diri di percakapan kita: " +
+              identityNames.map((name) => "**" + name + "**").join(", ") +
+              ". Karena ada lebih dari satu, aku belum bisa memastikan siapa yang sedang berbicara sekarang."
+            : buildConversationRecallResponse(recallMessages);
 
       await saveActivity(userRequest, "chat", "conversation-memory", resultText);
       await saveJames(userId, conversationId, userRequest, resultText, "chat", "conversation-memory");
