@@ -433,6 +433,33 @@ export async function saveJamesTurn(input: {
     return;
   }
 
+  // A conversation UUID is not an authorization credential. Before writing,
+  // verify that an existing conversation belongs to the signed session user.
+  // Without this check, a guessed/obtained conversation ID could be rebound
+  // to another user through the upsert on the primary key.
+  const { data: existingConversation, error: existingConversationError } = await supabase
+    .from("ai_conversations")
+    .select("user_id")
+    .eq("id", input.conversationId)
+    .maybeSingle();
+
+  if (existingConversationError) {
+    console.error(
+      "James conversation ownership check error:",
+      existingConversationError.message
+    );
+    return;
+  }
+
+  if (
+    existingConversation &&
+    existingConversation.user_id &&
+    existingConversation.user_id !== input.userId
+  ) {
+    console.error("James conversation ownership mismatch.");
+    return;
+  }
+
   const { error: conversationError } = await supabase
     .from("ai_conversations")
     .upsert(
