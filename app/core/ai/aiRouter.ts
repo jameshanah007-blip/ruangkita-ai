@@ -17,10 +17,18 @@ type ProviderError = Error & {
   retryAfterMs?: number;
 };
 
-const PROVIDER_TIMEOUT_MS = 12_000;
+const PROVIDER_TIMEOUTS_MS: Record<string, number> = {
+  gemini: 15_000,
+  openrouter: 8_000,
+  groq: 10_000,
+  openai: 8_000,
+};
+const DEFAULT_PROVIDER_TIMEOUT_MS = 10_000;
 const MAX_TRANSIENT_RETRIES = 0;
 const DEFAULT_TRANSIENT_RETRY_MS = 750;
 const MAX_TRANSIENT_RETRY_MS = 4_000;
+const TRANSIENT_COOLDOWN_MS = 30_000;
+const DAILY_QUOTA_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 // Best-effort cooldown for warm serverless instances.
 // It prevents repeatedly hammering a provider that just returned 429/503.
@@ -64,7 +72,14 @@ function isDailyQuotaError(error: unknown): boolean {
     message.includes("free-models-per-day") ||
     message.includes("requests per day") ||
     message.includes("daily limit") ||
-    message.includes("daily quota")
+    message.includes("daily quota") ||
+    message.includes("insufficient_quota") ||
+    message.includes("insufficient quota") ||
+    message.includes("no credits") ||
+    message.includes("not enough credits") ||
+    message.includes("quota exceeded") ||
+    message.includes("billing") ||
+    message.includes("credit balance")
   );
 }
 
@@ -94,12 +109,14 @@ async function generateWithTimeout(
   providerName: string,
   providerGenerate: () => Promise<AIGenerateResponse>
 ): Promise<AIGenerateResponse> {
+  const timeoutMs =
+    PROVIDER_TIMEOUTS_MS[providerName] ?? DEFAULT_PROVIDER_TIMEOUT_MS;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
       const error = new Error(
-        `${providerName} timeout setelah ${PROVIDER_TIMEOUT_MS / 1000} detik.`
+        `${providerName} timeout setelah ${timeoutMs / 1000} detik.`
       ) as ProviderError;
       error.provider = providerName;
       error.status = 408;
@@ -192,12 +209,18 @@ export async function generateWithAIRouter(
         if (isDailyQuotaError(error)) {
           providerCooldownUntil.set(
             provider.name,
-            Date.now() + 24 * 60 * 60 * 1000
+            Date.now() + DAILY_QUOTA_COOLDOWN_MS
           );
           break;
         }
 
         if (!retryable || retry >= MAX_TRANSIENT_RETRIES) {
+          if (retryable) {
+            providerCooldownUntil.set(
+              provider.name,
+              Date.now() + TRANSIENT_COOLDOWN_MS
+            );
+          }
           break;
         }
 
@@ -331,7 +354,7 @@ export async function* streamWithAIRouter(
       });
 
       if (isDailyQuotaError(error)) {
-        providerCooldownUntil.set(provider.name, Date.now() + 24 * 60 * 60 * 1000);
+        providerCooldownUntil.set(provider.name, Date.now() + DAILY_QUOTA_COOLDOWN_MS);
       }
 
       if (emitted) throw error;
