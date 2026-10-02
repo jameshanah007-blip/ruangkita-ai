@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveLegacyUserId } from "../../auth/cloudIdentity";
 import { createClient } from "@supabase/supabase-js";
 import { GameSpecificationSchema } from "../../../fun-zone/engine/gameSchema";
 import { generateLocalGame } from "../../../fun-zone/engine/localGenerator";
@@ -75,14 +76,14 @@ function extractJson(text: string): unknown {
   );
 }
 
-async function getHistory(): Promise<FunZoneHistory[]> {
+async function getHistory(userId: string | null): Promise<FunZoneHistory[]> {
   const url =
     process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   const key =
     process.env.SUPABASE_SECRET_KEY;
 
-  if (!url || !key) {
+  if (!url || !key || !userId) {
     console.warn(
       "Supabase belum dikonfigurasi. History tidak digunakan."
     );
@@ -98,6 +99,7 @@ async function getHistory(): Promise<FunZoneHistory[]> {
       .select(
         "game_title,game_theme,game_genre,difficulty,mood"
       )
+      .like("session_id", userId + ":%")
       .order("created_at", {
         ascending: false,
       })
@@ -324,7 +326,8 @@ export async function POST(request: Request) {
         ? body.mood.trim()
         : "surprise";
 
-    const history = await getHistory();
+    const userId = await resolveLegacyUserId();
+    const history = await getHistory(userId);
 
     const recentThemes =
       getRecentThemes(history);
