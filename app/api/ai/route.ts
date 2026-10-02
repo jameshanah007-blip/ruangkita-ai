@@ -46,6 +46,7 @@ import { evaluateJamesMetaStrategies, learnJamesMetaStrategy, retrieveJamesMetaS
 import { isRuangKitaProjectQuestion, RUANGKITA_PROJECT_KNOWLEDGE } from "../tools/ruangkitaProjectKnowledge";
 import { getJamesSocialMemory } from "../tools/jamesSocialMemory";
 import { resolveJamesSocialAssociationLearning } from "../tools/socialMemoryRanking.js";
+import { consumeJamesRateLimit } from "../tools/jamesRateLimit";
 
 type Intent =
   | "chat"
@@ -1155,6 +1156,17 @@ export async function POST(request: Request) {
     const conversationId = validUuid(cookieConversationId)
       ? cookieConversationId
       : crypto.randomUUID();
+
+    const rateLimit = await consumeJamesRateLimit(userId);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Batas penggunaan James tercapai. Silakan coba lagi setelah beberapa saat." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+        },
+      );
+    }
 
     const trainingRequest = isJamesTrainingInstruction(userRequest);
     if (trainingRequest && omantoVerified) {
