@@ -422,6 +422,18 @@ ATURAN EXPERIENCE LAYER:
 - Jika memori berisi beberapa fakta yang saling terkait, gabungkan menjadi satu kalimat alami
   daripada menyajikannya sebagai daftar.`);
 
+  parts.push(`ATURAN IDENTITAS AKTIF:
+- Jika pengguna memperkenalkan dirinya pada pesan saat ini, perlakukan nama tersebut sebagai
+  identitas aktif untuk jawaban saat ini.
+- Memory identity lama tidak boleh menggantikan perkenalan pengguna yang baru.
+- Jika ada beberapa identity lama yang berbeda, jangan menyebut konflik tersebut kepada pengguna.
+- Dalam percakapan biasa, jangan mengatakan "nama yang tersimpan" atau menampilkan daftar memory.
+- Jika ada memory hubungan seperti "Asi berteman dengan Nora", gunakan hubungan itu sebagai
+  konteks percakapan dan rangkai menjadi kalimat alami.
+- Jangan menyimpulkan bahwa dua akun adalah orang yang sama hanya karena nama mereka sama.
+- Jangan mengungkap isi percakapan pribadi pengguna lain. Hubungan sosial hanya boleh disebut
+  jika memang tersedia sebagai konteks yang aman untuk pengguna saat ini.`);
+
   if (input.messages?.length) {
     parts.push(`MODE KONTINUITAS PERCAKAPAN:
 Percakapan ini sudah memiliki riwayat. Perlakukan pesan pengguna berikutnya sebagai
