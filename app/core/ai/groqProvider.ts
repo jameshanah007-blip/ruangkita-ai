@@ -13,9 +13,12 @@ const GROQ_MODEL =
 
 // Keep Groq requests below a conservative token-per-minute budget.
 // The estimator is intentionally approximate; the server-side limit remains authoritative.
-const GROQ_TPM_BUDGET = 6000;
-const GROQ_INPUT_TOKEN_BUDGET = 4500;
-const GROQ_OUTPUT_TOKEN_BUDGET = 1400;
+// Groq currently has an 8,000 TPM organization limit. Keep James' request
+// deliberately small so a request can still pass when the rolling TPM window
+// already contains other traffic.
+const GROQ_TPM_BUDGET = 2500;
+const GROQ_INPUT_TOKEN_BUDGET = 1800;
+const GROQ_OUTPUT_TOKEN_BUDGET = 700;
 
 function estimateTokens(value: string): number {
   return Math.ceil(value.length / 4);
@@ -97,7 +100,7 @@ class GroqProvider implements AIProvider {
     const outputBudget = Math.min(
       request.maxOutputTokens ?? GROQ_OUTPUT_TOKEN_BUDGET,
       GROQ_OUTPUT_TOKEN_BUDGET,
-      Math.max(512, GROQ_TPM_BUDGET - Math.min(inputTokens, GROQ_INPUT_TOKEN_BUDGET) - 400)
+      Math.max(512, GROQ_TPM_BUDGET - Math.min(inputTokens, GROQ_INPUT_TOKEN_BUDGET) - 200)
     );
 
     if (inputTokens > GROQ_INPUT_TOKEN_BUDGET) {
@@ -210,7 +213,7 @@ class GroqProvider implements AIProvider {
     const outputBudget = Math.min(
       request.maxOutputTokens ?? GROQ_OUTPUT_TOKEN_BUDGET,
       GROQ_OUTPUT_TOKEN_BUDGET,
-      Math.max(512, GROQ_TPM_BUDGET - Math.min(inputTokens, GROQ_INPUT_TOKEN_BUDGET) - 400)
+      Math.max(512, GROQ_TPM_BUDGET - Math.min(inputTokens, GROQ_INPUT_TOKEN_BUDGET) - 200)
     );
     const response = await fetch(GROQ_URL, {
       method: "POST",
