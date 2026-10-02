@@ -2,7 +2,7 @@ import { LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, verifyLegacyUserIdSig
 import { NextResponse } from "next/server";
 import type { GameBlueprint, TestReport } from "../../../fun-zone/laboratory/types";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
-import { recordJamesGameTestLearning } from "../../../fun-zone/engine/jamesGameLearning";
+
 
 export const runtime = "nodejs";
 
@@ -75,8 +75,6 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
-    await recordJamesGameTestLearning(blueprint, report, attempt);
 
     const evolvedBlueprint = evolveBlueprint(blueprint, report, attempt);
     const gameHtml = buildAutonomousGameHtml(evolvedBlueprint);
