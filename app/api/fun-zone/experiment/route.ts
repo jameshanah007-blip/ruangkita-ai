@@ -101,7 +101,7 @@ export async function POST(request: Request) {
             blueprint: result.blueprint,
             game_html: result.gameHtml,
             status: "pending_verification",
-          }).eq("id", result.experimentId);
+          }).eq("id", result.experimentId).eq("user_id", userId);
         }
       }
       return NextResponse.json({
