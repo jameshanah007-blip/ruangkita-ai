@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { generateWithAIRouter } from "../../core/ai/aiRouter";
+import { isOmantoVerified } from "../ai/verify-identity/route";
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!isOmantoVerified(request)) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
+  }
   try {
     const result =
       await generateWithAIRouter({
