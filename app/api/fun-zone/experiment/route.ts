@@ -2,9 +2,30 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyJamesAutonomousMutationToExperimentBlueprint, claimJamesGameExperiment, createJamesGameExperimentJob, getJamesPendingExperiment, revalidateJamesCoreSkills } from "../../../fun-zone/engine/jamesGameLearning";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
+import { LEGACY_USER_COOKIE, LEGACY_USER_SIGNATURE_COOKIE, verifyLegacyUserIdSignature } from "../../auth/cloudIdentity";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+
+function readCookie(request: Request, name: string) {
+  const cookieHeader = request.headers.get("cookie") || "";
+  return cookieHeader
+    .split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(`${name}=`))
+    ?.slice(name.length + 1) || "";
+}
+
+function getSignedSessionUser(request: Request) {
+  const userId = readCookie(request, LEGACY_USER_COOKIE);
+  const signature = readCookie(request, LEGACY_USER_SIGNATURE_COOKIE);
+  return verifyLegacyUserIdSignature(userId, signature) ? userId : null;
+}
+
+function authorizedWorker(request: Request) {
+  const secret = process.env.CRON_SECRET || process.env.JAMES_AUTONOMY_CRON_SECRET;
+  return Boolean(secret) && request.headers.get("authorization") === "Bearer " + secret;
+}
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -14,11 +35,14 @@ function db() {
 }
 
 export async function GET(request: Request) {
+  const userId = getSignedSessionUser(request);
+  if (!userId) return NextResponse.json({ success: false, error: "Session James tidak valid." }, { status: 403 });
+
   const experimentId = new URL(request.url).searchParams.get("experimentId") || "";
   if (!experimentId) return NextResponse.json({ success: false, error: "experimentId wajib diberikan." }, { status: 400 });
   const client = db();
   if (!client) return NextResponse.json({ success: false, error: "Supabase secret configuration is missing." }, { status: 503 });
-  const { data, error } = await client.from("james_game_experiments").select("*").eq("id", experimentId).maybeSingle();
+  const { data, error } = await client.from("james_game_experiments").select("*").eq("id", experimentId).eq("user_id", userId).maybeSingle();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ success: false, error: "Experiment job tidak ditemukan." }, { status: 404 });
   return NextResponse.json({ success: true, status: data.status, experiment: data, provider: "james-autonomous", model: "game-brain-experiment-v1" });
@@ -27,15 +51,16 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const userId = typeof body?.userId === "string" ? body.userId : null;
 
     if (body?.mode === "revalidate") {
+      if (!authorizedWorker(request)) return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
       const result = await revalidateJamesCoreSkills(12);
       return NextResponse.json({ success: true, mode: "revalidate", skills: result, provider: "james-autonomous", model: "game-brain-experiment-v1" });
     }
 
     if (body?.mode === "claim") {
-      const claimed = await claimJamesGameExperiment({ userId });
+      if (!authorizedWorker(request)) return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
+      const claimed = await claimJamesGameExperiment({ userId: "system:fun-zone" });
       if (!claimed) return NextResponse.json({ success: true, claimed: false, message: "Tidak ada experiment pending." });
       return NextResponse.json({
         success: true, claimed: true, status: "running", experimentId: claimed.id,
@@ -44,6 +69,9 @@ export async function POST(request: Request) {
         provider: "james-autonomous", model: "game-brain-experiment-v1",
       });
     }
+
+    const userId = getSignedSessionUser(request);
+    if (!userId) return NextResponse.json({ success: false, error: "Session James tidak valid." }, { status: 403 });
 
     const pending = await getJamesPendingExperiment({ userId });
     if (pending) return NextResponse.json({
