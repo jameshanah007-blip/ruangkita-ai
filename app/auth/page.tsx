@@ -113,12 +113,13 @@ export default function AuthPage() {
                 <label className="block">
                   <span className="mb-2 block text-sm text-slate-300">Nama</span>
                   <input
-                    type="email"
+                    type="text"
                     required
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    autoComplete="username"
                     className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none focus:border-cyan-400"
-                    placeholder="nama@email.com"
+                    placeholder="Nama kamu"
                   />
                 </label>
 
