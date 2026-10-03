@@ -254,7 +254,15 @@ async function callJamesAI(
     maxOutputTokens: 4000,
   });
 
-  return result.text;
+  const cleaned = sanitizeJamesFinalResponse(result.text);
+  if (cleaned) return cleaned;
+
+  const identityNames = extractExplicitIdentityNames([{ role: "user", content: userInput }]);
+  if (identityNames.length) {
+    return `Halo ${identityNames[0]}! Senang ketemu kamu di RuangKita. Aku James. Ada yang ingin kamu ceritakan atau tanyakan?`;
+  }
+
+  return "Halo! Aku James. Ada yang ingin kamu bahas?";
 }
 
 function extractText(data: any): string {
@@ -2123,11 +2131,11 @@ Berikan hanya jawaban yang memang ditujukan untuk pengguna.
         socialMemoryContext,
       });
     }
-    const resultText = await callJamesAI(
+    const resultText = sanitizeJamesFinalResponse(await callJamesAI(
       chatPrompt,
       rememberInstruction,
       jamesKnowledgeContext
-    );
+    ));
 
     await saveActivity(userRequest, intent, "gemini", resultText);
     await saveJames(userId, conversationId, userRequest, resultText, intent, "gemini");
