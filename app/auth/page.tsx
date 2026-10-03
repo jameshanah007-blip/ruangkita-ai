@@ -51,7 +51,19 @@ export default function AuthPage() {
       }
 
       if (mode === "login") {
-        window.location.href = "/";
+        // Confirm the HTTP-only auth cookies are already visible to the server
+        // before navigating to the server-rendered Home page.
+        const sessionResponse = await fetch("/api/auth/me", {
+          cache: "no-store",
+          credentials: "same-origin",
+        });
+        const sessionData = await sessionResponse.json();
+
+        if (!sessionData.authenticated) {
+          throw new Error("Login berhasil, tetapi session belum siap. Silakan coba lagi.");
+        }
+
+        window.location.replace("/");
         return;
       }
 
