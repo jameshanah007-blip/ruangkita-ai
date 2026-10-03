@@ -73,6 +73,14 @@ export default function SiteNav() {
             })}
           </div>
 
+          <a
+            href={accountHref}
+            className="hidden max-w-48 truncate rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-300 transition hover:border-cyan-400/30 hover:text-cyan-300 md:block"
+            title={authEmail || "Login ke RuangKita"}
+          >
+            {authEmail ? `👤 ${accountLabel}` : `☁️ ${accountLabel}`}
+          </a>
+
           <button
             type="button"
             aria-label="Buka menu"
@@ -108,6 +116,13 @@ export default function SiteNav() {
                   </a>
                 );
               })}
+              <a
+                href={accountHref}
+                onClick={() => setOpen(false)}
+                className="rounded-xl border border-white/10 px-4 py-3 text-slate-300 transition hover:bg-white/5 hover:text-cyan-300"
+              >
+                {authEmail ? `👤 ${accountLabel}` : `☁️ ${accountLabel}`}
+              </a>
             </div>
           </div>
         )}
