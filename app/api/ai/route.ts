@@ -166,6 +166,8 @@ function buildPersonalMemoryRecallResponse(input: {
 function extractRecallSubject(request: string): string | null {
   const normalized = request.toLowerCase().replace(/[!?.,]/g, " ").replace(/\s+/g, " ").trim();
   const patterns = [
+    /\b(?:apa|bagaimana)\s+(?:hubungan|relasi)\s+(?:saya|aku)\s+(?:dengan|dan)\s+([a-zà-öø-ÿ][a-zà-öø-ÿ'_-]{1,40})\b/i,
+    /\b(?:hubungan|relasi)\s+(?:saya|aku)\s+(?:dengan|dan)\s+([a-zà-öø-ÿ][a-zà-öø-ÿ'_-]{1,40})\b/i,
     /\bapa yang (?:kamu|james) ingat tentang ([a-zà-öø-ÿ][a-zà-öø-ÿ'_-]{1,40})\b/i,
     /\b(?:kamu|james) (?:masih )?ingat tentang ([a-zà-öø-ÿ][a-zà-öø-ÿ'_-]{1,40})\b/i,
     /\b(?:apakah\s+)?(?:kamu|james) (?:masih\s+)?ingat ([a-zà-öø-ÿ][a-zà-öø-ÿ'_-]{1,40})\b/i,
