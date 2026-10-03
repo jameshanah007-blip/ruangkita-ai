@@ -105,6 +105,13 @@ export default function SiteNav() {
                   </Link>
                 );
               })}
+              <button
+                type="button"
+                onClick={() => void handleSignOut()}
+                className="mt-1 rounded-xl border border-red-400/20 px-4 py-3 text-left text-red-300 transition hover:bg-red-400/10 hover:text-red-200"
+              >
+                Keluar
+              </button>
             </div>
           </div>
         )}
