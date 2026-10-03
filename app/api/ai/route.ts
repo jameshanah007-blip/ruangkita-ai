@@ -1043,11 +1043,20 @@ function sanitizeUnavailableResearchResponse(text: string, researchVerified: boo
 }
 
 function sanitizeJamesFinalResponse(text: string): string {
-  const cleaned = text
-    .replace(/^\s*(User Safety|Safety|Safety Check)\s*:\s*(safe|unsafe|allowed|blocked)\s*$/gim, "")
-    .replace(/^\s*(User Safety|Safety|Safety Check)\s*:\s*(safe|unsafe|allowed|blocked)\s*\n/gim, "")
+  // Some fallback models can leak provider-side safety annotations into
+  // ordinary assistant text (for example "User Safety:safe"). These are
+  // transport/model metadata, not part of James' answer.
+  return text
+    .replace(
+      /(?:^|[\\r\\n])\\s*(?:user\\s*)?safety(?:\\s*check)?\\s*[:=\\-]\\s*(?:safe|unsafe|allowed|blocked)\\s*(?=$|[\\r\\n])/gim,
+      "\\n"
+    )
+    .replace(
+      /\\b(?:user\\s*)?safety(?:\\s*check)?\\s*[:=\\-]\\s*(?:safe|unsafe|allowed|blocked)\\b[ \\t]*/gim,
+      ""
+    )
+    .replace(/\\n{3,}/g, "\\n\\n")
     .trim();
-  return cleaned;
 }
 
 function validUuid(value: unknown): value is string {
