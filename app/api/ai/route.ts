@@ -11,6 +11,7 @@ import {
   getJamesLongTermMemory,
   saveJamesMemoryProposals,
   saveExplicitJamesMemories,
+  extractExplicitJamesMemories,
   saveJamesTurn,
   type JamesMemoryProposal,
 } from "../tools/memory";
@@ -172,7 +173,10 @@ function extractExplicitIdentityNames(
 
     for (const match of matches) {
       const name = match?.[1]?.trim();
-      if (!name || /^(james|kamu|aku|saya)$/i.test(name)) continue;
+      if (
+        !name ||
+        /^(james|kamu|aku|saya|dan|atau|juga|sudah|pernah|baru|sedang|akan|telah|masih|tidak|bukan|punya|memiliki|berkenalan|bertemu|tinggal|bekerja|belajar|kelas|berteman|bertemen)$/i.test(name)
+      ) continue;
       if (!names.some((item) => item.toLowerCase() === name.toLowerCase())) {
         names.push(name);
       }
@@ -1292,13 +1296,32 @@ export async function POST(request: Request) {
 
     const [memory, previousConversationMessages, previousConversationSummaries, relevantConversationMessages, longTermMemories, growth, globalGrowth] = await Promise.all([
       getJamesMemory(userId, conversationId),
-      getJamesPreviousConversationMessages(userId, conversationId, 40),
-      getJamesPreviousConversationSummaries(userId, conversationId, 20),
-      getJamesRelevantConversationMessages(userId, conversationId, userRequest, 20),
-      getJamesLongTermMemory(userId, 30),
+      getJamesPreviousConversationMessages(userId, conversationId, 120),
+      getJamesPreviousConversationSummaries(userId, conversationId, 100),
+      getJamesRelevantConversationMessages(userId, conversationId, userRequest, 60),
+      getJamesLongTermMemory(userId, 60),
       getJamesGrowth(userId),
       getGlobalGrowth(20),
     ]);
+
+    // Extract explicit facts from the current message before generation so James
+    // can use a newly stated relationship immediately, instead of waiting for
+    // the background persistence step to finish.
+    const currentTurnMemories = extractExplicitJamesMemories(userRequest).map((memory, index) => ({
+      id: `current-turn-${index}`,
+      memory_type: memory.memory_type,
+      memory_key: memory.memory_key,
+      memory_value: memory.memory_value,
+      memory_action: memory.memory_action,
+      confidence: memory.confidence,
+      status: "active" as const,
+      source_excerpt: memory.source_excerpt,
+      expires_at: null,
+    }));
+    const longTermMemoriesForContext = [
+      ...currentTurnMemories,
+      ...longTermMemories,
+    ];
     const socialMemoryContext = await getJamesSocialMemory(
       userId,
       userRequest,
@@ -1315,7 +1338,7 @@ export async function POST(request: Request) {
         ...relevantConversationMessages,
         ...(memory.messages || []),
       ],
-      longTermMemories,
+      longTermMemories: longTermMemoriesForContext,
       growth,
       globalGrowth,
     });
@@ -1484,7 +1507,7 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
       const identityMemories = longTermMemories.filter(
         (memory) => memory.memory_type === "identity" && memory.status === "active"
       );
-      const stableMemories = longTermMemories.filter(
+      const stableMemories = longTermMemoriesForContext.filter(
         (memory) =>
           memory.status === "active" &&
           memory.memory_type !== "identity" &&
