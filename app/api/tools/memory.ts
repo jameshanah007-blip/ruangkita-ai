@@ -73,7 +73,7 @@ export async function getJamesMemory(userId: string, conversationId: string) {
 export async function getJamesPreviousConversationMessages(
   userId: string,
   currentConversationId: string,
-  limit = 40,
+  limit = 120,
 ): Promise<MemoryMessage[]> {
   const supabase = getSupabase();
 
@@ -91,7 +91,7 @@ export async function getJamesPreviousConversationMessages(
     .eq("user_id", userId)
     .neq("conversation_id", currentConversationId)
     .order("created_at", { ascending: false })
-    .limit(Math.min(Math.max(limit, 1), 80));
+    .limit(Math.min(Math.max(limit, 1), 500));
 
   if (error) {
     console.error("James previous conversation memory read error:", error.message);
@@ -199,7 +199,7 @@ function memoryExpiry(memoryType: JamesLongTermMemory["memory_type"], days?: num
 export async function getJamesPreviousConversationSummaries(
   userId: string,
   currentConversationId: string,
-  limit = 20,
+  limit = 100,
 ): Promise<MemoryMessage[]> {
   const supabase = getSupabase();
 
@@ -214,7 +214,7 @@ export async function getJamesPreviousConversationSummaries(
     .neq("id", currentConversationId)
     .not("summary", "is", null)
     .order("updated_at", { ascending: false })
-    .limit(Math.min(Math.max(limit, 1), 40));
+    .limit(Math.min(Math.max(limit, 1), 200));
 
   if (error) {
     console.error("James conversation summary memory read error:", error.message);
@@ -238,7 +238,7 @@ export async function getJamesRelevantConversationMessages(
   userId: string,
   currentConversationId: string,
   userRequest: string,
-  limit = 20,
+  limit = 60,
 ): Promise<MemoryMessage[]> {
   const supabase = getSupabase();
   if (!supabase || !validId(userId) || !validId(currentConversationId)) return [];
@@ -267,7 +267,7 @@ export async function getJamesRelevantConversationMessages(
     return {message:{role:message.role as "user"|"assistant",content:message.content,created_at:message.created_at},score};
   }).filter(item=>terms.length?item.score>0:true)
     .sort((a,b)=>b.score-a.score||String(b.message.created_at||"").localeCompare(String(a.message.created_at||"")))
-    .slice(0,Math.min(Math.max(limit,1),40)).map(item=>item.message);
+    .slice(0,Math.min(Math.max(limit,1),120)).map(item=>item.message);
   return scored.sort((a,b)=>String(a.created_at||"").localeCompare(String(b.created_at||"")));
 }
 
