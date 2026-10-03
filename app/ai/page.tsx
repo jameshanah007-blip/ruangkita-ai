@@ -1,6 +1,7 @@
 "use client";
 
 import SiteNav from "../components/SiteNav";
+import { useAuth } from "../components/AuthProvider";
 import { useEffect, useRef, useState } from "react";
 
 type Citation = { title: string; url: string };
@@ -30,20 +31,16 @@ export default function AIExecutor() {
   const [omantoVerified, setOmantoVerified] = useState(false);
   const [memoryReady, setMemoryReady] = useState(false);
   const [userId, setUserId] = useState("");
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const { loading: authLoading, authenticated } = useAuth();
   const [conversationId, setConversationId] = useState("");
   const [feedbackLoadingId, setFeedbackLoadingId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    void fetch("/api/auth/me", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((data) => setAuthenticated(Boolean(data.authenticated)))
-      .catch(() => setAuthenticated(false));
-  }, []);
 
   useEffect(() => {
+    if (authLoading || !authenticated) return;
+
     // Membuat conversation baru tidak boleh membuat userId baru.
     // userId tetap berasal dari server cookie yang sudah ditandatangani,
     // sehingga conversation lama tetap dapat ditemukan lintas sesi.
@@ -85,7 +82,7 @@ export default function AIExecutor() {
     };
 
     void initializeSession();
-  }, []);
+  }, [authLoading, authenticated]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -444,7 +441,26 @@ export default function AIExecutor() {
   }
 
   if (authenticated !== true) {
+    if (authLoading) {
+    return <main className="min-h-screen bg-slate-950 text-white"><SiteNav /></main>;
+  }
+
+  if (!authenticated) {
     return (
+      <main className="min-h-screen bg-slate-950 text-white">
+        <SiteNav />
+        <section className="flex min-h-[calc(100vh-64px)] items-center justify-center px-5">
+          <div className="max-w-md text-center">
+            <div className="text-5xl">🔐</div>
+            <h1 className="mt-5 text-2xl font-bold">Login diperlukan</h1>
+            <a href="/auth" className="mt-7 inline-flex rounded-xl bg-cyan-400 px-7 py-3 font-semibold text-slate-950">Login ke RuangKita</a>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  return (
       <main className="min-h-screen bg-slate-950 text-white">
         <SiteNav />
         <section className="flex min-h-[calc(100vh-64px)] items-center justify-center px-5">
