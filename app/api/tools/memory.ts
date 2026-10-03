@@ -271,7 +271,7 @@ export async function getJamesRelevantConversationMessages(
   return scored.sort((a,b)=>String(a.created_at||"").localeCompare(String(b.created_at||"")));
 }
 
-function extractExplicitJamesMemories(userRequest: string): JamesMemoryProposal[] {
+export function extractExplicitJamesMemories(userRequest: string): JamesMemoryProposal[] {
   const proposals: JamesMemoryProposal[]=[];
   const cleanName=(value:string)=>value.trim().replace(/^[,.:;!?]+|[,.:;!?]+$/g,"").slice(0,80);
   const identityPatterns=[
@@ -280,18 +280,38 @@ function extractExplicitJamesMemories(userRequest: string): JamesMemoryProposal[
   ];
   for(const pattern of identityPatterns){
     const match=userRequest.match(pattern); if(!match?.[1]) continue;
-    const name=cleanName(match[1]); if(!name||/^(james|kamu|aku|saya|sudah|pernah|baru|sedang|akan|telah|masih|tidak|bukan|punya|memiliki|berkenalan|bertemu|tinggal|bekerja|belajar)$/i.test(name)) continue;
+    const name=cleanName(match[1]); if(!name||/^(james|kamu|aku|saya|dan|atau|juga|sudah|pernah|baru|sedang|akan|telah|masih|tidak|bukan|punya|memiliki|berkenalan|bertemu|tinggal|bekerja|belajar|kelas|berteman|bertemen)$/i.test(name)) continue;
     proposals.push({memory_type:"identity",memory_key:"self_name:"+name.toLowerCase(),memory_value:name,memory_action:"upsert",confidence:0.99,source_excerpt:match[0].trim().slice(0,400),expires_in_days:null}); break;
   }
   const relationshipPatterns=[
     /\b(?:saya|aku)\s+punya\s+teman\s+namanya\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i,
     /\b([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\s+(?:juga\s+)?teman\s+(?:saya|aku)\b/i,
     /\b([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\s+adalah\s+teman\s+(?:saya|aku)\b/i,
+    /\b(?:saya|aku)\s+dan\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\s+(?:sama\s+)?(?:satu\s+kelas|sekelas)(?:\s+d(?:i|alam)\s+kelas\s+([0-9]+)\s*SD)?\b/i,
+    /\b(?:saya|aku)\s+dan\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\s+bert(?:e|)man\b/i,
+    /\b(?:saya|aku)\s+bert(?:e|)man\s+(?:satu\s+kelas|sekelas)\s+dengan\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i,
   ];
   for(const pattern of relationshipPatterns){
     const match=userRequest.match(pattern); if(!match?.[1]) continue;
-    const name=cleanName(match[1]); if(!name||/^(james|kamu|aku|saya)$/i.test(name)) continue;
-    proposals.push({memory_type:"relationship",memory_key:"friend:"+name.toLowerCase(),memory_value:name+" adalah teman pengguna.",memory_action:"upsert",confidence:0.98,source_excerpt:match[0].trim().slice(0,400),expires_in_days:null}); break;
+    const name=cleanName(match[1]); if(!name||/^(james|kamu|aku|saya|dan|atau)$/i.test(name)) continue;
+    const lowerMatch=match[0].toLowerCase();
+    const grade=match[2] ? ` saat kelas ${match[2]} SD` : "";
+    const isClassmate=/satu kelas|sekelas/i.test(lowerMatch);
+    const isFriend=/bert(e|)man|teman/i.test(lowerMatch);
+    const relationship = isClassmate && isFriend ? "teman sekelas" : isClassmate ? "teman sekelas" : "teman";
+    const value = isClassmate
+      ? `${name} adalah teman sekelas pengguna${grade}.`
+      : `${name} adalah teman pengguna.`;
+    proposals.push({
+      memory_type:"relationship",
+      memory_key:`${relationship}:${name.toLowerCase()}`,
+      memory_value:value,
+      memory_action:"upsert",
+      confidence:0.98,
+      source_excerpt:match[0].trim().slice(0,400),
+      expires_in_days:null
+    });
+    break;
   }
   return proposals.slice(0,3);
 }
