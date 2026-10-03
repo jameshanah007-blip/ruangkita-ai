@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     const password = typeof body?.password === "string" ? body.password : "";
 
     if (!name || !password) {
-      return NextResponse.json({ success: false, error: "Email dan password wajib diisi." }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Nama dan password wajib diisi." }, { status: 400 });
     }
 
     const client = getAuthClientForRoute();
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     await setJamesDisplayName(result.data.user.id, legacyId, name);
     const response = NextResponse.json({
       success: true,
-      user: { id: result.data.user.id, email: result.data.user.email },
+      user: { id: result.data.user.id, name },
       legacyUserId: legacyId,
     });
 
