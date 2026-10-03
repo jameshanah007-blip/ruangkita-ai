@@ -85,19 +85,42 @@ export async function getJamesSocialMemory(userId: string, userRequest: string, 
 
   const graphAssociations: SocialMemory[] = [];
   if (ownPerson.data?.id) {
-    const { data: graphRows } = await supabase
-      .from("james_relationships")
-      .select("person_a_id, person_b_id, relationship_type, confidence, source_excerpt")
-      .eq("status", "active")
-      .eq("visibility", "relationship")
-      .or(`person_a_id.eq.${ownPerson.data.id},person_b_id.eq.${ownPerson.data.id}`)
-      .order("confidence", { ascending: false })
-      .limit(30);
+    type GraphRow = {
+      person_a_id: string;
+      person_b_id: string;
+      relationship_type: string;
+      confidence: number | string;
+      source_excerpt: string | null;
+    };
+
+    const [outgoing, incoming] = await Promise.all([
+      supabase
+        .from("james_relationships")
+        .select("person_a_id, person_b_id, relationship_type, confidence, source_excerpt")
+        .eq("person_a_id", ownPerson.data.id)
+        .eq("status", "active")
+        .eq("visibility", "relationship")
+        .order("confidence", { ascending: false })
+        .limit(20),
+      supabase
+        .from("james_relationships")
+        .select("person_a_id, person_b_id, relationship_type, confidence, source_excerpt")
+        .eq("person_b_id", ownPerson.data.id)
+        .eq("status", "active")
+        .eq("visibility", "relationship")
+        .order("confidence", { ascending: false })
+        .limit(20),
+    ]);
+
+    const graphRows = [
+      ...((outgoing.data || []) as GraphRow[]),
+      ...((incoming.data || []) as GraphRow[]),
+    ];
 
     const otherPersonIds = [...new Set(
-      (graphRows || [])
-        .map((row) => row.person_a_id === ownPerson.data.id ? row.person_b_id : row.person_a_id)
-        .filter(Boolean)
+      graphRows.map((row) =>
+        row.person_a_id === ownPerson.data!.id ? row.person_b_id : row.person_a_id
+      )
     )];
 
     if (otherPersonIds.length) {
@@ -110,10 +133,12 @@ export async function getJamesSocialMemory(userId: string, userRequest: string, 
         (people || []).map((person) => [person.id, clean(person.display_name, 120)])
       );
 
-      for (const row of graphRows || []) {
-        const otherId = row.person_a_id === ownPerson.data.id ? row.person_b_id : row.person_a_id;
+      for (const row of graphRows) {
+        const otherId =
+          row.person_a_id === ownPerson.data!.id ? row.person_b_id : row.person_a_id;
         const personName = peopleById.get(otherId);
         if (!personName) continue;
+
         graphAssociations.push({
           personName,
           relationship: clean(row.relationship_type, 80) || "kenalan",
