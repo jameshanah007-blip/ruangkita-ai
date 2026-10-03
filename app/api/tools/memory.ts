@@ -255,7 +255,7 @@ export async function getJamesRelevantConversationMessages(
   const {data,error}=await supabase.from("ai_messages")
     .select("role, content, created_at, conversation_id")
     .eq("user_id",userId).neq("conversation_id",currentConversationId)
-    .order("created_at",{ascending:false}).limit(200);
+    .order("created_at",{ascending:false}).limit(1000);
   if(error){console.error("James relevant conversation memory read error:",error.message);return[];}
   const scored=(data||[]).filter(message=>
     (message.role==="user"||message.role==="assistant")&&typeof message.content==="string"&&message.content.trim()
