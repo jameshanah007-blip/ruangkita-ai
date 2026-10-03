@@ -128,6 +128,15 @@ export async function linkAuthUser(authUserId: string, preferredLegacyUserId?: s
   if (existing.data?.legacy_user_id) return existing.data.legacy_user_id;
   const legacyUserId = preferredLegacyUserId || crypto.randomUUID();
   const linked = await db.from("james_user_identities").insert({ auth_user_id: authUserId, legacy_user_id: legacyUserId }).select("legacy_user_id").single();
+  await db.from("james_people").upsert(
+    {
+      auth_user_id: authUserId,
+      legacy_user_id: legacyUserId,
+      identity_status: "registered",
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "auth_user_id" }
+  );
   return linked.data?.legacy_user_id || legacyUserId;
 }
 
@@ -162,6 +171,15 @@ export async function resolveLegacyUserId(): Promise<string> {
       .single();
 
     if (linked.data?.legacy_user_id) {
+      await db.from("james_people").upsert(
+        {
+          auth_user_id: authUser.id,
+          legacy_user_id: linked.data.legacy_user_id,
+          identity_status: "registered",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "auth_user_id" }
+      );
       return linked.data.legacy_user_id;
     }
 
