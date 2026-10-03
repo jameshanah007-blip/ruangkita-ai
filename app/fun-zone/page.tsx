@@ -402,6 +402,8 @@ function getTerminalLines(
 }
 
 export default function FunZonePage() {
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+
   const [prompt, setPrompt] =
     useState("");
 
@@ -486,6 +488,13 @@ export default function FunZonePage() {
         model,
       ]
     );
+
+  useEffect(() => {
+    void fetch("/api/auth/me", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => setAuthenticated(Boolean(data.authenticated)))
+      .catch(() => setAuthenticated(false));
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1010,6 +1019,22 @@ const handleSandboxError =
         )
       )
     );
+
+  if (authenticated !== true) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-white">
+        <SiteNav />
+        <section className="flex min-h-[calc(100vh-64px)] items-center justify-center px-5">
+          <div className="max-w-md text-center">
+            <div className="text-5xl">🔐</div>
+            <h1 className="mt-6 text-3xl font-bold">Login diperlukan</h1>
+            <p className="mt-3 leading-7 text-slate-400">Masuk terlebih dahulu untuk menggunakan Fun Zone.</p>
+            <a href="/auth" className="mt-7 inline-flex rounded-xl bg-cyan-400 px-7 py-3 font-semibold text-slate-950">Login ke RuangKita</a>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
