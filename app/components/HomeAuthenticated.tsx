@@ -1,5 +1,7 @@
 "use client";
 
+import SiteNav from "./SiteNav";
+
 const features = [
   {
     icon: "🤖",
