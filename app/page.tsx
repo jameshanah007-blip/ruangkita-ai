@@ -1,4 +1,5 @@
 import SiteNav from "./components/SiteNav";
+import { getAuthenticatedUser } from "./api/auth/cloudIdentity";
 
 const features = [
   {
@@ -25,7 +26,29 @@ const examples = [
   "Cari informasi atau bantu saya menyelesaikan suatu kebutuhan.",
 ];
 
-export default function Home() {
+export default async function Home() {
+  const user = await getAuthenticatedUser();
+
+  if (!user) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-white">
+        <SiteNav />
+        <section className="flex min-h-[calc(100vh-64px)] items-center justify-center px-5">
+          <div className="w-full max-w-md text-center">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl border border-cyan-400/20 bg-cyan-400/10 text-4xl">🤖</div>
+            <h1 className="mt-7 text-4xl font-bold tracking-tight sm:text-5xl">Selamat datang di RuangKita AI</h1>
+            <p className="mx-auto mt-4 max-w-md leading-7 text-slate-400">
+              Masuk terlebih dahulu untuk menggunakan Tanya Saya dan Fun Zone.
+            </p>
+            <a href="/auth" className="mt-8 inline-flex rounded-xl bg-cyan-400 px-8 py-4 font-semibold text-slate-950 transition hover:bg-cyan-300">
+              ☁️ Login
+            </a>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 text-white">
       <SiteNav />
