@@ -117,6 +117,52 @@ function requestsConversationRecall(request: string) {
   ].some((pattern) => pattern.test(text));
 }
 
+function buildPersonalMemoryRecallResponse(input: {
+  memoryName?: string | null;
+  stableMemories: Array<{ memory_value?: string | null }>;
+  conversationHistory: string;
+  hasConversationHistory: boolean;
+  askedAboutSelf: boolean;
+}) {
+  const name = input.memoryName?.trim() || "";
+  const facts = input.stableMemories
+    .map((memory) => String(memory.memory_value || "").trim())
+    .filter(Boolean)
+    .slice(0, 5);
+
+  if (name && !facts.length && !input.hasConversationHistory) {
+    return `Iya, aku ingat kamu, ${name}. Kamu pernah memperkenalkan dirimu kepadaku. Kalau kamu mau, kita bisa lanjut membangun percakapan dari sini.`;
+  }
+
+  const parts: string[] = [];
+  if (name) {
+    parts.push(`Iya, aku ingat kamu sebagai ${name}.`);
+  } else {
+    parts.push("Iya, aku masih mengingat percakapan kita.");
+  }
+
+  if (facts.length) {
+    parts.push(
+      input.askedAboutSelf
+        ? `Beberapa hal yang masih kuingat tentang kamu: ${facts.join("; ")}.`
+        : facts[0] + "."
+    );
+  }
+
+  if (input.hasConversationHistory) {
+    const history = input.conversationHistory.trim();
+    if (history) {
+      parts.push(
+        input.askedAboutSelf
+          ? `Dari obrolan kita, aku juga ingat: ${history.replace(/^Tadi kita sedang membicarakan:?\s*/i, "")}`
+          : history
+      );
+    }
+  }
+
+  return parts.join(" ");
+}
+
 function buildConversationRecallResponse(
   messages: Array<{ role: "user" | "assistant"; content: string }>
 ) {
@@ -1502,28 +1548,17 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
 
       const resultText =
         asksPersonalMemory && (memoryName || stableMemories.length || hasConversationHistory)
-          ? [
-              memoryName ? "Ya, aku masih mengingatmu." : "Aku punya beberapa memori tentang pengguna ini.",
-              memoryName ? "Nama yang tersimpan: **" + memoryName + "**." : "",
-              stableMemories.length
-                ? [
-                    "Hal lain yang tersimpan dari percakapan sebelumnya:",
-                    ...stableMemories.slice(0, 8).map((memory) => "- " + memory.memory_value),
-                  ].join("\n")
-                : "",
-              hasConversationHistory
-                ? [
-                    "Dari riwayat percakapan yang tersimpan:",
-                    conversationHistoryText,
-                  ].join("\n")
-                : "",
-            ].filter(Boolean).join("\n")
+          ? buildPersonalMemoryRecallResponse({
+              memoryName,
+              stableMemories,
+              conversationHistory: conversationHistoryText,
+              hasConversationHistory,
+              askedAboutSelf: asksIdentity,
+            })
           : asksIdentity && memoryName
-            ? "Dari memori yang tersimpan, kamu pernah memperkenalkan diri sebagai **" + memoryName + "**."
+            ? `Iya, aku ingat kamu sebagai ${memoryName}. Kamu pernah memperkenalkan diri kepadaku dalam percakapan kita.`
             : asksIdentity && extractExplicitIdentityNames(recallMessages).length > 1
-              ? "Aku menemukan beberapa nama yang pernah dipakai untuk memperkenalkan diri di percakapan kita: " +
-                extractExplicitIdentityNames(recallMessages).map((name) => "**" + name + "**").join(", ") +
-                ". Karena ada lebih dari satu, aku belum bisa memastikan siapa yang sedang berbicara sekarang."
+              ? "Aku ingat beberapa nama pernah diperkenalkan dalam percakapan kita, tetapi aku tidak akan menebak siapa yang sedang berbicara sekarang. Perkenalkan dirimu lagi agar aku tidak salah."
               : buildConversationRecallResponse(recallMessages);
 
       await saveActivity(userRequest, "chat", "conversation-memory", resultText);
