@@ -46,8 +46,13 @@ export default function AuthPage() {
         return;
       }
 
+      if (mode === "login") {
+        window.location.href = "/";
+        return;
+      }
+
       setUser(data.user);
-      setMessage(`Berhasil masuk. James sekarang mengenali kamu sebagai ${data.user?.name || name}.`);
+      setMessage(`Akun berhasil dibuat. James sekarang mengenali kamu sebagai ${data.user?.name || name}.`);
       setPassword("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Autentikasi gagal.");
