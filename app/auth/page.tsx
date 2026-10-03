@@ -85,7 +85,7 @@ export default function AuthPage() {
             <div className="mt-8 space-y-4">
               <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4">
                 <p className="text-xs uppercase tracking-wider text-cyan-400">Terhubung ke cloud</p>
-                <p className="mt-2 font-medium">{user.name || "Pengguna RuangKita"}</p>
+                <p className="mt-2 font-medium">{user?.name || "Pengguna RuangKita"}</p>
               </div>
               <button
                 type="button"
