@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAuthClientForRoute, getAdminDb, getLegacyCookieUserId, linkAuthUser, loginNameEmail, normalizeLoginName, setJamesDisplayName, LEGACY_USER_COOKIE, AUTH_ACCESS_COOKIE, AUTH_REFRESH_COOKIE } from "../cloudIdentity";
+import { getAuthClientForRoute, getAdminDb, getLegacyCookieUserId, linkAuthUser, loginNameEmail, normalizeLoginName, setJamesDisplayName, signLegacyUserId, LEGACY_USER_COOKIE, AUTH_ACCESS_COOKIE, AUTH_REFRESH_COOKIE } from "../cloudIdentity";
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
 
     if (!name || password.length < 8) {
       return NextResponse.json(
-        { success: false, error: "Email dan password minimal 8 karakter wajib diisi." },
+        { success: false, error: "Nama dan password minimal 8 karakter wajib diisi." },
         { status: 400 }
       );
     }
@@ -66,6 +66,18 @@ export async function POST(request: Request) {
         path: "/",
         maxAge: 60 * 60 * 24 * 365,
       });
+      const legacySignature = signLegacyUserId(legacyId);
+      if (legacySignature) {
+        response.cookies.set({
+          name: "ruangkita-session-user-sig",
+          value: legacySignature,
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          maxAge: 60 * 60 * 24 * 365,
+        });
+      }
       response.cookies.set({
         name: AUTH_ACCESS_COOKIE,
         value: sessionResult.data.session.access_token,
