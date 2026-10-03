@@ -205,8 +205,22 @@ function buildNamedMemoryRecallResponse(input: {
   }
 
   if (relationshipMatches.length) {
-    const facts = relationshipMatches.map((memory) => String(memory.memory_value || "").trim()).filter(Boolean).slice(0, 3);
-    return "Iya, aku ingat " + subject + ". " + facts.join(" ") + " Kalau kamu mau, kamu bisa ceritakan lebih banyak tentang dia.";
+    const facts = relationshipMatches
+      .map((memory) => String(memory.memory_value || "").trim())
+      .filter(Boolean)
+      .map((fact) => fact
+        .replace(/\bpengguna\b/gi, "kamu")
+        .replace(/\buser\b/gi, "kamu")
+        .replace(/\bteman kamu\b/gi, "temanmu")
+        .replace(/\bteman sekelas kamu\b/gi, "teman sekelasmu"))
+      .filter((fact, index, all) => all.findIndex((item) => item.toLowerCase() === fact.toLowerCase()) === index)
+      .slice(0, 3);
+
+    if (facts.length === 1) {
+      return "Iya, aku ingat. " + facts[0] + " Kalau kamu mau, kamu bisa ceritakan lebih banyak tentang dia.";
+    }
+
+    return "Iya, aku ingat. " + facts.join(" ") + " Kalau kamu mau, kamu bisa ceritakan lebih banyak tentang dia.";
   }
 
   const historyMention = input.conversationHistory.split(/\n+/).filter((line) => line.toLowerCase().includes(subjectLower)).slice(-3);
