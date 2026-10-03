@@ -121,7 +121,7 @@ export default function SiteNav() {
                 onClick={() => setOpen(false)}
                 className="rounded-xl border border-white/10 px-4 py-3 text-slate-300 transition hover:bg-white/5 hover:text-cyan-300"
               >
-                {authEmail ? `👤 ${accountLabel}` : `☁️ ${accountLabel}`}
+                {authName ? `👤 ${accountLabel}` : `☁️ ${accountLabel}`}
               </a>
             </div>
           </div>
