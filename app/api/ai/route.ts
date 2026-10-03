@@ -11,6 +11,7 @@ import {
   getJamesLongTermMemory,
   saveJamesMemoryProposals,
   saveExplicitJamesMemories,
+  extractExplicitJamesMemories,
   saveJamesTurn,
   type JamesMemoryProposal,
 } from "../tools/memory";
@@ -120,35 +121,42 @@ function requestsConversationRecall(request: string) {
 function buildConversationRecallResponse(
   messages: Array<{ role: "user" | "assistant"; content: string }>
 ) {
-  const previous = messages.filter((message) => message.content.trim());
+  const previous = messages
+    .filter((message) => message.content.trim())
+    .slice(-12);
 
   if (!previous.length) {
-    return "Belum ada percakapan sebelumnya yang tersimpan di sesi ini.";
+    return "";
   }
 
-  const recentUserMessages = previous
-    .filter((message) => message.role === "user")
-    .slice(-4);
-
-  if (!recentUserMessages.length) {
-    return "Tadi belum ada pesan pengguna yang bisa aku jadikan acuan.";
-  }
-
-  const topics = recentUserMessages.map((message) => {
-    const content = message.content.trim().replace(/\s+/g, " ");
-    return content.length > 240 ? `“${content.slice(0, 237)}...”` : `“${content}”`;
-  });
-
-  if (topics.length === 1) {
-    return `Tadi kita sedang membicarakan: ${topics[0]}`;
-  }
-
-  return [
-    "Tadi kita sedang membicarakan beberapa hal berikut:",
-    ...topics.map((topic, index) => `${index + 1}. ${topic}`),
-  ].join("\n");
+  // Keep conversation evidence available to James without pre-formatting it
+  // as a numbered "database report". The model must synthesize the answer.
+  return previous
+    .map((message) => {
+      const speaker = message.role === "assistant" ? "James" : "Pengguna";
+      const content = message.content.trim().replace(/\s+/g, " ");
+      return `${speaker}: ${content.length > 500 ? content.slice(0, 497) + "..." : content}`;
+    })
+    .join("\n");
 }
 
+function extractRecallSubject(
+  request: string,
+  activeName: string | null
+) {
+  const match = request.match(
+    /\b(?:tentang|mengenai|soal|kalau|jika)\s+([A-ZÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i
+  );
+
+  const directName = request.match(
+    /\b(?:kenal|ingat|ingat tentang|ingat soal)\s+([A-ZÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i
+  );
+
+  const candidate = match?.[1] || directName?.[1] || null;
+  if (!candidate) return activeName;
+  if (/^(saya|aku|kamu|dia|itu|james)$/i.test(candidate)) return activeName;
+  return candidate.trim();
+}
 
 function extractExplicitIdentityNames(
   messages: Array<{ role: "user" | "assistant"; content: string }>
@@ -165,7 +173,10 @@ function extractExplicitIdentityNames(
 
     for (const match of matches) {
       const name = match?.[1]?.trim();
-      if (!name || /^(james|kamu|aku|saya)$/i.test(name)) continue;
+      if (
+        !name ||
+        /^(james|kamu|aku|saya|dan|atau|juga|sudah|pernah|baru|sedang|akan|telah|masih|tidak|bukan|punya|memiliki|berkenalan|bertemu|tinggal|bekerja|belajar|kelas|berteman|bertemen)$/i.test(name)
+      ) continue;
       if (!names.some((item) => item.toLowerCase() === name.toLowerCase())) {
         names.push(name);
       }
@@ -1032,11 +1043,20 @@ function sanitizeUnavailableResearchResponse(text: string, researchVerified: boo
 }
 
 function sanitizeJamesFinalResponse(text: string): string {
-  const cleaned = text
-    .replace(/^\s*(User Safety|Safety|Safety Check)\s*:\s*(safe|unsafe|allowed|blocked)\s*$/gim, "")
-    .replace(/^\s*(User Safety|Safety|Safety Check)\s*:\s*(safe|unsafe|allowed|blocked)\s*\n/gim, "")
+  // Some fallback models can leak provider-side safety annotations into
+  // ordinary assistant text (for example "User Safety:safe"). These are
+  // transport/model metadata, not part of James' answer.
+  return text
+    .replace(
+      /(?:^|[\\r\\n])\\s*(?:user\\s*)?safety(?:\\s*check)?\\s*[:=\\-]\\s*(?:safe|unsafe|allowed|blocked)\\s*(?=$|[\\r\\n])/gim,
+      "\\n"
+    )
+    .replace(
+      /\\b(?:user\\s*)?safety(?:\\s*check)?\\s*[:=\\-]\\s*(?:safe|unsafe|allowed|blocked)\\b[ \\t]*/gim,
+      ""
+    )
+    .replace(/\\n{3,}/g, "\\n\\n")
     .trim();
-  return cleaned;
 }
 
 function validUuid(value: unknown): value is string {
@@ -1285,13 +1305,32 @@ export async function POST(request: Request) {
 
     const [memory, previousConversationMessages, previousConversationSummaries, relevantConversationMessages, longTermMemories, growth, globalGrowth] = await Promise.all([
       getJamesMemory(userId, conversationId),
-      getJamesPreviousConversationMessages(userId, conversationId, 40),
-      getJamesPreviousConversationSummaries(userId, conversationId, 20),
-      getJamesRelevantConversationMessages(userId, conversationId, userRequest, 20),
-      getJamesLongTermMemory(userId, 30),
+      getJamesPreviousConversationMessages(userId, conversationId, 120),
+      getJamesPreviousConversationSummaries(userId, conversationId, 100),
+      getJamesRelevantConversationMessages(userId, conversationId, userRequest, 60),
+      getJamesLongTermMemory(userId, 60),
       getJamesGrowth(userId),
       getGlobalGrowth(20),
     ]);
+
+    // Extract explicit facts from the current message before generation so James
+    // can use a newly stated relationship immediately, instead of waiting for
+    // the background persistence step to finish.
+    const currentTurnMemories = extractExplicitJamesMemories(userRequest).map((memory, index) => ({
+      id: `current-turn-${index}`,
+      memory_type: memory.memory_type,
+      memory_key: memory.memory_key,
+      memory_value: memory.memory_value,
+      memory_action: memory.memory_action,
+      confidence: memory.confidence,
+      status: "active" as const,
+      source_excerpt: memory.source_excerpt,
+      expires_at: null,
+    }));
+    const longTermMemoriesForContext = [
+      ...currentTurnMemories,
+      ...longTermMemories,
+    ];
     const socialMemoryContext = await getJamesSocialMemory(
       userId,
       userRequest,
@@ -1308,7 +1347,7 @@ export async function POST(request: Request) {
         ...relevantConversationMessages,
         ...(memory.messages || []),
       ],
-      longTermMemories,
+      longTermMemories: longTermMemoriesForContext,
       growth,
       globalGrowth,
     });
@@ -1477,47 +1516,84 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
       const identityMemories = longTermMemories.filter(
         (memory) => memory.memory_type === "identity" && memory.status === "active"
       );
-      const stableMemories = longTermMemories.filter(
+      const stableMemories = longTermMemoriesForContext.filter(
         (memory) =>
           memory.status === "active" &&
           memory.memory_type !== "identity" &&
           ["relationship", "project", "goal", "preference", "interest", "context"].includes(memory.memory_type)
       );
+      const explicitNames = extractExplicitIdentityNames(recallMessages);
+      // The latest explicit self-introduction in this users own history is stronger
+      // than an older identity row, preventing stale identities from becoming the speaker.
       const memoryName =
+        explicitNames.at(-1) ||
         identityMemories.find((memory) => memory.memory_key === "user_name")?.memory_value ||
         identityMemories.find((memory) => memory.memory_key?.startsWith("self_name:"))?.memory_value ||
-        extractExplicitIdentityNames(recallMessages)[0] ||
         null;
 
       const conversationHistoryText = buildConversationRecallResponse(recallMessages);
-      const hasConversationHistory = !conversationHistoryText.startsWith("Belum ada percakapan sebelumnya");
+      const hasConversationHistory = Boolean(conversationHistoryText.trim());
+      const recallSubject = extractRecallSubject(userRequest, memoryName);
 
-      const resultText =
-        asksPersonalMemory && (memoryName || stableMemories.length || hasConversationHistory)
-          ? [
-              memoryName ? "Ya, aku masih mengingatmu." : "Aku punya beberapa memori tentang pengguna ini.",
-              memoryName ? "Nama yang tersimpan: **" + memoryName + "**." : "",
-              stableMemories.length
-                ? [
-                    "Hal lain yang tersimpan dari percakapan sebelumnya:",
-                    ...stableMemories.slice(0, 8).map((memory) => "- " + memory.memory_value),
-                  ].join("\n")
-                : "",
-              hasConversationHistory
-                ? [
-                    "Dari riwayat percakapan yang tersimpan:",
-                    conversationHistoryText,
-                  ].join("\n")
-                : "",
-            ].filter(Boolean).join("\n")
-          : asksIdentity && memoryName
-            ? "Dari memori yang tersimpan, kamu pernah memperkenalkan diri sebagai **" + memoryName + "**."
-            : asksIdentity && extractExplicitIdentityNames(recallMessages).length > 1
-              ? "Aku menemukan beberapa nama yang pernah dipakai untuk memperkenalkan diri di percakapan kita: " +
-                extractExplicitIdentityNames(recallMessages).map((name) => "**" + name + "**").join(", ") +
-                ". Karena ada lebih dari satu, aku belum bisa memastikan siapa yang sedang berbicara sekarang."
-              : buildConversationRecallResponse(recallMessages);
+      const relevantFacts = stableMemories
+        .slice(0, 10)
+        .map((memory) =>
+          `- ${memory.memory_type}: ${memory.memory_value}`
+        )
+        .join("\n");
 
+      const recallContext = [
+        `IDENTITAS AKTIF: ${memoryName || "(belum diketahui)"}`,
+        `SUBJEK YANG DITANYAKAN: ${recallSubject || "(belum jelas)"}`,
+        relevantFacts
+          ? "FAKTA YANG TERSEDIA DAN RELEVAN:\n" + relevantFacts
+          : "",
+        socialMemoryContext
+          ? "RELASI SOSIAL YANG AMAN UNTUK DISEBUT:\n" + socialMemoryContext
+          : "",
+        hasConversationHistory
+          ? "BUKTI DARI PERCAKAPAN SEBELUMNYA (gunakan sebagai bukti, jangan tampilkan sebagai daftar):\n" + conversationHistoryText
+          : "",
+      ].filter(Boolean).join("\n\n");
+
+      const recallPrompt = `
+${recallContext}
+
+PESAN PENGGUNA:
+"${userRequest}"
+
+Tugasmu: jawab sebagai James yang benar-benar memahami konteks, bukan sebagai mesin pencari database.
+
+ATURAN PEMAHAMAN SUBJEK:
+- IDENTITAS AKTIF adalah orang yang sedang berbicara denganmu. Jangan menggantinya hanya karena nama orang lain disebut.
+- Jika SUBJEK YANG DITANYAKAN sama dengan IDENTITAS AKTIF, jawab tentang pengguna aktif.
+- Jika SUBJEK YANG DITANYAKAN adalah nama lain seperti Asi, anggap itu orang lain. Gunakan hanya fakta/relasi yang memang tersedia.
+- Jika pengguna bertanya "apa lagi yang kamu ingat tentang Nora", gabungkan fakta tentang Nora menjadi narasi singkat. Jangan mengulang daftar percakapan.
+- Jika pengguna bertanya "kalau Asi apa yang kamu ingat tentang dia", hubungkan fakta relasinya secara natural, misalnya bahwa pengguna pernah bercerita bahwa mereka berteman sejak kelas 2 SD, jika fakta itu memang tersedia.
+- Jangan mengubah fakta "berteman" menjadi hubungan yang lebih kuat atau berbeda.
+
+ATURAN NARASI:
+- Jangan menjawab seperti database, laporan, hasil query, atau dump memory.
+- Jangan mengatakan "nama yang tersimpan", "data yang tersimpan", "memory menunjukkan", "dari riwayat percakapan yang tersimpan", atau padanan lainnya.
+- Jangan membuat daftar bernomor atau bullet berisi isi memori kecuali pengguna secara eksplisit meminta daftar.
+- Jangan mengutip ulang kalimat pengguna satu per satu.
+- Gabungkan fakta yang saling berkaitan menjadi 1–3 kalimat yang mengalir.
+- Utamakan bentuk seperti: "Iya, aku ingat kamu pernah cerita bahwa..." atau "Iya, tentang Asi aku ingat kamu pernah bilang..."
+- Jika hanya ada satu fakta, cukup gunakan satu fakta itu. Jangan mengisi kekosongan dengan dugaan.
+- Jika tidak ada fakta tambahan yang benar-benar relevan, katakan dengan natural bahwa yang kamu ingat baru sebatas fakta tersebut.
+- Jika bukti tidak cukup, jujur dan jangan mengarang.
+- Jangan mengungkap percakapan pribadi pengguna lain.
+- Jangan menyebut database, retrieval, provider, context, prompt, atau mekanisme internal.
+- Untuk pertanyaan sederhana, jawab 1–3 kalimat.
+`;
+
+      const resultText = await callJamesAI(
+        recallPrompt,
+        buildJamesSystemInstruction(
+          "Kamu sedang melakukan conversational memory synthesis. Tugasmu bukan menampilkan isi memori, tetapi memahami siapa subjek pertanyaan, fakta apa yang relevan, bagaimana fakta-fakta itu saling berhubungan, lalu menyampaikannya sebagai percakapan natural. Jika fakta relasi tersedia, gunakan relasi tersebut sebagai jembatan antarfakta."
+        ),
+        memoryContext
+      );
       await saveActivity(userRequest, "chat", "conversation-memory", resultText);
       await saveJames(userId, conversationId, userRequest, resultText, "chat", "conversation-memory");
 

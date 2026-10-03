@@ -51,10 +51,11 @@ export async function getJamesSocialMemory(userId: string, userRequest: string, 
 
   const { data: ownIdentity } = await supabase
     .from("james_memories")
-    .select("memory_value, confidence")
+    .select("memory_value, confidence, updated_at")
     .eq("user_id", userId)
     .eq("memory_type", "identity")
     .eq("status", "active")
+    .order("updated_at", { ascending: false })
     .order("confidence", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -80,7 +81,16 @@ export async function getJamesSocialMemory(userId: string, userRequest: string, 
   const relationshipText = ownRelationships
     .map((item) => `${item.memory_key || ""} ${item.memory_value || ""} ${item.source_excerpt || ""}`)
     .join(" ");
-  const names = extractNames(relationshipText);
+  const keyNames = ownRelationships
+    .flatMap((item) => {
+      const key = clean(item.memory_key, 120);
+      const match = key.match(/:(.+)$/);
+      return match?.[1] ? [match[1]] : [];
+    });
+  const names = [...new Set([
+    ...extractNames(relationshipText),
+    ...keyNames,
+  ])].filter(Boolean).slice(0, 10);
 
   // Privacy boundary: social memory may use only the current user's own
   // relationship memories. Do not query identity/relationship rows belonging

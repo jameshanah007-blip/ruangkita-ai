@@ -73,7 +73,7 @@ export async function getJamesMemory(userId: string, conversationId: string) {
 export async function getJamesPreviousConversationMessages(
   userId: string,
   currentConversationId: string,
-  limit = 40,
+  limit = 120,
 ): Promise<MemoryMessage[]> {
   const supabase = getSupabase();
 
@@ -91,7 +91,7 @@ export async function getJamesPreviousConversationMessages(
     .eq("user_id", userId)
     .neq("conversation_id", currentConversationId)
     .order("created_at", { ascending: false })
-    .limit(Math.min(Math.max(limit, 1), 80));
+    .limit(Math.min(Math.max(limit, 1), 500));
 
   if (error) {
     console.error("James previous conversation memory read error:", error.message);
@@ -199,7 +199,7 @@ function memoryExpiry(memoryType: JamesLongTermMemory["memory_type"], days?: num
 export async function getJamesPreviousConversationSummaries(
   userId: string,
   currentConversationId: string,
-  limit = 20,
+  limit = 100,
 ): Promise<MemoryMessage[]> {
   const supabase = getSupabase();
 
@@ -214,7 +214,7 @@ export async function getJamesPreviousConversationSummaries(
     .neq("id", currentConversationId)
     .not("summary", "is", null)
     .order("updated_at", { ascending: false })
-    .limit(Math.min(Math.max(limit, 1), 40));
+    .limit(Math.min(Math.max(limit, 1), 200));
 
   if (error) {
     console.error("James conversation summary memory read error:", error.message);
@@ -238,7 +238,7 @@ export async function getJamesRelevantConversationMessages(
   userId: string,
   currentConversationId: string,
   userRequest: string,
-  limit = 20,
+  limit = 60,
 ): Promise<MemoryMessage[]> {
   const supabase = getSupabase();
   if (!supabase || !validId(userId) || !validId(currentConversationId)) return [];
@@ -255,7 +255,7 @@ export async function getJamesRelevantConversationMessages(
   const {data,error}=await supabase.from("ai_messages")
     .select("role, content, created_at, conversation_id")
     .eq("user_id",userId).neq("conversation_id",currentConversationId)
-    .order("created_at",{ascending:false}).limit(200);
+    .order("created_at",{ascending:false}).limit(1000);
   if(error){console.error("James relevant conversation memory read error:",error.message);return[];}
   const scored=(data||[]).filter(message=>
     (message.role==="user"||message.role==="assistant")&&typeof message.content==="string"&&message.content.trim()
@@ -267,11 +267,11 @@ export async function getJamesRelevantConversationMessages(
     return {message:{role:message.role as "user"|"assistant",content:message.content,created_at:message.created_at},score};
   }).filter(item=>terms.length?item.score>0:true)
     .sort((a,b)=>b.score-a.score||String(b.message.created_at||"").localeCompare(String(a.message.created_at||"")))
-    .slice(0,Math.min(Math.max(limit,1),40)).map(item=>item.message);
+    .slice(0,Math.min(Math.max(limit,1),120)).map(item=>item.message);
   return scored.sort((a,b)=>String(a.created_at||"").localeCompare(String(b.created_at||"")));
 }
 
-function extractExplicitJamesMemories(userRequest: string): JamesMemoryProposal[] {
+export function extractExplicitJamesMemories(userRequest: string): JamesMemoryProposal[] {
   const proposals: JamesMemoryProposal[]=[];
   const cleanName=(value:string)=>value.trim().replace(/^[,.:;!?]+|[,.:;!?]+$/g,"").slice(0,80);
   const identityPatterns=[
@@ -280,18 +280,38 @@ function extractExplicitJamesMemories(userRequest: string): JamesMemoryProposal[
   ];
   for(const pattern of identityPatterns){
     const match=userRequest.match(pattern); if(!match?.[1]) continue;
-    const name=cleanName(match[1]); if(!name||/^(james|kamu|aku|saya|sudah|pernah|baru|sedang|akan|telah|masih|tidak|bukan|punya|memiliki|berkenalan|bertemu|tinggal|bekerja|belajar)$/i.test(name)) continue;
+    const name=cleanName(match[1]); if(!name||/^(james|kamu|aku|saya|dan|atau|juga|sudah|pernah|baru|sedang|akan|telah|masih|tidak|bukan|punya|memiliki|berkenalan|bertemu|tinggal|bekerja|belajar|kelas|berteman|bertemen)$/i.test(name)) continue;
     proposals.push({memory_type:"identity",memory_key:"self_name:"+name.toLowerCase(),memory_value:name,memory_action:"upsert",confidence:0.99,source_excerpt:match[0].trim().slice(0,400),expires_in_days:null}); break;
   }
   const relationshipPatterns=[
     /\b(?:saya|aku)\s+punya\s+teman\s+namanya\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i,
     /\b([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\s+(?:juga\s+)?teman\s+(?:saya|aku)\b/i,
     /\b([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\s+adalah\s+teman\s+(?:saya|aku)\b/i,
+    /\b(?:saya|aku)\s+dan\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\s+(?:sama\s+)?(?:satu\s+kelas|sekelas)(?:\s+d(?:i|alam)\s+kelas\s+([0-9]+)\s*SD)?\b/i,
+    /\b(?:saya|aku)\s+dan\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\s+bert(?:e|)man\b/i,
+    /\b(?:saya|aku)\s+bert(?:e|)man\s+(?:satu\s+kelas|sekelas)\s+dengan\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40})\b/i,
   ];
   for(const pattern of relationshipPatterns){
     const match=userRequest.match(pattern); if(!match?.[1]) continue;
-    const name=cleanName(match[1]); if(!name||/^(james|kamu|aku|saya)$/i.test(name)) continue;
-    proposals.push({memory_type:"relationship",memory_key:"friend:"+name.toLowerCase(),memory_value:name+" adalah teman pengguna.",memory_action:"upsert",confidence:0.98,source_excerpt:match[0].trim().slice(0,400),expires_in_days:null}); break;
+    const name=cleanName(match[1]); if(!name||/^(james|kamu|aku|saya|dan|atau)$/i.test(name)) continue;
+    const lowerMatch=match[0].toLowerCase();
+    const grade=match[2] ? ` saat kelas ${match[2]} SD` : "";
+    const isClassmate=/satu kelas|sekelas/i.test(lowerMatch);
+    const isFriend=/bert(e|)man|teman/i.test(lowerMatch);
+    const relationship = isClassmate && isFriend ? "teman sekelas" : isClassmate ? "teman sekelas" : "teman";
+    const value = isClassmate
+      ? `${name} adalah teman sekelas pengguna${grade}.`
+      : `${name} adalah teman pengguna.`;
+    proposals.push({
+      memory_type:"relationship",
+      memory_key:`${relationship}:${name.toLowerCase()}`,
+      memory_value:value,
+      memory_action:"upsert",
+      confidence:0.98,
+      source_excerpt:match[0].trim().slice(0,400),
+      expires_in_days:null
+    });
+    break;
   }
   return proposals.slice(0,3);
 }
