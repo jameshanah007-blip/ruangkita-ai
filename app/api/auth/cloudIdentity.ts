@@ -153,6 +153,15 @@ export async function resolveLegacyUserId(): Promise<string> {
       .maybeSingle();
 
     if (existing.data?.legacy_user_id) {
+      await db.from("james_people").upsert(
+        {
+          auth_user_id: authUser.id,
+          legacy_user_id: existing.data.legacy_user_id,
+          identity_status: "registered",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "auth_user_id" }
+      );
       return existing.data.legacy_user_id;
     }
 
