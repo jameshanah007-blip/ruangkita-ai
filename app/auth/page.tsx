@@ -6,7 +6,7 @@ type AuthUser = { id: string; email?: string | null };
 
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [user, setUser] = useState<AuthUser | null>(null);
   const [message, setMessage] = useState("");
@@ -32,7 +32,7 @@ export default function AuthPage() {
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ name, password }),
       });
       const data = await response.json();
 
@@ -47,7 +47,7 @@ export default function AuthPage() {
       }
 
       setUser(data.user);
-      setMessage("Berhasil. Identitas James sekarang terhubung ke cloud.");
+      setMessage(`Berhasil masuk. James sekarang mengenali kamu sebagai ${data.user?.name || name}.`);
       setPassword("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Autentikasi gagal.");
@@ -70,9 +70,9 @@ export default function AuthPage() {
         <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.04] p-7 shadow-2xl">
           <div className="text-center">
             <div className="text-4xl">☁️</div>
-            <h1 className="mt-4 text-3xl font-bold">Akun RuangKita</h1>
+            <h1 className="mt-4 text-3xl font-bold">Masuk ke RuangKita</h1>
             <p className="mt-2 text-sm leading-6 text-slate-400">
-              Gunakan akun yang sama di komputer berbeda untuk melanjutkan data James dan Fun Zone dari cloud.
+              Masuk dengan nama dan password. Data James dan Fun Zone tersimpan di cloud sehingga dapat dilanjutkan dari komputer berbeda.
             </p>
           </div>
 
@@ -111,7 +111,7 @@ export default function AuthPage() {
 
               <form onSubmit={submit} className="mt-6 space-y-4">
                 <label className="block">
-                  <span className="mb-2 block text-sm text-slate-300">Email</span>
+                  <span className="mb-2 block text-sm text-slate-300">Nama</span>
                   <input
                     type="email"
                     required
@@ -139,7 +139,7 @@ export default function AuthPage() {
                   disabled={loading}
                   className="w-full rounded-xl bg-cyan-400 px-4 py-3 font-bold text-slate-950 disabled:opacity-50"
                 >
-                  {loading ? "Memproses..." : mode === "login" ? "Masuk ke RuangKita" : "Buat Akun Cloud"}
+                  {loading ? "Memproses..." : mode === "login" ? "Masuk" : "Buat akun"}
                 </button>
               </form>
             </>
@@ -152,7 +152,7 @@ export default function AuthPage() {
           )}
 
           <p className="mt-6 text-center text-xs leading-5 text-slate-500">
-            Session autentikasi disimpan melalui cookie HTTP-only. Data aplikasi tetap berada di cloud; browser tidak digunakan sebagai database RuangKita.
+            Session autentikasi disimpan melalui cookie HTTP-only. Nama adalah identitas login yang terlihat oleh pengguna; data aplikasi tetap berada di cloud.
           </p>
         </div>
       </div>
