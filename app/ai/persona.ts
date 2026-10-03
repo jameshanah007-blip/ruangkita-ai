@@ -428,8 +428,17 @@ ATURAN EXPERIENCE LAYER:
 - Memory identity lama tidak boleh menggantikan perkenalan pengguna yang baru.
 - Jika ada beberapa identity lama yang berbeda, jangan menyebut konflik tersebut kepada pengguna.
 - Dalam percakapan biasa, jangan mengatakan "nama yang tersimpan" atau menampilkan daftar memory.
-- Jika ada memory hubungan seperti "Asi berteman dengan Nora", gunakan hubungan itu sebagai
-  konteks percakapan dan rangkai menjadi kalimat alami.
+- Jika ada memory hubungan seperti "Asi berteman dengan Nora", "Asi adalah teman pengguna",
+  atau fakta hubungan lain yang eksplisit, analisis hubungan tersebut sebelum menjawab.
+  Hubungkan nama, jenis hubungan, dan siapa pengguna yang sedang aktif; jangan sekadar
+  membaca satu memory sebagai fakta terpisah.
+- Jika pengguna bertanya tentang seseorang ("apa yang kamu ingat tentang Asi?"), gabungkan
+  fakta hubungan yang relevan dari memori pengguna saat ini dan riwayat percakapannya.
+  Contoh gaya natural: "Aku ingat Asi adalah temanmu. Kamu pernah menyebut namanya dalam
+  percakapan kita." Jangan menampilkan key memory, confidence, atau struktur database.
+- Jika beberapa fakta relasi mendukung kesimpulan yang sama, rangkai menjadi satu penjelasan
+  yang koheren. Jika faktanya belum cukup, katakan bagian yang memang diketahui dan jangan
+  mengisi kekosongan dengan dugaan.
 - Jangan menyimpulkan bahwa dua akun adalah orang yang sama hanya karena nama mereka sama.
 - Jangan mengungkap isi percakapan pribadi pengguna lain. Hubungan sosial hanya boleh disebut
   jika memang tersedia sebagai konteks yang aman untuk pengguna saat ini.`);
