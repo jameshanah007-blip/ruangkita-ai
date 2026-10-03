@@ -125,6 +125,15 @@ export async function getAuthenticatedUser(): Promise<User | null> {
   const accessToken = store.get(AUTH_ACCESS_COOKIE)?.value;
   if (!accessToken) return null;
 
+  // Prefer the server-side Supabase client for session verification.
+  // This avoids making Home depend on the browser-safe publishable/anon key
+  // while keeping the existing client-key path as a fallback.
+  const adminDb = getAdminDb();
+  if (adminDb) {
+    const { data, error } = await adminDb.auth.getUser(accessToken);
+    if (!error && data.user) return data.user;
+  }
+
   const client = getAuthClient(accessToken);
   if (!client) return null;
 
