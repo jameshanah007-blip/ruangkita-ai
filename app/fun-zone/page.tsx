@@ -1,6 +1,7 @@
 "use client";
 
 import SiteNav from "../components/SiteNav";
+import { useAuth } from "../components/AuthProvider";
 
 import {
   useCallback,
@@ -402,7 +403,7 @@ function getTerminalLines(
 }
 
 export default function FunZonePage() {
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const { loading: authLoading, authenticated } = useAuth();
 
   const [prompt, setPrompt] =
     useState("");
@@ -489,14 +490,10 @@ export default function FunZonePage() {
       ]
     );
 
-  useEffect(() => {
-    void fetch("/api/auth/me", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((data) => setAuthenticated(Boolean(data.authenticated)))
-      .catch(() => setAuthenticated(false));
-  }, []);
 
   useEffect(() => {
+    if (authLoading || !authenticated) return;
+
     const params = new URLSearchParams(window.location.search);
     const id = params.get("experimentId");
 
@@ -551,7 +548,7 @@ export default function FunZonePage() {
       .catch((error) => {
         console.warn("James experiment load failed:", error);
       });
-  }, []);
+  }, [authLoading, authenticated]);
 
   useEffect(() => {
     fetch("/api/fun-zone/session", { cache: "no-store" })
@@ -1020,7 +1017,11 @@ const handleSandboxError =
       )
     );
 
-  if (authenticated !== true) {
+  if (authLoading) {
+    return <main className="min-h-screen bg-slate-950 text-white"><SiteNav /></main>;
+  }
+
+  if (!authenticated) {
     return (
       <main className="min-h-screen bg-slate-950 text-white">
         <SiteNav />
