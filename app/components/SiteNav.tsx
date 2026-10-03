@@ -13,7 +13,7 @@ const items = [
 export default function SiteNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [authEmail, setAuthEmail] = useState<string | null>(null);
+  const [authName, setAuthName] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
@@ -22,10 +22,10 @@ export default function SiteNav() {
       .then((response) => response.json())
       .then((data) => {
         if (!active) return;
-        setAuthEmail(data.authenticated ? data.user?.email || null : null);
+        setAuthName(data.authenticated ? data.user?.name || null : null);
       })
       .catch(() => {
-        if (active) setAuthEmail(null);
+        if (active) setAuthName(null);
       })
       .finally(() => {
         if (active) setAuthLoading(false);
@@ -35,7 +35,7 @@ export default function SiteNav() {
     };
   }, [pathname]);
 
-  const accountLabel = authLoading ? "Akun" : authEmail ? authEmail : "Login";
+  const accountLabel = authLoading ? "Akun" : authName ? authName : "Login";
   const accountHref = "/auth";
 
   return (
@@ -50,7 +50,7 @@ export default function SiteNav() {
             RuangKita <span className="text-cyan-400">AI</span>
           </a>
 
-          {authEmail && <div className="hidden items-center gap-6 text-sm md:flex">
+          {authName && <div className="hidden items-center gap-6 text-sm md:flex">
             {items.map((item) => {
               const active =
                 item.href === "/"
@@ -76,9 +76,9 @@ export default function SiteNav() {
           <a
             href={accountHref}
             className="hidden max-w-48 truncate rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-300 transition hover:border-cyan-400/30 hover:text-cyan-300 md:block"
-            title={authEmail || "Login ke RuangKita"}
+            title={authName || "Login ke RuangKita"}
           >
-            {authEmail ? `👤 ${accountLabel}` : `☁️ ${accountLabel}`}
+            {authName ? `👤 ${accountLabel}` : `☁️ ${accountLabel}`}
           </a>
 
           <button
@@ -95,7 +95,7 @@ export default function SiteNav() {
         {open && (
           <div className="border-t border-white/10 py-3 md:hidden">
             <div className="grid gap-1 pb-2">
-              {authEmail && items.map((item) => {
+              {authName && items.map((item) => {
                 const active =
                   item.href === "/"
                     ? pathname === "/"
