@@ -15,7 +15,11 @@ export default function AuthPage() {
   async function loadUser() {
     const response = await fetch("/api/auth/me", { cache: "no-store" });
     const data = await response.json();
-    setUser(data.authenticated ? data.user : null);
+    if (data.authenticated) {
+      window.location.href = "/";
+      return;
+    }
+    setUser(null);
   }
 
   useEffect(() => {
