@@ -163,6 +163,58 @@ function buildPersonalMemoryRecallResponse(input: {
   return parts.join(" ");
 }
 
+function extractRecallSubject(request: string): string | null {
+  const normalized = request.toLowerCase().replace(/[!?.,]/g, " ").replace(/\s+/g, " ").trim();
+  const patterns = [
+    /\bapa yang (?:kamu|james) ingat tentang ([a-zà-öø-ÿ][a-zà-öø-ÿ'_-]{1,40})\b/i,
+    /\b(?:kamu|james) (?:masih )?ingat tentang ([a-zà-öø-ÿ][a-zà-öø-ÿ'_-]{1,40})\b/i,
+    /\b(?:apakah\s+)?(?:kamu|james) (?:masih\s+)?ingat ([a-zà-öø-ÿ][a-zà-öø-ÿ'_-]{1,40})\b/i,
+    /\b(?:apakah\s+)?(?:kamu|james) (?:masih\s+)?kenal ([a-zà-öø-ÿ][a-zà-öø-ÿ'_-]{1,40})\b/i,
+  ];
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    const subject = match?.[1]?.trim();
+    if (subject && !/^(saya|aku|kamu|james)$/i.test(subject)) return subject;
+  }
+  return null;
+}
+
+function buildNamedMemoryRecallResponse(input: {
+  subject: string;
+  memoryName: string | null;
+  memories: Array<{ memory_type: string; memory_value?: string | null; memory_key?: string | null }>;
+  conversationHistory: string;
+}) {
+  const subject = input.subject.trim();
+  const subjectLower = subject.toLowerCase();
+  const identityMatch = input.memories.find(
+    (memory) => memory.memory_type === "identity" &&
+      String(memory.memory_value || "").trim().toLowerCase() === subjectLower
+  );
+  const relationshipMatches = input.memories.filter(
+    (memory) => memory.memory_type === "relationship" &&
+      (String(memory.memory_value || "").toLowerCase().includes(subjectLower) ||
+       String(memory.memory_key || "").toLowerCase().endsWith(":" + subjectLower))
+  );
+
+  if (identityMatch) {
+    const identityName = String(identityMatch.memory_value || subject).trim();
+    return "Iya, aku ingat " + identityName + ". Dia adalah kamu, dan kamu pernah memperkenalkan diri kepadaku sebagai " + identityName + ".";
+  }
+
+  if (relationshipMatches.length) {
+    const facts = relationshipMatches.map((memory) => String(memory.memory_value || "").trim()).filter(Boolean).slice(0, 3);
+    return "Iya, aku ingat " + subject + ". " + facts.join(" ") + " Kalau kamu mau, kamu bisa ceritakan lebih banyak tentang dia.";
+  }
+
+  const historyMention = input.conversationHistory.split(/\n+/).filter((line) => line.toLowerCase().includes(subjectLower)).slice(-3);
+  if (historyMention.length) {
+    return "Aku ingat nama " + subject + " pernah muncul dalam obrolan kita, tetapi aku belum punya cukup informasi untuk memastikan siapa " + subject + " atau hubunganmu dengannya.";
+  }
+
+  return "Aku belum punya cukup informasi tentang " + subject + ". Kalau kamu pernah menceritakannya kepadaku, ceritakan sedikit lagi supaya aku bisa mengingatnya dengan lebih baik.";
+}
+
 function buildConversationRecallResponse(
   messages: Array<{ role: "user" | "assistant"; content: string }>
 ) {
@@ -1527,6 +1579,7 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
         .slice(-40);
 
       const asksIdentity = /\b(?:siapa|apa)\s+(?:nama|namaku|nama saya)\b|\bsiapa namaku\b/i.test(userRequest);
+      const recallSubject = extractRecallSubject(userRequest);
       const asksPersonalMemory = /\b(?:apa yang (?:kamu|james) ingat(?: tentang)?|(?:kamu|james) (?:masih )?ingat (?:saya|aku)|(?:apakah\s+)?(?:kamu|james) (?:masih\s+)?kenal\s+(?:saya|aku|[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'_-]{1,40}))\b/i.test(userRequest);
       const identityMemories = longTermMemories.filter(
         (memory) => memory.memory_type === "identity" && memory.status === "active"
@@ -1547,19 +1600,26 @@ Gunakan active knowledge hanya jika relevan. Jangan menyebut database, candidate
       const hasConversationHistory = !conversationHistoryText.startsWith("Belum ada percakapan sebelumnya");
 
       const resultText =
-        asksPersonalMemory && (memoryName || stableMemories.length || hasConversationHistory)
-          ? buildPersonalMemoryRecallResponse({
+        recallSubject && !/^(saya|aku|kamu|james)$/i.test(recallSubject)
+          ? buildNamedMemoryRecallResponse({
+              subject: recallSubject,
               memoryName,
-              stableMemories,
+              memories: longTermMemories,
               conversationHistory: conversationHistoryText,
-              hasConversationHistory,
-              askedAboutSelf: asksIdentity,
             })
-          : asksIdentity && memoryName
-            ? `Iya, aku ingat kamu sebagai ${memoryName}. Kamu pernah memperkenalkan diri kepadaku dalam percakapan kita.`
-            : asksIdentity && extractExplicitIdentityNames(recallMessages).length > 1
-              ? "Aku ingat beberapa nama pernah diperkenalkan dalam percakapan kita, tetapi aku tidak akan menebak siapa yang sedang berbicara sekarang. Perkenalkan dirimu lagi agar aku tidak salah."
-              : buildConversationRecallResponse(recallMessages);
+          : asksPersonalMemory && (memoryName || stableMemories.length || hasConversationHistory)
+            ? buildPersonalMemoryRecallResponse({
+                memoryName,
+                stableMemories,
+                conversationHistory: conversationHistoryText,
+                hasConversationHistory,
+                askedAboutSelf: asksIdentity,
+              })
+            : asksIdentity && memoryName
+              ? `Iya, aku ingat kamu sebagai ${memoryName}. Kamu pernah memperkenalkan diri kepadaku dalam percakapan kita.`
+              : asksIdentity && extractExplicitIdentityNames(recallMessages).length > 1
+                ? "Aku ingat beberapa nama pernah diperkenalkan dalam percakapan kita, tetapi aku tidak akan menebak siapa yang sedang berbicara sekarang. Perkenalkan dirimu lagi agar aku tidak salah."
+                : buildConversationRecallResponse(recallMessages);
 
       await saveActivity(userRequest, "chat", "conversation-memory", resultText);
       await saveJames(userId, conversationId, userRequest, resultText, "chat", "conversation-memory");
