@@ -19,8 +19,6 @@ function makeId() {
   return crypto.randomUUID();
 }
 
-const SHARED_DEVICE_SESSION_KEY = "ruangkita-shared-device-session-v1";
-
 export default function AIExecutor() {
   const [request, setRequest] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -41,8 +39,7 @@ export default function AIExecutor() {
     // Membuat conversation baru tidak boleh membuat userId baru.
     // userId tetap berasal dari server cookie yang sudah ditandatangani,
     // sehingga conversation lama tetap dapat ditemukan lintas sesi.
-    // Untuk berpindah ke orang lain pada perangkat yang sama, gunakan
-    // tombol "Ganti pengguna" secara eksplisit.
+    // Identitas pengguna dikelola melalui akun/login cloud.
     const initializeSession = async () => {
       try {
         const response = await fetch("/api/ai/session", {
@@ -93,33 +90,6 @@ export default function AIExecutor() {
     textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
     textarea.style.overflowY = textarea.scrollHeight > 160 ? "auto" : "hidden";
   }, [request]);
-
-  async function switchUser() {
-    if (loading) return;
-
-    try {
-      const response = await fetch("/api/auth/switch-user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await response.json();
-      if (!response.ok || typeof data.userId !== "string" || typeof data.conversationId !== "string") {
-        throw new Error(data.error || "Gagal mengganti pengguna.");
-      }
-
-      setUserId(data.userId);
-      setConversationId(data.conversationId);
-      setMessages([]);
-      setRequest("");
-      setError("");
-      setOmantoVerified(false);
-      setVerificationOpen(false);
-      sessionStorage.setItem(SHARED_DEVICE_SESSION_KEY, "active");
-      setVerificationCode("");
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Gagal mengganti pengguna.");
-    }
-  }
 
   function resetFeedback(messageId: string) {
     setMessages((current) =>
@@ -503,18 +473,6 @@ export default function AIExecutor() {
 
       <section className="mx-auto flex min-h-[calc(100vh-64px)] w-full max-w-5xl flex-col px-3 pb-4 pt-4 sm:px-6 sm:pt-6">
         <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
-          <div className="mb-3 flex items-center justify-between gap-3 px-1">
-            <span className="text-[11px] text-slate-500">Sesi pengguna saat ini</span>
-            <button
-              type="button"
-              onClick={() => void switchUser()}
-              disabled={loading}
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-[11px] font-medium text-slate-400 transition hover:border-cyan-400/30 hover:text-cyan-300 disabled:opacity-40"
-            >
-              Ganti pengguna
-            </button>
-          </div>
-
           <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-4 sm:px-2">
             <div className="space-y-7 sm:space-y-9">
               {messages.map((message) => (
