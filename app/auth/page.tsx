@@ -1,6 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "../components/AuthProvider";
 
 type AuthUser = { id: string; name?: string | null };
 
@@ -8,23 +10,10 @@ export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const router = useRouter();
+  const { loading: authLoading, authenticated, user, refresh, signOut: clearAuth } = useAuth();
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-
-  async function loadUser() {
-    const response = await fetch("/api/auth/me", { cache: "no-store" });
-    const data = await response.json();
-    if (data.authenticated) {
-      window.location.href = "/";
-      return;
-    }
-    setUser(null);
-  }
-
-  useEffect(() => {
-    void loadUser();
-  }, []);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -53,21 +42,15 @@ export default function AuthPage() {
       if (mode === "login") {
         // Confirm the HTTP-only auth cookies are already visible to the server
         // before navigating to the server-rendered Home page.
-        const sessionResponse = await fetch("/api/auth/me", {
-          cache: "no-store",
-          credentials: "same-origin",
-        });
-        const sessionData = await sessionResponse.json();
-
-        if (!sessionData.authenticated) {
+        const sessionReady = await refresh();
+        if (!sessionReady) {
           throw new Error("Login berhasil, tetapi session belum siap. Silakan coba lagi.");
         }
-
-        window.location.replace("/");
+        router.replace("/");
         return;
       }
 
-      setUser(data.user);
+      await refresh();
       setMessage(`Akun berhasil dibuat. James sekarang mengenali kamu sebagai ${data.user?.name || name}.`);
       setPassword("");
     } catch (error) {
@@ -78,8 +61,7 @@ export default function AuthPage() {
   }
 
   async function signOut() {
-    await fetch("/api/auth/sign-out", { method: "POST" });
-    setUser(null);
+    await clearAuth();
     setMessage("Kamu sudah keluar.");
   }
 
@@ -97,7 +79,9 @@ export default function AuthPage() {
             </p>
           </div>
 
-          {user ? (
+          {authLoading ? (
+            <div className="mt-8 text-center text-sm text-slate-400">Memeriksa session...</div>
+          ) : authenticated ? (
             <div className="mt-8 space-y-4">
               <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4">
                 <p className="text-xs uppercase tracking-wider text-cyan-400">Terhubung ke cloud</p>
