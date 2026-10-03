@@ -181,6 +181,168 @@ function memoryPriority(memoryType: JamesLongTermMemory["memory_type"]) {
   return priorities[memoryType] ?? 0;
 }
 
+function normalizePersonName(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g, "")
+    .replace(/[^a-z0-9\\s_-]/g, "")
+    .replace(/\\s+/g, " ")
+    .slice(0, 120);
+}
+
+async function ensureJamesPerson(
+  supabase: ReturnType<typeof getSupabase>,
+  legacyUserId: string,
+  displayName?: string,
+) {
+  if (!supabase || !validId(legacyUserId)) return null;
+
+  const existing = await supabase
+    .from("james_people")
+    .select("id")
+    .eq("legacy_user_id", legacyUserId)
+    .maybeSingle();
+
+  if (existing.data?.id) {
+    if (displayName?.trim()) {
+      await supabase
+        .from("james_people")
+        .update({
+          display_name: cleanMemoryText(displayName, 120),
+          normalized_name: normalizePersonName(displayName),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.data.id);
+    }
+    return existing.data.id as string;
+  }
+
+  const name = displayName?.trim() ? cleanMemoryText(displayName, 120) : null;
+  const created = await supabase
+    .from("james_people")
+    .insert({
+      legacy_user_id: legacyUserId,
+      display_name: name,
+      normalized_name: name ? normalizePersonName(name) : null,
+      identity_status: "registered",
+    })
+    .select("id")
+    .single();
+
+  if (created.error) {
+    console.error("James person creation error:", created.error.message);
+    return null;
+  }
+
+  return created.data?.id || null;
+}
+
+async function ensureNamedJamesPerson(
+  supabase: ReturnType<typeof getSupabase>,
+  name: string,
+) {
+  if (!supabase) return null;
+  const normalized = normalizePersonName(name);
+  if (!normalized) return null;
+
+  const existing = await supabase
+    .from("james_people")
+    .select("id")
+    .eq("normalized_name", normalized)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing.data?.id) return existing.data.id as string;
+
+  const created = await supabase
+    .from("james_people")
+    .insert({
+      display_name: cleanMemoryText(name, 120),
+      normalized_name: normalized,
+      identity_status: "unclaimed",
+    })
+    .select("id")
+    .single();
+
+  if (created.error) {
+    console.error("James named person creation error:", created.error.message);
+    return null;
+  }
+
+  return created.data?.id || null;
+}
+
+async function saveJamesRelationshipGraphFact(
+  supabase: ReturnType<typeof getSupabase>,
+  userId: string,
+  conversationId: string,
+  relationshipMemoryId: string | null,
+  relationshipKey: string,
+  relationshipValue: string,
+  sourceExcerpt: string,
+  confidence: number,
+) {
+  if (!supabase || !validId(userId)) return;
+
+  const sourcePersonId = await ensureJamesPerson(supabase, userId);
+  if (!sourcePersonId) return;
+
+  const parts = relationshipKey.split(":");
+  const targetName = parts.length > 1 ? parts.slice(1).join(":").trim() : "";
+  const relationshipType = cleanMemoryText(
+    parts.length > 1 ? parts[0] : relationshipKey,
+    80,
+  ).toLowerCase();
+
+  if (!targetName || !relationshipType) return;
+
+  const targetPersonId = await ensureNamedJamesPerson(supabase, targetName);
+  if (!targetPersonId || targetPersonId === sourcePersonId) return;
+
+  const existing = await supabase
+    .from("james_relationships")
+    .select("id, confidence")
+    .eq("person_a_id", sourcePersonId)
+    .eq("person_b_id", targetPersonId)
+    .eq("relationship_type", relationshipType)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+
+  const now = new Date().toISOString();
+  const payload = {
+    person_a_id: sourcePersonId,
+    person_b_id: targetPersonId,
+    relationship_type: relationshipType,
+    source_user_id: userId,
+    evidence_memory_id: relationshipMemoryId,
+    source_excerpt: cleanMemoryText(sourceExcerpt, 400),
+    confidence: Math.max(0, Math.min(1, confidence)),
+    visibility: "relationship",
+    status: "active",
+    last_confirmed_at: now,
+    updated_at: now,
+  };
+
+  if (existing.data?.id) {
+    await supabase
+      .from("james_relationships")
+      .update({
+        ...payload,
+        confidence: Math.max(Number(existing.data.confidence) || 0, confidence),
+      })
+      .eq("id", existing.data.id);
+    return;
+  }
+
+  const { error } = await supabase.from("james_relationships").insert(payload);
+  if (error) {
+    console.error("James relationship graph save error:", error.message);
+  }
+}
+
 function memoryExpiry(memoryType: JamesLongTermMemory["memory_type"], days?: number | null) {
   if (memoryType === "identity" || memoryType === "relationship") return null;
   const requested = typeof days === "number" && Number.isFinite(days) ? Math.round(days) : undefined;
@@ -503,6 +665,19 @@ export async function saveJamesMemoryProposals(
         continue;
       }
 
+      if (proposal.memory_type === "relationship") {
+        await saveJamesRelationshipGraphFact(
+          supabase,
+          userId,
+          conversationId,
+          existing.id,
+          proposal.memory_key,
+          proposal.memory_value,
+          proposal.source_excerpt,
+          nextConfidence,
+        );
+      }
+
       if (!sameValue) {
         await supabase.from("james_memories").insert({
           user_id: userId,
@@ -521,7 +696,7 @@ export async function saveJamesMemoryProposals(
       continue;
     }
 
-    const { error } = await supabase.from("james_memories").insert({
+    const { data: insertedMemory, error } = await supabase.from("james_memories").insert({
       user_id: userId,
       conversation_id: conversationId,
       memory_type: proposal.memory_type,
@@ -533,10 +708,21 @@ export async function saveJamesMemoryProposals(
       last_confirmed_at: now,
       expires_at: expiresAt,
       updated_at: now,
-    });
+    }).select("id").single();
 
     if (error) {
       console.error("James memory insert error:", error.message);
+    } else if (proposal.memory_type === "relationship") {
+      await saveJamesRelationshipGraphFact(
+        supabase,
+        userId,
+        conversationId,
+        insertedMemory?.id || null,
+        proposal.memory_key,
+        proposal.memory_value,
+        proposal.source_excerpt,
+        proposal.confidence,
+      );
     }
   }
 }
