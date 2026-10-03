@@ -50,7 +50,7 @@ export default function SiteNav() {
             RuangKita <span className="text-cyan-400">AI</span>
           </a>
 
-          <div className="hidden items-center gap-6 text-sm md:flex">
+          {authEmail && <div className="hidden items-center gap-6 text-sm md:flex">
             {items.map((item) => {
               const active =
                 item.href === "/"
@@ -71,7 +71,7 @@ export default function SiteNav() {
                 </a>
               );
             })}
-          </div>
+          </div>}
 
           <a
             href={accountHref}
@@ -95,7 +95,7 @@ export default function SiteNav() {
         {open && (
           <div className="border-t border-white/10 py-3 md:hidden">
             <div className="grid gap-1 pb-2">
-              {items.map((item) => {
+              {authEmail && items.map((item) => {
                 const active =
                   item.href === "/"
                     ? pathname === "/"
