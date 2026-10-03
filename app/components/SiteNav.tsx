@@ -1,18 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
 const items = [
   { href: "/", label: "Home" },
   { href: "/ai", label: "Tanya Saya" },
   { href: "/fun-zone", label: "Fun Zone" },
-  { href: "/auth", label: "Akun Cloud" },
+
 ];
 
 export default function SiteNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [authEmail, setAuthEmail] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/auth/me", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => {
+        if (!active) return;
+        setAuthEmail(data.authenticated ? data.user?.email || null : null);
+      })
+      .catch(() => {
+        if (active) setAuthEmail(null);
+      })
+      .finally(() => {
+        if (active) setAuthLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [pathname]);
+
+  const accountLabel = authLoading ? "Akun" : authEmail ? authEmail : "Login";
+  const accountHref = "/auth";
 
   return (
     <nav className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/90 backdrop-blur">
@@ -26,7 +50,7 @@ export default function SiteNav() {
             RuangKita <span className="text-cyan-400">AI</span>
           </a>
 
-          <div className="hidden items-center gap-8 text-sm md:flex">
+          <div className="hidden items-center gap-6 text-sm md:flex">
             {items.map((item) => {
               const active =
                 item.href === "/"
