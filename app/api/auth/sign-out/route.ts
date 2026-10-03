@@ -6,6 +6,8 @@ import {
   LEGACY_USER_SIGNATURE_COOKIE,
 } from "../cloudIdentity";
 
+const CONVERSATION_COOKIE = "ruangkita-session-conversation";
+
 export async function POST() {
   const response = NextResponse.json({ success: true });
 
@@ -14,6 +16,7 @@ export async function POST() {
     AUTH_REFRESH_COOKIE,
     LEGACY_USER_COOKIE,
     LEGACY_USER_SIGNATURE_COOKIE,
+    CONVERSATION_COOKIE,
   ]) {
     response.cookies.set({
       name,
