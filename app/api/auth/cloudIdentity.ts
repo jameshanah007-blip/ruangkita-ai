@@ -7,6 +7,50 @@ export const AUTH_ACCESS_COOKIE = "ruangkita-auth-access";
 export const AUTH_REFRESH_COOKIE = "ruangkita-auth-refresh";
 export const LEGACY_USER_SIGNATURE_COOKIE = "ruangkita-session-user-sig";
 
+export function normalizeLoginName(name: string) {
+  return name.trim().toLowerCase().normalize("NFKC").replace(/\s+/g, " ");
+}
+
+export function loginNameEmail(name: string) {
+  const normalized = normalizeLoginName(name);
+  const encoded = Buffer.from(normalized, "utf8").toString("base64url");
+  return `user-${encoded}@login.ruangkita.internal`;
+}
+
+export async function resolveAuthEmailForLoginName(name: string) {
+  const db = getAdminDb();
+  if (!db) return loginNameEmail(name);
+  const normalizedName = normalizeLoginName(name);
+  const person = await db
+    .from("james_people")
+    .select("auth_user_id")
+    .eq("normalized_name", normalizedName)
+    .maybeSingle();
+  if (person.data?.auth_user_id) {
+    const result = await db.auth.admin.getUserById(person.data.auth_user_id);
+    if (result.data.user?.email) return result.data.user.email;
+  }
+  return loginNameEmail(name);
+}
+
+export async function setJamesDisplayName(authUserId: string, legacyUserId: string, name: string) {
+  const db = getAdminDb();
+  if (!db) return;
+  const displayName = name.trim().replace(/\s+/g, " ");
+  const normalizedName = normalizeLoginName(displayName);
+  await db.from("james_people").upsert(
+    {
+      auth_user_id: authUserId,
+      legacy_user_id: legacyUserId,
+      display_name: displayName,
+      normalized_name: normalizedName,
+      identity_status: "registered",
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "auth_user_id" }
+  );
+}
+
 function getUrl() {
   return process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 }
