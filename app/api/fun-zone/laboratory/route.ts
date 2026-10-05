@@ -22,6 +22,7 @@ import { buildCharacterAssetPlan } from "../../../fun-zone/engine/characterAsset
 import { createOpenAIImageProvider } from "../../../fun-zone/engine/openAIImageProvider";
 import { createGeminiImageProvider } from "../../../fun-zone/engine/geminiImageProvider";
 import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies, applyJamesEffectiveStrategies, getJamesEffectiveStrategies } from "../../../fun-zone/engine/jamesGameLearning";
+import { createGameBuildPlan } from "../../../fun-zone/engine/gameBuildPlan";
 
 const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
 
@@ -363,6 +364,7 @@ export async function POST(
     // Compose reusable gameplay systems before the existing autonomous builder runs.
     // We enrich the existing blueprint instead of replacing the current architecture.
     const composedPlan = composeGamePlan(learnedBlueprint);
+    const buildPlan = createGameBuildPlan(learnedBlueprint);
     const visualBlueprint = createVisualBlueprint(learnedBlueprint);
     const characterAssetPlan = buildCharacterAssetPlan(visualBlueprint.characters, visualBlueprint.artDirection.style);
     const assetRegistry = buildAssetRegistry(visualBlueprint);
@@ -378,7 +380,8 @@ export async function POST(
       ...learnedBlueprint,
       mechanics: [...new Set([...learnedBlueprint.mechanics, ...composedPlan.systems.map((system) => system.id)])],
       playerActions: [...new Set([...learnedBlueprint.playerActions, ...composedPlan.requiredActions])],
-      testRequirements: [...new Set([...learnedBlueprint.testRequirements, ...composedPlan.testGoals])],
+      testRequirements: [...new Set([...learnedBlueprint.testRequirements, ...composedPlan.testGoals, ...buildPlan.testStages])],
+      controls: [...new Set([...learnedBlueprint.controls, ...buildPlan.controls.keyboard, ...buildPlan.controls.touch])],
     };
 
     session =
