@@ -112,6 +112,14 @@ gameTestError?: string;
   renderChanged: boolean;
 
   elapsedMs: number;
+
+  screenshot: {
+    available: boolean;
+    width: number;
+    height: number;
+    nonBlankPixels: number;
+    dataUrl?: string;
+  };
 };
 
 type DebugResponse = {
@@ -768,6 +776,39 @@ function buildDiagnosticHtml(
     }
   }
 
+  function captureScreenshot(canvas) {
+    if (!canvas) {
+      return {
+        available: false,
+        width: 0,
+        height: 0,
+        nonBlankPixels: 0
+      };
+    }
+
+    try {
+      var stats = getCanvasStats(canvas);
+      var dataUrl = typeof canvas.toDataURL === "function"
+        ? canvas.toDataURL("image/jpeg", 0.55)
+        : "";
+
+      return {
+        available: !!dataUrl,
+        width: stats.width,
+        height: stats.height,
+        nonBlankPixels: stats.nonBlankPixels,
+        dataUrl: dataUrl || undefined
+      };
+    } catch (_) {
+      return {
+        available: false,
+        width: canvas.width || 0,
+        height: canvas.height || 0,
+        nonBlankPixels: 0
+      };
+    }
+  }
+
   function dispatchSyntheticInput() {
     var canvas =
       getCanvas();
@@ -1313,6 +1354,11 @@ var beforeLost =
                       secondCanvas
                     );
 
+                  var screenshot =
+                    captureScreenshot(
+                      secondCanvas
+                    );
+
                   var canvasValid =
                     !!secondCanvas &&
                     secondStats.width > 0 &&
@@ -1649,7 +1695,10 @@ var beforeLost =
                       (
                         window.__RK_TEST_STARTED_AT__ ||
                         Date.now()
-                      )
+                      ),
+
+                    screenshot:
+                      screenshot
                   });
 
                 } catch (error) {
@@ -1736,7 +1785,13 @@ var beforeLost =
         canvasHeight: 0,
         nonBlankPixels: 0,
         renderChanged: false,
-        elapsedMs: Date.now() - (window.__RK_TEST_STARTED_AT__ || Date.now())
+        elapsedMs: Date.now() - (window.__RK_TEST_STARTED_AT__ || Date.now()),
+        screenshot: {
+          available: false,
+          width: 0,
+          height: 0,
+          nonBlankPixels: 0
+        }
       });
     }, ${GAME_TEST_TIMEOUT_MS});
   } catch (_) {}
