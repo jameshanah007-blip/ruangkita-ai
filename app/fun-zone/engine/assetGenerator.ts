@@ -20,13 +20,41 @@ export type AssetGenerationResult = {
   warnings: string[];
 };
 
+function localAsset(asset: GameAssetSpec): GeneratedAsset {
+  return {
+    id: asset.id,
+    kind: asset.kind,
+    status: "placeholder",
+    uri: `asset://placeholder/${encodeURIComponent(asset.id)}`,
+    metadata: {
+      prompt: asset.prompt,
+      tags: asset.tags,
+      animationNeeds: asset.animationNeeds,
+      provider: "local-fallback",
+      providerMetadata: {
+        identityPreserved: true,
+      },
+    },
+  };
+}
+
 /**
- * Generate assets through an optional provider.
+ * Synchronous compatibility path used by the existing local HTML compiler.
+ * It preserves the original no-provider behavior and never introduces an
+ * async boundary into buildLocalGameHtml().
+ */
+export function generateLocalGameAssets(registry: AssetRegistry): AssetGenerationResult {
+  return {
+    assets: registry.assets.map(localAsset),
+    warnings: ["Visual assets currently use the local provider-neutral fallback."],
+  };
+}
+
+/**
+ * Provider-aware generation path.
  *
- * Backward compatibility is intentional: callers can continue using
- * generateGameAssets(registry), which uses the local fallback exactly as
- * before. Provider failures are isolated per asset so one unavailable
- * image provider cannot break game generation.
+ * Provider failures are isolated per asset so an unavailable image provider
+ * cannot break game generation. Unsupported asset kinds also fall back locally.
  */
 export async function generateGameAssets(
   registry: AssetRegistry,
@@ -60,28 +88,8 @@ export async function generateGameAssets(
       warnings.push(
         `Asset provider "${activeProvider.name}" failed for "${asset.id}"; using local fallback.`,
       );
-
-      const fallback = await localAssetProvider.generate(asset);
-      assets.push({
-        id: asset.id,
-        kind: asset.kind,
-        status: "placeholder",
-        uri: fallback.uri,
-        metadata: {
-          prompt: asset.prompt,
-          tags: asset.tags,
-          animationNeeds: asset.animationNeeds,
-          provider: "local-fallback",
-          providerMetadata: {
-            fallbackReason: error instanceof Error ? error.message : String(error),
-          },
-        },
-      });
+      assets.push(localAsset(asset));
     }
-  }
-
-  if (activeProvider.name === "local-fallback") {
-    warnings.push("Visual assets currently use the local provider-neutral fallback.");
   }
 
   return { assets, warnings };
