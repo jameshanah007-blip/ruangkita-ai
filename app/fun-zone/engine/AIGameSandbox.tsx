@@ -120,6 +120,12 @@ gameTestError?: string;
     height: number;
     nonBlankPixels: number;
     dataUrl?: string;
+    metrics?: {
+      occupancy: number;
+      averageLuminance: number;
+      colorVariance: number;
+      edgeDensity: number;
+    };
   };
 };
 
