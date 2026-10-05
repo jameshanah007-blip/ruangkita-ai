@@ -670,6 +670,15 @@ export default function FunZonePage() {
                 sessionSeed,
 
               maxRepairAttempts: 5,
+              ...(referenceImage ? { referenceImage: {
+                version: 1,
+                available: true,
+                source: "user-upload",
+                mimeType: referenceImage.mimeType,
+                dataUrl: referenceImage.dataUrl,
+                width: referenceImage.width,
+                height: referenceImage.height,
+              } } : {}),
             }),
           }
         );
