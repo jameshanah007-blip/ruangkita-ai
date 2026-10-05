@@ -185,3 +185,40 @@ export function evaluateVisualBuild(
     refinement,
   };
 }
+
+
+export function applyVisualRefinement(
+  blueprint: GameBlueprint,
+  report: VisualQaReport,
+): GameBlueprint {
+  if (!report.refinement.required) return blueprint;
+
+  const additions: string[] = [];
+  const actions = report.refinement.actions.join(" ").toLowerCase();
+
+  if (/character|asset|animation/.test(actions)) {
+    additions.push("character identity consistency", "directional character animation", "idle walk action hit talk states");
+  }
+  if (/world|style|visual/.test(actions)) {
+    additions.push("distinct environment props", "consistent art direction", "camera-aware world composition");
+  }
+  if (/mobile/.test(actions)) {
+    additions.push("responsive mobile presentation", "touch-friendly UI");
+  }
+  if (/audio/.test(actions)) {
+    additions.push("contextual gameplay audio");
+  }
+
+  return {
+    ...blueprint,
+    visualStyle: [blueprint.visualStyle, ...additions].filter(Boolean).join(", "),
+    mechanics: [...new Set([...blueprint.mechanics, ...additions])],
+    testRequirements: [
+      ...new Set([
+        ...blueprint.testRequirements,
+        "visual-refinement-pass",
+        ...report.refinement.actions,
+      ]),
+    ],
+  };
+}
