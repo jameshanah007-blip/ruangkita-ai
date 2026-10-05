@@ -288,7 +288,7 @@ export function createAutonomousGameBlueprint(prompt: string): GameBlueprint {
       220
     ),
     loseCondition: "Health reaches zero or the critical objective is lost.",
-    visualStyle: "procedural 2D Canvas world generated from the James game genome",
+    visualStyle: "asset-backed 2D game world with animated character and creature visuals",
     mobileNotes: ["Touch-first controls", "Responsive Canvas", "Portrait-friendly UI", "Standalone offline HTML"],
     testRequirements: ["canvas renders", "game loop advances", "input changes state", "objective changes", "win/lose reachable", "restart resets state"],
   };
@@ -674,14 +674,9 @@ function drawItem(x,y,c,i){
 }
 function drawEnemy(x,y,c){
   var generated=assetImage("enemy",0);
-  if(drawAsset(generated,x,y,58))return;
-  ctx.save();ctx.translate(x,y);ctx.fillStyle=c;
-  if(G.world==="hospital"){ctx.fillRect(-13,-17,26,34);ctx.fillStyle="#111";ctx.fillRect(-7,-7,5,5);ctx.fillRect(2,-7,5,5)}
-  else if(G.world==="forest"){ctx.beginPath();ctx.moveTo(0,-18);ctx.lineTo(16,14);ctx.lineTo(-16,14);ctx.closePath();ctx.fill()}
-  else if(G.world==="space"||G.world==="laboratory"){ctx.fillRect(-14,-14,28,28);ctx.fillStyle="#fff";ctx.fillRect(-5,-4,10,8)}
-  else if(G.world==="ocean"){ctx.beginPath();ctx.arc(0,0,17,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.fillRect(-20,-2,8,4);ctx.fillRect(12,-2,8,4)}
-  else{ctx.beginPath();ctx.arc(0,0,15,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.fillRect(-7,-4,4,4);ctx.fillRect(3,-4,4,4)}
-  ctx.restore();
+  if(generated){
+    drawAsset(generated,x,y,58);
+  }
 }
 function drawPlayer(x,y,c,a){
   var generatedAsset=(G.assets||[]).filter(function(asset){return asset.kind==="character";})[0];
@@ -694,6 +689,14 @@ function drawPlayer(x,y,c,a){
   else if(G.player.kind==="animal"){ctx.beginPath();ctx.ellipse(0,2,17,11,0,0,Math.PI*2);ctx.fill();ctx.fillStyle=a;ctx.beginPath();ctx.moveTo(-12,-7);ctx.lineTo(-17,-18);ctx.lineTo(-5,-10);ctx.fill()}
   else{ctx.beginPath();ctx.arc(0,0,15,0,Math.PI*2);ctx.fill();ctx.fillStyle=a;ctx.fillRect(-7,-3,14,6)}
   ctx.restore();
+}
+function drawPlayer(x,y,c,a){
+  var generatedAsset=(G.assets||[]).filter(function(asset){
+    return asset.kind==="character"||asset.kind==="companion";
+  })[0];
+  if(generatedAsset){
+    drawCharacterAsset(generatedAsset,x,y,72);
+  }
 }
 function draw(){
   drawBackground();window.__RK_GAME_RENDERED__=true;
