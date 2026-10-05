@@ -31,9 +31,9 @@ export type GameSystemPlan = {
 };
 
 const rules: Array<{ id: GameSystemId; patterns: RegExp[]; reason: string }> = [
-  { id: "turnBasedCombat", patterns: [/turn.?based/i, /giliran/i, /bergiliran/i], reason: "Turn-based battle was requested." },
+  { id: "turnBasedCombat", patterns: [/turn.?based/i, /giliran/i, /bergiliran/i, /jrpg/i, /creature battle/i, /monster battle/i, /pokemon.?style/i], reason: "The concept implies turn-based creature/JRPG battle structure." },
   { id: "collection", patterns: [/collect/i, /collection/i, /kumpul/i, /tangkap/i, /catch/i, /creature/i, /monster/i, /makhluk/i], reason: "The concept contains collection/capture elements." },
-  { id: "party", patterns: [/party/i, /team/i, /tim/i, /kelompok/i], reason: "The concept contains a party/team system." },
+  { id: "party", patterns: [/party/i, /team/i, /tim/i, /kelompok/i, /party of creatures/i, /team of creatures/i, /starter team/i], reason: "The concept contains a party/team system." },
   { id: "evolution", patterns: [/evol/i, /berubah bentuk/i, /transform/i, /upgrade form/i], reason: "The concept contains evolution or form changes." },
   { id: "npc", patterns: [/npc/i, /villager/i, /merchant/i, /pedagang/i, /warga/i, /karakter/i], reason: "The concept contains non-player characters." },
   { id: "dialogue", patterns: [/dialog/i, /percakapan/i, /bicara/i, /story/i, /cerita/i], reason: "The concept contains dialogue or narrative." },
