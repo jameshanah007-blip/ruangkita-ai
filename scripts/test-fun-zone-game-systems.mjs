@@ -3,9 +3,10 @@ import { buildGameSystemPlan } from "../app/fun-zone/engine/gameSystemFactory.ts
 import { composeGamePlan } from "../app/fun-zone/engine/gameComposer.ts";
 import { buildVisualBlueprint } from "../app/fun-zone/engine/visualBlueprint.ts";
 import { buildAssetRegistry } from "../app/fun-zone/engine/assetRegistry.ts";
-import { generateGameAssets } from "../app/fun-zone/engine/assetGenerator.ts";
+import { generateGameAssets, generateLocalGameAssets } from "../app/fun-zone/engine/assetGenerator.ts";
 import { materializeGameAssets } from "../app/fun-zone/engine/assetMaterializer.ts";
 import { buildCharacterAssetPlan } from "../app/fun-zone/engine/characterAssetPipeline.ts";
+import { materializeGameAssets as materializeAssets } from "../app/fun-zone/engine/assetMaterializer.ts";
 import {
   createModularGameState,
   captureCreature,
@@ -53,7 +54,37 @@ const pokemonPlan = buildGameSystemPlan(pokemonLike);
 for (const required of ["exploration", "collection", "party", "turnBasedCombat", "progression", "evolution"]) {
   assert.ok(pokemonPlan.systems.includes(required), `creature RPG should include ${required}`);
 }
-const visual = buildVisualBlueprint(pokemonLike);\nconst characterPlan = buildCharacterAssetPlan(visual.characters, visual.artDirection.style);\nconst registry = buildAssetRegistry(visual);\nconst generated = generateGameAssets(registry);\nconst materialized = materializeGameAssets(generated);\nassert.ok(characterPlan.characters.length > 0);\nassert.ok(characterPlan.consistencyRules.length >= 3);\nassert.ok(characterPlan.characters[0].identityKey.length > 10);\nassert.ok(registry.requiredAssetIds.length > 0);\nassert.equal(materialized.assets.length, registry.assets.length);\nassert.ok(materialized.assets.every((asset) => asset.uri.startsWith("data:image/svg+xml")));\nassert.ok(materialized.assets.every((asset) => asset.status === "ready"));\n\nconst composed = composeGamePlan(pokemonLike);
+const visual = buildVisualBlueprint(pokemonLike);\nconst characterPlan = buildCharacterAssetPlan(visual.characters, visual.artDirection.style);\nconst registry = buildAssetRegistry(visual);\nconst generated = generateLocalGameAssets(registry);\nconst materialized = materializeGameAssets(generated);\nassert.ok(characterPlan.characters.length > 0);\nassert.ok(characterPlan.consistencyRules.length >= 3);\nassert.ok(characterPlan.characters[0].identityKey.length > 10);\nassert.ok(registry.requiredAssetIds.length > 0);\nassert.equal(materialized.assets.length, registry.assets.length);\nassert.ok(materialized.assets.every((asset) => asset.uri.startsWith("data:image/svg+xml")));\nassert.ok(materialized.assets.every((asset) => asset.status === "ready"));
+
+const provider = {
+  name: "test-image-provider",
+  supports: ["character", "npc", "enemy", "companion", "environment", "prop", "effect", "ui"],
+  async generate(asset) {
+    return {
+      uri: `data:image/test,${asset.id}`,
+      metadata: { identityKey: asset.id, promptEcho: asset.prompt },
+    };
+  },
+};
+const providerGenerated = await generateGameAssets(registry, provider);
+assert.ok(providerGenerated.assets.every((asset) => asset.status === "ready"));
+assert.ok(providerGenerated.assets.every((asset) => asset.metadata.provider === "test-image-provider"));
+assert.equal(providerGenerated.assets[0].metadata.providerMetadata.identityKey, providerGenerated.assets[0].id);
+const providerMaterialized = materializeAssets(providerGenerated);
+assert.ok(providerMaterialized.assets.every((asset) => asset.materializer === "provider"));
+assert.ok(providerMaterialized.assets.every((asset) => asset.uri.startsWith("data:image/test,")));
+
+const failingProvider = {
+  name: "failing-provider",
+  supports: ["character", "npc", "enemy", "companion", "environment", "prop", "effect", "ui"],
+  async generate() {
+    throw new Error("simulated provider outage");
+  },
+};
+const fallbackGenerated = await generateGameAssets(registry, failingProvider);
+assert.ok(fallbackGenerated.warnings.some((warning) => warning.includes("failing-provider")));
+assert.ok(fallbackGenerated.assets.every((asset) => asset.status === "placeholder"));
+assert.ok(fallbackGenerated.assets.every((asset) => asset.metadata.provider === "local-fallback"));\n\nconst composed = composeGamePlan(pokemonLike);
 assert.ok(composed.requiredActions.includes("capture"));
 assert.ok(composed.requiredActions.includes("switchMember"));
 assert.ok(composed.requiredActions.includes("chooseAction"));
