@@ -120,10 +120,25 @@ function characterSpriteSheetSvg(asset: GameAssetSpec): string {
   const start = single.indexOf(">") + 1;
   const end = single.lastIndexOf("</svg>");
   const body = single.slice(start, end);
-  const transforms = ["translate(0 0)","translate(256 0)","translate(512 0)","translate(768 0)"];
-  const motions = ["translate(0 0)","translate(2 -1)","translate(0 0)","translate(-2 -1)"];
-  const frames = transforms.map((t, i) => `<g transform="${t}"><g transform="${motions[i]}">${body}</g></g>`).join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="256" viewBox="0 0 1024 256">${frames}</svg>`;
+  const rows = [
+    { name: "idle-down", flip: false, bob: [0, -2, 0, -1] },
+    { name: "walk-down", flip: false, bob: [0, -3, 1, -2] },
+    { name: "walk-up", flip: false, bob: [-1, 1, -1, 1] },
+    { name: "walk-left", flip: true, bob: [0, -2, 0, 2] },
+    { name: "walk-right", flip: false, bob: [0, 2, 0, -2] },
+    { name: "action", flip: false, bob: [0, -4, 2, -2] },
+  ];
+  const frameGroups = rows.map((row, rowIndex) => {
+    return [0, 1, 2, 3].map((frame) => {
+      const x = frame * 256;
+      const y = rowIndex * 256;
+      const bob = row.bob[frame];
+      const sx = row.flip ? -1 : 1;
+      const tx = row.flip ? x + 256 : x;
+      return `<g transform="translate(${tx} ${y})"><g transform="translate(128 ${128 + bob}) scale(${sx} 1) translate(-128 -128)">${body}</g></g>`;
+    }).join("");
+  }).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1536" viewBox="0 0 1024 1536">${frameGroups}</svg>`;
 }
 export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; metadata: Record<string, unknown> } {
   const dna = buildCharacterDNA(asset);
@@ -147,7 +162,7 @@ export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; 
       assetPrompt: asset.prompt,
       characterDNA: dna,
       identityKey: dna?.identityKey ?? asset.id,
-      spriteSheet: isCharacter ? { frameWidth: 256, frameHeight: 256, frameCount: 4, directionCount: 1, fps: 8 } : null,
+      spriteSheet: isCharacter ? { frameWidth: 256, frameHeight: 256, frameCount: 4, rowCount: 6, states: ["idle-down","walk-down","walk-up","walk-left","walk-right","action"], fps: 8 } : null,
     },
   };
 }
