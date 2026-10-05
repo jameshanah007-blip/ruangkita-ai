@@ -347,7 +347,19 @@ function drawSprite(kind,x,y,dir,frame){
     if(img.complete&&img.naturalWidth){
       ctx.save();
       ctx.imageSmoothingEnabled=false;
-      ctx.drawImage(img,x-20,y-28,40,56);
+      var sheet=img.naturalWidth>img.naturalHeight*1.5;
+      if(sheet){
+        var frameCount=4;
+        var frame=Math.floor(elapsed*8)%frameCount;
+        var fw=img.naturalWidth/frameCount;
+        var fh=img.naturalHeight;
+        var flip=dir==="left" ? -1 : 1;
+        ctx.translate(x,y-28);
+        ctx.scale(flip,1);
+        ctx.drawImage(img,frame*fw,0,fw,fh,-20,0,40,56);
+      }else{
+        ctx.drawImage(img,x-20,y-28,40,56);
+      }
       ctx.restore();
       return;
     }

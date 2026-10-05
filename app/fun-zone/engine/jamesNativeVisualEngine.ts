@@ -115,13 +115,23 @@ function effectSvg(asset: GameAssetSpec): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><radialGradient id="e"><stop stop-color="#fff7ae"/><stop offset=".35" stop-color="#facc15"/><stop offset="1" stop-color="#ef4444" stop-opacity="0"/></radialGradient></defs><circle cx="128" cy="128" r="112" fill="url(#e)"/><path d="M128 22 L145 94 L220 112 L151 132 L128 224 L106 136 L36 112 L110 94Z" fill="#fff" opacity=".85"/><title>${esc(asset.prompt.slice(0, 160))}</title></svg>`;
 }
 
+function characterSpriteSheetSvg(asset: GameAssetSpec): string {
+  const single = characterSvg(asset);
+  const start = single.indexOf(">") + 1;
+  const end = single.lastIndexOf("</svg>");
+  const body = single.slice(start, end);
+  const transforms = ["translate(0 0)","translate(256 0)","translate(512 0)","translate(768 0)"];
+  const motions = ["translate(0 0)","translate(2 -1)","translate(0 0)","translate(-2 -1)"];
+  const frames = transforms.map((t, i) => `<g transform="${t}"><g transform="${motions[i]}">${body}</g></g>`).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="256" viewBox="0 0 1024 256">${frames}</svg>`;
+}
 export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; metadata: Record<string, unknown> } {
   const dna = buildCharacterDNA(asset);
   const isCharacter = ["character", "npc", "enemy", "companion"].includes(asset.kind);
   const svg = asset.kind === "environment"
     ? environmentSvg(asset)
     : isCharacter
-      ? characterSvg(asset)
+      ? characterSpriteSheetSvg(asset)
       : asset.kind === "effect"
         ? effectSvg(asset)
         : propSvg(asset);
@@ -137,6 +147,7 @@ export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; 
       assetPrompt: asset.prompt,
       characterDNA: dna,
       identityKey: dna?.identityKey ?? asset.id,
+      spriteSheet: isCharacter ? { frameWidth: 256, frameHeight: 256, frameCount: 4, directionCount: 1, fps: 8 } : null,
     },
   };
 }
