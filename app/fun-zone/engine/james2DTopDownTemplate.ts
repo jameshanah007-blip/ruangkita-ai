@@ -137,7 +137,7 @@ var keyCodes={};
 var spriteCache={};
 var state;
 var lastMoveSound=0;
-var animationState={player:"idle-down",npc:"idle-down",enemy:"idle-down",companion:"idle-down"};
+var animationState={player:"idle-down",npc:"idle-down",npc2:"idle-down",enemy:"idle-down",companion:"idle-down"};
 var animationStateUntil={player:0,npc:0,enemy:0,companion:0};
 
 window.__RK_GAME_READY__=false;
@@ -352,7 +352,7 @@ function resolveAnimationState(kind,dir,moving){
   return "walk-down";
 }
 function drawSprite(kind,x,y,dir,frame){
-  var source=kind==="player"?G.playerAsset:kind==="npc"?G.npcAsset:G.enemyAsset;
+  var source=kind==="player"?G.playerAsset:kind==="npc"||kind==="npc2"?G.npcAsset:G.enemyAsset;
   if(source){
     var img=spriteCache[source];
     if(!img){
@@ -422,7 +422,7 @@ function drawWorld(){
   }
 
   drawSprite("npc",state.npc.x,state.npc.y,"down",state.npc.frame);
-  drawSprite("npc",state.npc2.x,state.npc2.y,"down",state.npc2.frame);
+  drawSprite("npc2",state.npc2.x,state.npc2.y,"down",state.npc2.frame);
   drawSprite("enemy",state.creature.x,state.creature.y,state.creature.dir||"down",state.creature.frame);
   drawSprite("player",state.player.x,state.player.y,state.player.dir,state.player.frame);
   for(var t=0;t<state.torches.length;t++) drawTorch(state.torches[t].x,state.torches[t].y);
@@ -487,22 +487,28 @@ function drawLighting(camX,camY){
 
 function interact(){
   if(state.won||state.lost)return;
-  state.actionUntil=performance.now()+420;
-  setAnimationState("player","action",420);
   var dNpc=Math.min(dist(state.player,state.npc),dist(state.player,state.npc2));
+  var dEnemy=dist(state.player,state.creature);
+  state.actionUntil=performance.now()+420;
+  if(dEnemy<48){
+    setAnimationState("player","attack",420);
+    state.creature.hitUntil=performance.now()+420;
+    state.dialog="Makhluk liar terkena serangan! Jelajahi area untuk menemukan semua Crystal.";
+    state.dialogUntil=performance.now()+1900;
+    state.stateChanges++;
+    tone(120,.08,"sawtooth",.04);tone(420,.1,"square",.035);
+    return;
+  }
   if(dNpc<58){
+    setAnimationState("player","talk",620);
+    if(dist(state.player,state.npc)<58) setAnimationState("npc","talk",620);
+    if(dist(state.player,state.npc2)<58) setAnimationState("npc2","talk",620);
     state.dialog="Aira: Selamat datang di desa. Jelajahi hutan dan temukan semua Crystal!";
     state.dialogUntil=performance.now()+2600;
     state.stateChanges++;tone(660,.12,"sine",.05);tone(880,.16,"sine",.04);
     return;
   }
-  var dEnemy=dist(state.player,state.creature);
-  if(dEnemy<48){
-    state.creature.hitUntil=performance.now()+420;
-    state.dialog="Makhluk liar! Tekan A / Space untuk berinteraksi.";
-    state.dialogUntil=performance.now()+1900;
-    state.stateChanges++;tone(120,.12,"sawtooth",.04);
-  }
+  setAnimationState("player","action",420);
 }
 
 function checkCrystals(){
@@ -530,7 +536,8 @@ function updateCreature(dt){
   setAnimationState("enemy",resolveAnimationState("enemy",state.creature.dir,Boolean(state.creature.dx||state.creature.dy)),180);
   state.npc.frame=(state.npc.frame+dt*2)%4;
   state.npc2.frame=(state.npc2.frame+dt*1.7)%4;
-  setAnimationState("npc","idle-down",240);
+  if(!animationStateUntil.npc || animationStateUntil.npc<performance.now()) setAnimationState("npc","idle-down",240);
+  if(!animationStateUntil.npc2 || animationStateUntil.npc2<performance.now()) setAnimationState("npc2","idle-down",240);
   setAnimationState("companion","idle-down",240);
   if(Math.random()<.01){
     var a=Math.floor(Math.random()*4);
