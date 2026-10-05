@@ -1,6 +1,6 @@
 import type { GameBlueprint } from "../laboratory/types";
 import { buildGameSystemPlan } from "./gameSystemFactory";
-import { buildVisualBlueprint } from "./visualBlueprint";
+import { createVisualBlueprint } from "./visualDirector";
 
 function esc(value: string): string {
   return value.replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c] || c));
@@ -8,7 +8,7 @@ function esc(value: string): string {
 
 export function buildLocalGameHtml(b: GameBlueprint): string {
   const title=esc(b.title), objective=esc(b.objective), theme=esc(b.theme);
-  const systemPlan=buildGameSystemPlan(b), visualPlan=buildVisualBlueprint(b), mode=systemPlan.primaryMode, seed=Math.abs([...b.concept].reduce((n,c)=>(n*31+c.charCodeAt(0))|0,17));
+  const systemPlan=buildGameSystemPlan(b), visualPlan=createVisualBlueprint(b), mode=systemPlan.primaryMode, seed=Math.abs([...b.concept].reduce((n,c)=>(n*31+c.charCodeAt(0))|0,17));
   const text=[b.genre,b.concept,b.objective,b.coreLoop,...b.mechanics,...b.playerActions].join(" ").toLowerCase();
   const systems={
     exploration:/(explore|exploration|jelajah|menjelajah|petualangan)/.test(text),
