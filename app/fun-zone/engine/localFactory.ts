@@ -3,6 +3,7 @@ import { buildGameSystemPlan } from "./gameSystemFactory";
 import { createVisualBlueprint } from "./visualDirector";
 import { buildAssetRegistry } from "./assetRegistry";
 import { generateGameAssets } from "./assetGenerator";
+import { buildCharacterAssetPlan } from "./characterAssetPipeline";
 import { materializeGameAssets } from "./assetMaterializer";
 
 function esc(value: string): string {
@@ -11,7 +12,7 @@ function esc(value: string): string {
 
 export function buildLocalGameHtml(b: GameBlueprint): string {
   const title=esc(b.title), objective=esc(b.objective), theme=esc(b.theme);
-  const systemPlan=buildGameSystemPlan(b), visualPlan=createVisualBlueprint(b), assetRegistry=buildAssetRegistry(visualPlan), generatedAssets=generateGameAssets(assetRegistry), materializedAssets=materializeGameAssets(generatedAssets), mode=systemPlan.primaryMode, seed=Math.abs([...b.concept].reduce((n,c)=>(n*31+c.charCodeAt(0))|0,17));
+  const systemPlan=buildGameSystemPlan(b), visualPlan=createVisualBlueprint(b), characterAssetPlan=buildCharacterAssetPlan(visualPlan.characters, visualPlan.artDirection.style), assetRegistry=buildAssetRegistry(visualPlan), generatedAssets=generateGameAssets(assetRegistry), materializedAssets=materializeGameAssets(generatedAssets), mode=systemPlan.primaryMode, seed=Math.abs([...b.concept].reduce((n,c)=>(n*31+c.charCodeAt(0))|0,17));
   const text=[b.genre,b.concept,b.objective,b.coreLoop,...b.mechanics,...b.playerActions].join(" ").toLowerCase();
   const systems={
     exploration:/(explore|exploration|jelajah|menjelajah|petualangan)/.test(text),
@@ -25,7 +26,7 @@ export function buildLocalGameHtml(b: GameBlueprint): string {
     collection:/(collect|collection|kumpul|kumpulkan|item|harta|loot)/.test(text),
     progression:/(level|leveling|upgrade|skill|experience|xp|progres|progression)/.test(text)
   };
-  const config=JSON.stringify({mode,seed,systems,gameSystems:systemPlan.systems,gameSystemReasons:systemPlan.reasons,visualBlueprint:visualPlan,assetRegistry,generatedAssets,materializedAssets});
+  const config=JSON.stringify({mode,seed,systems,gameSystems:systemPlan.systems,gameSystemReasons:systemPlan.reasons,visualBlueprint:visualPlan,characterAssetPlan,assetRegistry,generatedAssets,materializedAssets});
   return `<!doctype html><html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>${title}</title><style>
