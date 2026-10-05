@@ -120,8 +120,8 @@ export async function verifyGameInBrowser(gameHtml:string, blueprint:GameBluepri
     try {
       evidence=JSON.parse(trimmed) as SandboxTestEvidence;
     } catch {
-      const candidates=trimmed.split("\\n").map((line)=>line.trim()).filter(Boolean).reverse();
-      const jsonLine=candidates.find((line)=>line.startsWith("{")&&line.endsWith("}"));
+      const candidates=trimmed.split("\n").map((line: string)=>line.trim()).filter(Boolean).reverse();
+      const jsonLine=candidates.find((line: string)=>line.startsWith("{")&&line.endsWith("}"));
       if (!jsonLine) {
         throw new Error("Browser verifier tidak menerima JSON evidence yang valid dari agent-browser.");
       }
