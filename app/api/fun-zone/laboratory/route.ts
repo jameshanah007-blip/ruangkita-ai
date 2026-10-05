@@ -423,7 +423,7 @@ export async function POST(
         success: true,
         provider: "james-autonomous",
         model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(composedBlueprint),
+        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets),
         validation: {
           valid: true,
           errors: [],
@@ -437,7 +437,7 @@ export async function POST(
         success: true,
         provider: "james-autonomous",
         model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(composedBlueprint),
+        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets),
         validation: {
           valid: true,
           errors: [],
