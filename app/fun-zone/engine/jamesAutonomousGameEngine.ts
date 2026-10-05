@@ -384,6 +384,7 @@ function runtimeAssets(materializedAssets?: AssetMaterializationResult) {
         typeof asset.metadata.providerMetadata?.chromaKey === "string"
           ? asset.metadata.providerMetadata.chromaKey
           : null,
+      characterDNA: asset.metadata.providerMetadata?.characterDNA ?? null,
     }));
 }
 
@@ -442,6 +443,7 @@ var W=720,H=900,dpr=1,last=0,elapsed=0;
 var assetImages={};
 var input={left:false,right:false,up:false,down:false,action:false};
 var state;
+var characterRuntime={pose:"idle",poseUntil:0,identityKey:null};
 window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;
 
 function seeded(n){var x=Math.sin(G.seed+n*12.9898)*43758.5453;return x-Math.floor(x)}
@@ -494,9 +496,51 @@ function drawAsset(img,x,y,size){
   ctx.drawImage(img,x-size/2,y-size/2,size,size);
   return true;
 }
+function drawCharacterAsset(asset,x,y,size){
+  var img=assetImages[asset.id];
+  if(!img||!img.width||!img.height)return false;
+  var pose=characterRuntime.pose;
+  var dna=asset.characterDNA||{};
+  var frameCount=pose==="idle"||pose==="talk"?2:4;
+  var frame=Math.floor(elapsed/120)%frameCount;
+  var phase=frameCount<=1?0:frame/(frameCount-1);
+  var wave=Math.sin(phase*Math.PI*2);
+  var dx=pose==="move"?wave*3:0;
+  var dy=pose==="idle"?Math.abs(wave)*-2:pose==="hit"?2:0;
+  var rotation=pose==="action"?wave*.08:pose==="hit"?-.05:0;
+  var scaleX=pose==="move"?1+wave*.025:1;
+  var scaleY=pose==="idle"?1+Math.abs(wave)*.018:1;
+  if(dna.identityKey)characterRuntime.identityKey=dna.identityKey;
+  ctx.save();
+  ctx.translate(x+dx,y+dy);
+  ctx.rotate(rotation);
+  ctx.scale(scaleX,scaleY);
+  ctx.drawImage(img,-size/2,-size/2,size,size);
+  ctx.restore();
+  return true;
+}
 function reset(){
   state={status:"playing",x:G.level.width/2,y:G.level.height-180,health:G.player.health,score:0,progress:0,time:0,energy:100,world:makeWorld(),level:1};
-  elapsed=0;msg.style.display="none";updateHud();
+  elapsed=0;characterRuntime.pose="idle";characterRuntime.poseUntil=0;characterRuntime.identityKey=null;msg.style.display="none";updateHud();
+}
+function characterAsset(){
+  var list=(G.assets||[]).filter(function(asset){return asset.kind==="character"||asset.kind==="companion"||asset.kind==="npc"||asset.kind==="enemy";});
+  return list[0]||null;
+}
+function setCharacterPose(pose,duration){
+  var asset=characterAsset();
+  if(!asset||!asset.characterDNA)return;
+  characterRuntime.pose=pose;
+  characterRuntime.poseUntil=elapsed+(duration||180);
+  characterRuntime.identityKey=asset.characterDNA.identityKey||null;
+}
+function updateCharacterPose(){
+  var moving=input.left||input.right||input.up||input.down;
+  if(elapsed<characterRuntime.poseUntil)return;
+  if(input.action&&(G.mechanics.indexOf("combat")>=0||G.mechanics.indexOf("shooting")>=0)){setCharacterPose("action",220);return;}
+  if(moving){setCharacterPose("move",160);return;}
+  if(G.mechanics.indexOf("dialogue")>=0&&input.action){setCharacterPose("talk",300);return;}
+  setCharacterPose("idle",180);
 }
 function setInput(a,v){if(a in input)input[a]=v}
 document.querySelectorAll("[data-a]").forEach(function(b){var a=b.dataset.a;["pointerdown","pointerup","pointercancel","pointerleave"].forEach(function(t){b.addEventListener(t,function(e){e.preventDefault();setInput(a,t==="pointerdown")})})});
@@ -528,6 +572,7 @@ function objectiveProgress(){
   return Math.min(1,collected/Math.max(1,G.item.count));
 }
 function attack(){
+  setCharacterPose("action",220);
   var nearest=null,best=9999;
   state.world.enemies.forEach(function(e){if(!e.alive)return;var d=dist({x:state.x,y:state.y},e);if(d<best){best=d;nearest=e}});
   if(nearest&&best<120){nearest.health-=G.player.attack;if(nearest.health<=0){nearest.alive=false;state.score+=25;state.progress+=1}}
@@ -535,6 +580,8 @@ function attack(){
 function update(dt){
   if(state.status!=="playing")return;
   state.time+=dt;
+  elapsed+=dt*1000;
+  updateCharacterPose();
   movement(dt);
 
   state.world.items.forEach(function(item){
@@ -553,7 +600,11 @@ function update(dt){
     var aggressive=G.mechanics.indexOf("stealth")<0;
     if(aggressive){e.x+=dx/d*G.enemy.speed*dt;e.y+=dy/d*G.enemy.speed*dt}
     else{e.x+=Math.sin(state.time+e.phase)*G.enemy.speed*.25*dt}
-    if(d<32&&aggressive)state.health-=((8+G.difficulty*16)*dt);
+    if(d<32&&aggressive){
+      var before=state.health;
+      state.health-=((8+G.difficulty*16)*dt);
+      if(state.health<before)setCharacterPose("hit",220);
+    }
   });
 
   if(G.mechanics.indexOf("survival")>=0&&state.time>50)state.progress=G.item.count;
@@ -633,8 +684,8 @@ function drawEnemy(x,y,c){
   ctx.restore();
 }
 function drawPlayer(x,y,c,a){
-  var generated=assetImage("character",0);
-  if(G.player.kind==="hero" && drawAsset(generated,x,y,72))return;
+  var generatedAsset=(G.assets||[]).filter(function(asset){return asset.kind==="character";})[0];
+  if(G.player.kind==="hero" && generatedAsset && drawCharacterAsset(generatedAsset,x,y,72))return;
   ctx.save();ctx.translate(x,y);ctx.fillStyle=c;
   if(G.player.kind==="vehicle"){ctx.fillRect(-22,-11,44,22);ctx.fillStyle=a;ctx.fillRect(-9,-8,18,8);ctx.fillStyle="#111";ctx.beginPath();ctx.arc(-14,11,5,0,Math.PI*2);ctx.arc(14,11,5,0,Math.PI*2);ctx.fill()}
   else if(G.player.kind==="ship"){ctx.beginPath();ctx.moveTo(0,-24);ctx.lineTo(20,18);ctx.lineTo(0,10);ctx.lineTo(-20,18);ctx.closePath();ctx.fill();ctx.fillStyle=a;ctx.fillRect(-4,-3,8,10)}
