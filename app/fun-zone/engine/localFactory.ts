@@ -5,19 +5,6 @@ function esc(value: string): string {
   return value.replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c] || c));
 }
 
-function modeFor(b: GameBlueprint): string {
-  const s=[b.genre,b.concept,b.objective,b.coreLoop,...b.mechanics,...b.playerActions].join(" ").toLowerCase();
-  if (/(runner|endless|lari|run)/.test(s)) return "runner";
-  if (/(puzzle|teka|logic|match|grid)/.test(s)) return "puzzle";
-  if (/(racing|race|balap|driving|kendaraan|mobil)/.test(s)) return "racing";
-  if (/(stealth|siluman|infiltrat|patrol|spy)/.test(s)) return "stealth";
-  if (/(farm|farming|bertani|tanam|simulation|simulasi)/.test(s)) return "farming";
-  if (/(strategy|strategi|tower|defense|pertahan)/.test(s)) return "strategy";
-  if (/(combat|fight|battle|perang|shooter|menembak|arena)/.test(s)) return "combat";
-  if (/(survival|bertahan|zombie|monster|horror)/.test(s)) return "survival";
-  return "adventure";
-}
-
 export function buildLocalGameHtml(b: GameBlueprint): string {
   const title=esc(b.title), objective=esc(b.objective), theme=esc(b.theme);
   const systemPlan=buildGameSystemPlan(b), mode=systemPlan.primaryMode, seed=Math.abs([...b.concept].reduce((n,c)=>(n*31+c.charCodeAt(0))|0,17));
