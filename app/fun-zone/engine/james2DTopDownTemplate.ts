@@ -15,7 +15,7 @@ function textOf(blueprint: GameBlueprint): string {
 
 export function isTopDown2DTemplateRequest(blueprint: GameBlueprint): boolean {
   const text = textOf(blueprint);
-  return /(pokemon|pokémon|top.?down|top down|2d rpg|rpg|monster tamer|creature collection|pixel art|pixel-art)/i.test(text);
+  return /(pokemon|pokémon|top.?down|top down|2d rpg|rpg|adventure|petualangan|fantasy|fantasi|monster tamer|creature collection|pixel art|pixel-art)/i.test(text);
 }
 
 function js(value: unknown): string {
