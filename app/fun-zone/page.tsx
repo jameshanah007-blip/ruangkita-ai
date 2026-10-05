@@ -408,6 +408,11 @@ export default function FunZonePage() {
   const [prompt, setPrompt] =
     useState("");
 
+  const [referenceImage, setReferenceImage] =
+    useState<{ dataUrl: string; mimeType: "image/png" | "image/jpeg" | "image/webp"; width: number; height: number } | null>(null);
+
+  const [referenceImageError, setReferenceImageError] = useState("");
+
 
   const [stage, setStage] =
     useState<LabStage>("idle");
@@ -1064,6 +1069,57 @@ const handleSandboxError =
                 aria-label="Permintaan pembuatan game"
                 className="w-full resize-none rounded-2xl border border-white/10 bg-slate-950/70 px-5 py-4 text-base leading-7 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
               />
+
+              <div className="mt-4 rounded-2xl border border-dashed border-white/15 bg-slate-950/50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="text-sm font-bold text-white">Reference visual (opsional)</div>
+                    <div className="mt-1 text-xs text-slate-500">Upload PNG, JPG, atau WebP. James akan memakai gambar ini sebagai target visual.</div>
+                  </div>
+                  <label className="cursor-pointer rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm font-bold text-cyan-300 hover:bg-cyan-400/20">
+                    Pilih gambar
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      disabled={isGenerating}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) return;
+                        setReferenceImageError("");
+                        if (file.size > 6 * 1024 * 1024) {
+                          setReferenceImage(null);
+                          setReferenceImageError("Ukuran gambar maksimal 6 MB.");
+                          return;
+                        }
+                        const allowed = ["image/png", "image/jpeg", "image/webp"] as const;
+                        if (!allowed.includes(file.type as typeof allowed[number])) {
+                          setReferenceImage(null);
+                          setReferenceImageError("Format harus PNG, JPG, atau WebP.");
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const dataUrl = typeof reader.result === "string" ? reader.result : "";
+                          if (!dataUrl) return;
+                          const image = new Image();
+                          image.onload = () => setReferenceImage({ dataUrl, mimeType: file.type as "image/png" | "image/jpeg" | "image/webp", width: image.naturalWidth, height: image.naturalHeight });
+                          image.src = dataUrl;
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+                </div>
+                {referenceImage && (
+                  <div className="mt-3 flex items-center gap-3">
+                    <img src={referenceImage.dataUrl} alt="Reference visual" className="h-20 w-28 rounded-lg border border-white/10 object-cover" />
+                    <div className="text-xs text-slate-400">{referenceImage.width} × {referenceImage.height}px · reference siap dianalisis</div>
+                    <button type="button" className="ml-auto text-xs font-bold text-red-300" onClick={() => setReferenceImage(null)}>Hapus</button>
+                  </div>
+                )}
+                {referenceImageError && <div className="mt-2 text-xs text-red-300">{referenceImageError}</div>}
+              </div>
 
               <button
                 type="button"
