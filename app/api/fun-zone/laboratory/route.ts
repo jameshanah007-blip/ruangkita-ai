@@ -364,8 +364,9 @@ export async function POST(
 
     // Compose reusable gameplay systems before the existing autonomous builder runs.
     // We enrich the existing blueprint instead of replacing the current architecture.
-    const composedPlan = composeGamePlan(learnedBlueprint);
-    let buildPlan = createGameBuildPlan(learnedBlueprint);
+    let effectiveBlueprint = learnedBlueprint;
+    const composedPlan = composeGamePlan(effectiveBlueprint);
+    let buildPlan = createGameBuildPlan(effectiveBlueprint);
     let visualBlueprint = createVisualBlueprint(learnedBlueprint);
     let visualQa = evaluateVisualBuild(learnedBlueprint, buildPlan, visualBlueprint);
     let refinementPasses = 0;
@@ -374,10 +375,10 @@ export async function POST(
     // This is intentionally additive: the original blueprint remains the base,
     // while QA feedback enriches the next build specification.
     if (visualQa.refinement.required && visualQa.refinement.maxPasses > 0) {
-      const refinedBlueprint = applyVisualRefinement(learnedBlueprint, visualQa);
-      buildPlan = createGameBuildPlan(refinedBlueprint);
-      visualBlueprint = createVisualBlueprint(refinedBlueprint);
-      visualQa = evaluateVisualBuild(refinedBlueprint, buildPlan, visualBlueprint);
+      effectiveBlueprint = applyVisualRefinement(effectiveBlueprint, visualQa);
+      buildPlan = createGameBuildPlan(effectiveBlueprint);
+      visualBlueprint = createVisualBlueprint(effectiveBlueprint);
+      visualQa = evaluateVisualBuild(effectiveBlueprint, buildPlan, visualBlueprint);
       refinementPasses = 1;
     }
 
@@ -392,11 +393,11 @@ export async function POST(
     const generatedAssets = await generateGameAssets(assetRegistry, realAssetProviders);
     const materializedAssets = materializeGameAssets(generatedAssets);
     const composedBlueprint: GameBlueprint = {
-      ...learnedBlueprint,
-      mechanics: [...new Set([...learnedBlueprint.mechanics, ...composedPlan.systems.map((system) => system.id)])],
-      playerActions: [...new Set([...learnedBlueprint.playerActions, ...composedPlan.requiredActions])],
-      testRequirements: [...new Set([...learnedBlueprint.testRequirements, ...composedPlan.testGoals, ...buildPlan.testStages])],
-      controls: [...new Set([...learnedBlueprint.controls, ...buildPlan.controls.keyboard, ...buildPlan.controls.touch])],
+      ...effectiveBlueprint,
+      mechanics: [...new Set([...effectiveBlueprint.mechanics, ...composedPlan.systems.map((system) => system.id)])],
+      playerActions: [...new Set([...effectiveBlueprint.playerActions, ...composedPlan.requiredActions])],
+      testRequirements: [...new Set([...effectiveBlueprint.testRequirements, ...composedPlan.testGoals, ...buildPlan.testStages])],
+      controls: [...new Set([...effectiveBlueprint.controls, ...buildPlan.controls.keyboard, ...buildPlan.controls.touch])],
     };
 
     session =
