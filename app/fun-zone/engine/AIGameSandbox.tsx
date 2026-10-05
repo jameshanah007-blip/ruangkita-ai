@@ -233,6 +233,35 @@ function buildDiagnosticHtml(
   window.__RK_TEST_RESULT_SENT__ = false;
 
   /*
+   * Keyboard bridge:
+   * The game runs inside a sandboxed iframe, so keyboard focus can remain
+   * outside the generated game. The parent forwards gameplay keys here,
+   * then the sandbox dispatches a real KeyboardEvent to the game document.
+   */
+  try {
+    window.addEventListener("message", function (event) {
+      try {
+        var data = event && event.data;
+        if (!data || data.type !== "AI_GAME_KEY_EVENT") return;
+
+        var target = document;
+        var keyEvent = new KeyboardEvent(
+          String(data.eventType || "keydown"),
+          {
+            bubbles: true,
+            cancelable: true,
+            key: String(data.key || ""),
+            code: String(data.code || ""),
+            repeat: data.repeat === true
+          }
+        );
+
+        target.dispatchEvent(keyEvent);
+      } catch (_) {}
+    });
+  } catch (_) {}
+
+  /*
    * Internal instrumentation flags.
    *
    * Listener/RAF activity created by the
@@ -2674,11 +2703,79 @@ void runDebugger(
       handleMessage
     );
 
+    /*
+     * Forward gameplay keyboard input from the parent page into the
+     * sandboxed game. This keeps WASD/arrow/action controls working even
+     * when the iframe itself does not currently own browser focus.
+     */
+    const forwardKeyboardEvent = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName?.toLowerCase();
+
+      if (
+        tagName === "input" ||
+        tagName === "textarea" ||
+        tagName === "select" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      const gameplayKeys = new Set([
+        "ArrowUp",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowRight",
+        "w",
+        "a",
+        "s",
+        "d",
+        "W",
+        "A",
+        "S",
+        "D",
+        " ",
+        "Enter",
+        "e",
+        "E",
+        "f",
+        "F",
+        "j",
+        "J",
+        "k",
+        "K",
+        "x",
+        "X",
+        "z",
+        "Z"
+      ]);
+
+      if (!gameplayKeys.has(event.key)) return;
+
+      event.preventDefault();
+
+      iframeRef.current?.contentWindow?.postMessage(
+        {
+          type: "AI_GAME_KEY_EVENT",
+          eventType: event.type,
+          key: event.key,
+          code: event.code,
+          repeat: event.repeat
+        },
+        "*"
+      );
+    };
+
+    window.addEventListener("keydown", forwardKeyboardEvent, { passive: false });
+    window.addEventListener("keyup", forwardKeyboardEvent, { passive: false });
+
     return () => {
       window.removeEventListener(
         "message",
         handleMessage
       );
+      window.removeEventListener("keydown", forwardKeyboardEvent);
+      window.removeEventListener("keyup", forwardKeyboardEvent);
 
       if (
         testTimerRef.current
