@@ -362,6 +362,7 @@ export async function POST(
     // We enrich the existing blueprint instead of replacing the current architecture.
     const composedPlan = composeGamePlan(learnedBlueprint);
     const visualBlueprint = createVisualBlueprint(learnedBlueprint);
+    const characterAssetPlan = buildCharacterAssetPlan(visualBlueprint.characters, visualBlueprint.artDirection.style);
     const assetRegistry = buildAssetRegistry(visualBlueprint);
     const generatedAssets = await generateGameAssets(assetRegistry);
     const materializedAssets = materializeGameAssets(generatedAssets);
@@ -484,7 +485,11 @@ export async function POST(
 
       assetRegistry,
 
+      characterAssetPlan,
+
       generatedAssets,
+
+      materializedAssets,
 
       artifact,
 
