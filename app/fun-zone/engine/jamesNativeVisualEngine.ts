@@ -1,4 +1,6 @@
 import type { AssetKind, GameAssetSpec } from "./assetRegistry";
+import { buildCharacterDNA, characterDNAPrompt } from "./characterDNA";
+import { buildCharacterDNA, characterDNAPrompt } from "./characterDNA";
 
 function esc(value: string): string {
   return value.replace(/[&<>"']/g, (c) => ({
@@ -23,14 +25,16 @@ function palette(seed: number) {
 }
 
 function characterSvg(asset: GameAssetSpec): string {
-  const seed = hash(asset.prompt + asset.id);
+  const dna = buildCharacterDNA(asset);
+  const seed = dna?.paletteSeed ?? hash(asset.prompt + asset.id);
   const p = palette(seed);
   const enemy = asset.kind === "enemy";
   const companion = asset.kind === "companion";
-  const female = /female|girl|woman|princess|heroine|perempuan|wanita/i.test(asset.prompt);
-  const hasSword = /sword|katana|blade|weapon|pedang|samurai/i.test(asset.prompt);
-  const hasArmor = /armor|armour|knight|warrior|ksatria/i.test(asset.prompt);
-  const longHair = female || /long hair|rambut panjang/i.test(asset.prompt);
+  const dnaPrompt = dna ? characterDNAPrompt(dna) : asset.prompt;
+  const female = dna?.gender === "female" || /female|girl|woman|princess|heroine|perempuan|wanita/i.test(asset.prompt);
+  const hasSword = /sword|katana|blade|weapon|pedang|samurai/i.test(dnaPrompt);
+  const hasArmor = /armor|armour|knight|warrior|ksatria/i.test(dnaPrompt);
+  const longHair = female || /long hair|rambut panjang/i.test(dnaPrompt);
   const suit = enemy ? "#7f243d" : companion ? "#087c9b" : p.suit;
   const accent = enemy ? "#ff5b7d" : p.accent;
   const hair = enemy ? "#182033" : p.hair;
@@ -129,8 +133,13 @@ export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; 
       identityPreserved: isCharacter,
       deterministic: true,
       style: /anime/i.test(asset.prompt) ? "anime-inspired-2d-v2" : "stylized-2d-v2",
-      poseSet: asset.animationNeeds.length ? asset.animationNeeds : ["idle", "move", "action"],
+      poseSet: dna?.animationNeeds ?? (asset.animationNeeds.length ? asset.animationNeeds : ["idle", "move", "action", "hit", "talk"]),
       assetPrompt: asset.prompt,
+      characterDNA: dna,
+      identityKey: dna?.identityKey ?? asset.id,
+      characterDNA: dna,
+      identityKey: dna?.identityKey ?? asset.id,
+      poseSet: dna?.animationNeeds ?? (asset.animationNeeds.length ? asset.animationNeeds : ["idle", "move", "action", "hit", "talk"]),
     },
   };
 }
