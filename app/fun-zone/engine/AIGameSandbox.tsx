@@ -120,6 +120,12 @@ gameTestError?: string;
     height: number;
     nonBlankPixels: number;
     dataUrl?: string;
+    metrics?: {
+      occupancy: number;
+      averageLuminance: number;
+      colorVariance: number;
+      edgeDensity: number;
+    };
   };
 };
 
@@ -712,8 +718,12 @@ function buildDiagnosticHtml(
         ).data;
 
       var nonBlank = 0;
-
       var checksum = 0;
+      var luminanceSum = 0;
+      var luminanceSqSum = 0;
+      var edgeCount = 0;
+      var edgeSamples = 0;
+      var pixelCount = Math.max(1, Math.floor(data.length / 4));
 
       for (
         var i = 0;
@@ -721,45 +731,40 @@ function buildDiagnosticHtml(
         i += 4
       ) {
         var r = data[i];
-
         var g = data[i + 1];
-
         var b = data[i + 2];
-
         var a = data[i + 3];
+        var luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
 
-        if (
-          a > 8 &&
-          (
-            r > 8 ||
-            g > 8 ||
-            b > 8
-          )
-        ) {
-          nonBlank++;
+        if (a > 8 && (r > 8 || g > 8 || b > 8)) nonBlank++;
+        luminanceSum += luminance;
+        luminanceSqSum += luminance * luminance;
+
+        if (i >= 4) {
+          var previousLuminance = (0.2126 * data[i - 4] + 0.7152 * data[i - 3] + 0.0722 * data[i - 2]) / 255;
+          edgeSamples++;
+          if (Math.abs(luminance - previousLuminance) > 0.16) edgeCount++;
         }
 
-        checksum =
-          (
-            checksum +
-            r * 3 +
-            g * 5 +
-            b * 7 +
-            a * 11
-          ) %
-          1000000007;
+        checksum = (checksum + r * 3 + g * 5 + b * 7 + a * 11) % 1000000007;
       }
+
+      var averageLuminance = luminanceSum / pixelCount;
+      var colorVariance = Math.max(0, luminanceSqSum / pixelCount - averageLuminance * averageLuminance);
+      var occupancy = nonBlank / pixelCount;
+      var edgeDensity = edgeSamples > 0 ? edgeCount / edgeSamples : 0;
 
       return {
         width: width,
-
         height: height,
-
-        nonBlankPixels:
-          nonBlank,
-
-        signature:
-          String(checksum)
+        nonBlankPixels: nonBlank,
+        signature: String(checksum),
+        metrics: {
+          occupancy: occupancy,
+          averageLuminance: averageLuminance,
+          colorVariance: colorVariance,
+          edgeDensity: edgeDensity
+        }
       };
     } catch (_) {
       return {
@@ -798,7 +803,8 @@ function buildDiagnosticHtml(
         width: stats.width,
         height: stats.height,
         nonBlankPixels: stats.nonBlankPixels,
-        dataUrl: dataUrl || undefined
+        dataUrl: dataUrl || undefined,
+        metrics: stats.metrics
       };
     } catch (_) {
       return {

@@ -84,6 +84,12 @@ export type RuntimeScreenshotEvidence = {
   height: number;
   nonBlankPixels: number;
   dataUrl?: string;
+  metrics?: {
+    occupancy: number;
+    averageLuminance: number;
+    colorVariance: number;
+    edgeDensity: number;
+  };
 };
 
 export type RuntimeError = {

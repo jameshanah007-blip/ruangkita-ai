@@ -7,6 +7,14 @@ export type RuntimeScreenshotEvidence = {
   nonBlankPixels: number;
   capturedAt?: string;
   dataUrl?: string;
+  metrics?: RuntimeScreenshotMetrics;
+};
+
+export type RuntimeScreenshotMetrics = {
+  occupancy: number;
+  averageLuminance: number;
+  colorVariance: number;
+  edgeDensity: number;
 };
 
 export type RuntimeEvidence = {
@@ -110,6 +118,16 @@ export function analyzeRuntimeEvidence(evidence: RuntimeEvidence): RuntimeVisual
       message: "Belum ada bukti event audio dipicu.",
       repair: "Jalankan interaction/movement audio smoke test.",
     });
+  }
+
+  const metrics = evidence.screenshot.metrics;
+  if (metrics) {
+    if (metrics.occupancy < 0.01) {
+      issues.push({ severity: "warning", area: "rendering", message: "Visual runtime terlalu kosong; sebagian besar frame tidak memiliki konten aktif.", repair: "Perkaya world composition, character visibility, props, dan foreground/background separation." });
+    }
+    if (metrics.colorVariance < 0.002) {
+      issues.push({ severity: "warning", area: "rendering", message: "Variasi visual frame sangat rendah.", repair: "Gunakan palette, environment props, character assets, dan effects yang lebih beragam." });
+    }
   }
 
   const score = Math.round(
