@@ -139,7 +139,21 @@ function characterSpriteSheetSvg(asset: GameAssetSpec): string {
       const bob = row.bob[frame];
       const sx = row.flip ? -1 : 1;
       const tx = row.flip ? x + 256 : x;
-      return `<g transform="translate(${tx} ${y})"><g transform="translate(128 ${128 + bob}) scale(${sx} 1) translate(-128 -128)">${body}</g></g>`;
+      const pose = row.name === "attack"
+        ? `rotate(${frame === 1 ? -8 : frame === 2 ? -18 : frame === 3 ? 10 : 0} 128 176)`
+        : row.name === "hit"
+          ? `rotate(${frame === 0 ? -5 : frame === 1 ? 7 : frame === 2 ? -4 : 5} 128 176)`
+          : row.name === "talk"
+            ? `rotate(${frame % 2 ? 2 : -2} 128 176)`
+            : row.name === "defeat"
+              ? `rotate(${frame === 0 ? 6 : frame === 1 ? 18 : frame === 2 ? 42 : 65} 128 218)`
+              : "";
+      const directional = row.name === "walk-up"
+        ? "translate(0 3) scale(.94 .94)"
+        : row.name === "walk-left" || row.name === "walk-right"
+          ? "scale(.9 1)"
+          : "";
+      return `<g transform="translate(${tx} ${y})"><g transform="translate(128 ${128 + bob}) ${pose} scale(${sx} 1) ${directional} translate(-128 -128)">${body}</g></g>`;
     }).join("");
   }).join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="2560" viewBox="0 0 1024 2560">${frameGroups}</svg>`;
