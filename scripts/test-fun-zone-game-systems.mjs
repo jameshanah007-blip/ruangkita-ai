@@ -53,7 +53,18 @@ const pokemonPlan = buildGameSystemPlan(pokemonLike);
 for (const required of ["exploration", "collection", "party", "turnBasedCombat", "progression", "evolution"]) {
   assert.ok(pokemonPlan.systems.includes(required), `creature RPG should include ${required}`);
 }
-const visual = buildVisualBlueprint(pokemonLike);\nconst characterPlan = buildCharacterAssetPlan(visual.characters, visual.artDirection.style);\nconst registry = buildAssetRegistry(visual);\nconst generated = generateLocalGameAssets(registry);\nconst materialized = materializeGameAssets(generated);\nassert.ok(characterPlan.characters.length > 0);\nassert.ok(characterPlan.consistencyRules.length >= 3);\nassert.ok(characterPlan.characters[0].identityKey.length > 10);\nassert.ok(registry.requiredAssetIds.length > 0);\nassert.equal(materialized.assets.length, registry.assets.length);\nassert.ok(materialized.assets.every((asset) => asset.uri.startsWith("data:image/svg+xml")));\nassert.ok(materialized.assets.every((asset) => asset.status === "ready"));
+const visual = buildVisualBlueprint(pokemonLike);
+const characterPlan = buildCharacterAssetPlan(visual.characters, visual.artDirection.style);
+const registry = buildAssetRegistry(visual);
+const generated = generateLocalGameAssets(registry);
+const materialized = materializeGameAssets(generated);
+assert.ok(characterPlan.characters.length > 0);
+assert.ok(characterPlan.consistencyRules.length >= 3);
+assert.ok(characterPlan.characters[0].identityKey.length > 10);
+assert.ok(registry.requiredAssetIds.length > 0);
+assert.equal(materialized.assets.length, registry.assets.length);
+assert.ok(materialized.assets.every((asset) => asset.uri.startsWith("data:image/svg+xml")));
+assert.ok(materialized.assets.every((asset) => asset.status === "ready"));
 
 const provider = {
   name: "test-image-provider",
@@ -83,7 +94,9 @@ const failingProvider = {
 const fallbackGenerated = await generateGameAssets(registry, failingProvider);
 assert.ok(fallbackGenerated.warnings.some((warning) => warning.includes("failing-provider")));
 assert.ok(fallbackGenerated.assets.every((asset) => asset.status === "placeholder"));
-assert.ok(fallbackGenerated.assets.every((asset) => asset.metadata.provider === "local-fallback"));\n\nconst composed = composeGamePlan(pokemonLike);
+assert.ok(fallbackGenerated.assets.every((asset) => asset.metadata.provider === "local-fallback"));
+
+const composed = composeGamePlan(pokemonLike);
 assert.ok(composed.requiredActions.includes("capture"));
 assert.ok(composed.requiredActions.includes("switchMember"));
 assert.ok(composed.requiredActions.includes("chooseAction"));
@@ -161,7 +174,15 @@ console.log(JSON.stringify({
   farming: farming.systems,
   racing: racing.systems,
   puzzle: puzzle.systems,
-  characterPipeline: {\n    characters: characterPlan.characters.length,\n    identityKey: characterPlan.characters[0].identityKey,\n  },\n  visualAssets: {\n    count: materialized.assets.length,\n    ready: materialized.assets.filter((asset) => asset.status === "ready").length,\n  },\n  creatureRuntime: {
+  characterPipeline: {
+    characters: characterPlan.characters.length,
+    identityKey: characterPlan.characters[0].identityKey,
+  },
+  visualAssets: {
+    count: materialized.assets.length,
+    ready: materialized.assets.filter((asset) => asset.status === "ready").length,
+  },
+  creatureRuntime: {
     partyIndex: state.party.activeIndex,
     xp: state.progression.xp,
     level: evolved?.level,
