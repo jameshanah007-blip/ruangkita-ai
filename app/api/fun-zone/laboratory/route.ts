@@ -296,6 +296,14 @@ export async function POST(
           source: "user-upload" as const,
         };
 
+    const referenceImageMetadata = {
+      available: validReferenceImage.available,
+      source: validReferenceImage.source,
+      mimeType: validReferenceImage.mimeType,
+      width: validReferenceImage.width,
+      height: validReferenceImage.height,
+    };
+
     if (prompt.length > 12000) {
       return NextResponse.json(
         { success: false, stage: "director", error: "Prompt terlalu panjang. Maksimum 12.000 karakter." },
@@ -533,6 +541,7 @@ export async function POST(
 
       visualQa,
       referenceVisualTarget: visualQa.referenceTarget,
+      referenceImage: referenceImageMetadata,
       refinementPlan: visualQa.refinement,
       refinementPasses,
 
