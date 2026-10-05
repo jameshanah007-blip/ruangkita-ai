@@ -23,7 +23,7 @@ import { createOpenAIImageProvider } from "../../../fun-zone/engine/openAIImageP
 import { createGeminiImageProvider } from "../../../fun-zone/engine/geminiImageProvider";
 import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies, applyJamesEffectiveStrategies, getJamesEffectiveStrategies } from "../../../fun-zone/engine/jamesGameLearning";
 import { createGameBuildPlan } from "../../../fun-zone/engine/gameBuildPlan";
-import { evaluateVisualBuild } from "../../../fun-zone/engine/visualQa";
+import { applyVisualRefinement, evaluateVisualBuild } from "../../../fun-zone/engine/visualQa";
 
 const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
 
@@ -364,10 +364,24 @@ export async function POST(
 
     // Compose reusable gameplay systems before the existing autonomous builder runs.
     // We enrich the existing blueprint instead of replacing the current architecture.
-    const composedPlan = composeGamePlan(learnedBlueprint);
-    const buildPlan = createGameBuildPlan(learnedBlueprint);
-    const visualBlueprint = createVisualBlueprint(learnedBlueprint);
-    const visualQa = evaluateVisualBuild(learnedBlueprint, buildPlan, visualBlueprint);
+    let effectiveBlueprint = learnedBlueprint;
+    const composedPlan = composeGamePlan(effectiveBlueprint);
+    let buildPlan = createGameBuildPlan(effectiveBlueprint);
+    let visualBlueprint = createVisualBlueprint(learnedBlueprint);
+    let visualQa = evaluateVisualBuild(learnedBlueprint, buildPlan, visualBlueprint);
+    let refinementPasses = 0;
+
+    // Execute at most one bounded visual refinement before asset generation.
+    // This is intentionally additive: the original blueprint remains the base,
+    // while QA feedback enriches the next build specification.
+    if (visualQa.refinement.required && visualQa.refinement.maxPasses > 0) {
+      effectiveBlueprint = applyVisualRefinement(effectiveBlueprint, visualQa);
+      buildPlan = createGameBuildPlan(effectiveBlueprint);
+      visualBlueprint = createVisualBlueprint(effectiveBlueprint);
+      visualQa = evaluateVisualBuild(effectiveBlueprint, buildPlan, visualBlueprint);
+      refinementPasses = 1;
+    }
+
     const characterAssetPlan = buildCharacterAssetPlan(visualBlueprint.characters, visualBlueprint.artDirection.style);
     const assetRegistry = buildAssetRegistry(visualBlueprint);
     const realAssetProviders = process.env.JAMES_ENABLE_REAL_ASSET_GENERATION === "true"
@@ -379,11 +393,11 @@ export async function POST(
     const generatedAssets = await generateGameAssets(assetRegistry, realAssetProviders);
     const materializedAssets = materializeGameAssets(generatedAssets);
     const composedBlueprint: GameBlueprint = {
-      ...learnedBlueprint,
-      mechanics: [...new Set([...learnedBlueprint.mechanics, ...composedPlan.systems.map((system) => system.id)])],
-      playerActions: [...new Set([...learnedBlueprint.playerActions, ...composedPlan.requiredActions])],
-      testRequirements: [...new Set([...learnedBlueprint.testRequirements, ...composedPlan.testGoals, ...buildPlan.testStages])],
-      controls: [...new Set([...learnedBlueprint.controls, ...buildPlan.controls.keyboard, ...buildPlan.controls.touch])],
+      ...effectiveBlueprint,
+      mechanics: [...new Set([...effectiveBlueprint.mechanics, ...composedPlan.systems.map((system) => system.id)])],
+      playerActions: [...new Set([...effectiveBlueprint.playerActions, ...composedPlan.requiredActions])],
+      testRequirements: [...new Set([...effectiveBlueprint.testRequirements, ...composedPlan.testGoals, ...buildPlan.testStages])],
+      controls: [...new Set([...effectiveBlueprint.controls, ...buildPlan.controls.keyboard, ...buildPlan.controls.touch])],
     };
 
     session =
@@ -498,6 +512,7 @@ export async function POST(
 
       visualQa,
       refinementPlan: visualQa.refinement,
+      refinementPasses,
 
       assetRegistry,
 
