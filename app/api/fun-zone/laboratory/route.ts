@@ -25,6 +25,7 @@ import { createGeminiImageProvider } from "../../../fun-zone/engine/geminiImageP
 import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies, applyJamesEffectiveStrategies, getJamesEffectiveStrategies } from "../../../fun-zone/engine/jamesGameLearning";
 import { createGameBuildPlan } from "../../../fun-zone/engine/gameBuildPlan";
 import { applyVisualRefinement, evaluateVisualBuild } from "../../../fun-zone/engine/visualQa";
+import { analyzeReferenceImage, type ReferenceImageAnalysis } from "../../../fun-zone/engine/referenceImageAnalyzer";
 
 const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
 
@@ -296,6 +297,8 @@ export async function POST(
           source: "user-upload" as const,
         };
 
+    const referenceImageAnalysis: ReferenceImageAnalysis = await analyzeReferenceImage(validReferenceImage, prompt);
+
     const referenceImageMetadata = {
       available: validReferenceImage.available,
       source: validReferenceImage.source,
@@ -542,6 +545,7 @@ export async function POST(
       visualQa,
       referenceVisualTarget: visualQa.referenceTarget,
       referenceImage: referenceImageMetadata,
+      referenceImageAnalysis,
       refinementPlan: visualQa.refinement,
       refinementPasses,
 
