@@ -1,6 +1,5 @@
 import type { AssetKind, GameAssetSpec } from "./assetRegistry";
 import { buildCharacterDNA, characterDNAPrompt } from "./characterDNA";
-import { buildCharacterDNA, characterDNAPrompt } from "./characterDNA";
 
 function esc(value: string): string {
   return value.replace(/[&<>"']/g, (c) => ({
@@ -117,6 +116,7 @@ function effectSvg(asset: GameAssetSpec): string {
 }
 
 export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; metadata: Record<string, unknown> } {
+  const dna = buildCharacterDNA(asset);
   const isCharacter = ["character", "npc", "enemy", "companion"].includes(asset.kind);
   const svg = asset.kind === "environment"
     ? environmentSvg(asset)
@@ -137,9 +137,6 @@ export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; 
       assetPrompt: asset.prompt,
       characterDNA: dna,
       identityKey: dna?.identityKey ?? asset.id,
-      characterDNA: dna,
-      identityKey: dna?.identityKey ?? asset.id,
-      poseSet: dna?.animationNeeds ?? (asset.animationNeeds.length ? asset.animationNeeds : ["idle", "move", "action", "hit", "talk"]),
     },
   };
 }
