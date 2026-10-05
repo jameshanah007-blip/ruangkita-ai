@@ -13,6 +13,12 @@ import type {
 } from "../../../fun-zone/laboratory/types";
 import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
+import { composeGamePlan } from "../../../fun-zone/engine/gameComposer";
+import { createVisualBlueprint } from "../../../fun-zone/engine/visualDirector";
+import { buildAssetRegistry } from "../../../fun-zone/engine/assetRegistry";
+import { generateGameAssets } from "../../../fun-zone/engine/assetGenerator";
+import { materializeGameAssets } from "../../../fun-zone/engine/assetMaterializer";
+import { buildCharacterAssetPlan } from "../../../fun-zone/engine/characterAssetPipeline";
 import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies, applyJamesEffectiveStrategies, getJamesEffectiveStrategies } from "../../../fun-zone/engine/jamesGameLearning";
 
 const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
@@ -352,10 +358,25 @@ export async function POST(
     const avoidanceBlueprint = applyJamesFailedStrategyAvoidance(adaptationBlueprint, failedGameStrategies);
     const learnedBlueprint = applyJamesEffectiveStrategies(avoidanceBlueprint, effectiveGameStrategies);
 
+    // Compose reusable gameplay systems before the existing autonomous builder runs.
+    // We enrich the existing blueprint instead of replacing the current architecture.
+    const composedPlan = composeGamePlan(learnedBlueprint);
+    const visualBlueprint = createVisualBlueprint(learnedBlueprint);
+    const characterAssetPlan = buildCharacterAssetPlan(visualBlueprint.characters, visualBlueprint.artDirection.style);
+    const assetRegistry = buildAssetRegistry(visualBlueprint);
+    const generatedAssets = await generateGameAssets(assetRegistry);
+    const materializedAssets = materializeGameAssets(generatedAssets);
+    const composedBlueprint: GameBlueprint = {
+      ...learnedBlueprint,
+      mechanics: [...new Set([...learnedBlueprint.mechanics, ...composedPlan.systems.map((system) => system.id)])],
+      playerActions: [...new Set([...learnedBlueprint.playerActions, ...composedPlan.requiredActions])],
+      testRequirements: [...new Set([...learnedBlueprint.testRequirements, ...composedPlan.testGoals])],
+    };
+
     session =
       markDirectorCompleted(
         session,
-        learnedBlueprint
+        composedBlueprint
       );
 
     /*
@@ -377,7 +398,7 @@ export async function POST(
 
     if (PROVIDER_ENHANCEMENT_ENABLED) {
       try {
-        builder = await callBuilder(request, learnedBlueprint);
+        builder = await callBuilder(request, composedBlueprint);
         builderProvider = builder.provider || "provider-enhanced";
       } catch (error) {
         console.warn("Provider Builder unavailable; using James autonomous compiler.", error);
@@ -385,7 +406,7 @@ export async function POST(
           success: true,
           provider: "james-autonomous",
           model: "autonomous-game-compiler-v1",
-          gameHtml: buildAutonomousGameHtml(learnedBlueprint),
+          gameHtml: buildAutonomousGameHtml(composedBlueprint),
           validation: {
             valid: true,
             errors: [],
@@ -398,7 +419,7 @@ export async function POST(
         success: true,
         provider: "james-autonomous",
         model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(learnedBlueprint),
+        gameHtml: buildAutonomousGameHtml(composedBlueprint),
         validation: {
           valid: true,
           errors: [],
@@ -412,7 +433,7 @@ export async function POST(
         success: true,
         provider: "james-autonomous",
         model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(normalizedBlueprint),
+        gameHtml: buildAutonomousGameHtml(composedBlueprint),
         validation: {
           valid: true,
           errors: [],
@@ -424,7 +445,7 @@ export async function POST(
 
     const artifact =
       createArtifactFromBuilder(
-        learnedBlueprint,
+        composedBlueprint,
         builder
       );
 
@@ -446,7 +467,7 @@ export async function POST(
      * ke client bersama session.
      */
 
-    const gameHtml = builder.gameHtml ?? buildAutonomousGameHtml(learnedBlueprint);
+    const gameHtml = builder.gameHtml ?? buildAutonomousGameHtml(composedBlueprint);
     await persistCloudSession(session, gameHtml);
 
 
@@ -458,7 +479,17 @@ export async function POST(
       session,
 
       blueprint:
-        learnedBlueprint,
+        composedBlueprint,
+
+      visualBlueprint,
+
+      assetRegistry,
+
+      characterAssetPlan,
+
+      generatedAssets,
+
+      materializedAssets,
 
       artifact,
 

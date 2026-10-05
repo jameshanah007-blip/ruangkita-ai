@@ -115,7 +115,18 @@ export async function verifyGameInBrowser(gameHtml:string, blueprint:GameBluepri
     await command(sandbox,"agent-browser",["open","file:///tmp/james-game.html"]);
     await command(sandbox,"agent-browser",["wait",String(BROWSER_WAIT_MS)]);
     const raw=await command(sandbox,"agent-browser",["eval","window.__RK_AUTONOMOUS_FINISH__()"]);
-    const evidence=JSON.parse(raw.trim()) as SandboxTestEvidence;
+    const trimmed=raw.trim();
+    let evidence: SandboxTestEvidence;
+    try {
+      evidence=JSON.parse(trimmed) as SandboxTestEvidence;
+    } catch {
+      const candidates=trimmed.split("\n").map((line: string)=>line.trim()).filter(Boolean).reverse();
+      const jsonLine=candidates.find((line: string)=>line.startsWith("{")&&line.endsWith("}"));
+      if (!jsonLine) {
+        throw new Error("Browser verifier tidak menerima JSON evidence yang valid dari agent-browser.");
+      }
+      evidence=JSON.parse(jsonLine) as SandboxTestEvidence;
+    }
     evidence.hardFailures = Array.isArray(evidence.hardFailures) ? evidence.hardFailures : [];
     evidence.softWarnings = Array.isArray(evidence.softWarnings) ? evidence.softWarnings : [];
     return testGame({blueprint,attempt,evidence});
