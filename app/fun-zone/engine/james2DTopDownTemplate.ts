@@ -55,12 +55,12 @@ export function buildTopDown2DGameHtml(
     enemyAsset,
   });
 
-  return \`<!doctype html>
+  return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>\${escapeHtml(blueprint.title || "James 2D Adventure")}</title>
+<title>${escapeHtml(blueprint.title || "James 2D Adventure")}</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101b2d;color:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -112,7 +112,7 @@ canvas{display:block;width:100%;height:100%;image-rendering:pixelated;touch-acti
 (function(){
 "use strict";
 
-var G=\${config};
+var G=${config};
 var canvas=document.getElementById("gameCanvas");
 var ctx=canvas.getContext("2d");
 var root=document.getElementById("root");
@@ -525,5 +525,5 @@ raf=requestAnimationFrame(frame);
 })();
 </script>
 </body>
-</html>\`;
+</html>`;
 }
