@@ -17,6 +17,7 @@ import { composeGamePlan } from "../../../fun-zone/engine/gameComposer";
 import { createVisualBlueprint } from "../../../fun-zone/engine/visualDirector";
 import { buildAssetRegistry } from "../../../fun-zone/engine/assetRegistry";
 import { generateGameAssets } from "../../../fun-zone/engine/assetGenerator";
+import { materializeGameAssets } from "../../../fun-zone/engine/assetMaterializer";
 import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies, applyJamesEffectiveStrategies, getJamesEffectiveStrategies } from "../../../fun-zone/engine/jamesGameLearning";
 
 const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
@@ -362,6 +363,7 @@ export async function POST(
     const visualBlueprint = createVisualBlueprint(learnedBlueprint);
     const assetRegistry = buildAssetRegistry(visualBlueprint);
     const generatedAssets = generateGameAssets(assetRegistry);
+    const materializedAssets = materializeGameAssets(generatedAssets);
     const composedBlueprint: GameBlueprint = {
       ...learnedBlueprint,
       mechanics: [...new Set([...learnedBlueprint.mechanics, ...composedPlan.systems.map((system) => system.id)])],
