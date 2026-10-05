@@ -13,6 +13,7 @@ import type {
   RuntimeError,
   TestReport
 } from "../laboratory/types";
+import { analyzeRuntimeEvidence } from "./runtimeEvidence";
 
 import {
   testGame
@@ -2461,9 +2462,40 @@ body: JSON.stringify({
           const result =
             data.result;
 
+          const runtimeVisualAnalysis =
+            analyzeRuntimeEvidence({
+              version: 1,
+              source: "sandbox",
+              rendered: result.rendered,
+              canvas: {
+                width: result.canvasWidth,
+                height: result.canvasHeight,
+                visiblePixels: result.nonBlankPixels,
+              },
+              input: {
+                events: result.inputEvents,
+                listeners: result.inputListeners,
+              },
+              gameLoop: {
+                animationFrames: result.gameAnimationFrames,
+              },
+              audio: {
+                events: 0,
+              },
+              errors: result.runtimeErrors.map((error) => error.message),
+              screenshot: result.screenshot,
+            });
+
           setTestResult(
             result
           );
+
+          if (!runtimeVisualAnalysis.passed) {
+            console.warn(
+              "Runtime Visual Analysis:",
+              runtimeVisualAnalysis,
+            );
+          }
 
           /*
            * Sandbox evidence -> Tester.
