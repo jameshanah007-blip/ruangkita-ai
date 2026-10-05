@@ -114,6 +114,18 @@ gameTestError?: string;
 
   elapsedMs: number;
 
+  runtimeVisualAnalysis?: {
+    version: 1;
+    passed: boolean;
+    score: number;
+    issues: Array<{
+      severity: "info" | "warning" | "critical";
+      area: "rendering" | "canvas" | "animation" | "input" | "audio" | "runtime";
+      message: string;
+      repair: string;
+    }>;
+  };
+
   screenshot: {
     available: boolean;
     width: number;
