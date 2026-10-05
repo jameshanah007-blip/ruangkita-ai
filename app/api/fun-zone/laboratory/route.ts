@@ -20,6 +20,7 @@ import { generateGameAssets } from "../../../fun-zone/engine/assetGenerator";
 import { materializeGameAssets } from "../../../fun-zone/engine/assetMaterializer";
 import { buildCharacterAssetPlan } from "../../../fun-zone/engine/characterAssetPipeline";
 import { createOpenAIImageProvider } from "../../../fun-zone/engine/openAIImageProvider";
+import { createGeminiImageProvider } from "../../../fun-zone/engine/geminiImageProvider";
 import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies, applyJamesEffectiveStrategies, getJamesEffectiveStrategies } from "../../../fun-zone/engine/jamesGameLearning";
 
 const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
@@ -365,10 +366,13 @@ export async function POST(
     const visualBlueprint = createVisualBlueprint(learnedBlueprint);
     const characterAssetPlan = buildCharacterAssetPlan(visualBlueprint.characters, visualBlueprint.artDirection.style);
     const assetRegistry = buildAssetRegistry(visualBlueprint);
-    const realAssetProvider = process.env.JAMES_ENABLE_REAL_ASSET_GENERATION === "true"
-      ? createOpenAIImageProvider()
-      : null;
-    const generatedAssets = await generateGameAssets(assetRegistry, realAssetProvider ?? undefined);
+    const realAssetProviders = process.env.JAMES_ENABLE_REAL_ASSET_GENERATION === "true"
+      ? [
+          createGeminiImageProvider(),
+          createOpenAIImageProvider(),
+        ].filter((provider): provider is NonNullable<typeof provider> => Boolean(provider))
+      : [];
+    const generatedAssets = await generateGameAssets(assetRegistry, realAssetProviders);
     const materializedAssets = materializeGameAssets(generatedAssets);
     const composedBlueprint: GameBlueprint = {
       ...learnedBlueprint,
