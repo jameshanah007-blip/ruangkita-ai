@@ -6,6 +6,7 @@ import { buildAssetRegistry } from "../app/fun-zone/engine/assetRegistry.ts";
 import { generateGameAssets, generateLocalGameAssets } from "../app/fun-zone/engine/assetGenerator.ts";
 import { materializeGameAssets } from "../app/fun-zone/engine/assetMaterializer.ts";
 import { buildCharacterAssetPlan } from "../app/fun-zone/engine/characterAssetPipeline.ts";
+import { createAssetProviderRouter } from "../app/fun-zone/engine/assetProviderRouter.ts";
 import {
   createModularGameState,
   captureCreature,
@@ -83,6 +84,30 @@ assert.equal(providerGenerated.assets[0].metadata.providerMetadata.identityKey, 
 const providerMaterialized = materializeGameAssets(providerGenerated);
 assert.ok(providerMaterialized.assets.every((asset) => asset.materializer === "provider"));
 assert.ok(providerMaterialized.assets.every((asset) => asset.uri.startsWith("data:image/test,")));
+
+const routerProvider = {
+  name: "router-image-provider",
+  supports: ["character", "environment"],
+  async generate(asset) {
+    return {
+      uri: `data:image/router,${asset.id}`,
+      metadata: { identityKey: asset.id },
+    };
+  },
+};
+const router = createAssetProviderRouter([routerProvider]);
+const characterAsset = registry.assets.find((asset) => asset.kind === "character");
+assert.ok(characterAsset);
+assert.equal(router.select(characterAsset).name, "router-image-provider");
+const routedCharacter = await router.generate(characterAsset);
+assert.equal(routedCharacter.provider, "router-image-provider");
+assert.equal(routedCharacter.fallback, false);
+
+const unsupportedAsset = registry.assets.find((asset) => !routerProvider.supports.includes(asset.kind));
+assert.ok(unsupportedAsset);
+assert.equal(router.select(unsupportedAsset).name, "local-fallback");
+const routedUnsupported = await router.generate(unsupportedAsset);
+assert.equal(routedUnsupported.fallback, true);
 
 const failingProvider = {
   name: "failing-provider",
