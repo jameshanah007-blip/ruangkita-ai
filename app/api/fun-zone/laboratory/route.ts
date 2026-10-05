@@ -497,6 +497,7 @@ export async function POST(
       visualBlueprint,
 
       visualQa,
+      refinementPlan: visualQa.refinement,
 
       assetRegistry,
 
