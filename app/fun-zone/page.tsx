@@ -780,13 +780,44 @@ const handleTestReport =
 
       // Learning is deliberately fire-and-forget: a learning persistence issue
       // must never turn a playable/testable game into a laboratory failure.
+      let effectiveReport = report;
+
+      if (referenceImage?.dataUrl && report.screenshot?.dataUrl) {
+        try {
+          const comparisonResponse = await fetch("/api/fun-zone/visual-compare", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              referenceImage: { dataUrl: referenceImage.dataUrl, mimeType: referenceImage.mimeType },
+              screenshot: { dataUrl: report.screenshot.dataUrl, width: report.screenshot.width, height: report.screenshot.height },
+              blueprint,
+            }),
+          });
+          const comparisonData = await comparisonResponse.json();
+          if (comparisonData?.success && comparisonData.comparison) {
+            effectiveReport = {
+              ...report,
+              referenceVisualComparison: comparisonData.comparison,
+              passed: report.passed && comparisonData.comparison.passed,
+              softWarnings: [
+                ...report.softWarnings,
+                ...comparisonData.comparison.mismatches.slice(0, 5).map((item: string) => "Reference QA: " + item),
+              ],
+            };
+            setTestReport(effectiveReport);
+          }
+        } catch (error) {
+          console.warn("Reference visual comparison failed:", error);
+        }
+      }
+
       if (blueprint) {
         void fetch("/api/fun-zone/learning", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             blueprint,
-            report,
+            report: effectiveReport,
             attempt: report.attempt,
           }),
         }).catch((error) => {
@@ -798,7 +829,7 @@ const handleTestReport =
         void fetch("/api/fun-zone/experiment/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ experimentId, claimToken: experimentClaimToken, blueprint, report }),
+          body: JSON.stringify({ experimentId, claimToken: experimentClaimToken, blueprint, report: effectiveReport }),
         })
           .then((response) => response.json())
           .then((data) => {
@@ -811,7 +842,7 @@ const handleTestReport =
           });
       }
 
-      if (report.passed) {
+      if (effectiveReport.passed) {
         setError("");
         setStage("ready");
 
@@ -821,7 +852,7 @@ const handleTestReport =
             ...previous,
             status: "ready",
             stage: "final",
-            testReports: [...previous.testReports, report],
+            testReports: [...previous.testReports, effectiveReport],
             currentAttempt: report.attempt,
             updatedAt: new Date().toISOString(),
             error: undefined,
@@ -841,10 +872,10 @@ const handleTestReport =
           ...previous,
           status: nextRepairAttempt <= 3 ? "repairing" : "debugging",
           stage: nextRepairAttempt <= 3 ? "debugger" : "debugger",
-          testReports: [...previous.testReports, report],
+          testReports: [...previous.testReports, effectiveReport],
           currentAttempt: nextRepairAttempt,
           updatedAt: new Date().toISOString(),
-          error: (Array.isArray(report.hardFailures) ? report.hardFailures : []).join(" ") || previous.error,
+          error: (Array.isArray(effectiveReport.hardFailures) ? effectiveReport.hardFailures : []).join(" ") || previous.error,
         };
 
         void persistLabSession(next);
@@ -854,7 +885,7 @@ const handleTestReport =
       if (nextRepairAttempt > 3 || !blueprint) {
         setStage("debugging");
         setError(
-          (Array.isArray(report.hardFailures) ? report.hardFailures : []).join(" ") ||
+          (Array.isArray(effectiveReport.hardFailures) ? effectiveReport.hardFailures : []).join(" ") ||
           "James membutuhkan pemeriksaan debugger lebih lanjut."
         );
         return;
@@ -870,7 +901,7 @@ const handleTestReport =
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             blueprint,
-            report,
+            report: effectiveReport,
             attempt: nextRepairAttempt,
           }),
         });
