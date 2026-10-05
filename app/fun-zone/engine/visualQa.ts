@@ -1,6 +1,7 @@
 import type { GameBlueprint } from "../laboratory/types";
 import type { GameBuildPlan } from "./gameBuildPlan";
 import type { VisualBlueprint } from "./visualBlueprint";
+import { createReferenceVisualTarget, type ReferenceVisualTarget } from "./referenceVisualTarget";
 
 export type VisualQaIssue = {
   severity: "info" | "warning" | "critical";
@@ -14,6 +15,7 @@ export type VisualQaReport = {
   passed: boolean;
   score: number;
   referenceDriven: boolean;
+  referenceTarget: ReferenceVisualTarget;
   checks: {
     styleConsistency: boolean;
     characterIdentity: boolean;
@@ -42,6 +44,7 @@ export function evaluateVisualBuild(
   visual: VisualBlueprint,
 ): VisualQaReport {
   const text = textOf(blueprint);
+  const referenceTarget = createReferenceVisualTarget(blueprint);
   const issues: VisualQaIssue[] = [];
   const characters = visual.characters.length;
   const protagonist = visual.protagonist;
@@ -171,7 +174,8 @@ export function evaluateVisualBuild(
     version: 1,
     passed: !issues.some((issue) => issue.severity === "critical"),
     score,
-    referenceDriven: /reference|screenshot|image|gambar|seperti/i.test(text),
+    referenceDriven: referenceTarget.available,
+    referenceTarget,
     checks: {
       styleConsistency,
       characterIdentity,
