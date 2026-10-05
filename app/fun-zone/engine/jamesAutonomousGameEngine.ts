@@ -376,7 +376,15 @@ function js(value: unknown): string {
 function runtimeAssets(materializedAssets?: AssetMaterializationResult) {
   return (materializedAssets?.assets || [])
     .filter((asset) => asset.status === "ready" && asset.uri.startsWith("data:image/"))
-    .map((asset) => ({ id: asset.id, kind: asset.kind, uri: asset.uri }));
+    .map((asset) => ({
+      id: asset.id,
+      kind: asset.kind,
+      uri: asset.uri,
+      chromaKey:
+        typeof asset.metadata.providerMetadata?.chromaKey === "string"
+          ? asset.metadata.providerMetadata.chromaKey
+          : null,
+    }));
 }
 
 export function buildAutonomousGameHtml(
@@ -451,7 +459,29 @@ function loadAssets(){
   (G.assets||[]).forEach(function(asset){
     if(!asset.uri||assetImages[asset.id])return;
     var img=new Image();
-    img.onload=function(){assetImages[asset.id]=img;};
+    img.onload=function(){
+      if(!asset.chromaKey){
+        assetImages[asset.id]=img;
+        return;
+      }
+      var off=document.createElement("canvas");
+      off.width=img.naturalWidth||img.width;
+      off.height=img.naturalHeight||img.height;
+      var ox=off.getContext("2d");
+      if(!ox){
+        assetImages[asset.id]=img;
+        return;
+      }
+      ox.drawImage(img,0,0);
+      var imageData=ox.getImageData(0,0,off.width,off.height);
+      var data=imageData.data;
+      for(var i=0;i<data.length;i+=4){
+        var r=data[i],g=data[i+1],b=data[i+2];
+        if(r>220&&b>220&&g<70)data[i+3]=0;
+      }
+      ox.putImageData(imageData,0,0);
+      assetImages[asset.id]=off;
+    };
     img.src=asset.uri;
   });
 }
@@ -460,7 +490,7 @@ function assetImage(kind,index){
   return list[index||0]&&assetImages[list[index||0].id];
 }
 function drawAsset(img,x,y,size){
-  if(!img||!img.complete||!img.naturalWidth)return false;
+  if(!img||!img.width||!img.height)return false;
   ctx.drawImage(img,x-size/2,y-size/2,size,size);
   return true;
 }
