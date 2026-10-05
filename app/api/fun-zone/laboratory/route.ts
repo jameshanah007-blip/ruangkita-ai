@@ -511,6 +511,7 @@ export async function POST(
       visualBlueprint,
 
       visualQa,
+      referenceVisualTarget: visualQa.referenceTarget,
       refinementPlan: visualQa.refinement,
       refinementPasses,
 
