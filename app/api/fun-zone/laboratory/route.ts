@@ -19,6 +19,7 @@ import { buildAssetRegistry } from "../../../fun-zone/engine/assetRegistry";
 import { generateGameAssets } from "../../../fun-zone/engine/assetGenerator";
 import { materializeGameAssets } from "../../../fun-zone/engine/assetMaterializer";
 import { buildCharacterAssetPlan } from "../../../fun-zone/engine/characterAssetPipeline";
+import { createOpenAIImageProvider } from "../../../fun-zone/engine/openAIImageProvider";
 import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies, applyJamesEffectiveStrategies, getJamesEffectiveStrategies } from "../../../fun-zone/engine/jamesGameLearning";
 
 const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
@@ -364,7 +365,10 @@ export async function POST(
     const visualBlueprint = createVisualBlueprint(learnedBlueprint);
     const characterAssetPlan = buildCharacterAssetPlan(visualBlueprint.characters, visualBlueprint.artDirection.style);
     const assetRegistry = buildAssetRegistry(visualBlueprint);
-    const generatedAssets = await generateGameAssets(assetRegistry);
+    const realAssetProvider = process.env.JAMES_ENABLE_REAL_ASSET_GENERATION === "true"
+      ? createOpenAIImageProvider()
+      : null;
+    const generatedAssets = await generateGameAssets(assetRegistry, realAssetProvider ?? undefined);
     const materializedAssets = materializeGameAssets(generatedAssets);
     const composedBlueprint: GameBlueprint = {
       ...learnedBlueprint,
@@ -406,7 +410,7 @@ export async function POST(
           success: true,
           provider: "james-autonomous",
           model: "autonomous-game-compiler-v1",
-          gameHtml: buildAutonomousGameHtml(composedBlueprint),
+          gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets),
           validation: {
             valid: true,
             errors: [],
@@ -467,7 +471,7 @@ export async function POST(
      * ke client bersama session.
      */
 
-    const gameHtml = builder.gameHtml ?? buildAutonomousGameHtml(composedBlueprint);
+    const gameHtml = builder.gameHtml ?? buildAutonomousGameHtml(composedBlueprint, materializedAssets);
     await persistCloudSession(session, gameHtml);
 
 
