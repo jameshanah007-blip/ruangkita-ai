@@ -5,7 +5,7 @@ import { generateJamesNativeVisual } from "./jamesNativeVisualEngine";
 import { buildCharacterDNA } from "./characterDNA";
 
 const jamesNativeProvider: AssetProvider = {
-  name: "james-native-visual-engine-v1",
+  name: "james-native-visual-engine-v2",
   supports: ["character", "npc", "enemy", "companion", "environment", "prop", "effect", "ui"],
   async generate(asset) {
     return generateJamesNativeVisual(asset);
