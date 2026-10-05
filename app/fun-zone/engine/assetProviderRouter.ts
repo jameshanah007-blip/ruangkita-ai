@@ -44,12 +44,20 @@ export function createAssetProviderRouter(
     }
 
     try {
+      const result = await provider.generate(asset);
+      console.info("Fun Zone asset generated:", { assetId: asset.id, kind: asset.kind, provider: provider.name });
       return {
         provider: provider.name,
-        result: await provider.generate(asset),
+        result,
         fallback: false,
       };
     } catch (error) {
+      console.warn("Fun Zone asset provider failed; using local fallback:", {
+        assetId: asset.id,
+        kind: asset.kind,
+        provider: provider.name,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return {
         provider: localAssetProvider.name,
         result: {
