@@ -47,18 +47,23 @@ function svgForAsset(asset: GeneratedAsset): string {
 export function materializeGameAssets(
   generation: AssetGenerationResult,
 ): AssetMaterializationResult {
-  const assets = generation.assets.map((asset) => ({
-    ...asset,
-    status: "ready" as const,
-    uri: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgForAsset(asset))}`,
-    materializer: "svg-fallback-v1" as const,
-  }));
+  const assets = generation.assets.map((asset) => {
+    const providerUri = asset.status === "ready" && !asset.uri.startsWith("asset://placeholder/");
+    return {
+      ...asset,
+      status: "ready" as const,
+      uri: providerUri
+        ? asset.uri
+        : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgForAsset(asset))}`,
+      materializer: providerUri ? "provider" as const : "svg-fallback-v1" as const,
+    };
+  });
 
   return {
     assets,
     warnings: [
       ...generation.warnings,
-      "Assets are materialized as deterministic SVG fallbacks; a provider can replace them later without changing the asset registry contract.",
+      "Provider assets are preserved when available; placeholder assets use deterministic SVG fallbacks.",
     ],
   };
 }
