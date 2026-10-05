@@ -1,5 +1,6 @@
 import type { AssetKind, GameAssetSpec } from "./assetRegistry";
 import { buildCharacterDNA, characterDNAPrompt } from "./characterDNA";
+import { buildCharacterDNA, characterDNAPrompt } from "./characterDNA";
 
 function esc(value: string): string {
   return value.replace(/[&<>"']/g, (c) => ({
@@ -132,8 +133,10 @@ export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; 
       identityPreserved: isCharacter,
       deterministic: true,
       style: /anime/i.test(asset.prompt) ? "anime-inspired-2d-v2" : "stylized-2d-v2",
-      poseSet: asset.animationNeeds.length ? asset.animationNeeds : ["idle", "move", "action"],
+      poseSet: dna?.animationNeeds ?? (asset.animationNeeds.length ? asset.animationNeeds : ["idle", "move", "action", "hit", "talk"]),
       assetPrompt: asset.prompt,
+      characterDNA: dna,
+      identityKey: dna?.identityKey ?? asset.id,
       characterDNA: dna,
       identityKey: dna?.identityKey ?? asset.id,
       poseSet: dna?.animationNeeds ?? (asset.animationNeeds.length ? asset.animationNeeds : ["idle", "move", "action", "hit", "talk"]),
