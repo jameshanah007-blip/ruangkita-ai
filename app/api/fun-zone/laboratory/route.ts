@@ -18,6 +18,7 @@ import { createVisualBlueprint } from "../../../fun-zone/engine/visualDirector";
 import { buildAssetRegistry } from "../../../fun-zone/engine/assetRegistry";
 import { generateGameAssets } from "../../../fun-zone/engine/assetGenerator";
 import { materializeGameAssets } from "../../../fun-zone/engine/assetMaterializer";
+import { buildCharacterAssetPlan } from "../../../fun-zone/engine/characterAssetPipeline";
 import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies, applyJamesEffectiveStrategies, getJamesEffectiveStrategies } from "../../../fun-zone/engine/jamesGameLearning";
 
 const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
