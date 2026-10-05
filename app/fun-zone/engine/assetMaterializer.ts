@@ -19,6 +19,8 @@ function nativeFallback(asset: GeneratedAsset): string {
     prompt: asset.metadata.prompt,
     tags: asset.metadata.tags,
     animationNeeds: asset.metadata.animationNeeds,
+    source: "procedural",
+    required: true,
   });
   return native.uri;
 }
