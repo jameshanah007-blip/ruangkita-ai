@@ -338,11 +338,6 @@ function drawSprite(kind,x,y,dir,frame){
 
   // Native pixel-art emergency sprite. This is an authored sprite,
   // not the old geometric circle/rectangle game fallback.
-  var palette=kind==="player"
-    ? {hair:"#2c356e",skin:"#ffd5c1,body":"#6d54c7"}
-    : kind==="npc"
-      ? {hair:"#6a3e24",skin:"#f2c6a9",body:"#e8a64f"}
-      : {hair:"#36253f",skin:"#f0a7a7",body:"#b94361"};
   var body=kind==="player"?"#6d54c7":kind==="npc"?"#e8a64f":"#b94361";
   var hair=kind==="player"?"#2c356e":kind==="npc"?"#6a3e24":"#36253f";
   var skin=kind==="player"?"#ffd5c1":kind==="npc"?"#f2c6a9":"#f0a7a7";
@@ -517,9 +512,9 @@ document.querySelectorAll("[data-key]").forEach(function(button){
 });
 
 restart.addEventListener("click",function(){
-  state.restartCount++;
+  var previousRestarts=state.restartCount||0;
   reset();
-  state.restartCount++;
+  state.restartCount=previousRestarts+1;
   state.stateChanges++;
   ensureAudio();
 });
