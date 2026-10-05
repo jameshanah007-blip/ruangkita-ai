@@ -36,7 +36,19 @@ export type VisualQaReport = {
 };
 
 function textOf(b: GameBlueprint): string {
-  return [b.title,b.concept,b.genre,b.mood,b.theme,b.world,b.visualStyle,b.coreLoop,b.objective,...b.mechanics,...b.playerActions].join(" ").toLowerCase();
+  return [
+    b.title,
+    b.concept,
+    b.genre,
+    b.mood,
+    b.theme,
+    b.world,
+    ...b.visualStyle,
+    b.coreLoop,
+    b.objective,
+    ...b.mechanics,
+    ...b.playerActions,
+  ].join(" ").toLowerCase();
 }
 
 export function evaluateVisualBuild(
