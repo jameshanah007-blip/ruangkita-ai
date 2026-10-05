@@ -14,6 +14,9 @@ import type {
 import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
 import { composeGamePlan } from "../../../fun-zone/engine/gameComposer";
+import { createVisualBlueprint } from "../../../fun-zone/engine/visualDirector";
+import { buildAssetRegistry } from "../../../fun-zone/engine/assetRegistry";
+import { generateGameAssets } from "../../../fun-zone/engine/assetGenerator";
 import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies, applyJamesEffectiveStrategies, getJamesEffectiveStrategies } from "../../../fun-zone/engine/jamesGameLearning";
 
 const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
@@ -356,6 +359,9 @@ export async function POST(
     // Compose reusable gameplay systems before the existing autonomous builder runs.
     // We enrich the existing blueprint instead of replacing the current architecture.
     const composedPlan = composeGamePlan(learnedBlueprint);
+    const visualBlueprint = createVisualBlueprint(learnedBlueprint);
+    const assetRegistry = buildAssetRegistry(visualBlueprint);
+    const generatedAssets = generateGameAssets(assetRegistry);
     const composedBlueprint: GameBlueprint = {
       ...learnedBlueprint,
       mechanics: [...new Set([...learnedBlueprint.mechanics, ...composedPlan.systems.map((system) => system.id)])],
