@@ -137,6 +137,8 @@ var keyCodes={};
 var spriteCache={};
 var state;
 var lastMoveSound=0;
+var animationState={player:"idle-down",npc:"idle-down",enemy:"idle-down",companion:"idle-down"};
+var animationStateUntil={player:0,npc:0,enemy:0,companion:0};
 
 window.__RK_GAME_READY__=false;
 window.__RK_GAME_RENDERED__=false;
@@ -244,7 +246,8 @@ function reset(){
     startedAt:performance.now(),
     stateChanges:0,
     objectiveChanges:0,
-    restartCount:0
+    restartCount:0,
+    actionUntil:0
   };
   message.style.display="none";
   titleEl.textContent=G.title;
@@ -275,7 +278,7 @@ function movePlayer(dx,dy,dt){
   var speed=105;
   var moving=Math.abs(dx)+Math.abs(dy)>0;
   state.player.moving=moving;
-  if(!moving)return;
+  if(!moving){ setAnimationState("player",state.actionUntil>performance.now()?"action":"idle-down",120); return; }
   if(Math.abs(dx)>Math.abs(dy)) state.player.dir=dx<0?"left":"right";
   else state.player.dir=dy<0?"up":"down";
 
@@ -284,6 +287,7 @@ function movePlayer(dx,dy,dt){
   if(!blocked(nx,state.player.y))state.player.x=nx;
   if(!blocked(state.player.x,ny))state.player.y=ny;
   state.player.frame=(state.player.frame+dt*8)%4;
+  setAnimationState("player",resolveAnimationState("player",state.player.dir,true),180);
   state.stateChanges++;
   if(elapsed-lastMoveSound>.22){tone(180,.035,"square",.035);lastMoveSound=elapsed}
 }
@@ -337,6 +341,15 @@ function drawCrystal(x,y){
   ctx.restore();
 }
 
+function setAnimationState(kind,next,duration){ animationState[kind]=next; animationStateUntil[kind]=performance.now()+duration; }
+function resolveAnimationState(kind,dir,moving){
+  if(kind==="player" && state.actionUntil>performance.now()) return "action";
+  if(!moving) return "idle-down";
+  if(dir==="up") return "walk-up";
+  if(dir==="left") return "walk-left";
+  if(dir==="right") return "walk-right";
+  return "walk-down";
+}
 function drawSprite(kind,x,y,dir,frame){
   var source=kind==="player"?G.playerAsset:kind==="npc"?G.npcAsset:G.enemyAsset;
   if(source){
@@ -350,13 +363,14 @@ function drawSprite(kind,x,y,dir,frame){
       var sheet=img.naturalWidth>img.naturalHeight*1.5;
       if(sheet){
         var frameCount=4;
-        var frame=Math.floor(elapsed*8)%frameCount;
+        var frameIndex=Math.floor(elapsed*8)%frameCount;
+        var rowNames=["idle-down","walk-down","walk-up","walk-left","walk-right","action"];
+        var stateName=animationState[kind]||resolveAnimationState(kind,dir,kind==="player"&&state.player.moving);
+        var row=rowNames.indexOf(stateName); if(row<0)row=0;
         var fw=img.naturalWidth/frameCount;
-        var fh=img.naturalHeight;
-        var flip=dir==="left" ? -1 : 1;
+        var fh=img.naturalHeight/6;
         ctx.translate(x,y-28);
-        ctx.scale(flip,1);
-        ctx.drawImage(img,frame*fw,0,fw,fh,-20,0,40,56);
+        ctx.drawImage(img,frameIndex*fw,row*fh,fw,fh,-20,0,40,56);
       }else{
         ctx.drawImage(img,x-20,y-28,40,56);
       }
@@ -471,6 +485,8 @@ function drawLighting(camX,camY){
 
 function interact(){
   if(state.won||state.lost)return;
+  state.actionUntil=performance.now()+420;
+  setAnimationState("player","action",420);
   var dNpc=Math.min(dist(state.player,state.npc),dist(state.player,state.npc2));
   if(dNpc<58){
     state.dialog="Aira: Selamat datang di desa. Jelajahi hutan dan temukan semua Crystal!";
@@ -506,8 +522,11 @@ function checkCrystals(){
 
 function updateCreature(dt){
   state.creature.frame=(state.creature.frame+dt*5)%4;
+  setAnimationState("enemy",state.creature.dx||state.creature.dy?"walk-down":"idle-down",180);
   state.npc.frame=(state.npc.frame+dt*2)%4;
   state.npc2.frame=(state.npc2.frame+dt*1.7)%4;
+  setAnimationState("npc","idle-down",240);
+  setAnimationState("companion","idle-down",240);
   if(Math.random()<.01){
     var a=Math.floor(Math.random()*4);
     state.creature.dx=a===0?1:a===1?-1:0;
