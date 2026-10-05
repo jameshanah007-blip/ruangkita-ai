@@ -24,6 +24,12 @@ export type VisualQaReport = {
   };
   issues: VisualQaIssue[];
   repairPriority: string[];
+  refinement: {
+    required: boolean;
+    stage: "none" | "visual-spec" | "asset" | "runtime" | "mobile";
+    actions: string[];
+    maxPasses: number;
+  };
 };
 
 function textOf(b: GameBlueprint): string {
@@ -122,6 +128,33 @@ export function evaluateVisualBuild(
     });
   }
 
+  const critical = issues.filter((issue) => issue.severity === "critical");
+  const warnings = issues.filter((issue) => issue.severity === "warning");
+  const refinement = critical.length
+    ? {
+        required: true,
+        stage: "visual-spec" as const,
+        actions: critical.map((issue) => issue.repair),
+        maxPasses: 3,
+      }
+    : warnings.length
+      ? {
+          required: true,
+          stage: warnings.some((issue) => issue.area === "animation" || issue.area === "character")
+            ? "asset" as const
+            : warnings.some((issue) => issue.area === "mobile")
+              ? "mobile" as const
+              : "runtime" as const,
+          actions: warnings.map((issue) => issue.repair),
+          maxPasses: 2,
+        }
+      : {
+          required: false,
+          stage: "none" as const,
+          actions: [],
+          maxPasses: 0,
+        };
+
   const score = Math.max(
     0,
     Math.round(
@@ -149,5 +182,6 @@ export function evaluateVisualBuild(
     },
     issues,
     repairPriority,
+    refinement,
   };
 }
