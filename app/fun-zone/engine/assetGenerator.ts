@@ -3,6 +3,7 @@ import { localAssetProvider, type AssetProvider } from "./assetProvider";
 import { createAssetProviderRouter } from "./assetProviderRouter";
 import { generateJamesNativeVisual } from "./jamesNativeVisualEngine";
 import { buildCharacterDNA } from "./characterDNA";
+import { buildCharacterPoseSet } from "./characterPoseSystem";
 
 const jamesNativeProvider: AssetProvider = {
   name: "james-native-visual-engine-v2",
@@ -90,7 +91,7 @@ export async function generateGameAssets(
         provider: routed.provider,
         providerMetadata: {
           ...routed.result.metadata,
-          characterDNA: buildCharacterDNA(asset),
+          characterDNA: (() => { const dna = buildCharacterDNA(asset); return dna ? { ...dna, poseSet: buildCharacterPoseSet(dna) } : null; })(),
         },
         fallback: routed.fallback,
       },
