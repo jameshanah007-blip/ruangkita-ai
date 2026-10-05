@@ -2488,8 +2488,6 @@ body: JSON.stringify({
 
           result.runtimeVisualAnalysis = runtimeVisualAnalysis;
 
-          result.runtimeVisualAnalysis = runtimeVisualAnalysis;
-
           setTestResult(
             result
           );
