@@ -1,4 +1,5 @@
 import type { GameBlueprint } from "../laboratory/types";
+import type { AssetMaterializationResult } from "./assetMaterializer";
 import { mechanicKnowledge, worldKnowledge } from "./jamesGameKnowledge";
 
 /**
@@ -372,11 +373,20 @@ function js(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
 
-export function buildAutonomousGameHtml(blueprint: GameBlueprint): string {
+function runtimeAssets(materializedAssets?: AssetMaterializationResult) {
+  return (materializedAssets?.assets || [])
+    .filter((asset) => asset.status === "ready" && asset.uri.startsWith("data:image/"))
+    .map((asset) => ({ id: asset.id, kind: asset.kind, uri: asset.uri }));
+}
+
+export function buildAutonomousGameHtml(
+  blueprint: GameBlueprint,
+  materializedAssets?: AssetMaterializationResult,
+): string {
   const g = buildGenome(blueprint);
   const [bg, panel, accent, danger, light] = g.palette;
 
-  const config = js(g);
+  const config = js({ ...g, assets: runtimeAssets(materializedAssets) });
   const runtimeWorldKnowledge = js(worldKnowledge(g.world));
 
   return `<!doctype html>
@@ -421,6 +431,7 @@ var root=document.getElementById("root");
 var titleEl=document.getElementById("title"),statsEl=document.getElementById("stats"),modeEl=document.getElementById("mode"),objectiveEl=document.getElementById("objective");
 var msg=document.getElementById("message"),msgTitle=document.getElementById("messageTitle"),msgBody=document.getElementById("messageBody");
 var W=720,H=900,dpr=1,last=0,elapsed=0;
+var assetImages={};
 var input={left:false,right:false,up:false,down:false,action:false};
 var state;
 window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;
@@ -435,6 +446,23 @@ function makeWorld(){
   for(var j=0;j<G.item.count;j++){items.push({x:90+seeded(j+150)*(G.level.width-180),y:140+seeded(j+170)*(G.level.height-280),taken:false,pulse:seeded(j+190)*6.28})}
   for(var k=0;k<G.enemy.count;k++){enemies.push({x:120+seeded(k+240)*(G.level.width-240),y:180+seeded(k+260)*(G.level.height-360),health:G.enemy.health,alive:true,phase:seeded(k+280)*6.28})}
   return {obstacles:obstacles,items:items,enemies:enemies};
+}
+function loadAssets(){
+  (G.assets||[]).forEach(function(asset){
+    if(!asset.uri||assetImages[asset.id])return;
+    var img=new Image();
+    img.onload=function(){assetImages[asset.id]=img;};
+    img.src=asset.uri;
+  });
+}
+function assetImage(kind,index){
+  var list=(G.assets||[]).filter(function(asset){return asset.kind===kind;});
+  return list[index||0]&&assetImages[list[index||0].id];
+}
+function drawAsset(img,x,y,size){
+  if(!img||!img.complete||!img.naturalWidth)return false;
+  ctx.drawImage(img,x-size/2,y-size/2,size,size);
+  return true;
 }
 function reset(){
   state={status:"playing",x:G.level.width/2,y:G.level.height-180,health:G.player.health,score:0,progress:0,time:0,energy:100,world:makeWorld(),level:1};
@@ -564,6 +592,8 @@ function drawItem(x,y,c,i){
   ctx.globalAlpha=.45;ctx.strokeStyle=k.accent;ctx.stroke();ctx.restore();
 }
 function drawEnemy(x,y,c){
+  var generated=assetImage("enemy",0);
+  if(drawAsset(generated,x,y,58))return;
   ctx.save();ctx.translate(x,y);ctx.fillStyle=c;
   if(G.world==="hospital"){ctx.fillRect(-13,-17,26,34);ctx.fillStyle="#111";ctx.fillRect(-7,-7,5,5);ctx.fillRect(2,-7,5,5)}
   else if(G.world==="forest"){ctx.beginPath();ctx.moveTo(0,-18);ctx.lineTo(16,14);ctx.lineTo(-16,14);ctx.closePath();ctx.fill()}
@@ -573,6 +603,8 @@ function drawEnemy(x,y,c){
   ctx.restore();
 }
 function drawPlayer(x,y,c,a){
+  var generated=assetImage("character",0);
+  if(G.player.kind==="hero" && drawAsset(generated,x,y,72))return;
   ctx.save();ctx.translate(x,y);ctx.fillStyle=c;
   if(G.player.kind==="vehicle"){ctx.fillRect(-22,-11,44,22);ctx.fillStyle=a;ctx.fillRect(-9,-8,18,8);ctx.fillStyle="#111";ctx.beginPath();ctx.arc(-14,11,5,0,Math.PI*2);ctx.arc(14,11,5,0,Math.PI*2);ctx.fill()}
   else if(G.player.kind==="ship"){ctx.beginPath();ctx.moveTo(0,-24);ctx.lineTo(20,18);ctx.lineTo(0,10);ctx.lineTo(-20,18);ctx.closePath();ctx.fill();ctx.fillStyle=a;ctx.fillRect(-4,-3,8,10)}
@@ -611,7 +643,7 @@ window.__RK_GAME_TEST__={
   },
   restart:function(){reset();return true}
 };
-resize();addEventListener("resize",resize);reset();window.__RK_GAME_READY__=true;draw();requestAnimationFrame(loop);
+resize();addEventListener("resize",resize);loadAssets();reset();window.__RK_GAME_READY__=true;draw();requestAnimationFrame(loop);
 })();
 </script>
 </body>
