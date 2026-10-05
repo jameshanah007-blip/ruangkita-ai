@@ -66,6 +66,26 @@ export type GameArtifact = {
   buildAttempts: number;
 };
 
+export type RuntimeVisualAnalysis = {
+  version: 1;
+  passed: boolean;
+  score: number;
+  issues: Array<{
+    severity: "info" | "warning" | "critical";
+    area: "rendering" | "canvas" | "animation" | "input" | "audio" | "runtime";
+    message: string;
+    repair: string;
+  }>;
+};
+
+export type RuntimeScreenshotEvidence = {
+  available: boolean;
+  width: number;
+  height: number;
+  nonBlankPixels: number;
+  dataUrl?: string;
+};
+
 export type RuntimeError = {
   message: string;
   source?: string;
@@ -103,6 +123,9 @@ export type SandboxTestEvidence = {
   renderChanged: boolean;
 
   elapsedMs: number;
+
+  screenshot?: RuntimeScreenshotEvidence;
+  runtimeVisualAnalysis?: RuntimeVisualAnalysis;
 
   gameTestProtocol: boolean;
   stateChanged: boolean;
@@ -165,6 +188,9 @@ export type TestReport = {
   renderChanged: boolean;
 
   elapsedMs: number;
+
+  screenshot?: RuntimeScreenshotEvidence;
+  runtimeVisualAnalysis?: RuntimeVisualAnalysis;
 
   hardFailures: string[];
   softWarnings: string[];
