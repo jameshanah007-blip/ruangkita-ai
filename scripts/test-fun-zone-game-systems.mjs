@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { buildGameSystemPlan } from "../app/fun-zone/engine/gameSystemFactory.ts";
 import { composeGamePlan } from "../app/fun-zone/engine/gameComposer.ts";
+import { buildVisualBlueprint } from "../app/fun-zone/engine/visualBlueprint.ts";
+import { buildAssetRegistry } from "../app/fun-zone/engine/assetRegistry.ts";
+import { generateGameAssets } from "../app/fun-zone/engine/assetGenerator.ts";
+import { materializeGameAssets } from "../app/fun-zone/engine/assetMaterializer.ts";
 import {
   createModularGameState,
   captureCreature,
@@ -48,7 +52,7 @@ const pokemonPlan = buildGameSystemPlan(pokemonLike);
 for (const required of ["exploration", "collection", "party", "turnBasedCombat", "progression", "evolution"]) {
   assert.ok(pokemonPlan.systems.includes(required), `creature RPG should include ${required}`);
 }
-const composed = composeGamePlan(pokemonLike);
+const visual = buildVisualBlueprint(pokemonLike);\nconst registry = buildAssetRegistry(visual);\nconst generated = generateGameAssets(registry);\nconst materialized = materializeGameAssets(generated);\nassert.ok(registry.requiredAssetIds.length > 0);\nassert.equal(materialized.assets.length, registry.assets.length);\nassert.ok(materialized.assets.every((asset) => asset.uri.startsWith("data:image/svg+xml")));\nassert.ok(materialized.assets.every((asset) => asset.status === "ready"));\n\nconst composed = composeGamePlan(pokemonLike);
 assert.ok(composed.requiredActions.includes("capture"));
 assert.ok(composed.requiredActions.includes("switchMember"));
 assert.ok(composed.requiredActions.includes("chooseAction"));
@@ -126,7 +130,7 @@ console.log(JSON.stringify({
   farming: farming.systems,
   racing: racing.systems,
   puzzle: puzzle.systems,
-  creatureRuntime: {
+  visualAssets: {\n    count: materialized.assets.length,\n    ready: materialized.assets.filter((asset) => asset.status === "ready").length,\n  },\n  creatureRuntime: {
     partyIndex: state.party.activeIndex,
     xp: state.progression.xp,
     level: evolved?.level,
