@@ -121,11 +121,10 @@ export function createGameBuildPlan(b: GameBlueprint): GameBuildPlan {
   ])];
 
   const directional = topDown ? ["player", "npc", "creature"] : [];
+  const referenceDriven = /reference|screenshot|image|gambar|seperti|contoh/i.test(text);
 
   if (referenceDriven) {
-    systems.add("reference-visual-qa");
-    testStages.push("reference-visual-comparison");
-    buildStages.push("analyze-reference-visual-target");
+    systems.push("reference-visual-qa");
   }
 
   return {
@@ -161,6 +160,7 @@ export function createGameBuildPlan(b: GameBlueprint): GameBuildPlan {
       "run-in-sandbox",
       "collect-runtime-evidence",
       "analyze-runtime-evidence",
+      ...(referenceDriven ? ["analyze-reference-visual-target"] : []),
       "repair",
       "retest",
       "finalize",
@@ -177,6 +177,7 @@ export function createGameBuildPlan(b: GameBlueprint): GameBuildPlan {
       "restart",
       "mobile-layout",
       "runtime-stability",
+      ...(referenceDriven ? ["reference-visual-comparison"] : []),
     ],
     runtimeEvidence: {
       required: true,
