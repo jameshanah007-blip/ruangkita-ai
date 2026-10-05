@@ -360,12 +360,13 @@ function drawSprite(kind,x,y,dir,frame){
     if(img.complete&&img.naturalWidth){
       ctx.save();
       ctx.imageSmoothingEnabled=false;
-      var sheet=img.naturalWidth>img.naturalHeight*1.5;
+      var sheet=img.naturalWidth>=img.naturalHeight*0.55 && img.naturalHeight>=img.naturalWidth*1.25;
       if(sheet){
         var frameCount=4;
         var frameIndex=Math.floor(elapsed*8)%frameCount;
         var rowNames=["idle-down","walk-down","walk-up","walk-left","walk-right","action"];
         var stateName=animationState[kind]||resolveAnimationState(kind,dir,kind==="player"&&state.player.moving);
+        if(animationStateUntil[kind] && animationStateUntil[kind]<performance.now()) stateName=resolveAnimationState(kind,dir,kind==="player"&&state.player.moving);
         var row=rowNames.indexOf(stateName); if(row<0)row=0;
         var fw=img.naturalWidth/frameCount;
         var fh=img.naturalHeight/6;
