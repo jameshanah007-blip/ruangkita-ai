@@ -475,7 +475,13 @@ export async function POST(
       session,
 
       blueprint:
-        learnedBlueprint,
+        composedBlueprint,
+
+      visualBlueprint,
+
+      assetRegistry,
+
+      generatedAssets,
 
       artifact,
 
