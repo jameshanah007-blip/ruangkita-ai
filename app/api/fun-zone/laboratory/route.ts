@@ -23,6 +23,7 @@ import { createOpenAIImageProvider } from "../../../fun-zone/engine/openAIImageP
 import { createGeminiImageProvider } from "../../../fun-zone/engine/geminiImageProvider";
 import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies, applyJamesEffectiveStrategies, getJamesEffectiveStrategies } from "../../../fun-zone/engine/jamesGameLearning";
 import { createGameBuildPlan } from "../../../fun-zone/engine/gameBuildPlan";
+import { evaluateVisualBuild } from "../../../fun-zone/engine/visualQa";
 
 const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
 
@@ -366,6 +367,7 @@ export async function POST(
     const composedPlan = composeGamePlan(learnedBlueprint);
     const buildPlan = createGameBuildPlan(learnedBlueprint);
     const visualBlueprint = createVisualBlueprint(learnedBlueprint);
+    const visualQa = evaluateVisualBuild(learnedBlueprint, buildPlan, visualBlueprint);
     const characterAssetPlan = buildCharacterAssetPlan(visualBlueprint.characters, visualBlueprint.artDirection.style);
     const assetRegistry = buildAssetRegistry(visualBlueprint);
     const realAssetProviders = process.env.JAMES_ENABLE_REAL_ASSET_GENERATION === "true"
@@ -493,6 +495,8 @@ export async function POST(
         composedBlueprint,
 
       visualBlueprint,
+
+      visualQa,
 
       assetRegistry,
 
