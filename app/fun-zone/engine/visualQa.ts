@@ -23,6 +23,7 @@ export type VisualQaReport = {
     worldCoverage: boolean;
     mobilePresentation: boolean;
     audioCoverage: boolean;
+    referenceCoverage: boolean;
   };
   issues: VisualQaIssue[];
   repairPriority: string[];
@@ -76,6 +77,26 @@ export function evaluateVisualBuild(
     visual.ui.some((item) => /mobile|responsive/i.test(item));
 
   const audioCoverage = plan.audio.required && plan.audio.events.length >= 3;
+
+  const referenceChecks = referenceTarget.available
+    ? [
+        referenceTarget.camera.length === 0 || referenceTarget.camera.some((camera) => visual.artDirection.camera.toLowerCase().includes(camera.split("-")[0])),
+        referenceTarget.style.length === 0 || referenceTarget.style.some((style) => visual.artDirection.style.toLowerCase().includes(style.split("-")[0])),
+        referenceTarget.character.length === 0 || protagonist.appearance.toLowerCase().length > 0,
+        referenceTarget.composition.length === 0 || visual.environments.length > 0,
+        referenceTarget.animation.length === 0 || protagonist.animationNeeds.length >= Math.min(3, referenceTarget.animation.length),
+      ]
+    : [];
+  const referenceCoverage = !referenceTarget.available || referenceChecks.every(Boolean);
+
+  if (referenceTarget.available && !referenceCoverage) {
+    issues.push({
+      severity: "warning",
+      area: "style",
+      message: "Visual build belum memenuhi seluruh target visual yang terdeteksi dari referensi/deskripsi.",
+      repair: "Bandingkan camera, style, character, composition, dan animation target lalu lakukan reference visual refinement.",
+    });
+  }
 
   if (!styleConsistency) {
     issues.push({
@@ -183,6 +204,7 @@ export function evaluateVisualBuild(
       worldCoverage,
       mobilePresentation,
       audioCoverage,
+      referenceCoverage,
     },
     issues,
     repairPriority,
