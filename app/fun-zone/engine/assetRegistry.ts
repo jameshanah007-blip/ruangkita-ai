@@ -26,7 +26,7 @@ export type GameAssetSpec = {
   required: boolean;
 };
 
-export type AssetRegistry = {
+export type CharacterAssetPlan = {\n  characters: Array<{ id: string; identityKey: string; description: string; animationNeeds: string[] }>;\n  sharedStyle: string;\n  consistencyRules: string[];\n};\n\nexport type AssetRegistry = {
   version: 1;
   assets: GameAssetSpec[];
   requiredAssetIds: string[];
