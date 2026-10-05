@@ -46,7 +46,7 @@ export function createOpenAIImageProvider(): AssetProvider | null {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-6-luna",
+          model: "gpt-5.6-luna",
           input: promptFor(asset),
           tools: [
             {
