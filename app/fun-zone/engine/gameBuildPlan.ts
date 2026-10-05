@@ -35,6 +35,10 @@ export type GameBuildPlan = {
   buildStages: string[];
   testStages: string[];
   repairLoop: string[];
+  runtimeEvidence: {
+    required: boolean;
+    capture: string[];
+  };
 };
 
 function textOf(b: GameBlueprint): string {
@@ -150,6 +154,7 @@ export function createGameBuildPlan(b: GameBlueprint): GameBuildPlan {
       "build-runtime",
       "run-in-sandbox",
       "collect-runtime-evidence",
+      "analyze-runtime-evidence",
       "repair",
       "retest",
       "finalize",
@@ -167,6 +172,18 @@ export function createGameBuildPlan(b: GameBlueprint): GameBuildPlan {
       "mobile-layout",
       "runtime-stability",
     ],
+    runtimeEvidence: {
+      required: true,
+      capture: [
+        "canvas-size",
+        "visible-pixels",
+        "animation-frames",
+        "input-events",
+        "audio-events",
+        "runtime-errors",
+        "screenshot",
+      ],
+    },
     repairLoop: [
       "inspect-test-report",
       "identify-root-cause",
