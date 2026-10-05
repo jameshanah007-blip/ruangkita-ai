@@ -21,7 +21,7 @@ export type VisualEnvironmentSpec = {
 
 export type VisualBlueprint = {
   artDirection: {
-    style: string;
+    style: string[];
     genre: string;
     mood: string;
     theme: string;
@@ -107,7 +107,7 @@ export function buildVisualBlueprint(b: GameBlueprint): VisualBlueprint {
   const text = sourceText(b);
   const protagonist = characterFromPrompt(text);
   const isAnime = /anime|manga|isekai|japanese animation/i.test(text);
-  const style = isAnime ? "Anime-inspired" : b.visualStyle || "Game-specific visual style";
+  const style = isAnime ? ["anime-inspired"] : (Array.isArray(b.visualStyle) ? b.visualStyle.filter(Boolean) : [b.visualStyle || "game-specific visual style"]);
 
   const characters: VisualCharacterSpec[] = [protagonist];
 
