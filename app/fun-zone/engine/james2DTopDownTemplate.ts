@@ -63,16 +63,16 @@ export function buildTopDown2DGameHtml(
 <title>${String(blueprint.title || "James 2D Adventure").replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[char] || char))}</title>
 <style>
 *{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101b2d;color:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#171c18;color:#fff;font-family:Georgia,"Times New Roman",serif}
 body{display:flex;justify-content:center;align-items:stretch}
-#root{position:relative;width:min(100vw,900px);height:100dvh;min-height:500px;overflow:hidden;background:#79b85b}
+#root{position:relative;width:min(100vw,1100px);height:100dvh;min-height:500px;overflow:hidden;background:#202820}
 canvas{display:block;width:100%;height:100%;image-rendering:pixelated;touch-action:none}
 #hud{position:absolute;left:10px;right:10px;top:10px;display:flex;justify-content:space-between;gap:8px;pointer-events:none}
-.card{background:rgba(24,34,42,.86);border:2px solid rgba(255,255,255,.18);border-radius:12px;padding:7px 10px;box-shadow:0 5px 16px rgba(0,0,0,.2);font-size:11px;line-height:1.35;text-shadow:0 1px 1px #000}
-#message{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(88%,360px);display:none;padding:20px;border-radius:16px;background:rgba(15,24,34,.96);border:2px solid #f5d76e;text-align:center;box-shadow:0 18px 60px rgba(0,0,0,.45)}
+.card{background:rgba(28,31,25,.88);border:2px solid rgba(229,205,132,.34);border-radius:4px;padding:7px 10px;box-shadow:0 5px 16px rgba(0,0,0,.2);font-size:11px;line-height:1.35;text-shadow:0 1px 1px #000}
+#message{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(88%,360px);display:none;padding:20px;border-radius:16px;background:rgba(27,29,24,.97);border:2px solid #d8bd72;text-align:center;box-shadow:0 18px 60px rgba(0,0,0,.45)}
 #message h2{margin:0 0 8px;font-size:22px}
 #message p{margin:0 0 14px;color:#d7e0e7;font-size:12px;line-height:1.5}
-#restart{border:0;border-radius:11px;padding:11px 18px;background:#f5d76e;color:#18222c;font-weight:900}
+#restart{border:0;border-radius:11px;padding:11px 18px;background:#d8bd72;color:#24271f;font-weight:900}
 #controls{position:absolute;left:0;right:0;bottom:12px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 14px;pointer-events:none}
 #pad,#actions{display:flex;gap:7px;pointer-events:auto}
 #pad{width:172px;height:156px;position:relative}
@@ -126,8 +126,8 @@ var messageBody=document.getElementById("messageBody");
 var restart=document.getElementById("restart");
 
 var TILE=32;
-var MAP_W=42;
-var MAP_H=30;
+var MAP_W=52;
+var MAP_H=38;
 var W=720,H=560,dpr=1;
 var last=0,raf=0;
 var elapsed=0;
@@ -203,8 +203,14 @@ function makeMap(){
     if(map[ry][rx]==="grass") map[ry][rx]="rock";
   }
 
-  map[12][cx-1]="house";map[12][cx]="house";map[12][cx+1]="house";
-  map[13][cx-1]="house";map[13][cx]="house";map[13][cx+1]="house";
+  // Village buildings: three compact footprints around the central square.
+  for(var hy=0;hy<3;hy++)for(var hx=0;hx<5;hx++){
+    map[8+hy][cx-10+hx]="house";
+    map[8+hy][cx+6+hx]="house";
+  }
+  for(var hy2=0;hy2<3;hy2++)for(var hx2=0;hx2<4;hx2++){
+    map[24+hy2][cx-8+hx2]="house";
+  }
 
   return map;
 }
@@ -213,8 +219,16 @@ function reset(){
   state={
     map:makeMap(),
     player:{x:(Math.floor(MAP_W/2)+.5)*TILE,y:17.5*TILE,dir:"down",moving:false,frame:0,hp:3},
-    npc:{x:(Math.floor(MAP_W/2)+4.5)*TILE,y:11.5*TILE,frame:0},
-    companion:{x:(Math.floor(MAP_W/2)-4.5)*TILE,y:16.5*TILE,frame:0},
+    npc:{x:(Math.floor(MAP_W/2)+5.5)*TILE,y:12.5*TILE,frame:0},
+    npc2:{x:(Math.floor(MAP_W/2)-7.5)*TILE,y:15.5*TILE,frame:0},
+    companion:{x:(Math.floor(MAP_W/2)-4.5)*TILE,y:18.5*TILE,frame:0},
+    torches:[
+      {x:(Math.floor(MAP_W/2)-8)*TILE,y:13*TILE},
+      {x:(Math.floor(MAP_W/2)+1)*TILE,y:10*TILE},
+      {x:(Math.floor(MAP_W/2)+9)*TILE,y:13*TILE},
+      {x:(Math.floor(MAP_W/2)-1)*TILE,y:20*TILE},
+      {x:(Math.floor(MAP_W/2)+8)*TILE,y:20*TILE}
+    ],
     creature:{x:(Math.floor(MAP_W/2)+7.5)*TILE,y:20.5*TILE,dx:0,dy:0,frame:0},
     crystals:[
       {x:10.5*TILE,y:8.5*TILE,taken:false},
@@ -234,7 +248,7 @@ function reset(){
   };
   message.style.display="none";
   titleEl.textContent=G.title;
-  zoneEl.textContent="2D TOP-DOWN · PIXEL ADVENTURE";
+  zoneEl.textContent="2D ADVENTURE · STORYBOOK PIXEL";
   updateHud();
 }
 reset();
@@ -302,10 +316,13 @@ function drawTile(t,x,y){
     ctx.fillStyle="#6d7370";ctx.fillRect(px+7,py+10,18,15);
     ctx.fillStyle="#909895";ctx.fillRect(px+10,py+7,9,5);
   }else if(t==="house"){
-    ctx.fillStyle="#d9bd82";ctx.fillRect(px,py,TILE,TILE);
-    ctx.fillStyle="#a84e43";ctx.fillRect(px+2,py+3,28,10);
-    ctx.fillStyle="#8d403a";ctx.fillRect(px+6,py+1,20,7);
-    ctx.fillStyle="#8a6a45";ctx.fillRect(px+11,py+15,10,17);
+    ctx.fillStyle="#bda77b";ctx.fillRect(px,py,TILE,TILE);
+    ctx.fillStyle="#8b7658";ctx.fillRect(px+1,py+2,30,30);
+    ctx.fillStyle="#d2c18d";ctx.fillRect(px+4,py+5,24,27);
+    ctx.fillStyle="#6c5b48";ctx.fillRect(px+7,py,4,32);ctx.fillRect(px+21,py,4,32);
+    ctx.fillStyle="#8f302f";ctx.fillRect(px,py,32,7);
+    ctx.fillStyle="#642c2d";ctx.fillRect(px+3,py+2,26,5);
+    if((x+y)%5===0){ctx.fillStyle="#e7cc69";ctx.fillRect(px+13,py+13,6,7);}
   }
 }
 
@@ -343,10 +360,11 @@ function drawSprite(kind,x,y,dir,frame){
   var skin=kind==="player"?"#ffd5c1":kind==="npc"?"#f2c6a9":"#f0a7a7";
   var bob=(Math.floor(frame)%2)*2;
   ctx.save();ctx.translate(Math.round(x),Math.round(y+bob));
-  ctx.fillStyle="#3d5c3b";ctx.fillRect(-13,17,26,5);
+  ctx.fillStyle="rgba(0,0,0,.32)";ctx.fillRect(-13,18,26,5);
   ctx.fillStyle=body;ctx.fillRect(-10,-1,20,20);
   ctx.fillStyle=skin;ctx.fillRect(-8,-14,16,14);
   ctx.fillStyle=hair;ctx.fillRect(-10,-19,20,7);ctx.fillRect(-7,-22,14,6);
+  ctx.fillStyle="#ffffff";ctx.fillRect(-7,-12,3,2);ctx.fillRect(4,-12,3,2);
   ctx.fillStyle="#18222e";
   if(dir==="down"){ctx.fillRect(-5,-10,2,3);ctx.fillRect(3,-10,2,3)}
   if(dir==="left"){ctx.fillRect(-10,-9,4,3)}
@@ -376,9 +394,13 @@ function drawWorld(){
   }
 
   drawSprite("npc",state.npc.x,state.npc.y,"down",state.npc.frame);
+  drawSprite("npc",state.npc2.x,state.npc2.y,"down",state.npc2.frame);
   drawSprite("enemy",state.creature.x,state.creature.y,"down",state.creature.frame);
   drawSprite("player",state.player.x,state.player.y,state.player.dir,state.player.frame);
+  for(var t=0;t<state.torches.length;t++) drawTorch(state.torches[t].x,state.torches[t].y);
   ctx.restore();
+
+  drawLighting(camX,camY);
 
   if(state.dialog&&performance.now()<state.dialogUntil){
     ctx.fillStyle="rgba(24,34,42,.94)";
@@ -390,11 +412,56 @@ function drawWorld(){
   }
 }
 
+function drawTorch(x,y){
+  var flicker=Math.sin(elapsed*8+x*.03)*1.5;
+  ctx.save();ctx.translate(x,y);
+  ctx.fillStyle="#4a3326";ctx.fillRect(-2,3,4,18);
+  ctx.fillStyle="#d58b35";ctx.fillRect(-5,-2+flicker,10,9);
+  ctx.fillStyle="#ffe38b";ctx.fillRect(-2,-5+flicker,5,7);
+  ctx.restore();
+}
+
+function drawLighting(camX,camY){
+  ctx.save();
+  ctx.fillStyle="rgba(8,13,11,.68)";
+  ctx.fillRect(0,0,W,H);
+  ctx.globalCompositeOperation="destination-out";
+  var lights=[
+    {x:state.player.x-camX,y:state.player.y-camY,r:150},
+    {x:state.npc.x-camX,y:state.npc.y-camY,r:86}
+  ];
+  for(var i=0;i<state.torches.length;i++){
+    lights.push({x:state.torches[i].x-camX,y:state.torches[i].y-camY,r:92+Math.sin(elapsed*7+i)*7});
+  }
+  for(var j=0;j<lights.length;j++){
+    var l=lights[j];
+    var g=ctx.createRadialGradient(l.x,l.y,4,l.x,l.y,l.r);
+    g.addColorStop(0,"rgba(0,0,0,.98)");
+    g.addColorStop(.45,"rgba(0,0,0,.72)");
+    g.addColorStop(1,"rgba(0,0,0,0)");
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(l.x,l.y,l.r,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+  ctx.save();ctx.globalCompositeOperation="screen";
+  for(var k=0;k<state.torches.length;k++){
+    var tx=state.torches[k].x-camX,ty=state.torches[k].y-camY;
+    var rg=ctx.createRadialGradient(tx,ty,2,tx,ty,72);
+    rg.addColorStop(0,"rgba(255,202,92,.28)");
+    rg.addColorStop(1,"rgba(255,202,92,0)");
+    ctx.fillStyle=rg;ctx.beginPath();ctx.arc(tx,ty,72,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+  var vignette=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*.24,W/2,H/2,Math.max(W,H)*.72);
+  vignette.addColorStop(0,"rgba(0,0,0,0)");
+  vignette.addColorStop(1,"rgba(0,0,0,.42)");
+  ctx.fillStyle=vignette;ctx.fillRect(0,0,W,H);
+}
+
 function interact(){
   if(state.won||state.lost)return;
-  var dNpc=dist(state.player,state.npc);
+  var dNpc=Math.min(dist(state.player,state.npc),dist(state.player,state.npc2));
   if(dNpc<58){
-    state.dialog="Aira: Selamat datang! Jelajahi desa dan kumpulkan Crystal!";
+    state.dialog="Aira: Selamat datang di desa. Jelajahi hutan dan temukan semua Crystal!";
     state.dialogUntil=performance.now()+2600;
     state.stateChanges++;tone(660,.12,"sine",.05);tone(880,.16,"sine",.04);
     return;
@@ -426,7 +493,9 @@ function checkCrystals(){
 }
 
 function updateCreature(dt){
-  state.creature.frame=(state.creature.frame+dt*4)%4;
+  state.creature.frame=(state.creature.frame+dt*5)%4;
+  state.npc.frame=(state.npc.frame+dt*2)%4;
+  state.npc2.frame=(state.npc2.frame+dt*1.7)%4;
   if(Math.random()<.01){
     var a=Math.floor(Math.random()*4);
     state.creature.dx=a===0?1:a===1?-1:0;
