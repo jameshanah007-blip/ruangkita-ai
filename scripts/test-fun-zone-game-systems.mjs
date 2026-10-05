@@ -6,7 +6,6 @@ import { buildAssetRegistry } from "../app/fun-zone/engine/assetRegistry.ts";
 import { generateGameAssets, generateLocalGameAssets } from "../app/fun-zone/engine/assetGenerator.ts";
 import { materializeGameAssets } from "../app/fun-zone/engine/assetMaterializer.ts";
 import { buildCharacterAssetPlan } from "../app/fun-zone/engine/characterAssetPipeline.ts";
-import { materializeGameAssets as materializeAssets } from "../app/fun-zone/engine/assetMaterializer.ts";
 import {
   createModularGameState,
   captureCreature,
@@ -70,7 +69,7 @@ const providerGenerated = await generateGameAssets(registry, provider);
 assert.ok(providerGenerated.assets.every((asset) => asset.status === "ready"));
 assert.ok(providerGenerated.assets.every((asset) => asset.metadata.provider === "test-image-provider"));
 assert.equal(providerGenerated.assets[0].metadata.providerMetadata.identityKey, providerGenerated.assets[0].id);
-const providerMaterialized = materializeAssets(providerGenerated);
+const providerMaterialized = materializeGameAssets(providerGenerated);
 assert.ok(providerMaterialized.assets.every((asset) => asset.materializer === "provider"));
 assert.ok(providerMaterialized.assets.every((asset) => asset.uri.startsWith("data:image/test,")));
 
