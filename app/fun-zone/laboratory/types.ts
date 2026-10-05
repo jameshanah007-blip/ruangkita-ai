@@ -219,6 +219,7 @@ export type TestReport = {
 
   screenshot?: RuntimeScreenshotEvidence;
   runtimeVisualAnalysis?: RuntimeVisualAnalysis;
+  referenceVisualComparison?: ReferenceVisualComparison;
 
   hardFailures: string[];
   softWarnings: string[];
