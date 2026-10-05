@@ -2270,6 +2270,14 @@ body: JSON.stringify({
           diagnostic.testReport.softWarnings.slice(0, 8),
         runtimeErrors:
           diagnostic.testReport.runtimeErrors.slice(0, 3),
+        runtimeVisualAnalysis:
+          diagnostic.testReport.runtimeVisualAnalysis
+            ? {
+                score: diagnostic.testReport.runtimeVisualAnalysis.score,
+                passed: diagnostic.testReport.runtimeVisualAnalysis.passed,
+                issues: diagnostic.testReport.runtimeVisualAnalysis.issues.slice(0, 8),
+              }
+            : null,
       }
     : null,
 
@@ -2486,6 +2494,8 @@ body: JSON.stringify({
               screenshot: result.screenshot,
             });
 
+          result.runtimeVisualAnalysis = runtimeVisualAnalysis;
+
           setTestResult(
             result
           );
@@ -2576,6 +2586,12 @@ evidence: {
 
   elapsedMs:
     result.elapsedMs,
+
+  screenshot:
+    result.screenshot,
+
+  runtimeVisualAnalysis:
+    result.runtimeVisualAnalysis,
 
   /*
    * Semantic Game Test Protocol

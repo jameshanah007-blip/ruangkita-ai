@@ -626,6 +626,12 @@ export function testGame({
     elapsedMs:
       evidence.elapsedMs,
 
+    screenshot:
+      evidence.screenshot,
+
+    runtimeVisualAnalysis:
+      evidence.runtimeVisualAnalysis,
+
     hardFailures,
 
     softWarnings,
