@@ -76,6 +76,17 @@ export type ReferenceImageEvidence = {
   source: "user-upload";
 };
 
+export type ReferenceVisualComparison = {
+  version: 1;
+  analyzed: boolean;
+  provider: "openai-vision" | "native-metrics";
+  score: number;
+  passed: boolean;
+  summary: string;
+  mismatches: string[];
+  repairs: string[];
+};
+
 export type RuntimeVisualAnalysis = {
   version: 1;
   passed: boolean;
@@ -142,6 +153,7 @@ export type SandboxTestEvidence = {
 
   screenshot?: RuntimeScreenshotEvidence;
   runtimeVisualAnalysis?: RuntimeVisualAnalysis;
+  referenceVisualComparison?: ReferenceVisualComparison;
 
   gameTestProtocol: boolean;
   stateChanged: boolean;
