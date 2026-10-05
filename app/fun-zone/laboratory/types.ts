@@ -66,6 +66,16 @@ export type GameArtifact = {
   buildAttempts: number;
 };
 
+export type ReferenceImageEvidence = {
+  version: 1;
+  available: boolean;
+  mimeType?: "image/png" | "image/jpeg" | "image/webp";
+  dataUrl?: string;
+  width?: number;
+  height?: number;
+  source: "user-upload";
+};
+
 export type RuntimeVisualAnalysis = {
   version: 1;
   passed: boolean;
