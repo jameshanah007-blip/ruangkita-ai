@@ -1,6 +1,15 @@
 import type { AssetRegistry, GameAssetSpec } from "./assetRegistry";
 import { localAssetProvider, type AssetProvider } from "./assetProvider";
 import { createAssetProviderRouter } from "./assetProviderRouter";
+import { generateJamesNativeVisual } from "./jamesNativeVisualEngine";
+
+const jamesNativeProvider: AssetProvider = {
+  name: "james-native-visual-engine-v1",
+  supports: ["character", "npc", "enemy", "companion", "environment", "prop", "effect", "ui"],
+  async generate(asset) {
+    return generateJamesNativeVisual(asset);
+  },
+};
 
 export type GeneratedAsset = {
   id: string;
@@ -46,19 +55,16 @@ export function generateLocalGameAssets(registry: AssetRegistry): AssetGeneratio
   };
 }
 
-/**
- * Provider-aware generation through James' deterministic provider router.
- * Existing callers without a provider continue to use the local path.
- */
 export async function generateGameAssets(
   registry: AssetRegistry,
   provider?: AssetProvider | AssetProvider[],
 ): Promise<AssetGenerationResult> {
-  const providers = Array.isArray(provider)
+  const externalProviders = Array.isArray(provider)
     ? provider.filter(Boolean)
     : provider
       ? [provider]
       : [];
+  const providers = [...externalProviders, jamesNativeProvider];
   const router = createAssetProviderRouter(providers);
   const warnings: string[] = [];
   const assets: GeneratedAsset[] = [];
@@ -68,9 +74,7 @@ export async function generateGameAssets(
     const isPlaceholder = routed.result.uri.startsWith("asset://placeholder/");
 
     if (routed.fallback) {
-      warnings.push(
-        `Asset "${asset.id}" used local fallback after provider routing.`,
-      );
+      warnings.push(`Asset "${asset.id}" used emergency placeholder fallback.`);
     }
 
     assets.push({
@@ -87,10 +91,6 @@ export async function generateGameAssets(
         fallback: routed.fallback,
       },
     });
-  }
-
-  if (providers.length === 0) {
-    warnings.push("No external asset provider configured; James is using local fallback assets.");
   }
 
   return { assets, warnings };
