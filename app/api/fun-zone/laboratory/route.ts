@@ -13,6 +13,7 @@ import type {
 } from "../../../fun-zone/laboratory/types";
 import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
+import { composeGamePlan } from "../../../fun-zone/engine/gameComposer";
 import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies, applyJamesEffectiveStrategies, getJamesEffectiveStrategies } from "../../../fun-zone/engine/jamesGameLearning";
 
 const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
@@ -352,10 +353,20 @@ export async function POST(
     const avoidanceBlueprint = applyJamesFailedStrategyAvoidance(adaptationBlueprint, failedGameStrategies);
     const learnedBlueprint = applyJamesEffectiveStrategies(avoidanceBlueprint, effectiveGameStrategies);
 
+    // Compose reusable gameplay systems before the existing autonomous builder runs.
+    // We enrich the existing blueprint instead of replacing the current architecture.
+    const composedPlan = composeGamePlan(learnedBlueprint);
+    const composedBlueprint: GameBlueprint = {
+      ...learnedBlueprint,
+      mechanics: [...new Set([...learnedBlueprint.mechanics, ...composedPlan.systems.map((system) => system.id)])],
+      playerActions: [...new Set([...learnedBlueprint.playerActions, ...composedPlan.requiredActions])],
+      testRequirements: [...new Set([...learnedBlueprint.testRequirements, ...composedPlan.testGoals])],
+    };
+
     session =
       markDirectorCompleted(
         session,
-        learnedBlueprint
+        composedBlueprint
       );
 
     /*
@@ -412,7 +423,7 @@ export async function POST(
         success: true,
         provider: "james-autonomous",
         model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(normalizedBlueprint),
+        gameHtml: buildAutonomousGameHtml(composedBlueprint),
         validation: {
           valid: true,
           errors: [],
