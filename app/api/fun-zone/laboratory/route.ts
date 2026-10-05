@@ -388,7 +388,7 @@ export async function POST(
 
     if (PROVIDER_ENHANCEMENT_ENABLED) {
       try {
-        builder = await callBuilder(request, learnedBlueprint);
+        builder = await callBuilder(request, composedBlueprint);
         builderProvider = builder.provider || "provider-enhanced";
       } catch (error) {
         console.warn("Provider Builder unavailable; using James autonomous compiler.", error);
@@ -396,7 +396,7 @@ export async function POST(
           success: true,
           provider: "james-autonomous",
           model: "autonomous-game-compiler-v1",
-          gameHtml: buildAutonomousGameHtml(learnedBlueprint),
+          gameHtml: buildAutonomousGameHtml(composedBlueprint),
           validation: {
             valid: true,
             errors: [],
@@ -435,7 +435,7 @@ export async function POST(
 
     const artifact =
       createArtifactFromBuilder(
-        learnedBlueprint,
+        composedBlueprint,
         builder
       );
 
@@ -457,7 +457,7 @@ export async function POST(
      * ke client bersama session.
      */
 
-    const gameHtml = builder.gameHtml ?? buildAutonomousGameHtml(learnedBlueprint);
+    const gameHtml = builder.gameHtml ?? buildAutonomousGameHtml(composedBlueprint);
     await persistCloudSession(session, gameHtml);
 
 
