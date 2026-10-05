@@ -41,7 +41,7 @@ canvas{display:block;width:100%;height:100%;min-height:480px}#hud{position:absol
 <div id="hud"><div class="panel"><b>${title}</b><br><span id="hp">HP 100</span></div><div class="panel"><span id="score">Score 0</span><br><span id="status">PLAYING</span></div></div>
 <div id="hint">${objective} · ${theme}</div><div id="controls"><div class="pad"><button class="ctrl" data-a="left">◀</button><button class="ctrl" data-a="up">▲</button><button class="ctrl" data-a="down">▼</button><button class="ctrl" data-a="right">▶</button></div><div class="actions"><button class="ctrl" data-a="action">●</button></div></div>
 <div id="message"><div id="messageText"></div><button id="restart">RESTART</button></div></div>
-<script>(function(){var C=${config},canvas=document.getElementById("gameCanvas"),ctx=canvas&&canvas.getContext("2d"),w=720,h=900,last=0;
+<script>(function(){var C=${config},canvas=document.getElementById("gameCanvas"),ctx=canvas&&canvas.getContext("2d"),w=720,h=900,last=0,assetImages={};
 window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;
 var input={left:false,right:false,up:false,down:false,action:false},state={mode:C.mode,status:"playing",tick:0,score:0,health:100,progress:0,resources:0,xp:0,player:{x:110,y:400},items:[],enemies:[]};
 function rnd(n){var x=Math.sin(C.seed+n*997)*43758.5453;return x-Math.floor(x)}
@@ -74,11 +74,30 @@ if(C.systems.combat&&input.action&&state.tick%8===0){
 }
 if(C.systems.progression){state.level=1+Math.floor(state.xp/50);}
 if(state.health<=0)finish(false);state.tick++;updateHud()}
+function loadAssets(){
+  (C.materializedAssets&&C.materializedAssets.assets||[]).forEach(function(a){
+    if(!a.uri||assetImages[a.id])return;
+    var img=new Image();
+    img.onload=function(){assetImages[a.id]=img};
+    img.src=a.uri;
+  });
+}
+function assetImage(kind,index){
+  var list=(C.materializedAssets&&C.materializedAssets.assets||[]).filter(function(a){return a.kind===kind});
+  return list[index||0]&&assetImages[list[index||0].id];
+}
+function drawAsset(img,x,y,size){
+  if(!img||!img.complete)return false;
+  ctx.drawImage(img,x-size/2,y-size/2,size,size);
+  return true;
+}
 function draw(){if(!ctx)return;ctx.clearRect(0,0,w,h);var g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,"#17365d");g.addColorStop(1,"#07111f");ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+var environment=assetImage("environment",0);
+if(environment)ctx.globalAlpha=.28,ctx.drawImage(environment,0,70,w,h-160),ctx.globalAlpha=1;
 if(C.mode==="puzzle"){for(var y=0;y<5;y++)for(var x=0;x<4;x++){ctx.fillStyle=((x+y+state.progress+C.seed)%3===0)?"#22d3ee":"#334155";ctx.fillRect(w/2-108+x*54,130+y*54,44,44)}ctx.fillStyle="#fff";ctx.font="bold 14px system-ui";ctx.fillText("ACTION = solve next pattern",w/2-100,h*.67)}
-else{state.items.forEach(function(o){if(!o.taken){ctx.fillStyle=C.mode==="farming"?"#34d399":"#facc15";ctx.beginPath();ctx.arc(o.x,o.y,9,0,Math.PI*2);ctx.fill()}});state.enemies.forEach(function(e){if(e.alive){ctx.fillStyle=C.mode==="stealth"?"#a78bfa":"#fb7185";ctx.fillRect(e.x-12,e.y-12,24,24)}});if(C.mode==="racing"){ctx.fillStyle="#102b47";ctx.fillRect(0,h*.7,w,h*.18);ctx.strokeStyle="#ffffff33";ctx.setLineDash([22,18]);ctx.beginPath();ctx.moveTo(0,h*.79);ctx.lineTo(w,h*.79);ctx.stroke();ctx.setLineDash([])}ctx.fillStyle="#f8fafc";ctx.fillRect(state.player.x-11,state.player.y-11,22,22);ctx.fillStyle="#22d3ee";ctx.fillRect(state.player.x-7,state.player.y-7,14,14)}window.__RK_GAME_RENDERED__=true}
+else{state.items.forEach(function(o){if(!o.taken){ctx.fillStyle=C.mode==="farming"?"#34d399":"#facc15";ctx.beginPath();ctx.arc(o.x,o.y,9,0,Math.PI*2);ctx.fill()}});state.enemies.forEach(function(e){if(e.alive){var enemyImg=assetImage("enemy",0);if(!drawAsset(enemyImg,e.x,e.y,38)){ctx.fillStyle=C.mode==="stealth"?"#a78bfa":"#fb7185";ctx.fillRect(e.x-12,e.y-12,24,24)}}});if(C.mode==="racing"){ctx.fillStyle="#102b47";ctx.fillRect(0,h*.7,w,h*.18);ctx.strokeStyle="#ffffff33";ctx.setLineDash([22,18]);ctx.beginPath();ctx.moveTo(0,h*.79);ctx.lineTo(w,h*.79);ctx.stroke();ctx.setLineDash([])}var playerImg=assetImage("character",0);if(!drawAsset(playerImg,state.player.x,state.player.y,44)){ctx.fillStyle="#f8fafc";ctx.fillRect(state.player.x-11,state.player.y-11,22,22);ctx.fillStyle="#22d3ee";ctx.fillRect(state.player.x-7,state.player.y-7,14,14)} }window.__RK_GAME_RENDERED__=true}
 function updateHud(){document.getElementById("hp").textContent="HP "+Math.max(0,Math.ceil(state.health));document.getElementById("score").textContent="Score "+state.score+" · Progress "+state.progress}
 function loop(t){window.__RK_GAME_LOOP_STARTED__=true;var dt=Math.min(.05,(t-last)/1000||.016);last=t;update(dt);draw();requestAnimationFrame(loop)}
 window.__RK_GAME_TEST__={getState:function(){return JSON.parse(JSON.stringify(state))},getPlayerState:function(){return JSON.parse(JSON.stringify(state.player))},getObjectiveState:function(){return {mode:state.mode,progress:state.progress,score:state.score,status:state.status}},getWinState:function(){return state.status==="won"},getLoseState:function(){return state.status==="lost"},performTestAction:function(a){if(["left","right","up","down","action"].indexOf(a)>=0){setI(a,true);setTimeout(function(){setI(a,false)},120);return true}if(a==="collect"){var o=state.items.find(function(x){return !x.taken});if(o){state.player.x=o.x;state.player.y=o.y;o.taken=true;state.score++;return true}}if(a==="attack"){var e=state.enemies.find(function(x){return x.alive&&dist(state.player,x)<120});if(e){e.alive=false;state.score+=25;return true}}return false},restart:function(){reset();return true}};
-resize();addEventListener("resize",resize);reset();window.__RK_GAME_READY__=true;draw();requestAnimationFrame(loop)})();</script></body></html>`;
+resize();addEventListener("resize",resize);loadAssets();reset();window.__RK_GAME_READY__=true;draw();requestAnimationFrame(loop)})();</script></body></html>`;
 }
