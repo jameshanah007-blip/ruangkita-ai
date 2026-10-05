@@ -872,7 +872,7 @@ const handleTestReport =
           ...previous,
           status: nextRepairAttempt <= 3 ? "repairing" : "debugging",
           stage: nextRepairAttempt <= 3 ? "debugger" : "debugger",
-          testReports: [...previous.testReports, report],
+          testReports: [...previous.testReports, effectiveReport],
           currentAttempt: nextRepairAttempt,
           updatedAt: new Date().toISOString(),
           error: (Array.isArray(effectiveReport.hardFailures) ? effectiveReport.hardFailures : []).join(" ") || previous.error,
