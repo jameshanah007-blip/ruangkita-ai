@@ -127,6 +127,10 @@ function characterSpriteSheetSvg(asset: GameAssetSpec): string {
     { name: "walk-left", flip: true, bob: [0, -2, 0, 2] },
     { name: "walk-right", flip: false, bob: [0, 2, 0, -2] },
     { name: "action", flip: false, bob: [0, -4, 2, -2] },
+    { name: "attack", flip: false, bob: [0, -5, 3, -1] },
+    { name: "hit", flip: false, bob: [2, -1, -2, 1] },
+    { name: "talk", flip: false, bob: [0, -2, 1, -1] },
+    { name: "defeat", flip: false, bob: [3, 5, 8, 10] },
   ];
   const frameGroups = rows.map((row, rowIndex) => {
     return [0, 1, 2, 3].map((frame) => {
@@ -138,7 +142,7 @@ function characterSpriteSheetSvg(asset: GameAssetSpec): string {
       return `<g transform="translate(${tx} ${y})"><g transform="translate(128 ${128 + bob}) scale(${sx} 1) translate(-128 -128)">${body}</g></g>`;
     }).join("");
   }).join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1536" viewBox="0 0 1024 1536">${frameGroups}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="2560" viewBox="0 0 1024 2560">${frameGroups}</svg>`;
 }
 export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; metadata: Record<string, unknown> } {
   const dna = buildCharacterDNA(asset);
@@ -162,7 +166,7 @@ export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; 
       assetPrompt: asset.prompt,
       characterDNA: dna,
       identityKey: dna?.identityKey ?? asset.id,
-      spriteSheet: isCharacter ? { frameWidth: 256, frameHeight: 256, frameCount: 4, rowCount: 6, states: ["idle-down","walk-down","walk-up","walk-left","walk-right","action"], fps: 8 } : null,
+      spriteSheet: isCharacter ? { frameWidth: 256, frameHeight: 256, frameCount: 4, rowCount: 10, states: ["idle-down","walk-down","walk-up","walk-left","walk-right","action","attack","hit","talk","defeat"], fps: 8 } : null,
     },
   };
 }

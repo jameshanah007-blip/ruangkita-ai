@@ -231,7 +231,7 @@ function reset(){
       {x:(Math.floor(MAP_W/2)-1)*TILE,y:20*TILE},
       {x:(Math.floor(MAP_W/2)+8)*TILE,y:20*TILE}
     ],
-    creature:{x:(Math.floor(MAP_W/2)+7.5)*TILE,y:20.5*TILE,dx:0,dy:0,frame:0},
+    creature:{x:(Math.floor(MAP_W/2)+7.5)*TILE,y:20.5*TILE,dx:0,dy:0,frame:0,dir:"down",hitUntil:0,defeated:false},
     crystals:[
       {x:10.5*TILE,y:8.5*TILE,taken:false},
       {x:29.5*TILE,y:7.5*TILE,taken:false},
@@ -344,7 +344,8 @@ function drawCrystal(x,y){
 function setAnimationState(kind,next,duration){ animationState[kind]=next; animationStateUntil[kind]=performance.now()+duration; }
 function resolveAnimationState(kind,dir,moving){
   if(kind==="player" && state.actionUntil>performance.now()) return "action";
-  if(!moving) return "idle-down";
+  if(kind==="enemy" && state.creature && state.creature.hitUntil>performance.now()) return "hit";
+  if(!moving) return kind==="enemy" && state.creature && state.creature.defeated ? "defeat" : "idle-down";
   if(dir==="up") return "walk-up";
   if(dir==="left") return "walk-left";
   if(dir==="right") return "walk-right";
@@ -360,16 +361,16 @@ function drawSprite(kind,x,y,dir,frame){
     if(img.complete&&img.naturalWidth){
       ctx.save();
       ctx.imageSmoothingEnabled=false;
-      var sheet=img.naturalWidth>=img.naturalHeight*0.55 && img.naturalHeight>=img.naturalWidth*1.25;
+      var sheet=img.naturalWidth>=img.naturalHeight*0.38 && img.naturalHeight>=img.naturalWidth*2.25;
       if(sheet){
         var frameCount=4;
         var frameIndex=Math.floor(elapsed*8)%frameCount;
-        var rowNames=["idle-down","walk-down","walk-up","walk-left","walk-right","action"];
+        var rowNames=["idle-down","walk-down","walk-up","walk-left","walk-right","action","attack","hit","talk","defeat"];
         var stateName=animationState[kind]||resolveAnimationState(kind,dir,kind==="player"&&state.player.moving);
         if(animationStateUntil[kind] && animationStateUntil[kind]<performance.now()) stateName=resolveAnimationState(kind,dir,kind==="player"&&state.player.moving);
         var row=rowNames.indexOf(stateName); if(row<0)row=0;
         var fw=img.naturalWidth/frameCount;
-        var fh=img.naturalHeight/6;
+        var fh=img.naturalHeight/10;
         ctx.translate(x,y-28);
         ctx.drawImage(img,frameIndex*fw,row*fh,fw,fh,-20,0,40,56);
       }else{
@@ -422,7 +423,7 @@ function drawWorld(){
 
   drawSprite("npc",state.npc.x,state.npc.y,"down",state.npc.frame);
   drawSprite("npc",state.npc2.x,state.npc2.y,"down",state.npc2.frame);
-  drawSprite("enemy",state.creature.x,state.creature.y,"down",state.creature.frame);
+  drawSprite("enemy",state.creature.x,state.creature.y,state.creature.dir||"down",state.creature.frame);
   drawSprite("player",state.player.x,state.player.y,state.player.dir,state.player.frame);
   for(var t=0;t<state.torches.length;t++) drawTorch(state.torches[t].x,state.torches[t].y);
   ctx.restore();
@@ -497,6 +498,7 @@ function interact(){
   }
   var dEnemy=dist(state.player,state.creature);
   if(dEnemy<48){
+    state.creature.hitUntil=performance.now()+420;
     state.dialog="Makhluk liar! Tekan A / Space untuk berinteraksi.";
     state.dialogUntil=performance.now()+1900;
     state.stateChanges++;tone(120,.12,"sawtooth",.04);
@@ -523,7 +525,9 @@ function checkCrystals(){
 
 function updateCreature(dt){
   state.creature.frame=(state.creature.frame+dt*5)%4;
-  setAnimationState("enemy",state.creature.dx||state.creature.dy?"walk-down":"idle-down",180);
+  if(state.creature.dx) state.creature.dir=state.creature.dx<0?"left":"right";
+  else if(state.creature.dy) state.creature.dir=state.creature.dy<0?"up":"down";
+  setAnimationState("enemy",resolveAnimationState("enemy",state.creature.dir,Boolean(state.creature.dx||state.creature.dy)),180);
   state.npc.frame=(state.npc.frame+dt*2)%4;
   state.npc2.frame=(state.npc2.frame+dt*1.7)%4;
   setAnimationState("npc","idle-down",240);
