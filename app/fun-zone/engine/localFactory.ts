@@ -1,5 +1,6 @@
 import type { GameBlueprint } from "../laboratory/types";
 import { buildGameSystemPlan } from "./gameSystemFactory";
+import { buildVisualBlueprint } from "./visualBlueprint";
 
 function esc(value: string): string {
   return value.replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c] || c));
@@ -7,7 +8,7 @@ function esc(value: string): string {
 
 export function buildLocalGameHtml(b: GameBlueprint): string {
   const title=esc(b.title), objective=esc(b.objective), theme=esc(b.theme);
-  const systemPlan=buildGameSystemPlan(b), mode=systemPlan.primaryMode, seed=Math.abs([...b.concept].reduce((n,c)=>(n*31+c.charCodeAt(0))|0,17));
+  const systemPlan=buildGameSystemPlan(b), visualPlan=buildVisualBlueprint(b), mode=systemPlan.primaryMode, seed=Math.abs([...b.concept].reduce((n,c)=>(n*31+c.charCodeAt(0))|0,17));
   const text=[b.genre,b.concept,b.objective,b.coreLoop,...b.mechanics,...b.playerActions].join(" ").toLowerCase();
   const systems={
     exploration:/(explore|exploration|jelajah|menjelajah|petualangan)/.test(text),
@@ -21,7 +22,7 @@ export function buildLocalGameHtml(b: GameBlueprint): string {
     collection:/(collect|collection|kumpul|kumpulkan|item|harta|loot)/.test(text),
     progression:/(level|leveling|upgrade|skill|experience|xp|progres|progression)/.test(text)
   };
-  const config=JSON.stringify({mode,seed,systems,gameSystems:systemPlan.systems,gameSystemReasons:systemPlan.reasons});
+  const config=JSON.stringify({mode,seed,systems,gameSystems:systemPlan.systems,gameSystemReasons:systemPlan.reasons,visualBlueprint:visualPlan});
   return `<!doctype html><html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>${title}</title><style>
