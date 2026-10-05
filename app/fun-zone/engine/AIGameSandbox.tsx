@@ -2486,6 +2486,8 @@ body: JSON.stringify({
               screenshot: result.screenshot,
             });
 
+          result.runtimeVisualAnalysis = runtimeVisualAnalysis;
+
           setTestResult(
             result
           );
@@ -2576,6 +2578,12 @@ evidence: {
 
   elapsedMs:
     result.elapsedMs,
+
+  screenshot:
+    result.screenshot,
+
+  runtimeVisualAnalysis:
+    result.runtimeVisualAnalysis,
 
   /*
    * Semantic Game Test Protocol
