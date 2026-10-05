@@ -363,7 +363,7 @@ export async function POST(
     const composedPlan = composeGamePlan(learnedBlueprint);
     const visualBlueprint = createVisualBlueprint(learnedBlueprint);
     const assetRegistry = buildAssetRegistry(visualBlueprint);
-    const generatedAssets = generateGameAssets(assetRegistry);
+    const generatedAssets = await generateGameAssets(assetRegistry);
     const materializedAssets = materializeGameAssets(generatedAssets);
     const composedBlueprint: GameBlueprint = {
       ...learnedBlueprint,
