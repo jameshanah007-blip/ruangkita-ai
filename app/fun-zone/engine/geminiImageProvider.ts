@@ -60,7 +60,7 @@ export function createGeminiImageProvider(): AssetProvider | null {
             input: prompt,
             response_format: {
               type: "image",
-              mime_type: "image/png",
+              mime_type: "image/jpeg",
               aspect_ratio: "1:1",
               image_size: "1K",
             },
@@ -84,7 +84,7 @@ export function createGeminiImageProvider(): AssetProvider | null {
       }
 
       return {
-        uri: `data:${data.output_image?.mime_type || "image/png"};base64,${b64}`,
+        uri: `data:${data.output_image?.mime_type || "image/jpeg"};base64,${b64}`,
         metadata: {
           provider: "gemini-3.1-flash-image",
           model: "gemini-3.1-flash-image",
