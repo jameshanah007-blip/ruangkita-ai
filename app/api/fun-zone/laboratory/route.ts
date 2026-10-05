@@ -409,7 +409,7 @@ export async function POST(
         success: true,
         provider: "james-autonomous",
         model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(learnedBlueprint),
+        gameHtml: buildAutonomousGameHtml(composedBlueprint),
         validation: {
           valid: true,
           errors: [],
