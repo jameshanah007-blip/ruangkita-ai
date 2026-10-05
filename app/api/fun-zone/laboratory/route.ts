@@ -10,6 +10,7 @@ import type {
   GameArtifact,
   GameBlueprint,
   LabSession,
+  ReferenceImageEvidence,
 } from "../../../fun-zone/laboratory/types";
 import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
@@ -275,6 +276,34 @@ export async function POST(
         ? body.prompt.trim()
         : "";
 
+    const referenceImage = body?.referenceImage as Partial<ReferenceImageEvidence> | undefined;
+    const validReferenceImage = referenceImage?.available === true &&
+      typeof referenceImage.dataUrl === "string" &&
+      /^data:image\/(png|jpeg|webp);base64,/i.test(referenceImage.dataUrl) &&
+      referenceImage.dataUrl.length <= 8_000_000
+      ? {
+          version: 1 as const,
+          available: true,
+          source: "user-upload" as const,
+          mimeType: referenceImage.mimeType,
+          dataUrl: referenceImage.dataUrl,
+          width: typeof referenceImage.width === "number" ? referenceImage.width : undefined,
+          height: typeof referenceImage.height === "number" ? referenceImage.height : undefined,
+        }
+      : {
+          version: 1 as const,
+          available: false,
+          source: "user-upload" as const,
+        };
+
+    const referenceImageMetadata = {
+      available: validReferenceImage.available,
+      source: validReferenceImage.source,
+      mimeType: validReferenceImage.mimeType,
+      width: validReferenceImage.width,
+      height: validReferenceImage.height,
+    };
+
     if (prompt.length > 12000) {
       return NextResponse.json(
         { success: false, stage: "director", error: "Prompt terlalu panjang. Maksimum 12.000 karakter." },
@@ -512,6 +541,7 @@ export async function POST(
 
       visualQa,
       referenceVisualTarget: visualQa.referenceTarget,
+      referenceImage: referenceImageMetadata,
       refinementPlan: visualQa.refinement,
       refinementPasses,
 
