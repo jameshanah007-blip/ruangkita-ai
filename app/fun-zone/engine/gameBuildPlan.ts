@@ -122,6 +122,12 @@ export function createGameBuildPlan(b: GameBlueprint): GameBuildPlan {
 
   const directional = topDown ? ["player", "npc", "creature"] : [];
 
+  if (referenceDriven) {
+    systems.add("reference-visual-qa");
+    testStages.push("reference-visual-comparison");
+    buildStages.push("analyze-reference-visual-target");
+  }
+
   return {
     version: 1,
     dimension,
