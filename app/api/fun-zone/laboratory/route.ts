@@ -10,6 +10,7 @@ import type {
   GameArtifact,
   GameBlueprint,
   LabSession,
+  ReferenceImageEvidence,
 } from "../../../fun-zone/laboratory/types";
 import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
@@ -274,6 +275,26 @@ export async function POST(
       typeof body?.prompt === "string"
         ? body.prompt.trim()
         : "";
+
+    const referenceImage = body?.referenceImage as Partial<ReferenceImageEvidence> | undefined;
+    const validReferenceImage = referenceImage?.available === true &&
+      typeof referenceImage.dataUrl === "string" &&
+      /^data:image\/(png|jpeg|webp);base64,/i.test(referenceImage.dataUrl) &&
+      referenceImage.dataUrl.length <= 8_000_000
+      ? {
+          version: 1 as const,
+          available: true,
+          source: "user-upload" as const,
+          mimeType: referenceImage.mimeType,
+          dataUrl: referenceImage.dataUrl,
+          width: typeof referenceImage.width === "number" ? referenceImage.width : undefined,
+          height: typeof referenceImage.height === "number" ? referenceImage.height : undefined,
+        }
+      : {
+          version: 1 as const,
+          available: false,
+          source: "user-upload" as const,
+        };
 
     if (prompt.length > 12000) {
       return NextResponse.json(
