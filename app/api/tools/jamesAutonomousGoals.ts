@@ -61,6 +61,7 @@ export async function claimJamesAutonomousGoal() {
 
   const { data, error } = await client
     .rpc("claim_james_autonomous_goal")
+    .limit(1)
     .maybeSingle();
 
   if (error) {
