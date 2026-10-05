@@ -52,9 +52,14 @@ export function generateLocalGameAssets(registry: AssetRegistry): AssetGeneratio
  */
 export async function generateGameAssets(
   registry: AssetRegistry,
-  provider?: AssetProvider,
+  provider?: AssetProvider | AssetProvider[],
 ): Promise<AssetGenerationResult> {
-  const router = createAssetProviderRouter(provider ? [provider] : []);
+  const providers = Array.isArray(provider)
+    ? provider.filter(Boolean)
+    : provider
+      ? [provider]
+      : [];
+  const router = createAssetProviderRouter(providers);
   const warnings: string[] = [];
   const assets: GeneratedAsset[] = [];
 
@@ -84,7 +89,7 @@ export async function generateGameAssets(
     });
   }
 
-  if (!provider) {
+  if (providers.length === 0) {
     warnings.push("No external asset provider configured; James is using local fallback assets.");
   }
 
