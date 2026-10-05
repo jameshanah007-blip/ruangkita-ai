@@ -1,5 +1,6 @@
 import type { AssetRegistry, GameAssetSpec } from "./assetRegistry";
 import { localAssetProvider, type AssetProvider } from "./assetProvider";
+import { createAssetProviderRouter } from "./assetProviderRouter";
 
 export type GeneratedAsset = {
   id: string;
@@ -12,6 +13,7 @@ export type GeneratedAsset = {
     animationNeeds: string[];
     provider?: string;
     providerMetadata?: Record<string, unknown>;
+    fallback?: boolean;
   };
 };
 
@@ -31,18 +33,12 @@ function localAsset(asset: GameAssetSpec): GeneratedAsset {
       tags: asset.tags,
       animationNeeds: asset.animationNeeds,
       provider: "local-fallback",
-      providerMetadata: {
-        identityPreserved: true,
-      },
+      providerMetadata: { identityPreserved: true },
+      fallback: true,
     },
   };
 }
 
-/**
- * Synchronous compatibility path used by the existing local HTML compiler.
- * It preserves the original no-provider behavior and never introduces an
- * async boundary into buildLocalGameHtml().
- */
 export function generateLocalGameAssets(registry: AssetRegistry): AssetGenerationResult {
   return {
     assets: registry.assets.map(localAsset),
@@ -51,45 +47,45 @@ export function generateLocalGameAssets(registry: AssetRegistry): AssetGeneratio
 }
 
 /**
- * Provider-aware generation path.
- *
- * Provider failures are isolated per asset so an unavailable image provider
- * cannot break game generation. Unsupported asset kinds also fall back locally.
+ * Provider-aware generation through James' deterministic provider router.
+ * Existing callers without a provider continue to use the local path.
  */
 export async function generateGameAssets(
   registry: AssetRegistry,
   provider?: AssetProvider,
 ): Promise<AssetGenerationResult> {
-  const activeProvider = provider ?? localAssetProvider;
+  const router = createAssetProviderRouter(provider ? [provider] : []);
   const warnings: string[] = [];
   const assets: GeneratedAsset[] = [];
 
   for (const asset of registry.assets) {
-    try {
-      if (!activeProvider.supports.includes(asset.kind)) {
-        throw new Error(`Provider "${activeProvider.name}" does not support asset kind "${asset.kind}".`);
-      }
+    const routed = await router.generate(asset);
+    const isPlaceholder = routed.result.uri.startsWith("asset://placeholder/");
 
-      const result = await activeProvider.generate(asset);
-      assets.push({
-        id: asset.id,
-        kind: asset.kind,
-        status: result.uri.startsWith("asset://placeholder/") ? "placeholder" : "ready",
-        uri: result.uri,
-        metadata: {
-          prompt: asset.prompt,
-          tags: asset.tags,
-          animationNeeds: asset.animationNeeds,
-          provider: activeProvider.name,
-          providerMetadata: result.metadata,
-        },
-      });
-    } catch (error) {
+    if (routed.fallback) {
       warnings.push(
-        `Asset provider "${activeProvider.name}" failed for "${asset.id}"; using local fallback.`,
+        `Asset "${asset.id}" used local fallback after provider routing.`,
       );
-      assets.push(localAsset(asset));
     }
+
+    assets.push({
+      id: asset.id,
+      kind: asset.kind,
+      status: isPlaceholder ? "placeholder" : "ready",
+      uri: routed.result.uri,
+      metadata: {
+        prompt: asset.prompt,
+        tags: asset.tags,
+        animationNeeds: asset.animationNeeds,
+        provider: routed.provider,
+        providerMetadata: routed.result.metadata,
+        fallback: routed.fallback,
+      },
+    });
+  }
+
+  if (!provider) {
+    warnings.push("No external asset provider configured; James is using local fallback assets.");
   }
 
   return { assets, warnings };
