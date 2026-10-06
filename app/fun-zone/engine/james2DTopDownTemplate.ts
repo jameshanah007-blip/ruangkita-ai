@@ -447,16 +447,41 @@ function drawSemanticHud(){
 
 function drawSystemStations(){
   var systems=G.profile&&Array.isArray(G.profile.systems)?G.profile.systems:[];
-  function station(x,y,label,fill){
-    ctx.fillStyle=fill;ctx.fillRect(x-18,y-14,36,28);
-    ctx.fillStyle="#f8e7a1";ctx.fillRect(x-12,y-8,24,4);
-    ctx.fillStyle="#172018";ctx.font="bold 9px system-ui";ctx.textAlign="center";ctx.fillText(label,x,y+4);ctx.textAlign="left";
+  function station(x,y,label,type){
+    // Small authored pixel props instead of generic UI rectangles.
+    ctx.save();
+    ctx.translate(x,y);
+    if(type==="farm"){
+      ctx.fillStyle="#8a633e";ctx.fillRect(-22,-8,44,28);
+      ctx.fillStyle="#b78a55";ctx.fillRect(-18,-4,36,4);
+      ctx.fillStyle="#5d8f3d";for(var i=0;i<4;i++){ctx.fillRect(-16+i*10,5,4,12);ctx.fillRect(-13+i*10,2,3,5)}
+      ctx.fillStyle="#e7c77a";ctx.fillRect(-30,-20,60,8);
+    }else if(type==="shop"){
+      ctx.fillStyle="#75462e";ctx.fillRect(-22,-10,44,30);
+      ctx.fillStyle="#c68a4e";ctx.fillRect(-26,-18,52,10);
+      ctx.fillStyle="#f1d27a";ctx.fillRect(-15,-2,30,8);
+      ctx.fillStyle="#4b3427";ctx.fillRect(-5,8,10,12);
+    }else if(type==="craft"){
+      ctx.fillStyle="#5d4633";ctx.fillRect(-24,-5,48,20);
+      ctx.fillStyle="#9a7047";ctx.fillRect(-28,-13,56,9);
+      ctx.fillStyle="#d6b16b";ctx.fillRect(-9,-2,18,4);
+      ctx.fillStyle="#6d8790";ctx.fillRect(8,-12,6,7);
+    }else{
+      ctx.fillStyle="#614b8d";ctx.fillRect(-19,-8,38,25);
+      ctx.fillStyle="#8d6fc0";ctx.fillRect(-23,-14,46,7);
+      ctx.fillStyle="#f4df86";ctx.fillRect(-4,-2,8,19);
+      ctx.fillStyle="#241b31";ctx.fillRect(-1,4,2,7);
+    }
+    ctx.fillStyle="#f8e7a1";ctx.font="bold 9px system-ui";ctx.textAlign="center";
+    ctx.fillText(label,0,-24);ctx.textAlign="left";
+    ctx.restore();
   }
-  if(systems.indexOf("farming")>=0)station((Math.floor(MAP_W/2)-5)*TILE,18*TILE,"FARM","#6f8f43");
-  if(systems.indexOf("economy")>=0)station((Math.floor(MAP_W/2)+9)*TILE,11*TILE,"SHOP","#b77b45");
-  if(systems.indexOf("crafting")>=0)station((Math.floor(MAP_W/2)-9)*TILE,11*TILE,"CRAFT","#7a6b57");
-  if(systems.indexOf("quest")>=0)station((Math.floor(MAP_W/2)+4)*TILE,16*TILE,"QUEST","#7259a8");
+  if(systems.indexOf("farming")>=0)station((Math.floor(MAP_W/2)-5)*TILE,18*TILE,"FARM","farm");
+  if(systems.indexOf("economy")>=0)station((Math.floor(MAP_W/2)+9)*TILE,11*TILE,"SHOP","shop");
+  if(systems.indexOf("crafting")>=0)station((Math.floor(MAP_W/2)-9)*TILE,11*TILE,"CRAFT","craft");
+  if(systems.indexOf("quest")>=0)station((Math.floor(MAP_W/2)+4)*TILE,16*TILE,"QUEST","quest");
 }
+
 
 function drawWorld(){
   // Follow the player with a dead-zone camera instead of pinning the
