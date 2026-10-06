@@ -31,6 +31,8 @@ const definitions: Record<GameSystemId, Omit<GameplayModule, "id">> = {
   survival:{runtime:"stateful",reusable:true,actions:["move","useItem"],state:["health","threatLevel","survivalTime"]},
   strategy:{runtime:"stateful",reusable:true,actions:["place","command"],state:["units","resources","objectiveState"]},
   platforming:{runtime:"stateful",reusable:true,actions:["move","jump"],state:["position","velocity","grounded"]},
+  housing:{runtime:"stateful",reusable:true,actions:["upgradeHome"],state:["houseLevel"]},
+  vehicleUpgrade:{runtime:"stateful",reusable:true,actions:["upgradeVehicle"],state:["vehicleUpgradeLevel"]},
 };
 
 export function getGameplayModules(ids: GameSystemId[]): GameplayModule[] {
