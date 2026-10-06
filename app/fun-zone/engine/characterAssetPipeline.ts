@@ -29,7 +29,7 @@ function stableKey(character: VisualCharacterSpec): string {
 
 export function buildCharacterAssetPlan(
   characters: VisualCharacterSpec[],
-  style: string,
+  style: string | string[],
 ): CharacterAssetPlan {
   const normalized = characters.map((character) => ({
     id: character.id,
@@ -49,7 +49,7 @@ export function buildCharacterAssetPlan(
 
   return {
     characters: normalized,
-    sharedStyle: style,
+    sharedStyle: Array.isArray(style) ? style.join(", ") : style,
     consistencyRules: [
       "Keep the same character identity across every generated pose.",
       "Preserve hair, eyes, outfit, silhouette and equipment unless the blueprint explicitly changes them.",
