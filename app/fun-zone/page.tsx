@@ -798,7 +798,9 @@ const handleTestReport =
             effectiveReport = {
               ...report,
               referenceVisualComparison: comparisonData.comparison,
-              passed: report.passed && comparisonData.comparison.passed,
+              passed:
+                report.passed &&
+                (!comparisonData.comparison.analyzed || comparisonData.comparison.passed),
               softWarnings: [
                 ...report.softWarnings,
                 ...comparisonData.comparison.mismatches.slice(0, 5).map((item: string) => "Reference QA: " + item),

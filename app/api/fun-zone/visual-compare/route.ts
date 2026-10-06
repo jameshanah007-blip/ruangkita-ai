@@ -16,9 +16,9 @@ function fallback(): Comparison {
     version: 1,
     analyzed: false,
     provider: "native-metrics",
-    score: 100,
-    passed: true,
-    summary: "Reference visual comparison tidak tersedia; gameplay QA tetap menjadi sumber keputusan.",
+    score: 0,
+    passed: false,
+    summary: "Reference visual comparison belum dievaluasi karena Vision provider tidak tersedia. Gameplay QA tetap menjadi sumber keputusan.",
     mismatches: [],
     repairs: [],
   };
