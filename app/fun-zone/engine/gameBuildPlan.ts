@@ -51,10 +51,11 @@ function textOf(b: GameBlueprint): string {
 
 export function createGameBuildPlan(b: GameBlueprint): GameBuildPlan {
   const text = textOf(b);
-  const topDown = /(pokemon|pokémon|top.?down|monster tamer|creature collection|pixel art|pixel-art|2d rpg)/.test(text);
+  const explicit3D = /(?:\b3d\b|three.?dimensional|3d game)/.test(text);
+  const topDown = !explicit3D && /(pokemon|pokémon|top.?down|monster tamer|creature collection|pixel art|pixel-art|2d rpg|\b2d\b|farming|farm|bertani)/.test(text);
   const sideScroller = /(platformer|side.?scroll|metroidvania|platform game|mario-like)/.test(text);
   const voxel = /(minecraft|voxel|block world|block-based|sandbox building)/.test(text);
-  const thirdPerson = /(third.?person|open world|3d adventure|3d rpg)/.test(text);
+  const thirdPerson = /(?:third.?person|open world|3d adventure|3d rpg|racing|race|balap)/.test(text);
   const firstPerson = /(first.?person|fps|shooter 3d)/.test(text);
 
   let dimension: GameBuildDimension = "2d";
@@ -67,7 +68,7 @@ export function createGameBuildPlan(b: GameBlueprint): GameBuildPlan {
     camera = "third-person";
     worldArchitecture = "voxel";
     renderArchitecture = "voxel-runtime";
-  } else if (thirdPerson || firstPerson) {
+  } else if (thirdPerson || firstPerson || (explicit3D && /(racing|race|balap|mobil|kendaraan|driving)/.test(text))) {
     dimension = "3d";
     camera = firstPerson ? "first-person" : "third-person";
     worldArchitecture = "scene";
@@ -97,7 +98,7 @@ export function createGameBuildPlan(b: GameBlueprint): GameBuildPlan {
     ...(topDown ? ["tilemap", "camera-follow", "directional-sprites", "npc", "world-interaction"] : []),
     ...(sideScroller ? ["platform-physics", "camera-scroll", "level-flow"] : []),
     ...(voxel ? ["voxel-world", "chunk-streaming", "block-interaction", "inventory", "crafting"] : []),
-    ...(thirdPerson || firstPerson ? ["scene-graph", "3d-camera", "3d-collision", "lighting"] : []),
+    ...(thirdPerson || firstPerson || (explicit3D && /(racing|race|balap|mobil|kendaraan|driving)/.test(text)) ? ["scene-graph", "3d-camera", "3d-collision", "lighting"] : []),
   ])];
 
   const actors = [...new Set([
