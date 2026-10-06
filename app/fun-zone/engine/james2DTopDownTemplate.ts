@@ -1,5 +1,6 @@
 import type { GameBlueprint } from "../laboratory/types";
 import type { AssetMaterializationResult } from "./assetMaterializer";
+import { createKimiStyleGameProfile } from "./kimiStyleGameProfile";
 
 function textOf(blueprint: GameBlueprint): string {
   return [
@@ -47,9 +48,16 @@ export function buildTopDown2DGameHtml(
   const npcAsset = assetUri(materializedAssets, "npc");
   const enemyAsset = assetUri(materializedAssets, "enemy");
 
+  const profile = createKimiStyleGameProfile(blueprint);
   const config = js({
     title: blueprint.title || "James 2D Adventure",
     concept: blueprint.concept,
+    genre: blueprint.genre,
+    theme: blueprint.theme,
+    world: blueprint.world,
+    objective: blueprint.objective,
+    mechanics: blueprint.mechanics,
+    profile,
     playerAsset,
     npcAsset,
     enemyAsset,
@@ -92,7 +100,7 @@ canvas{display:block;width:100%;height:100%;image-rendering:pixelated;touch-acti
   <div class="card"><b id="title"></b><br><span id="stats"></span></div>
   <div class="card" id="zone">2D TOP-DOWN</div>
 </div>
-<div id="hint">Arrow / WASD: move · Space / E: interact · Touch controls on Android</div>
+<div id="hint"></div>
 <div id="controls" aria-label="Touch controls">
   <div id="pad">
     <button class="control" id="up" data-key="up" aria-label="Move up">▲</button>
@@ -251,7 +259,7 @@ function reset(){
   };
   message.style.display="none";
   titleEl.textContent=G.title;
-  zoneEl.textContent="2D ADVENTURE · STORYBOOK PIXEL";
+  zoneEl.textContent=(G.profile.worldType||"fantasy").toUpperCase()+" · "+G.profile.systems.slice(0,3).join(" · ");
   updateHud();
 }
 reset();
@@ -499,7 +507,17 @@ function interact(){
     setAnimationState("player","talk",620);
     if(dist(state.player,state.npc)<58) setAnimationState("npc","talk",620);
     if(dist(state.player,state.npc2)<58) setAnimationState("npc2","talk",620);
-    state.dialog="Aira: Selamat datang di desa. Jelajahi hutan dan temukan semua Crystal!";
+    var systems=G.profile&&Array.isArray(G.profile.systems)?G.profile.systems:[];
+    var topic=systems.indexOf("economy")>=0
+      ? "Pedagang: Toko desa siap melayani jual-beli."
+      : systems.indexOf("farming")>=0
+        ? "Petani: Rawat kebun, panen hasilnya, lalu lanjutkan petualangan."
+        : systems.indexOf("crafting")>=0
+          ? "Pengrajin: Bawa resource ke meja kerja untuk membuat item."
+          : systems.indexOf("relationship")>=0
+            ? "Aira: Interaksi dan pilihanmu akan membentuk hubungan dengan penduduk."
+            : "Aira: Jelajahi dunia, bicara dengan penduduk, dan selesaikan tujuanmu.";
+    state.dialog=topic;
     state.dialogUntil=performance.now()+2600;
     state.stateChanges++;tone(660,.12,"sine",.05);tone(880,.16,"sine",.04);
     return;
@@ -554,6 +572,8 @@ function showMessage(title,body){
 
 function updateHud(){
   statsEl.textContent="HP "+state.player.hp+" · Crystal "+state.crystalsTaken+"/"+state.crystals.length+" · WASD/Arrows";
+  hintEl.textContent=(G.profile&&G.profile.objectiveLabel?G.profile.objectiveLabel:"Explore and complete the objective.")
+    +" · Arrow/WASD move · Space/E interact";
 }
 
 function tone(freq,duration,type,volume){
