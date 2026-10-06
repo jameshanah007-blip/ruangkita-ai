@@ -47,6 +47,8 @@ type GameTestProtocol = {
   getObjectiveState?: () => unknown;
   getWinState?: () => boolean;
   getLoseState?: () => boolean;
+  getTutorialState?: () => unknown;
+  getControlState?: () => unknown;
   performTestAction?: (
     action: string
   ) => unknown;
@@ -1775,6 +1777,12 @@ var beforeLost =
                     restartVerified:
                       restartVerified,
 
+                    tutorialAvailable:
+                      tutorialAvailable,
+
+                    directionalControls:
+                      directionalControls,
+
                     gameTestError:
                       gameTestError ||
                       undefined,
@@ -1893,6 +1901,8 @@ var beforeLost =
         winStateDetected: false,
         loseStateDetected: false,
         restartVerified: false,
+        tutorialAvailable: false,
+        directionalControls: { up: false, down: false, left: false, right: false },
         gameTestError: "Sandbox diagnostic timeout.",
         performanceTest: false,
         runtimeOk: false,
