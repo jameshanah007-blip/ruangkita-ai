@@ -691,16 +691,82 @@ function buildDiagnosticHtml(
           }
         );
 
+      /*
+       * WebGL-aware runtime diagnostics.
+       *
+       * A WebGL canvas cannot expose a 2D context after its
+       * WebGL context has been created. The previous diagnostic
+       * treated that as a blank canvas, which caused every
+       * 3D/WebGL game to fail Laboratory rendering validation
+       * even when the game was visibly running.
+       *
+       * Keep the existing 2D pixel analysis unchanged, but fall
+       * back to a WebGL readback for 3D runtimes.
+       */
       if (!ctx) {
+        try {
+          var gl =
+            canvas.getContext("webgl") ||
+            canvas.getContext("experimental-webgl");
+
+          if (gl) {
+            var sampleWidth = Math.min(width, 360);
+            var sampleHeight = Math.min(height, 360);
+            var pixels = new Uint8Array(sampleWidth * sampleHeight * 4);
+
+            gl.readPixels(
+              0,
+              0,
+              sampleWidth,
+              sampleHeight,
+              gl.RGBA,
+              gl.UNSIGNED_BYTE,
+              pixels
+            );
+
+            var webglNonBlank = 0;
+            var webglChecksum = 0;
+
+            for (var webglIndex = 0; webglIndex < pixels.length; webglIndex += 4) {
+              var wr = pixels[webglIndex];
+              var wg = pixels[webglIndex + 1];
+              var wb = pixels[webglIndex + 2];
+              var wa = pixels[webglIndex + 3];
+
+              if (wa > 8 && (wr > 8 || wg > 8 || wb > 8)) {
+                webglNonBlank++;
+              }
+
+              webglChecksum =
+                (webglChecksum +
+                  wr * 3 +
+                  wg * 5 +
+                  wb * 7 +
+                  wa * 11) %
+                1000000007;
+            }
+
+            /*
+             * If the WebGL framebuffer is currently empty but the
+             * canvas has a valid size, return a zero count honestly.
+             * The tester can distinguish this path from a missing
+             * context by the signature prefix.
+             */
+            return {
+              width: width,
+              height: height,
+              nonBlankPixels: webglNonBlank,
+              signature: "webgl:" + String(webglChecksum),
+              metrics: undefined
+            };
+          }
+        } catch (_) {}
+
         return {
           width: width,
-
           height: height,
-
           nonBlankPixels: 0,
-
-          signature:
-            "no-2d-context"
+          signature: "no-readable-context"
         };
       }
 
