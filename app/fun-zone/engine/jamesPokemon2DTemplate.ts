@@ -165,6 +165,16 @@ window.__RK_GAME_TEST__={
    if(a==="interact"||a==="talk"||a==="collect"||a==="action"){return action()}
    return false;
  },
+ testDirectionalControl:function(direction){
+   if(["up","down","left","right"].indexOf(direction)<0)return false;
+   var beforeX=state.px,beforeY=state.py;
+   setInput(direction,true);
+   move(0.12);
+   setInput(direction,false);
+   return direction==="up" ? state.py<beforeY :
+          direction==="down" ? state.py>beforeY :
+          direction==="left" ? state.px<beforeX : state.px>beforeX;
+ },
  restart:function(){reset();started=true;return true},
  getTutorialState:function(){return {available:true,visible:tutorial.style.display!=="none"}},
  getControlState:function(){return {up:true,down:true,left:true,right:true}}
