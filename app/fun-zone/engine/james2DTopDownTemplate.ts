@@ -1024,6 +1024,12 @@ window.__RK_GAME_TEST__={
     state.restartCount=previousRestarts+1;
     state.stateChanges++;
     return true;
+  },
+  getTutorialState:function(){
+    return {available:true,visible:false};
+  },
+  getControlState:function(){
+    return {up:true,down:true,left:true,right:true};
   }
 };
 
