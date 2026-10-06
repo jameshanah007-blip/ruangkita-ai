@@ -96,7 +96,7 @@ export function evaluateVisualBuild(
         referenceTarget.style.length === 0 || referenceTarget.style.some((style) =>
           visual.artDirection.style.some((value) => value.toLowerCase().includes(style.split("-")[0]))
         ),
-        referenceTarget.character.length === 0 || protagonist.appearance.toLowerCase().length > 0,
+        referenceTarget.character.length === 0 || protagonist.appearance.join(" ").toLowerCase().length > 0,
         referenceTarget.composition.length === 0 || visual.environments.length > 0,
         referenceTarget.animation.length === 0 || protagonist.animationNeeds.length >= Math.min(3, referenceTarget.animation.length),
       ]
