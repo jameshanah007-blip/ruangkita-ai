@@ -42,6 +42,8 @@ const catalog: Record<GameSystemId, Omit<GameSystemModule, "id">> = {
   survival:{role:"core",responsibilities:["Manage threats and survive over time"],state:["health","threatLevel","survivalTime"],actions:["move","useItem"],testGoals:["survival state advances"]},
   strategy:{role:"core",responsibilities:["Make tactical decisions over controlled resources"],state:["units","resources","objectiveState"],actions:["place","command"],testGoals:["unit or resource state changes"]},
   platforming:{role:"core",responsibilities:["Jump between platforms and avoid hazards"],state:["position","velocity","grounded"],actions:["move","jump"],testGoals:["vertical position changes"]},
+  housing:{role:"support",responsibilities:["Upgrade the player home and persist its level"],state:["houseLevel"],actions:["upgradeHome"],testGoals:["house level increases after upgrade"]},
+  vehicleUpgrade:{role:"support",responsibilities:["Improve vehicle performance between races"],state:["vehicleUpgradeLevel"],actions:["upgradeVehicle"],testGoals:["vehicle upgrade level increases"]},
 };
 
 export function composeGamePlan(blueprint: GameBlueprint): ComposedGamePlan {
