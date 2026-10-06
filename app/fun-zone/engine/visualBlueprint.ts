@@ -194,7 +194,7 @@ export function buildVisualBlueprint(b: GameBlueprint): VisualBlueprint {
     effects,
     ui: ["responsive HUD", "system-specific panels", "mobile-friendly controls"],
     assetTags: [
-      ...style.map((value) => value.toLowerCase()),
+      ...style.map((value: string) => value.toLowerCase()),
       b.genre.toLowerCase(),
       b.theme.toLowerCase(),
       ...characters.map((c) => c.archetype),
