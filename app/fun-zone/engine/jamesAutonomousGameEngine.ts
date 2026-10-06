@@ -2,7 +2,8 @@ import type { GameBlueprint } from "../laboratory/types";
 import type { AssetMaterializationResult } from "./assetMaterializer";
 import { mechanicKnowledge, worldKnowledge } from "./jamesGameKnowledge";
 import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "./james2DTopDownTemplate";
-import { buildFarmingGameHtml, buildRacingGameHtml, isFarmingRuntime, isRacingRuntime } from "./jamesGenreRuntimeTemplates";
+import { buildFarmingGameHtml, isFarmingRuntime } from "./jamesGenreRuntimeTemplates";
+import { buildRacing3DGameHtml, isRacing3DRequest } from "./jamesRacing3DTemplate";
 import { buildRacing3DGameHtml, isRacing3DRequest } from "./jamesRacing3DTemplate";
 
 /**
@@ -397,8 +398,8 @@ export function buildAutonomousGameHtml(
 ): string {
   // Runtime selection is semantic: the user's requested genre owns the visual/runtime family.
   // Farming and racing must never fall through to the generic adventure renderer.
-  if (isRacingRuntime(blueprint)) {
-    return buildRacingGameHtml(blueprint);
+  if (isRacing3DRequest(blueprint)) {
+    return buildRacing3DGameHtml(blueprint);
   }
   if (isFarmingRuntime(blueprint)) {
     return buildFarmingGameHtml(blueprint);
