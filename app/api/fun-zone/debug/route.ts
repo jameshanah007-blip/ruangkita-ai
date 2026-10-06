@@ -888,7 +888,7 @@ export async function POST(request: Request) {
     );
 
     if (isTopDownFoundation) {
-      fixedHtml = buildTopDown2DGameHtml(normalizedDebugBlueprint);
+      fixedHtml = buildTopDown2DGameHtml(normalizedDebugBlueprint!);
       provider = "james-autonomous-topdown-repair";
       model = "james-2d-topdown-runtime-v2";
     } else {
