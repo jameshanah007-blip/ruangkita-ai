@@ -434,14 +434,14 @@ function drawWorld(){
     if(!state.crystals[c].taken)drawCrystal(state.crystals[c].x,state.crystals[c].y);
   }
 
+  // Render ambient light BEFORE actors so characters stay crisp and readable.
+  drawAmbientLighting(camX,camY);
   drawSprite("npc",state.npc.x,state.npc.y,"down",state.npc.frame);
   drawSprite("npc2",state.npc2.x,state.npc2.y,"down",state.npc2.frame);
   drawSprite("enemy",state.creature.x,state.creature.y,state.creature.dir||"down",state.creature.frame);
   drawSprite("player",state.player.x,state.player.y,state.player.dir,state.player.frame);
   for(var t=0;t<state.torches.length;t++) drawTorch(state.torches[t].x,state.torches[t].y);
   ctx.restore();
-
-  drawLighting(camX,camY);
 
   if(state.dialog&&performance.now()<state.dialogUntil){
     ctx.fillStyle="rgba(24,34,42,.94)";
@@ -462,40 +462,23 @@ function drawTorch(x,y){
   ctx.restore();
 }
 
-function drawLighting(camX,camY){
+function drawAmbientLighting(camX,camY){
+  // Kimi-style clean 2D adventure presentation: no full-screen black
+  // post-processing layer and no vignette over actors.
   ctx.save();
-  ctx.fillStyle="rgba(8,13,11,.68)";
-  ctx.fillRect(0,0,W,H);
-  ctx.globalCompositeOperation="destination-out";
-  var lights=[
-    {x:state.player.x-camX,y:state.player.y-camY,r:150},
-    {x:state.npc.x-camX,y:state.npc.y-camY,r:86}
-  ];
-  for(var i=0;i<state.torches.length;i++){
-    lights.push({x:state.torches[i].x-camX,y:state.torches[i].y-camY,r:92+Math.sin(elapsed*7+i)*7});
-  }
-  for(var j=0;j<lights.length;j++){
-    var l=lights[j];
-    var g=ctx.createRadialGradient(l.x,l.y,4,l.x,l.y,l.r);
-    g.addColorStop(0,"rgba(0,0,0,.98)");
-    g.addColorStop(.45,"rgba(0,0,0,.72)");
-    g.addColorStop(1,"rgba(0,0,0,0)");
-    ctx.fillStyle=g;ctx.beginPath();ctx.arc(l.x,l.y,l.r,0,Math.PI*2);ctx.fill();
-  }
-  ctx.restore();
-  ctx.save();ctx.globalCompositeOperation="screen";
+  ctx.globalCompositeOperation="screen";
   for(var k=0;k<state.torches.length;k++){
     var tx=state.torches[k].x-camX,ty=state.torches[k].y-camY;
-    var rg=ctx.createRadialGradient(tx,ty,2,tx,ty,72);
-    rg.addColorStop(0,"rgba(255,202,92,.28)");
-    rg.addColorStop(1,"rgba(255,202,92,0)");
-    ctx.fillStyle=rg;ctx.beginPath();ctx.arc(tx,ty,72,0,Math.PI*2);ctx.fill();
+    var rg=ctx.createRadialGradient(tx,ty,2,tx,ty,78);
+    rg.addColorStop(0,"rgba(255,210,112,.20)");
+    rg.addColorStop(.45,"rgba(255,190,76,.08)");
+    rg.addColorStop(1,"rgba(255,190,76,0)");
+    ctx.fillStyle=rg;
+    ctx.beginPath();
+    ctx.arc(tx,ty,78,0,Math.PI*2);
+    ctx.fill();
   }
   ctx.restore();
-  var vignette=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*.24,W/2,H/2,Math.max(W,H)*.72);
-  vignette.addColorStop(0,"rgba(0,0,0,0)");
-  vignette.addColorStop(1,"rgba(0,0,0,.42)");
-  ctx.fillStyle=vignette;ctx.fillRect(0,0,W,H);
 }
 
 function interact(){
@@ -535,7 +518,7 @@ function checkCrystals(){
       tone(740,.08,"sine",.05);tone(980,.12,"sine",.04);
       if(state.crystalsTaken===state.crystals.length){
         state.won=true;
-        showMessage("AREA SELESAI","Semua Crystal ditemukan. Template 2D berhasil dimainkan.");
+        showMessage("AREA SELESAI","Semua Crystal ditemukan. Petualangan 2D selesai.");
         tone(523,.12,"sine",.05);tone(659,.12,"sine",.05);tone(784,.2,"sine",.05);
       }
     }
