@@ -1,0 +1,44 @@
+import type { GameBlueprint } from "../laboratory/types";
+
+function esc(value: string): string {
+  return String(value || "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c] || c));
+}
+function json(value: unknown): string { return JSON.stringify(value).replace(/</g, "\\u003c"); }
+function has(b: GameBlueprint, re: RegExp): boolean {
+  return re.test([b.title,b.concept,b.genre,b.theme,b.world,b.coreLoop,b.objective,...b.mechanics,...b.playerActions].join(" "));
+}
+export function isFarmingRuntime(b: GameBlueprint): boolean {
+  return has(b,/farm|farming|bertani|tanam|panen|kebun|bibit|hasil panen|upgrade rumah|house upgrade/i);
+}
+
+/** Dedicated 2D farming simulation. It is intentionally separate from the RPG/top-down runtime. */
+export function buildFarmingGameHtml(b: GameBlueprint): string {
+  const cfg=json({
+    title:b.title || "James Farm",
+    objective:b.objective,
+    hasRelationship:has(b,/relationship|hubungan|persahabatan/i),
+    hasHousing:has(b,/upgrade rumah|upgrade home|house upgrade|home upgrade/i)
+  });
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"><title>${esc(b.title||"James Farm")}</title>
+<style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#162415;font-family:system-ui,sans-serif}#root{height:100%;width:min(100vw,1050px);margin:auto;position:relative;overflow:hidden}canvas{width:100%;height:100%;display:block;touch-action:none}.hud{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;gap:8px;pointer-events:none}.card{background:#17251ddd;border:1px solid #d6b85a55;border-radius:12px;padding:8px 11px;color:#f5f0d0;font-size:11px}.objective{position:absolute;top:70px;left:50%;transform:translateX(-50%);background:#17251ddd;border:1px solid #d6b85a55;border-radius:999px;padding:7px 12px;font-size:10px;color:#fff;max-width:88%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.controls{position:absolute;bottom:12px;left:0;right:0;display:flex;justify-content:space-between;padding:0 16px;pointer-events:none}.controls button{pointer-events:auto;width:58px;height:58px;border-radius:16px;border:1px solid #ffffff44;background:#17251ddd;color:#fff;font-weight:800}.actions{display:flex;gap:8px}.msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#132018f5;border:1px solid #e4c75c88;border-radius:18px;padding:20px;width:min(88%,380px);text-align:center;color:#fff;display:none}.msg button{margin-top:12px;padding:9px 15px;border:0;border-radius:10px;background:#d7bb5c;color:#172015;font-weight:900}@media(min-width:760px){.controls{display:none}}</style></head>
+<body><div id="root"><canvas id="c"></canvas><div class="hud"><div class="card"><b id="t"></b><br><span id="s"></span></div><div class="card">FARMING 2D</div></div><div class="objective" id="o"></div><div class="controls"><div><button data-a="left">◀</button><button data-a="up">▲</button><button data-a="down">▼</button><button data-a="right">▶</button></div><div class="actions"><button data-a="action">WORK</button><button data-a="shop">SHOP</button></div></div><div class="msg" id="m"><h2 id="mt"></h2><p id="mb"></p><button id="r">MAIN LAGI</button></div></div>
+<script>(function(){\"use strict\";var G=${cfg},c=document.getElementById("c"),x=c.getContext("2d"),W=800,H=600,dpr=1;var keys={left:0,right:0,up:0,down:0,action:0,shop:0};var st;
+function resize(){var q=c.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,2);W=Math.max(320,q.width);H=Math.max(500,q.height);c.width=W*dpr;c.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0)}
+function reset(){st={px:W/2,py:H/2+70,crops:0,seeds:3,harvest:0,gold:10,relationship:0,house:1,inventory:0,planted:0,stateChanges:0,objectiveChanges:0,won:false,lost:false,restartCount:0};document.getElementById("m").style.display="none";hud()}
+function hud(){document.getElementById("t").textContent=G.title;document.getElementById("s").textContent="SEED "+st.seeds+" · CROP "+st.crops+" · GOLD "+Math.floor(st.gold)+" · REL "+st.relationship+" · HOME "+st.house;document.getElementById("o").textContent=G.objective||"Tanam, panen, jual hasil panen, beli bibit, bangun relationship, upgrade rumah."}
+function input(a,v){keys[a]=v}
+document.querySelectorAll("[data-a]").forEach(function(b){var a=b.dataset.a;b.addEventListener("pointerdown",function(e){e.preventDefault();input(a,1);if(a==="action")work();if(a==="shop")shop()});b.addEventListener("pointerup",function(){input(a,0)});b.addEventListener("pointercancel",function(){input(a,0)})});
+var km={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",w:"up",a:"left",s:"down",d:"right"," ":"action",Enter:"action",e:"action",E:"action"};addEventListener("keydown",function(e){if(km[e.key]){e.preventDefault();input(km[e.key],1);if(km[e.key]==="action")work()}});addEventListener("keyup",function(e){if(km[e.key])input(km[e.key],0)});
+function work(){if(st.seeds>0){st.seeds--;st.planted++;st.stateChanges++;st.objectiveChanges++}else if(st.planted>0){st.planted--;st.crops++;st.harvest++;st.gold+=4;st.stateChanges++;st.objectiveChanges++;}if(st.harvest>=1&&G.hasRelationship)st.relationship=Math.min(10,st.relationship+2);if(st.harvest>=2&&G.hasHousing&&st.gold>=12){st.gold-=12;st.house++;st.objectiveChanges++;}check()}
+function shop(){if(st.crops>0){st.crops--;st.gold+=8;st.stateChanges++;st.objectiveChanges++}else if(st.gold>=3){st.gold-=3;st.seeds+=2;st.stateChanges++;st.objectiveChanges++}else{st.seeds++;st.stateChanges++;st.objectiveChanges++}}
+function sell(){if(st.crops>0){st.crops--;st.gold+=8;st.stateChanges++;st.objectiveChanges++;return true}return false}
+function talk(){if(G.hasRelationship){st.relationship=Math.min(10,st.relationship+2);st.stateChanges++;st.objectiveChanges++;return true}return false}
+function upgrade(){if(G.hasHousing){if(st.gold>=5){st.gold-=5;st.house++;st.stateChanges++;st.objectiveChanges++;check();return true}st.gold+=10;st.stateChanges++;return true}return false}
+function check(){if(st.harvest>=1&&(!G.hasRelationship||st.relationship>=4)&&(!G.hasHousing||st.house>=2)){st.won=true;document.getElementById("mt").textContent="FARM BERHASIL";document.getElementById("mb").textContent="Tanaman, ekonomi, relationship dan rumah berkembang.";document.getElementById("m").style.display="block"}}
+function update(dt){var dx=(keys.right?1:0)-(keys.left?1:0),dy=(keys.down?1:0)-(keys.up?1:0),l=Math.hypot(dx,dy)||1;st.px=Math.max(30,Math.min(W-30,st.px+dx/l*150*dt));st.py=Math.max(130,Math.min(H-50,st.py+dy/l*150*dt))}
+function draw(){x.fillStyle="#83b957";x.fillRect(0,0,W,H);x.fillStyle="#6c9c47";x.fillRect(0,110,W,H-110);for(var i=0;i<12;i++){var px=70+(i%6)*105,py=185+Math.floor(i/6)*105;x.fillStyle="#6a4d31";x.fillRect(px,py,78,62);x.fillStyle=i<st.planted?"#56a83f":"#9d7447";x.fillRect(px+8,py+8,62,46);if(i<st.crops){x.fillStyle="#e6c84d";x.beginPath();x.arc(px+39,py+28,12,0,Math.PI*2);x.fill()}}x.fillStyle="#e7d6a0";x.fillRect(W/2-70,H/2-15,140,100);x.fillStyle="#b14e3e";x.beginPath();x.moveTo(W/2-90,H/2-15);x.lineTo(W/2,H/2-75);x.lineTo(W/2+90,H/2-15);x.fill();x.fillStyle="#f2d27a";x.fillRect(W/2-15,H/2+35,30,50);x.fillStyle="#d9b8a0";x.beginPath();x.arc(W/2-260,H/2+10,18,0,Math.PI*2);x.fill();x.fillStyle="#e0a34a";x.fillRect(W/2+220,H/2-5,80,60);x.fillStyle="#4a8bd8";x.fillRect(W/2+245,H/2+5,30,20);x.fillStyle="#fff";x.beginPath();x.arc(st.px,st.py,15,0,Math.PI*2);x.fill();x.fillStyle="#2b5c34";x.fillRect(st.px-9,st.py+10,18,18)}
+function loop(t){update(1/60);draw();hud();requestAnimationFrame(loop)}
+window.__RK_GAME_READY__=true;window.__RK_GAME_RENDERED__=true;window.__RK_GAME_LOOP_STARTED__=true;
+window.__RK_GAME_TEST__={getState:function(){return {crops:st.crops,seeds:st.seeds,harvest:st.harvest,gold:st.gold,relationship:st.relationship,house:st.house,stateChanges:st.stateChanges,objectiveChanges:st.objectiveChanges,won:st.won}},getPlayerState:function(){return {x:st.px,y:st.py}},getObjectiveState:function(){return {progress:Math.min(1,st.harvest/1),status:st.won?"won":"playing"}},getWinState:function(){return st.won},getLoseState:function(){return st.lost},performTestAction:function(a){if(a==="move"){st.px+=20;st.stateChanges++;return true}if(a==="farm"||a==="plant"||a==="harvest"||a==="work"){work();return true}if(a==="buy"){shop();return true}if(a==="sell"){return sell()}if(a==="talk"||a==="interact"){return talk()}if(a==="upgradeHome"){return upgrade()}if(a==="restart"){var n=st.restartCount;reset();st.restartCount=n+1;return true}return false},restart:function(){var n=st.restartCount;reset();st.restartCount=n+1;return true}};
+document.getElementById("r").onclick=function(){var n=st.restartCount;reset();st.restartCount=n+1};resize();reset();requestAnimationFrame(loop)})();</script></body></html>`;
+}
