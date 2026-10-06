@@ -248,6 +248,56 @@ function checkInput(
 }
 
 /**
+ * Memeriksa tutorial dan kontrol arah wajib.
+ *
+ * Setiap production 2D game James harus memberi pemain
+ * petunjuk bermain dan menyediakan empat arah dasar.
+ */
+function checkPlayerGuidanceAndControls(
+  evidence: SandboxTestEvidence,
+  checks: TestCheck[]
+): string[] {
+  const failures: string[] = [];
+
+  const tutorialPassed = evidence.tutorialAvailable === true;
+  addCheck(
+    checks,
+    "tutorial",
+    tutorialPassed,
+    tutorialPassed
+      ? "Petunjuk bermain tersedia."
+      : "Game belum membuktikan adanya petunjuk bermain."
+  );
+  if (!tutorialPassed) {
+    failures.push("Petunjuk bermain wajib tersedia.");
+  }
+
+  const controls = evidence.directionalControls;
+  const controlsPassed =
+    controls?.up === true &&
+    controls?.down === true &&
+    controls?.left === true &&
+    controls?.right === true;
+
+  addCheck(
+    checks,
+    "directional_controls",
+    controlsPassed,
+    controlsPassed
+      ? "Kontrol 4 arah tersedia."
+      : "Kontrol 4 arah belum terbukti lengkap."
+  );
+
+  if (!controlsPassed) {
+    failures.push(
+      "Kontrol 4 arah (atas, bawah, kiri, kanan) wajib tersedia dan dilaporkan oleh runtime."
+    );
+  }
+
+  return failures;
+}
+
+/**
  * Memeriksa gameplay.
  *
  * Gameplay tidak lagi hanya berdasarkan
@@ -505,6 +555,13 @@ export function testGame({
 
   hardFailures.push(
     ...checkGameplay(
+      evidence,
+      checks
+    )
+  );
+
+  hardFailures.push(
+    ...checkPlayerGuidanceAndControls(
       evidence,
       checks
     )
