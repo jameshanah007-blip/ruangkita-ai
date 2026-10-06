@@ -405,8 +405,21 @@ function drawSprite(kind,x,y,dir,frame){
 }
 
 function drawWorld(){
-  var camX=clamp(state.player.x-W/2,0,MAP_W*TILE-W);
-  var camY=clamp(state.player.y-H/2,0,MAP_H*TILE-H);
+  // Follow the player with a dead-zone camera instead of pinning the
+  // character permanently to screen center. This makes four-direction
+  // movement visibly readable while still scrolling through the world.
+  var screenMarginX=Math.min(180,W*.28);
+  var screenMarginY=Math.min(150,H*.25);
+  var targetCamX=state.player.x-W/2;
+  var targetCamY=state.player.y-H/2;
+  var currentPlayerScreenX=state.player.x-targetCamX;
+  var currentPlayerScreenY=state.player.y-targetCamY;
+  if(currentPlayerScreenX<screenMarginX)targetCamX=state.player.x-screenMarginX;
+  if(currentPlayerScreenX>W-screenMarginX)targetCamX=state.player.x-(W-screenMarginX);
+  if(currentPlayerScreenY<screenMarginY)targetCamY=state.player.y-screenMarginY;
+  if(currentPlayerScreenY>H-screenMarginY)targetCamY=state.player.y-(H-screenMarginY);
+  var camX=clamp(targetCamX,0,MAP_W*TILE-W);
+  var camY=clamp(targetCamY,0,MAP_H*TILE-H);
   ctx.fillStyle="#79b85b";ctx.fillRect(0,0,W,H);
 
   var startX=Math.max(0,Math.floor(camX/TILE)-1);
@@ -622,15 +635,18 @@ window.addEventListener("message",function(e){
   try{
     var data=e&&e.data;
     if(!data||data.type!=="AI_GAME_KEY_EVENT")return;
-    var eventType=data.eventType==="keyup"?"keyup":"keydown";
-    var keyEvent=new KeyboardEvent(eventType,{
-      bubbles:true,
-      cancelable:true,
-      key:String(data.key||""),
-      code:String(data.code||""),
-      repeat:data.repeat===true
-    });
-    document.dispatchEvent(keyEvent);
+    var code=String(data.code||"");
+    var key=String(data.key||"");
+    var mapped=null;
+    if(code==="ArrowUp"||code==="KeyW"||key==="ArrowUp"||key==="w"||key==="W")mapped="up";
+    else if(code==="ArrowDown"||code==="KeyS"||key==="ArrowDown"||key==="s"||key==="S")mapped="down";
+    else if(code==="ArrowLeft"||code==="KeyA"||key==="ArrowLeft"||key==="a"||key==="A")mapped="left";
+    else if(code==="ArrowRight"||code==="KeyD"||key==="ArrowRight"||key==="d"||key==="D")mapped="right";
+    else if(code==="Space"||code==="Enter"||code==="KeyE"||key===" "||key==="Enter"||key==="e"||key==="E")mapped="action";
+    if(!mapped)return;
+    var down=data.eventType!=="keyup";
+    setKey(mapped,down);
+    if(down&&mapped==="action"&&!data.repeat)interact();
   }catch(_){}
 });
 
