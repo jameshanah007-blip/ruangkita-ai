@@ -22,7 +22,9 @@ export type GameSystemId =
   | "stealth"
   | "survival"
   | "strategy"
-  | "platforming";
+  | "platforming"
+  | "housing"
+  | "vehicleUpgrade";
 
 export type GameSystemPlan = {
   primaryMode: "runner" | "puzzle" | "racing" | "stealth" | "farming" | "strategy" | "combat" | "survival" | "adventure";
@@ -46,7 +48,9 @@ const rules: Array<{ id: GameSystemId; patterns: RegExp[]; reason: string }> = [
   { id: "combat", patterns: [/combat/i, /fight/i, /battle/i, /bertarung/i, /perang/i, /shooter/i, /menembak/i, /musuh/i, /monster/i], reason: "The concept contains combat." },
   { id: "farming", patterns: [/farm/i, /bertani/i, /tanam/i, /panen/i, /kebun/i, /berkebun/i], reason: "The concept contains farming." },
   { id: "crafting", patterns: [/craft/i, /membuat item/i, /forging/i, /tempa/i, /kerajinan/i], reason: "The concept contains crafting." },
-  { id: "economy", patterns: [/shop/i, /toko/i, /jual/i, /beli/i, /uang/i, /currency/i, /ekonomi/i], reason: "The concept contains an economy." },
+  { id: "economy", patterns: [/shop/i, /toko/i, /jual/i, /beli/i, /buy/i, /sell/i, /uang/i, /currency/i, /ekonomi/i], reason: "The concept contains an economy." },
+  { id: "housing", patterns: [/upgrade.{0,24}(rumah|house|home)/i, /(rumah|house|home).{0,24}upgrade/i], reason: "The concept contains home/housing upgrades." },
+  { id: "vehicleUpgrade", patterns: [/upgrade.{0,24}(mobil|kendaraan|vehicle|car)/i, /(mobil|kendaraan|vehicle|car).{0,24}upgrade/i], reason: "The concept contains vehicle upgrades." },
   { id: "racing", patterns: [/racing/i, /race/i, /balap/i, /mobil/i, /kendaraan/i, /driving/i], reason: "The concept contains racing/vehicle gameplay." },
   { id: "puzzle", patterns: [/puzzle/i, /teka/i, /logic/i, /match/i, /grid/i], reason: "The concept contains puzzle gameplay." },
   { id: "stealth", patterns: [/stealth/i, /siluman/i, /infiltrat/i, /patrol/i, /mata.?mata/i], reason: "The concept contains stealth/infiltration." },
