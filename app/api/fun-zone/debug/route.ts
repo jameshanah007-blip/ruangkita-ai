@@ -77,7 +77,7 @@ function validateGameHtml(html: string, allowWebGL = false): string[] {
   }
 
   const hasCanvas2D = /getContext\s*\(\s*["']2d["']\s*\)/i.test(html);
-  const hasWebGL = /getContext\\s*\\(\\s*[\"'](?:webgl|experimental-webgl)[\"'](?:\\s*,\\s*\\{[\\s\\S]*?\\})?\\s*\\)/i.test(html);
+  const hasWebGL = /getContext\s*\(\s*["'](?:webgl|experimental-webgl)["'](?:\s*,\s*\{[\s\S]*?\})?\s*\)/i.test(html);
   if (!hasCanvas2D && !(allowWebGL && hasWebGL)) {
     errors.push(
       allowWebGL
