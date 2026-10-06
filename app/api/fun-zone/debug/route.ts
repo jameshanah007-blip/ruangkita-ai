@@ -9,6 +9,7 @@ import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomou
 import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "../../../fun-zone/engine/james2DTopDownTemplate";
 import { buildFarmingGameHtml, isFarmingRuntime } from "../../../fun-zone/engine/jamesGenreRuntimeTemplates";
 import { buildRacing3DGameHtml, isRacing3DRequest } from "../../../fun-zone/engine/jamesRacing3DTemplate";
+import { buildPokemon2DGameHtml, isPokemon2DRequest } from "../../../fun-zone/engine/jamesPokemon2DTemplate";
 import { getSpecializedRuntime, buildPlatformerRuntime, buildFPSRuntime, buildVoxelRuntime, buildStrategyRuntime } from "../../../fun-zone/engine/jamesSpecializedGenreRuntimes";
 import type {
   GameBlueprint,
@@ -895,6 +896,7 @@ export async function POST(request: Request) {
     const isGenreRuntime = Boolean(
       normalizedDebugBlueprint &&
       (
+        isPokemon2DRequest(normalizedDebugBlueprint) ||
         isFarmingRuntime(normalizedDebugBlueprint) ||
         isRacing3DRequest(normalizedDebugBlueprint) ||
         specializedRuntime
@@ -910,7 +912,11 @@ export async function POST(request: Request) {
       provider = "james-autonomous-topdown-repair";
       model = "james-2d-topdown-runtime-v2";
     } else if (isGenreRuntime) {
-      if (isFarmingRuntime(normalizedDebugBlueprint!)) {
+      if (isPokemon2DRequest(normalizedDebugBlueprint!)) {
+        fixedHtml = buildPokemon2DGameHtml(normalizedDebugBlueprint!);
+        provider = "james-autonomous-pokemon-repair";
+        model = "james-pokemon-2d-runtime-v1";
+      } else if (isFarmingRuntime(normalizedDebugBlueprint!)) {
         fixedHtml = buildFarmingGameHtml(normalizedDebugBlueprint!);
         provider = "james-autonomous-farming-repair";
         model = "james-farming-runtime-v2";
@@ -1008,7 +1014,11 @@ Output hanya HTML.
       );
       const safeBlueprint = normalizeBlueprint(blueprint)!;
       const safeSpecialized = getSpecializedRuntime(safeBlueprint);
-      if (isFarmingRuntime(safeBlueprint)) {
+      if (isPokemon2DRequest(safeBlueprint)) {
+        fixedHtml = buildPokemon2DGameHtml(safeBlueprint);
+        provider = "james-autonomous-pokemon-repair";
+        model = "james-pokemon-2d-runtime-v1";
+      } else if (isFarmingRuntime(safeBlueprint)) {
         fixedHtml = buildFarmingGameHtml(safeBlueprint);
         provider = "james-autonomous-farming-repair";
         model = "james-farming-runtime-v2";
