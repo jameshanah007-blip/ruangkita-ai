@@ -4,6 +4,7 @@ import { mechanicKnowledge, worldKnowledge } from "./jamesGameKnowledge";
 import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "./james2DTopDownTemplate";
 import { buildFarmingGameHtml, isFarmingRuntime } from "./jamesGenreRuntimeTemplates";
 import { buildRacing3DGameHtml, isRacing3DRequest } from "./jamesRacing3DTemplate";
+import { buildPokemon2DGameHtml, isPokemon2DRequest } from "./jamesPokemon2DTemplate";
 import { getSpecializedRuntime, buildPlatformerRuntime, buildFPSRuntime, buildVoxelRuntime, buildStrategyRuntime } from "./jamesSpecializedGenreRuntimes";
 
 
@@ -397,8 +398,12 @@ export function buildAutonomousGameHtml(
   blueprint: GameBlueprint,
   materializedAssets?: AssetMaterializationResult,
 ): string {
-  // Runtime selection is semantic: the user's requested genre owns the visual/runtime family.
-  // Farming and racing must never fall through to the generic adventure renderer.
+  // Production Fun Zone is 2D-first. Genre-specific runtimes own their visual and gameplay family.
+  // The legacy 3D racing runtime remains available for experimental/debug use, but production
+  // game development should prefer the stable 2D family.
+  if (isPokemon2DRequest(blueprint)) {
+    return buildPokemon2DGameHtml(blueprint);
+  }
   if (isRacing3DRequest(blueprint)) {
     return buildRacing3DGameHtml(blueprint);
   }
