@@ -422,17 +422,17 @@ function drawSprite(kind,x,y,dir,frame){
   ctx.restore();
 }
 
-function drawSystemStations(camX,camY){
+function drawSystemStations(){
   var systems=G.profile&&Array.isArray(G.profile.systems)?G.profile.systems:[];
   function station(x,y,label,fill){
     ctx.fillStyle=fill;ctx.fillRect(x-18,y-14,36,28);
     ctx.fillStyle="#f8e7a1";ctx.fillRect(x-12,y-8,24,4);
     ctx.fillStyle="#172018";ctx.font="bold 9px system-ui";ctx.textAlign="center";ctx.fillText(label,x,y+4);ctx.textAlign="left";
   }
-  if(systems.indexOf("farming")>=0)station((Math.floor(MAP_W/2)-5)*TILE-camX,18*TILE-camY,"FARM","#6f8f43");
-  if(systems.indexOf("economy")>=0)station((Math.floor(MAP_W/2)+9)*TILE-camX,11*TILE-camY,"SHOP","#b77b45");
-  if(systems.indexOf("crafting")>=0)station((Math.floor(MAP_W/2)-9)*TILE-camX,11*TILE-camY,"CRAFT","#7a6b57");
-  if(systems.indexOf("quest")>=0)station((Math.floor(MAP_W/2)+4)*TILE-camX,16*TILE-camY,"QUEST","#7259a8");
+  if(systems.indexOf("farming")>=0)station((Math.floor(MAP_W/2)-5)*TILE,18*TILE,"FARM","#6f8f43");
+  if(systems.indexOf("economy")>=0)station((Math.floor(MAP_W/2)+9)*TILE,11*TILE,"SHOP","#b77b45");
+  if(systems.indexOf("crafting")>=0)station((Math.floor(MAP_W/2)-9)*TILE,11*TILE,"CRAFT","#7a6b57");
+  if(systems.indexOf("quest")>=0)station((Math.floor(MAP_W/2)+4)*TILE,16*TILE,"QUEST","#7259a8");
 }
 
 function drawWorld(){
@@ -466,7 +466,7 @@ function drawWorld(){
   }
 
   // Semantic stations are authored from the composed game systems.
-  drawSystemStations(camX,camY);
+  drawSystemStations();
   // Render ambient light BEFORE actors so characters stay crisp and readable.
   drawAmbientLighting(camX,camY);
   drawSprite("npc",state.npc.x,state.npc.y,"down",state.npc.frame);
