@@ -254,6 +254,7 @@ function reset(){
     crops:0,
     crafted:0,
     relationship:0,
+    companionJoined:false,
     xp:0,
     level:1,
     questStep:0,
@@ -697,6 +698,16 @@ function interact(){
     return;
   }
 
+  if(hasSystem("party")&&dNpc<58){
+    state.companionJoined=true;
+    state.relationship=Math.min(100,state.relationship+5);
+    state.dialog="Companion bergabung ke party! Active member tersedia.";
+    state.dialogUntil=performance.now()+2200;
+    state.stateChanges++;state.objectiveChanges++;
+    tone(660,.12,"sine",.05);tone(880,.16,"sine",.04);
+    return;
+  }
+
   if(dNpc<58){
     setAnimationState("player","talk",620);
     if(dist(state.player,state.npc)<58) setAnimationState("npc","talk",620);
@@ -898,6 +909,7 @@ window.__RK_GAME_TEST__={
       crops:state.crops,
       crafted:state.crafted,
       relationship:state.relationship,
+      companionJoined:state.companionJoined,
       xp:state.xp,
       level:state.level,
       questStep:state.questStep,
