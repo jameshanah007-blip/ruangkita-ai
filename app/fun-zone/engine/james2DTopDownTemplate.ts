@@ -1,6 +1,7 @@
 import type { GameBlueprint } from "../laboratory/types";
 import type { AssetMaterializationResult } from "./assetMaterializer";
 import { createKimiStyleGameProfile } from "./kimiStyleGameProfile";
+import { createGameBuildPlan } from "./gameBuildPlan";
 
 function textOf(blueprint: GameBlueprint): string {
   return [
@@ -15,10 +16,11 @@ function textOf(blueprint: GameBlueprint): string {
 }
 
 export function isTopDown2DTemplateRequest(blueprint: GameBlueprint): boolean {
+  const plan = createGameBuildPlan(blueprint);
+  if (plan.dimension !== "2d" || plan.camera !== "top-down") return false;
   const text = textOf(blueprint);
-  const explicit3D = /(?:\b3d\b|three.?dimensional|3d game)/i.test(text);
-  if (explicit3D || /(?:racing|race|balap|mobil|kendaraan|driving)/i.test(text)) return false;
-  return /(?:pokemon|pokémon|top.?down|top down|2d rpg|\b2d\b|rpg|adventure|petualangan|fantasy|fantasi|monster tamer|creature collection|pixel art|pixel-art|farming|farm|bertani|tanam|panen|kebun)/i.test(text);
+  if (/(racing|race|balap|driving|mobil|kendaraan|farming|farm|bertani|tanam|panen|kebun)/i.test(text)) return false;
+  return /(?:pokemon|pokémon|top.?down|top down|2d rpg|\\b2d\\b|rpg|adventure|petualangan|fantasy|fantasi|monster tamer|creature collection|pixel art|pixel-art)/i.test(text);
 }
 
 function js(value: unknown): string {
