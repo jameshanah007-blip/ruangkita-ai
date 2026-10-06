@@ -5,6 +5,7 @@ import {
   recordJamesGameBrainEvidence,
   recordJamesGameTestLearning,
 } from "../../../fun-zone/engine/jamesGameLearning";
+import { getAuthenticatedUser } from "../../auth/cloudIdentity";
 
 export const runtime = "nodejs";
 
@@ -12,11 +13,20 @@ export async function POST(request: Request) {
   try {
     const workerSecret = process.env.CRON_SECRET || process.env.JAMES_AUTONOMY_CRON_SECRET;
     const authorization = request.headers.get("authorization") || "";
-    if (!workerSecret || authorization !== "Bearer " + workerSecret) {
-      return NextResponse.json(
-        { success: false, error: "Learning engine hanya dapat dipanggil oleh worker internal." },
-        { status: 401 },
-      );
+    const workerAuthorized =
+      Boolean(workerSecret) && authorization === "Bearer " + workerSecret;
+
+    // Normal Fun Zone sessions are authenticated browser sessions. Keep the
+    // worker-secret path for autonomous/internal jobs, but do not expose the
+    // learning engine to anonymous callers.
+    if (!workerAuthorized) {
+      const user = await getAuthenticatedUser();
+      if (!user) {
+        return NextResponse.json(
+          { success: false, error: "Fun Zone learning membutuhkan sesi pengguna yang terautentikasi." },
+          { status: 401 },
+        );
+      }
     }
 
     const body = await request.json();
