@@ -613,6 +613,27 @@ function onKey(e,down){
 window.addEventListener("keydown",function(e){onKey(e,true)});
 window.addEventListener("keyup",function(e){onKey(e,false)});
 
+/*
+ * Keyboard bridge for the sandbox host.
+ * The game remains playable even when the iframe itself does not own focus.
+ * This is additive to the normal keydown/keyup listeners above.
+ */
+window.addEventListener("message",function(e){
+  try{
+    var data=e&&e.data;
+    if(!data||data.type!=="AI_GAME_KEY_EVENT")return;
+    var eventType=data.eventType==="keyup"?"keyup":"keydown";
+    var keyEvent=new KeyboardEvent(eventType,{
+      bubbles:true,
+      cancelable:true,
+      key:String(data.key||""),
+      code:String(data.code||""),
+      repeat:data.repeat===true
+    });
+    document.dispatchEvent(keyEvent);
+  }catch(_){}
+});
+
 document.querySelectorAll("[data-key]").forEach(function(button){
   var key=button.getAttribute("data-key");
   var start=function(e){e.preventDefault();setKey(key,true);if(key==="action")interact()};
