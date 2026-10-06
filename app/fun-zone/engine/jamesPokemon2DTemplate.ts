@@ -156,11 +156,11 @@ function loop(t){window.__RK_GAME_LOOP_STARTED__=true;var dt=Math.min(.05,(t-las
 window.__RK_GAME_TEST__={
  getState:function(){return {x:state.px,y:state.py,dir:state.dir,creatures:state.creatures,npcTalked:state.npcTalked,wildSeen:state.wildSeen,captured:state.captured,stateChanges:state.stateChanges,objectiveChanges:state.objectiveChanges,won:state.won}},
  getPlayerState:function(){return {x:state.px,y:state.py,dir:state.dir}},
- getObjectiveState:function(){return {progress:state.captured?1:state.npcTalked?.5:0,status:state.won?"won":"playing"}},
+ getObjectiveState:function(){return {progress:state.captured?1:(state.npcTalked?0.5:0),status:state.won?"won":"playing"}},
  getWinState:function(){return state.won},
  getLoseState:function(){return state.lost},
  performTestAction:function(a){
-   if(a==="move"){state.px+=20;state.stateChanges++;return true}
+   if(a==="move"){setInput("up",true);setInput("right",true);setTimeout(function(){setInput("up",false);setInput("right",false)},140);state.stateChanges++;return true}
    if(["up","down","left","right"].indexOf(a)>=0){setInput(a,true);setTimeout(function(){setInput(a,false)},140);state.stateChanges++;return true}
    if(a==="interact"||a==="talk"||a==="collect"||a==="action"){return action()}
    return false;
