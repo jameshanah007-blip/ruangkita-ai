@@ -623,6 +623,90 @@ document.querySelectorAll("[data-key]").forEach(function(button){
   button.addEventListener("pointerleave",end);
 });
 
+window.__RK_GAME_TEST__={
+  getState:function(){
+    return {
+      crystalsTaken:state.crystalsTaken,
+      dialog:state.dialog,
+      won:state.won,
+      lost:state.lost,
+      stateChanges:state.stateChanges,
+      objectiveChanges:state.objectiveChanges,
+      restartCount:state.restartCount||0
+    };
+  },
+  getPlayerState:function(){
+    return {
+      x:state.player.x,
+      y:state.player.y,
+      dir:state.player.dir,
+      hp:state.player.hp,
+      moving:state.player.moving
+    };
+  },
+  getObjectiveState:function(){
+    return {
+      progress:state.crystalsTaken/state.crystals.length,
+      crystalsTaken:state.crystalsTaken,
+      status:state.won?"won":state.lost?"lost":"playing"
+    };
+  },
+  getWinState:function(){return state.won===true;},
+  getLoseState:function(){return state.lost===true;},
+  performTestAction:function(action){
+    if(action==="move"||action==="explore"){
+      var beforeX=state.player.x,beforeY=state.player.y;
+      var nx=state.player.x+TILE*2;
+      if(!blocked(nx,state.player.y)) state.player.x=nx;
+      else state.player.y=Math.min(MAP_H*TILE-40,state.player.y+TILE*2);
+      state.player.dir="right";
+      state.player.moving=true;
+      state.player.frame=(state.player.frame+1)%4;
+      state.stateChanges++;
+      return beforeX!==state.player.x||beforeY!==state.player.y;
+    }
+    if(action==="collect"){
+      for(var i=0;i<state.crystals.length;i++){
+        if(!state.crystals[i].taken){
+          state.player.x=state.crystals[i].x;
+          state.player.y=state.crystals[i].y;
+          checkCrystals();
+          return true;
+        }
+      }
+      return false;
+    }
+    if(action==="interact"||action==="talk"){
+      var nearestNpc=dist(state.player,state.npc)<=dist(state.player,state.npc2)?state.npc:state.npc2;
+      state.player.x=nearestNpc.x;
+      state.player.y=nearestNpc.y;
+      interact();
+      return true;
+    }
+    if(action==="attack"){
+      state.player.x=state.creature.x;
+      state.player.y=state.creature.y;
+      interact();
+      return true;
+    }
+    if(action==="restart"){
+      var previousRestarts=state.restartCount||0;
+      reset();
+      state.restartCount=previousRestarts+1;
+      state.stateChanges++;
+      return true;
+    }
+    return false;
+  },
+  restart:function(){
+    var previousRestarts=state.restartCount||0;
+    reset();
+    state.restartCount=previousRestarts+1;
+    state.stateChanges++;
+    return true;
+  }
+};
+
 restart.addEventListener("click",function(){
   var previousRestarts=state.restartCount||0;
   reset();
