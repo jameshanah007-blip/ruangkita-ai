@@ -1091,6 +1091,28 @@ function readGameTestSnapshot() {
   }
 }
 
+  function normalizeTestAction(action) {
+    var value = String(action || "").trim().toLowerCase();
+
+    if (/buy|beli|shop|toko/.test(value)) return "buy";
+    if (/sell|jual/.test(value)) return "sell";
+    if (/upgrade.*(home|house|rumah)|(?:home|house|rumah).*upgrade/.test(value)) return "upgradeHome";
+    if (/plant|tanam|bibit|seed|farm|farming|panen|harvest|crop|work|berkebun/.test(value)) return "work";
+    if (/talk|bicara|ngobrol|npc|relationship|hubungan|persahabatan/.test(value)) return "talk";
+    if (/interact|interaksi|gunakan|use|open/.test(value)) return "interact";
+    if (/jump|lompat/.test(value)) return "jump";
+    if (/attack|serang|combat/.test(value)) return "attack";
+    if (/collect|ambil|kumpul/.test(value)) return "collect";
+    if (/dodge|hindar/.test(value)) return "dodge";
+    if (/shoot|tembak/.test(value)) return "shoot";
+    if (/door|pintu/.test(value)) return "open_door";
+    if (/item|barang/.test(value)) return "use_item";
+    if (/solve|pecahkan|teka/.test(value)) return "solve";
+    if (/move|gerak|jalan|explore|jelajah/.test(value)) return "move";
+
+    return value;
+  }
+
   function runTest() {
     try {
       var canvas =
@@ -1175,7 +1197,9 @@ var beforeLost =
               declaredIndex++
             ) {
               var declaredAction =
-                String(declaredTestActions[declaredIndex] || "").trim();
+                normalizeTestAction(
+                  declaredTestActions[declaredIndex]
+                );
 
               if (
                 declaredAction &&
@@ -1209,12 +1233,22 @@ var beforeLost =
               var action = actionCandidates[actionIndex];
 
               try {
-                protocol.performTestAction(action);
-                protocolActionExecuted = true;
-                executedActions.push(action);
+                var actionResult =
+                  protocol.performTestAction(action);
 
-                if (!protocolAction) {
-                  protocolAction = action;
+                /*
+                 * false means the runtime rejected the action.
+                 * Do not count that as semantic gameplay evidence.
+                 * undefined is accepted because a valid protocol may
+                 * perform the action without returning a boolean.
+                 */
+                if (actionResult !== false) {
+                  protocolActionExecuted = true;
+                  executedActions.push(action);
+
+                  if (!protocolAction) {
+                    protocolAction = action;
+                  }
                 }
               } catch (_) {
                 /* Try the next legitimate action. */
