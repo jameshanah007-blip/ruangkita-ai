@@ -247,6 +247,16 @@ function reset(){
       {x:33.5*TILE,y:22.5*TILE,taken:false}
     ],
     crystalsTaken:0,
+    // Semantic systems composed from the user's prompt.
+    coins:0,
+    resources:0,
+    inventory:[],
+    crops:0,
+    crafted:0,
+    relationship:0,
+    xp:0,
+    level:1,
+    questStep:0,
     dialog:"",
     dialogUntil:0,
     won:false,
@@ -412,6 +422,19 @@ function drawSprite(kind,x,y,dir,frame){
   ctx.restore();
 }
 
+function drawSystemStations(camX,camY){
+  var systems=G.profile&&Array.isArray(G.profile.systems)?G.profile.systems:[];
+  function station(x,y,label,fill){
+    ctx.fillStyle=fill;ctx.fillRect(x-18,y-14,36,28);
+    ctx.fillStyle="#f8e7a1";ctx.fillRect(x-12,y-8,24,4);
+    ctx.fillStyle="#172018";ctx.font="bold 9px system-ui";ctx.textAlign="center";ctx.fillText(label,x,y+4);ctx.textAlign="left";
+  }
+  if(systems.indexOf("farming")>=0)station((Math.floor(MAP_W/2)-5)*TILE-camX,18*TILE-camY,"FARM","#6f8f43");
+  if(systems.indexOf("economy")>=0)station((Math.floor(MAP_W/2)+9)*TILE-camX,11*TILE-camY,"SHOP","#b77b45");
+  if(systems.indexOf("crafting")>=0)station((Math.floor(MAP_W/2)-9)*TILE-camX,11*TILE-camY,"CRAFT","#7a6b57");
+  if(systems.indexOf("quest")>=0)station((Math.floor(MAP_W/2)+4)*TILE-camX,16*TILE-camY,"QUEST","#7259a8");
+}
+
 function drawWorld(){
   // Follow the player with a dead-zone camera instead of pinning the
   // character permanently to screen center. This makes four-direction
@@ -442,6 +465,8 @@ function drawWorld(){
     if(!state.crystals[c].taken)drawCrystal(state.crystals[c].x,state.crystals[c].y);
   }
 
+  // Semantic stations are authored from the composed game systems.
+  drawSystemStations(camX,camY);
   // Render ambient light BEFORE actors so characters stay crisp and readable.
   drawAmbientLighting(camX,camY);
   drawSprite("npc",state.npc.x,state.npc.y,"down",state.npc.frame);
@@ -489,33 +514,91 @@ function drawAmbientLighting(camX,camY){
   ctx.restore();
 }
 
+function hasSystem(name){
+  return Boolean(G.profile&&Array.isArray(G.profile.systems)&&G.profile.systems.indexOf(name)>=0);
+}
+
+function nearestSystem(){
+  var px=state.player.x,py=state.player.y,candidates=[];
+  // Small authored village stations. They are part of the semantic composition,
+  // not a generic placeholder.
+  if(hasSystem("farming"))candidates.push({kind:"farm",x:(Math.floor(MAP_W/2)-5)*TILE,y:18*TILE});
+  if(hasSystem("economy"))candidates.push({kind:"shop",x:(Math.floor(MAP_W/2)+9)*TILE,y:11*TILE});
+  if(hasSystem("crafting"))candidates.push({kind:"craft",x:(Math.floor(MAP_W/2)-9)*TILE,y:11*TILE});
+  if(hasSystem("quest"))candidates.push({kind:"quest",x:(Math.floor(MAP_W/2)+4)*TILE,y:16*TILE});
+  candidates.sort(function(a,b){return Math.hypot(px-a.x,py-a.y)-Math.hypot(px-b.x,py-b.y)});
+  return candidates.length&&Math.hypot(px-candidates[0].x,py-candidates[0].y)<62?candidates[0]:null;
+}
+
 function interact(){
   if(state.won||state.lost)return;
   var dNpc=Math.min(dist(state.player,state.npc),dist(state.player,state.npc2));
   var dEnemy=dist(state.player,state.creature);
   state.actionUntil=performance.now()+420;
-  if(dEnemy<48){
+
+  if(hasSystem("combat")&&dEnemy<58){
     setAnimationState("player","attack",420);
     state.creature.hitUntil=performance.now()+420;
-    state.dialog="Makhluk liar terkena serangan! Jelajahi area untuk menemukan semua Crystal.";
-    state.dialogUntil=performance.now()+1900;
-    state.stateChanges++;
+    if(!state.creature.defeated){
+      state.creature.defeated=true;
+      state.xp+=20;
+      state.coins+=5;
+      state.objectiveChanges++;
+      state.stateChanges++;
+      state.dialog="Monster dikalahkan! +20 XP · +5 Gold";
+      state.dialogUntil=performance.now()+1900;
+      if(state.xp>=50){state.level++;state.xp-=50}
+    }
     tone(120,.08,"sawtooth",.04);tone(420,.1,"square",.035);
     return;
   }
+
+  var station=nearestSystem();
+  if(station){
+    if(station.kind==="farm"){
+      state.crops++;
+      state.resources+=2;
+      state.xp+=8;
+      state.dialog="Kebun: tanam dan panen berhasil. +2 Resource · +8 XP";
+    }else if(station.kind==="shop"){
+      if(state.coins>=5){
+        state.coins-=5;state.inventory.push("Potion");state.xp+=4;
+        state.dialog="Toko: membeli Potion seharga 5 Gold.";
+      }else{
+        state.coins+=2;state.dialog="Toko: belum cukup Gold. Ambil resource atau kalahkan monster.";
+      }
+    }else if(station.kind==="craft"){
+      if(state.resources>=2){
+        state.resources-=2;state.crafted++;state.inventory.push("Crafted Item");state.xp+=12;
+        state.dialog="Workbench: item berhasil dibuat. -2 Resource · +12 XP";
+      }else{
+        state.dialog="Workbench: butuh 2 Resource untuk crafting.";
+      }
+    }else if(station.kind==="quest"){
+      state.questStep=Math.min(3,state.questStep+1);
+      state.xp+=10;state.dialog="Quest: objective diperbarui. Langkah "+state.questStep+"/3.";
+    }
+    state.objectiveChanges++;state.stateChanges++;
+    if(state.xp>=50){state.level++;state.xp-=50}
+    state.dialogUntil=performance.now()+2400;
+    tone(660,.12,"sine",.05);tone(880,.16,"sine",.04);
+    return;
+  }
+
   if(dNpc<58){
     setAnimationState("player","talk",620);
     if(dist(state.player,state.npc)<58) setAnimationState("npc","talk",620);
     if(dist(state.player,state.npc2)<58) setAnimationState("npc2","talk",620);
+    if(hasSystem("relationship"))state.relationship=Math.min(100,state.relationship+5);
     var systems=G.profile&&Array.isArray(G.profile.systems)?G.profile.systems:[];
-    var topic=systems.indexOf("economy")>=0
-      ? "Pedagang: Toko desa siap melayani jual-beli."
-      : systems.indexOf("farming")>=0
-        ? "Petani: Rawat kebun, panen hasilnya, lalu lanjutkan petualangan."
-        : systems.indexOf("crafting")>=0
-          ? "Pengrajin: Bawa resource ke meja kerja untuk membuat item."
-          : systems.indexOf("relationship")>=0
-            ? "Aira: Interaksi dan pilihanmu akan membentuk hubungan dengan penduduk."
+    var topic=hasSystem("relationship")
+      ? "Aira: Hubungan +5. Pilihanmu akan membentuk hubungan dengan penduduk."
+      : systems.indexOf("economy")>=0
+        ? "Pedagang: Toko desa siap melayani jual-beli."
+        : systems.indexOf("farming")>=0
+          ? "Petani: Rawat kebun, panen hasilnya, lalu lanjutkan petualangan."
+          : systems.indexOf("crafting")>=0
+            ? "Pengrajin: Bawa resource ke meja kerja untuk membuat item."
             : "Aira: Jelajahi dunia, bicara dengan penduduk, dan selesaikan tujuanmu.";
     state.dialog=topic;
     state.dialogUntil=performance.now()+2600;
@@ -524,6 +607,7 @@ function interact(){
   }
   setAnimationState("player","action",420);
 }
+
 
 function checkCrystals(){
   for(var i=0;i<state.crystals.length;i++){
@@ -571,8 +655,9 @@ function showMessage(title,body){
 }
 
 function updateHud(){
-  statsEl.textContent="HP "+state.player.hp+" · Crystal "+state.crystalsTaken+"/"+state.crystals.length+" · WASD/Arrows";
+  statsEl.textContent="HP "+state.player.hp+" · Lv "+state.level+" · Gold "+state.coins+" · Crystal "+state.crystalsTaken+"/"+state.crystals.length;
   hintEl.textContent=(G.profile&&G.profile.objectiveLabel?G.profile.objectiveLabel:"Explore and complete the objective.")
+    +" · "+(G.profile&&G.profile.systems?G.profile.systems.slice(0,4).join(" · "):"exploration")
     +" · Arrow/WASD move · Space/E interact";
 }
 
