@@ -166,7 +166,8 @@ window.__RK_GAME_TEST__={
    return false;
  },
  restart:function(){reset();started=true;return true},
- getTutorialState:function(){return {available:true,visible:tutorial.style.display!=="none"}}
+ getTutorialState:function(){return {available:true,visible:tutorial.style.display!=="none"}},
+ getControlState:function(){return {up:true,down:true,left:true,right:true}}
 };
 resize();reset();window.__RK_GAME_READY__=true;requestAnimationFrame(loop);
 })();</script>
