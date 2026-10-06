@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 import { runJamesBrain } from "../../../core/james/jamesBrain";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
+import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "../../../fun-zone/engine/james2DTopDownTemplate";
 import type {
   GameBlueprint,
   RuntimeError,
@@ -873,9 +874,27 @@ export async function POST(request: Request) {
     let model = "provider";
     let fixedHtml = "";
 
-    try {
-      const result =
-        await runJamesBrain({
+    /*
+     * First-class 2D top-down games use James' deterministic runtime as the
+     * repair authority. Provider output is intentionally not allowed to
+     * rewrite this foundation after a test failure: low-output/partial AI
+     * responses were previously replacing a healthy game with truncated HTML,
+     * which then triggered the five-attempt loop and could remove movement.
+     */
+    const normalizedDebugBlueprint = blueprint ? normalizeBlueprint(blueprint)! : null;
+    const isTopDownFoundation = Boolean(
+      normalizedDebugBlueprint &&
+      isTopDown2DTemplateRequest(normalizedDebugBlueprint)
+    );
+
+    if (isTopDownFoundation) {
+      fixedHtml = buildTopDown2DGameHtml(normalizedDebugBlueprint);
+      provider = "james-autonomous-topdown-repair";
+      model = "james-2d-topdown-runtime-v2";
+    } else {
+      try {
+        const result =
+          await runJamesBrain({
           surface: "fun_zone",
           mode: "game_debugger",
           systemInstruction: `
@@ -902,8 +921,8 @@ Output hanya HTML.
 
       provider = result.provider;
       model = result.model;
-      fixedHtml = extractHtml(result.text);
-    } catch (providerError) {
+        fixedHtml = extractHtml(result.text);
+      } catch (providerError) {
       /*
        * Provider AI tidak boleh membuat Laboratory berhenti
        * setelah seluruh fallback provider habis.
@@ -928,6 +947,7 @@ Output hanya HTML.
       } else {
         throw providerError;
       }
+      }
     }
 
     let validationErrors =
@@ -938,9 +958,16 @@ Output hanya HTML.
         "AI Game Debugger produced invalid HTML; using deterministic James fallback.",
         validationErrors
       );
-      fixedHtml = buildAutonomousGameHtml(normalizeBlueprint(blueprint)!);
-      provider = "james-autonomous-fallback";
-      model = "autonomous-evolution-engine-v1";
+      const safeBlueprint = normalizeBlueprint(blueprint)!;
+      fixedHtml = isTopDown2DTemplateRequest(safeBlueprint)
+        ? buildTopDown2DGameHtml(safeBlueprint)
+        : buildAutonomousGameHtml(safeBlueprint);
+      provider = isTopDown2DTemplateRequest(safeBlueprint)
+        ? "james-autonomous-topdown-repair"
+        : "james-autonomous-fallback";
+      model = isTopDown2DTemplateRequest(safeBlueprint)
+        ? "james-2d-topdown-runtime-v2"
+        : "autonomous-evolution-engine-v1";
       validationErrors = validateGameHtml(fixedHtml);
     }
 
