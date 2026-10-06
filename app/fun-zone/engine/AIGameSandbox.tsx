@@ -2554,8 +2554,17 @@ body: JSON.stringify({
 
           if (!runtimeVisualAnalysis.passed) {
             console.warn(
-              "Runtime Visual Analysis:",
-              runtimeVisualAnalysis,
+              "[Fun Zone] Runtime Visual Analysis failed:",
+              {
+                score: runtimeVisualAnalysis.score,
+                passed: runtimeVisualAnalysis.passed,
+                issues: runtimeVisualAnalysis.issues.map((issue) => ({
+                  severity: issue.severity,
+                  area: issue.area,
+                  message: issue.message,
+                  repair: issue.repair,
+                })),
+              },
             );
           }
 
