@@ -132,6 +132,12 @@ function characterSpriteSheetSvg(asset: GameAssetSpec): string {
     { name: "talk", flip: false, bob: [0, -2, 1, -1] },
     { name: "defeat", flip: false, bob: [3, 5, 8, 10] },
   ];
+
+  // Reuse one authored character body with SVG <use> instead of duplicating
+  // the complete body markup into all 40 animation frames. This keeps the
+  // standalone HTML artifact small while preserving the real sprite-sheet
+  // runtime, four directional walk states, action/attack/hit/talk/defeat
+  // poses, and deterministic character identity.
   const frameGroups = rows.map((row, rowIndex) => {
     return [0, 1, 2, 3].map((frame) => {
       const x = frame * 256;
@@ -153,10 +159,11 @@ function characterSpriteSheetSvg(asset: GameAssetSpec): string {
         : row.name === "walk-left" || row.name === "walk-right"
           ? "scale(.9 1)"
           : "";
-      return `<g transform="translate(${tx} ${y})"><g transform="translate(128 ${128 + bob}) ${pose} scale(${sx} 1) ${directional} translate(-128 -128)">${body}</g></g>`;
+      return `<g transform="translate(${tx} ${y})"><g transform="translate(128 ${128 + bob}) ${pose} scale(${sx} 1) ${directional} translate(-128 -128)"><use href="#character-body"/></g></g>`;
     }).join("");
   }).join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="2560" viewBox="0 0 1024 2560">${frameGroups}</svg>`;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="2560" viewBox="0 0 1024 2560"><defs><g id="character-body">${body}</g></defs>${frameGroups}</svg>`;
 }
 export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; metadata: Record<string, unknown> } {
   const dna = buildCharacterDNA(asset);
