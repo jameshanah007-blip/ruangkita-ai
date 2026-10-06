@@ -251,6 +251,8 @@ function reset(){
     coins:0,
     resources:0,
     inventory:[],
+    collection:[],
+    collectionCount:0,
     crops:0,
     crafted:0,
     relationship:0,
@@ -433,6 +435,7 @@ function semanticObjectiveText(){
   var systems=G.profile&&Array.isArray(G.profile.systems)?G.profile.systems:[];
   var goals=[];
   if(systems.indexOf("combat")>=0&&!state.creature.defeated)goals.push("Kalahkan monster");
+  if(systems.indexOf("collection")>=0&&state.collectionCount<1)goals.push("Dapatkan 1 makhluk");
   if(systems.indexOf("farming")>=0&&state.crops<1)goals.push("Panen 1 kali");
   if(systems.indexOf("crafting")>=0&&state.crafted<1)goals.push("Buat 1 item");
   if(systems.indexOf("economy")>=0&&state.inventory.length<1)goals.push("Dapatkan 1 item dari toko");
@@ -450,9 +453,11 @@ function drawSemanticHud(){
     "XP "+state.xp+"/50",
     "G "+state.coins,
     "RES "+state.resources,
-    "ITEM "+state.inventory.length
+    "ITEM "+state.inventory.length,
+    "MON "+state.collectionCount
   ];
   if(systems.indexOf("relationship")>=0)parts.push("BOND "+state.relationship);
+  if(systems.indexOf("party")>=0)parts.push("PARTY "+Math.max(1,state.collectionCount));
   if(systems.indexOf("farming")>=0)parts.push("CROP "+state.crops);
   if(systems.indexOf("crafting")>=0)parts.push("CRAFT "+state.crafted);
   if(systems.indexOf("quest")>=0)parts.push("QUEST "+state.questStep+"/3");
@@ -654,6 +659,10 @@ function interact(){
     state.creature.hitUntil=performance.now()+420;
     if(!state.creature.defeated){
       state.creature.defeated=true;
+      if(hasSystem("collection")){
+        state.collection.push("Verdant Beast");
+        state.collectionCount=state.collection.length;
+      }
       state.xp+=20;
       state.coins+=5;
       state.objectiveChanges++;
@@ -751,6 +760,7 @@ function checkSemanticCompletion(){
   var required=[];
   if(systems.indexOf("collectibles")>=0||systems.indexOf("collection")>=0)required.push(state.crystalsTaken>=state.crystals.length);
   if(systems.indexOf("combat")>=0)required.push(state.creature.defeated===true);
+  if(systems.indexOf("collection")>=0)required.push(state.collectionCount>=1);
   if(hasSystem("npc-dialogue"))required.push(state.dialog!=="");
   if(hasSystem("economy"))required.push(state.inventory.length>0);
   if(hasSystem("farming"))required.push(state.crops>=1);
@@ -914,6 +924,8 @@ window.__RK_GAME_TEST__={
       level:state.level,
       questStep:state.questStep,
       inventoryCount:state.inventory.length,
+      collectionCount:state.collectionCount,
+      collection:state.collection.slice(),
       restartCount:state.restartCount||0
     };
   },
