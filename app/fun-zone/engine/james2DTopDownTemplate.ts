@@ -692,12 +692,33 @@ function checkCrystals(){
       state.objectiveChanges++;
       state.stateChanges++;
       tone(740,.08,"sine",.05);tone(980,.12,"sine",.04);
-      if(state.crystalsTaken===state.crystals.length){
-        state.won=true;
-        showMessage("AREA SELESAI","Semua Crystal ditemukan. Petualangan 2D selesai.");
-        tone(523,.12,"sine",.05);tone(659,.12,"sine",.05);tone(784,.2,"sine",.05);
-      }
     }
+  }
+}
+
+function checkSemanticCompletion(){
+  if(state.won||state.lost)return;
+  var systems=G.profile&&Array.isArray(G.profile.systems)?G.profile.systems:[];
+  var required=[];
+  if(systems.indexOf("collectibles")>=0||systems.indexOf("collection")>=0)required.push(state.crystalsTaken>=state.crystals.length);
+  if(systems.indexOf("combat")>=0)required.push(state.creature.defeated===true);
+  if(systems.indexOf("npc-dialogue")>=0)required.push(state.dialog!=="");
+  if(systems.indexOf("economy")>=0)required.push(state.inventory.length>0);
+  if(systems.indexOf("farming")>=0)required.push(state.crops>=1);
+  if(systems.indexOf("crafting")>=0)required.push(state.crafted>=1);
+  if(systems.indexOf("relationship")>=0)required.push(state.relationship>=10);
+  if(systems.indexOf("progression")>=0)required.push(state.level>1);
+  if(systems.indexOf("quest")>=0)required.push(state.questStep>=3);
+
+  // If the prompt only asks for exploration, collecting the authored
+  // world objectives remains the completion path.
+  if(required.length===0)required.push(state.crystalsTaken>=state.crystals.length);
+
+  if(required.every(Boolean)){
+    state.won=true;
+    state.objectiveChanges++;
+    showMessage("PETUALANGAN SELESAI","Semua sistem utama dari game ini berhasil dimainkan.");
+    tone(523,.12,"sine",.05);tone(659,.12,"sine",.05);tone(784,.2,"sine",.05);
   }
 }
 
@@ -758,6 +779,7 @@ function frame(now){
   movePlayer(dx,dy,dt);
   updateCreature(dt);
   checkCrystals();
+  checkSemanticCompletion();
   drawWorld();
   updateHud();
   drawInteractionPrompt();
