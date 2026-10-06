@@ -428,6 +428,20 @@ function drawSprite(kind,x,y,dir,frame){
   ctx.restore();
 }
 
+function semanticObjectiveText(){
+  var systems=G.profile&&Array.isArray(G.profile.systems)?G.profile.systems:[];
+  var goals=[];
+  if(systems.indexOf("combat")>=0&&!state.creature.defeated)goals.push("Kalahkan monster");
+  if(systems.indexOf("farming")>=0&&state.crops<1)goals.push("Panen 1 kali");
+  if(systems.indexOf("crafting")>=0&&state.crafted<1)goals.push("Buat 1 item");
+  if(systems.indexOf("economy")>=0&&state.inventory.length<1)goals.push("Dapatkan 1 item dari toko");
+  if(systems.indexOf("relationship")>=0&&state.relationship<10)goals.push("Bangun hubungan 10");
+  if(systems.indexOf("quest")>=0&&state.questStep<3)goals.push("Selesaikan quest "+state.questStep+"/3");
+  if(systems.indexOf("progression")>=0&&state.level<2)goals.push("Naik ke level 2");
+  if(goals.length===0)goals.push(G.profile.objectiveLabel||"Jelajahi dunia");
+  return goals.slice(0,2).join("  ·  ");
+}
+
 function drawSemanticHud(){
   var systems=G.profile&&Array.isArray(G.profile.systems)?G.profile.systems:[];
   var parts=[
@@ -449,6 +463,15 @@ function drawSemanticHud(){
     root.appendChild(old);
   }
   old.textContent=parts.join("  ·  ");
+
+  var objective=document.getElementById("semanticObjective");
+  if(!objective){
+    objective=document.createElement("div");
+    objective.id="semanticObjective";
+    objective.style.cssText="position:absolute;right:12px;bottom:74px;max-width:min(48%,390px);padding:7px 10px;border-left:3px solid #e7c77a;background:rgba(20,25,20,.82);border-radius:4px;color:#fff;font:11px system-ui;line-height:1.35;pointer-events:none;text-shadow:0 1px 2px #000";
+    root.appendChild(objective);
+  }
+  objective.innerHTML="<b style='color:#f7e9b0'>OBJECTIVE</b><br>"+escapeHtml(semanticObjectiveText());
 }
 
 function drawSystemStations(){
