@@ -422,6 +422,29 @@ function drawSprite(kind,x,y,dir,frame){
   ctx.restore();
 }
 
+function drawSemanticHud(){
+  var systems=G.profile&&Array.isArray(G.profile.systems)?G.profile.systems:[];
+  var parts=[
+    "LV "+state.level,
+    "XP "+state.xp+"/50",
+    "G "+state.coins,
+    "RES "+state.resources,
+    "ITEM "+state.inventory.length
+  ];
+  if(systems.indexOf("relationship")>=0)parts.push("BOND "+state.relationship);
+  if(systems.indexOf("farming")>=0)parts.push("CROP "+state.crops);
+  if(systems.indexOf("crafting")>=0)parts.push("CRAFT "+state.crafted);
+  if(systems.indexOf("quest")>=0)parts.push("QUEST "+state.questStep+"/3");
+  var old=document.getElementById("semanticStats");
+  if(!old){
+    old=document.createElement("div");
+    old.id="semanticStats";
+    old.style.cssText="position:absolute;left:12px;bottom:74px;max-width:calc(100% - 24px);padding:6px 9px;border:1px solid rgba(255,255,255,.18);background:rgba(20,25,20,.78);border-radius:5px;color:#f7e9b0;font:10px system-ui;pointer-events:none;text-shadow:0 1px 2px #000";
+    root.appendChild(old);
+  }
+  old.textContent=parts.join("  ·  ");
+}
+
 function drawSystemStations(){
   var systems=G.profile&&Array.isArray(G.profile.systems)?G.profile.systems:[];
   function station(x,y,label,fill){
@@ -659,6 +682,7 @@ function updateHud(){
   hintEl.textContent=(G.profile&&G.profile.objectiveLabel?G.profile.objectiveLabel:"Explore and complete the objective.")
     +" · "+(G.profile&&G.profile.systems?G.profile.systems.slice(0,4).join(" · "):"exploration")
     +" · Arrow/WASD move · Space/E interact";
+  drawSemanticHud();
 }
 
 function tone(freq,duration,type,volume){
