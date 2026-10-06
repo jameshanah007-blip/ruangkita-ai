@@ -4,6 +4,7 @@ import { mechanicKnowledge, worldKnowledge } from "./jamesGameKnowledge";
 import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "./james2DTopDownTemplate";
 import { buildFarmingGameHtml, isFarmingRuntime } from "./jamesGenreRuntimeTemplates";
 import { buildRacing3DGameHtml, isRacing3DRequest } from "./jamesRacing3DTemplate";
+import { getSpecializedRuntime, buildPlatformerRuntime, buildFPSRuntime, buildVoxelRuntime, buildStrategyRuntime } from "./jamesSpecializedGenreRuntimes";
 
 
 /**
@@ -408,6 +409,11 @@ export function buildAutonomousGameHtml(
   if (isTopDown2DTemplateRequest(blueprint)) {
     return buildTopDown2DGameHtml(blueprint, materializedAssets);
   }
+  const specialized = getSpecializedRuntime(blueprint);
+  if (specialized === "platformer") return buildPlatformerRuntime(blueprint);
+  if (specialized === "fps") return buildFPSRuntime(blueprint);
+  if (specialized === "voxel") return buildVoxelRuntime(blueprint);
+  if (specialized === "strategy") return buildStrategyRuntime(blueprint);
 
   const g = buildGenome(blueprint);
   const [bg, panel, accent, danger, light] = g.palette;
