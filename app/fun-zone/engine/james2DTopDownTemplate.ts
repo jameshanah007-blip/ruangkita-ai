@@ -274,6 +274,12 @@ function reset(){
 }
 reset();
 
+// Expose the composed systems to the runtime QA layer. The tester can now
+// verify not only rendering but also that the systems selected from the
+// user's prompt are actually represented in gameplay state.
+window.__RK_GAME_SYSTEMS__=G.profile&&Array.isArray(G.profile.systems)?G.profile.systems.slice():[];
+
+
 function tileAt(px,py){
   var tx=Math.floor(px/TILE),ty=Math.floor(py/TILE);
   if(tx<0||ty<0||tx>=MAP_W||ty>=MAP_H)return "tree";
@@ -827,6 +833,15 @@ window.__RK_GAME_TEST__={
       lost:state.lost,
       stateChanges:state.stateChanges,
       objectiveChanges:state.objectiveChanges,
+      coins:state.coins,
+      resources:state.resources,
+      crops:state.crops,
+      crafted:state.crafted,
+      relationship:state.relationship,
+      xp:state.xp,
+      level:state.level,
+      questStep:state.questStep,
+      inventoryCount:state.inventory.length,
       restartCount:state.restartCount||0
     };
   },
@@ -877,6 +892,16 @@ window.__RK_GAME_TEST__={
       state.player.y=nearestNpc.y;
       interact();
       return true;
+    }
+    if(action==="farm"||action==="plant"||action==="harvest"||action==="work"||action==="craft"||action==="buy"||action==="sell"||action==="quest"){
+      var station=nearestSystem();
+      if(station){
+        state.player.x=station.x;
+        state.player.y=station.y;
+        interact();
+        return true;
+      }
+      return false;
     }
     if(action==="attack"){
       state.player.x=state.creature.x;
