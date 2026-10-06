@@ -49,6 +49,7 @@ type GameTestProtocol = {
   getLoseState?: () => boolean;
   getTutorialState?: () => unknown;
   getControlState?: () => unknown;
+  testDirectionalControl?: (direction: string) => boolean;
   performTestAction?: (
     action: string
   ) => unknown;
@@ -1290,6 +1291,38 @@ var beforeLost =
               }
             }
 
+            var directionalTestResults = {
+              up: false,
+              down: false,
+              left: false,
+              right: false
+            };
+
+            if (gameTestProtocol && gameTestBefore.protocol &&
+                typeof gameTestBefore.protocol.testDirectionalControl === "function") {
+              ["up","down","left","right"].forEach(function(direction) {
+                try {
+                  directionalTestResults[direction] =
+                    gameTestBefore.protocol.testDirectionalControl(direction) === true;
+                } catch (_) {
+                  directionalTestResults[direction] = false;
+                }
+              });
+            } else {
+              try {
+                var exposedControls = gameTestBefore.protocol &&
+                  typeof gameTestBefore.protocol.getControlState === "function"
+                    ? gameTestBefore.protocol.getControlState()
+                    : null;
+                if (exposedControls) {
+                  directionalTestResults.up = exposedControls.up === true;
+                  directionalTestResults.down = exposedControls.down === true;
+                  directionalTestResults.left = exposedControls.left === true;
+                  directionalTestResults.right = exposedControls.right === true;
+                }
+              } catch (_) {}
+            }
+
             var executedActions = [];
 
             for (
@@ -1781,7 +1814,7 @@ var beforeLost =
                       tutorialAvailable,
 
                     directionalControls:
-                      directionalControls,
+                      directionalTestResults,
 
                     gameTestError:
                       gameTestError ||
