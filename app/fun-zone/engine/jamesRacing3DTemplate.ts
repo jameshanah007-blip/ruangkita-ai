@@ -9,8 +9,11 @@ export function isRacing3DRequest(blueprint: GameBlueprint): boolean {
     blueprint.title, blueprint.concept, blueprint.genre, blueprint.theme,
     blueprint.world, blueprint.visualStyle, ...blueprint.mechanics, ...blueprint.playerActions,
   ].join(" ").toLowerCase();
-  return /(?:\b3d\b|three.?dimensional|3d game)/i.test(text) &&
-    /(?:racing|race|balap|mobil|kendaraan|driving|car)/i.test(text);
+  const hasRacing = /(?:racing|race|balap|mobil|kendaraan|driving|car)/i.test(text);
+  const has3D = /(?:\b3d\b|three.?dimensional|3d game|webgl)/i.test(text);
+  const has2D = /(?:\b2d\b|two.?dimensional|top.?down|side.?scroll)/i.test(text);
+  const hasVehicleAction = /(?:accelerate|steer|brake|upgradevehicle|upgrade kendaraan)/i.test(text);
+  return hasRacing && !has2D && (has3D || hasVehicleAction || /(?:racing|balap)/i.test(blueprint.genre));
 }
 
 /**
