@@ -769,7 +769,7 @@ function checkSemanticCompletion(){
   if(systems.indexOf("combat")>=0)required.push(state.creature.defeated===true);
   if(systems.indexOf("collection")>=0)required.push(state.collectionCount>=1);
   if(hasSystem("npc-dialogue"))required.push(state.dialog!=="");
-  if(hasSystem("economy"))required.push(state.inventory.length>0);
+  if(hasSystem("economy"))required.push(state.sold>=1 || state.seeds>=2 || state.inventory.length>0);
   if(hasSystem("farming"))required.push(state.crops>=1);
   if(hasSystem("economy"))required.push(state.sold>=1 || state.seeds>=2);
   if(hasSystem("housing"))required.push(state.houseLevel>=1);
