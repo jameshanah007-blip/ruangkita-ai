@@ -7,6 +7,9 @@ export const maxDuration = 120;
 import { runJamesBrain } from "../../../core/james/jamesBrain";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
 import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "../../../fun-zone/engine/james2DTopDownTemplate";
+import { buildFarmingGameHtml, isFarmingRuntime } from "../../../fun-zone/engine/jamesGenreRuntimeTemplates";
+import { buildRacing3DGameHtml, isRacing3DRequest } from "../../../fun-zone/engine/jamesRacing3DTemplate";
+import { getSpecializedRuntime, buildPlatformerRuntime, buildFPSRuntime, buildVoxelRuntime, buildStrategyRuntime } from "../../../fun-zone/engine/jamesSpecializedGenreRuntimes";
 import type {
   GameBlueprint,
   RuntimeError,
@@ -882,6 +885,17 @@ export async function POST(request: Request) {
      * which then triggered the five-attempt loop and could remove movement.
      */
     const normalizedDebugBlueprint = blueprint ? normalizeBlueprint(blueprint)! : null;
+    const specializedRuntime = normalizedDebugBlueprint
+      ? getSpecializedRuntime(normalizedDebugBlueprint)
+      : null;
+    const isGenreRuntime = Boolean(
+      normalizedDebugBlueprint &&
+      (
+        isFarmingRuntime(normalizedDebugBlueprint) ||
+        isRacing3DRequest(normalizedDebugBlueprint) ||
+        specializedRuntime
+      )
+    );
     const isTopDownFoundation = Boolean(
       normalizedDebugBlueprint &&
       isTopDown2DTemplateRequest(normalizedDebugBlueprint)
@@ -891,6 +905,32 @@ export async function POST(request: Request) {
       fixedHtml = buildTopDown2DGameHtml(normalizedDebugBlueprint!);
       provider = "james-autonomous-topdown-repair";
       model = "james-2d-topdown-runtime-v2";
+    } else if (isGenreRuntime) {
+      if (isFarmingRuntime(normalizedDebugBlueprint!)) {
+        fixedHtml = buildFarmingGameHtml(normalizedDebugBlueprint!);
+        provider = "james-autonomous-farming-repair";
+        model = "james-farming-runtime-v2";
+      } else if (isRacing3DRequest(normalizedDebugBlueprint!)) {
+        fixedHtml = buildRacing3DGameHtml(normalizedDebugBlueprint!);
+        provider = "james-autonomous-racing-repair";
+        model = "james-racing-runtime-v2";
+      } else if (specializedRuntime === "platformer") {
+        fixedHtml = buildPlatformerRuntime(normalizedDebugBlueprint!);
+        provider = "james-autonomous-platformer-repair";
+        model = "james-platformer-runtime-v1";
+      } else if (specializedRuntime === "fps") {
+        fixedHtml = buildFPSRuntime(normalizedDebugBlueprint!);
+        provider = "james-autonomous-fps-repair";
+        model = "james-fps-runtime-v1";
+      } else if (specializedRuntime === "voxel") {
+        fixedHtml = buildVoxelRuntime(normalizedDebugBlueprint!);
+        provider = "james-autonomous-voxel-repair";
+        model = "james-voxel-runtime-v1";
+      } else if (specializedRuntime === "strategy") {
+        fixedHtml = buildStrategyRuntime(normalizedDebugBlueprint!);
+        provider = "james-autonomous-strategy-repair";
+        model = "james-strategy-runtime-v1";
+      }
     } else {
       try {
         const result =
@@ -959,15 +999,40 @@ Output hanya HTML.
         validationErrors
       );
       const safeBlueprint = normalizeBlueprint(blueprint)!;
-      fixedHtml = isTopDown2DTemplateRequest(safeBlueprint)
-        ? buildTopDown2DGameHtml(safeBlueprint)
-        : buildAutonomousGameHtml(safeBlueprint);
-      provider = isTopDown2DTemplateRequest(safeBlueprint)
-        ? "james-autonomous-topdown-repair"
-        : "james-autonomous-fallback";
-      model = isTopDown2DTemplateRequest(safeBlueprint)
-        ? "james-2d-topdown-runtime-v2"
-        : "autonomous-evolution-engine-v1";
+      const safeSpecialized = getSpecializedRuntime(safeBlueprint);
+      if (isFarmingRuntime(safeBlueprint)) {
+        fixedHtml = buildFarmingGameHtml(safeBlueprint);
+        provider = "james-autonomous-farming-repair";
+        model = "james-farming-runtime-v2";
+      } else if (isRacing3DRequest(safeBlueprint)) {
+        fixedHtml = buildRacing3DGameHtml(safeBlueprint);
+        provider = "james-autonomous-racing-repair";
+        model = "james-racing-runtime-v2";
+      } else if (isTopDown2DTemplateRequest(safeBlueprint)) {
+        fixedHtml = buildTopDown2DGameHtml(safeBlueprint);
+        provider = "james-autonomous-topdown-repair";
+        model = "james-2d-topdown-runtime-v2";
+      } else if (safeSpecialized === "platformer") {
+        fixedHtml = buildPlatformerRuntime(safeBlueprint);
+        provider = "james-autonomous-platformer-repair";
+        model = "james-platformer-runtime-v1";
+      } else if (safeSpecialized === "fps") {
+        fixedHtml = buildFPSRuntime(safeBlueprint);
+        provider = "james-autonomous-fps-repair";
+        model = "james-fps-runtime-v1";
+      } else if (safeSpecialized === "voxel") {
+        fixedHtml = buildVoxelRuntime(safeBlueprint);
+        provider = "james-autonomous-voxel-repair";
+        model = "james-voxel-runtime-v1";
+      } else if (safeSpecialized === "strategy") {
+        fixedHtml = buildStrategyRuntime(safeBlueprint);
+        provider = "james-autonomous-strategy-repair";
+        model = "james-strategy-runtime-v1";
+      } else {
+        fixedHtml = buildAutonomousGameHtml(safeBlueprint);
+        provider = "james-autonomous-fallback";
+        model = "autonomous-evolution-engine-v1";
+      }
       validationErrors = validateGameHtml(fixedHtml);
     }
 
