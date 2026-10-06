@@ -2,6 +2,7 @@ import type { GameBlueprint } from "../laboratory/types";
 import type { AssetMaterializationResult } from "./assetMaterializer";
 import { mechanicKnowledge, worldKnowledge } from "./jamesGameKnowledge";
 import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "./james2DTopDownTemplate";
+import { buildRacing3DGameHtml, isRacing3DRequest } from "./jamesRacing3DTemplate";
 
 /**
  * James Autonomous Game Engine

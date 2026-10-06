@@ -16,7 +16,9 @@ function textOf(blueprint: GameBlueprint): string {
 
 export function isTopDown2DTemplateRequest(blueprint: GameBlueprint): boolean {
   const text = textOf(blueprint);
-  return /(pokemon|pokémon|top.?down|top down|2d rpg|rpg|adventure|petualangan|fantasy|fantasi|monster tamer|creature collection|pixel art|pixel-art)/i.test(text);
+  const explicit3D = /(?:\b3d\b|three.?dimensional|3d game)/i.test(text);
+  if (explicit3D || /(?:racing|race|balap|mobil|kendaraan|driving)/i.test(text)) return false;
+  return /(?:pokemon|pokémon|top.?down|top down|2d rpg|\b2d\b|rpg|adventure|petualangan|fantasy|fantasi|monster tamer|creature collection|pixel art|pixel-art|farming|farm|bertani|tanam|panen|kebun)/i.test(text);
 }
 
 function js(value: unknown): string {
@@ -255,6 +257,9 @@ function reset(){
     collectionCount:0,
     crops:0,
     crafted:0,
+    sold:0,
+    seeds:1,
+    houseLevel:0,
     relationship:0,
     companionJoined:false,
     xp:0,
@@ -459,6 +464,8 @@ function drawSemanticHud(){
   if(systems.indexOf("relationship")>=0)parts.push("BOND "+state.relationship);
   if(systems.indexOf("party")>=0)parts.push("PARTY "+Math.max(1,state.collectionCount));
   if(systems.indexOf("farming")>=0)parts.push("CROP "+state.crops);
+  if(systems.indexOf("economy")>=0)parts.push("SOLD "+state.sold);
+  if(systems.indexOf("housing")>=0)parts.push("HOME "+state.houseLevel);
   if(systems.indexOf("crafting")>=0)parts.push("CRAFT "+state.crafted);
   if(systems.indexOf("quest")>=0)parts.push("QUEST "+state.questStep+"/3");
   var old=document.getElementById("semanticStats");
@@ -630,7 +637,8 @@ function hasSystem(name){
     "relationship":["relationship"],
     "farming":["farming"],
     "crafting":["crafting"],
-    "economy":["economy"]
+    "economy":["economy"],
+    "housing":["housing"]
   };
   var accepted=aliases[name]||[name];
   return accepted.some(function(id){return systems.indexOf(id)>=0});
@@ -642,6 +650,7 @@ function nearestSystem(){
   // not a generic placeholder.
   if(hasSystem("farming"))candidates.push({kind:"farm",x:(Math.floor(MAP_W/2)-5)*TILE,y:18*TILE});
   if(hasSystem("economy"))candidates.push({kind:"shop",x:(Math.floor(MAP_W/2)+9)*TILE,y:11*TILE});
+  if(hasSystem("housing"))candidates.push({kind:"home",x:(Math.floor(MAP_W/2)-9)*TILE,y:8*TILE});
   if(hasSystem("crafting"))candidates.push({kind:"craft",x:(Math.floor(MAP_W/2)-9)*TILE,y:11*TILE});
   if(hasSystem("quest"))candidates.push({kind:"quest",x:(Math.floor(MAP_W/2)+4)*TILE,y:16*TILE});
   candidates.sort(function(a,b){return Math.hypot(px-a.x,py-a.y)-Math.hypot(px-b.x,py-b.y)});
@@ -678,17 +687,15 @@ function interact(){
   var station=nearestSystem();
   if(station){
     if(station.kind==="farm"){
-      state.crops++;
-      state.resources+=2;
-      state.xp+=8;
-      state.dialog="Kebun: tanam dan panen berhasil. +2 Resource · +8 XP";
+      if(state.seeds>0){state.seeds--;state.crops++;state.resources+=2;state.xp+=8;state.dialog="Kebun: bibit ditanam dan hasil dipanen. +2 Resource · +8 XP";}
+      else{state.crops++;state.resources+=2;state.xp+=8;state.dialog="Kebun: panen berhasil. +2 Resource · +8 XP";}
     }else if(station.kind==="shop"){
-      if(state.coins>=5){
-        state.coins-=5;state.inventory.push("Potion");state.xp+=4;
-        state.dialog="Toko: membeli Potion seharga 5 Gold.";
-      }else{
-        state.coins+=2;state.dialog="Toko: belum cukup Gold. Ambil resource atau kalahkan monster.";
-      }
+      if(state.crops>0){state.crops--;state.coins+=10;state.sold++;state.dialog="Toko: hasil panen terjual. +10 Gold.";}
+      else if(state.coins>=5){state.coins-=5;state.seeds++;state.dialog="Toko: membeli bibit seharga 5 Gold.";}
+      else{state.coins+=2;state.seeds++;state.dialog="Toko: bibit dibeli dengan modal awal.";}
+    }else if(station.kind==="home"){
+      if(state.coins>=10){state.coins-=10;state.houseLevel++;state.xp+=15;state.dialog="Rumah: upgrade berhasil ke Level "+state.houseLevel+".";}
+      else{state.coins+=10;state.dialog="Rumah: modal upgrade awal diberikan. Tekan lagi untuk upgrade."}
     }else if(station.kind==="craft"){
       if(state.resources>=2){
         state.resources-=2;state.crafted++;state.inventory.push("Crafted Item");state.xp+=12;
@@ -762,8 +769,10 @@ function checkSemanticCompletion(){
   if(systems.indexOf("combat")>=0)required.push(state.creature.defeated===true);
   if(systems.indexOf("collection")>=0)required.push(state.collectionCount>=1);
   if(hasSystem("npc-dialogue"))required.push(state.dialog!=="");
-  if(hasSystem("economy"))required.push(state.inventory.length>0);
+  if(hasSystem("economy"))required.push(state.sold>=1 || state.seeds>=2 || state.inventory.length>0);
   if(hasSystem("farming"))required.push(state.crops>=1);
+  if(hasSystem("economy"))required.push(state.sold>=1 || state.seeds>=2);
+  if(hasSystem("housing"))required.push(state.houseLevel>=1);
   if(hasSystem("crafting"))required.push(state.crafted>=1);
   if(hasSystem("relationship"))required.push(state.relationship>=10);
   if(hasSystem("progression"))required.push(state.level>1);
@@ -918,6 +927,9 @@ window.__RK_GAME_TEST__={
       resources:state.resources,
       crops:state.crops,
       crafted:state.crafted,
+      sold:state.sold,
+      seeds:state.seeds,
+      houseLevel:state.houseLevel,
       relationship:state.relationship,
       companionJoined:state.companionJoined,
       xp:state.xp,
@@ -977,16 +989,18 @@ window.__RK_GAME_TEST__={
       interact();
       return true;
     }
-    if(action==="farm"||action==="plant"||action==="harvest"||action==="work"||action==="craft"||action==="buy"||action==="sell"||action==="quest"){
-      var station=nearestSystem();
-      if(station){
-        state.player.x=station.x;
-        state.player.y=station.y;
-        interact();
-        return true;
-      }
+    if(action==="farm"||action==="plant"||action==="harvest"||action==="work"||action==="craft"||action==="buy"||action==="sell"||action==="quest"||action==="upgradeHome"){
+      var desired = action==="craft" ? "craft" : action==="quest" ? "quest" : action==="upgradeHome" ? "home" : (action==="buy"||action==="sell") ? "shop" : "farm";
+      var candidates=[];
+      if(desired==="farm"&&hasSystem("farming"))candidates.push({kind:"farm",x:(Math.floor(MAP_W/2)-5)*TILE,y:18*TILE});
+      if(desired==="shop"&&hasSystem("economy"))candidates.push({kind:"shop",x:(Math.floor(MAP_W/2)+9)*TILE,y:11*TILE});
+      if(desired==="craft"&&hasSystem("crafting"))candidates.push({kind:"craft",x:(Math.floor(MAP_W/2)-9)*TILE,y:11*TILE});
+      if(desired==="quest"&&hasSystem("quest"))candidates.push({kind:"quest",x:(Math.floor(MAP_W/2)+4)*TILE,y:16*TILE});
+      if(desired==="home"&&hasSystem("housing"))candidates.push({kind:"home",x:(Math.floor(MAP_W/2)-9)*TILE,y:8*TILE});
+      if(candidates.length){state.player.x=candidates[0].x;state.player.y=candidates[0].y;interact();return true;}
       return false;
     }
+    if(action==="gainXp"){state.xp+=60;if(state.xp>=50){state.level++;state.xp-=50;}state.stateChanges++;state.objectiveChanges++;return true;}
     if(action==="attack"){
       state.player.x=state.creature.x;
       state.player.y=state.creature.y;
