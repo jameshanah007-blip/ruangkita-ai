@@ -589,7 +589,22 @@ function drawAmbientLighting(camX,camY){
 }
 
 function hasSystem(name){
-  return Boolean(G.profile&&Array.isArray(G.profile.systems)&&G.profile.systems.indexOf(name)>=0);
+  var systems=G.profile&&Array.isArray(G.profile.systems)?G.profile.systems:[];
+  var aliases={
+    "npc-dialogue":["npc","dialogue","npc-dialogue"],
+    "combat":["combat","turnBasedCombat"],
+    "collection":["collection","collectibles"],
+    "inventory":["inventory","items"],
+    "progression":["progression","evolution"],
+    "quest":["quest"],
+    "party":["party"],
+    "relationship":["relationship"],
+    "farming":["farming"],
+    "crafting":["crafting"],
+    "economy":["economy"]
+  };
+  var accepted=aliases[name]||[name];
+  return accepted.some(function(id){return systems.indexOf(id)>=0});
 }
 
 function nearestSystem(){
@@ -702,13 +717,13 @@ function checkSemanticCompletion(){
   var required=[];
   if(systems.indexOf("collectibles")>=0||systems.indexOf("collection")>=0)required.push(state.crystalsTaken>=state.crystals.length);
   if(systems.indexOf("combat")>=0)required.push(state.creature.defeated===true);
-  if(systems.indexOf("npc-dialogue")>=0)required.push(state.dialog!=="");
-  if(systems.indexOf("economy")>=0)required.push(state.inventory.length>0);
-  if(systems.indexOf("farming")>=0)required.push(state.crops>=1);
-  if(systems.indexOf("crafting")>=0)required.push(state.crafted>=1);
-  if(systems.indexOf("relationship")>=0)required.push(state.relationship>=10);
-  if(systems.indexOf("progression")>=0)required.push(state.level>1);
-  if(systems.indexOf("quest")>=0)required.push(state.questStep>=3);
+  if(hasSystem("npc-dialogue"))required.push(state.dialog!=="");
+  if(hasSystem("economy"))required.push(state.inventory.length>0);
+  if(hasSystem("farming"))required.push(state.crops>=1);
+  if(hasSystem("crafting"))required.push(state.crafted>=1);
+  if(hasSystem("relationship"))required.push(state.relationship>=10);
+  if(hasSystem("progression"))required.push(state.level>1);
+  if(hasSystem("quest"))required.push(state.questStep>=3);
 
   // If the prompt only asks for exploration, collecting the authored
   // world objectives remains the completion path.
