@@ -1,4 +1,5 @@
 import type { GameBlueprint } from "../laboratory/types";
+import { composeGamePlan } from "./gameComposer";
 
 export type KimiStyleGameProfile = {
   genre: string;
@@ -30,18 +31,14 @@ function has(text: string, re: RegExp): boolean {
 
 export function createKimiStyleGameProfile(b: GameBlueprint): KimiStyleGameProfile {
   const text = textOf(b);
-  const systems = new Set<string>(["exploration", "movement", "interaction", "collectibles"]);
-
-  if (has(text, /combat|battle|fight|bertarung|monster|musuh|boss/)) systems.add("combat");
-  if (has(text, /npc|villager|dialog|dialogue|story|cerita|quest|misi/)) systems.add("npc-dialogue");
-  if (has(text, /shop|merchant|pedagang|toko|buy|sell|jual|beli/)) systems.add("economy");
-  if (has(text, /farm|farming|bertani|tanam|panen|kebun/)) systems.add("farming");
-  if (has(text, /craft|crafting|kerajinan|recipe|resep/)) systems.add("crafting");
-  if (has(text, /relationship|friendship|social|bond|hubungan/)) systems.add("relationship");
-  if (has(text, /party|companion|teman|tim/)) systems.add("party");
-  if (has(text, /inventory|item|loot|resource|collect|kumpul/)) systems.add("inventory");
-  if (has(text, /level|xp|experience|upgrade|skill|progression/)) systems.add("progression");
-  if (has(text, /puzzle|teka|labyrinth|labirin/)) systems.add("puzzle");
+  // Use the central Game Composer as the authority. This prevents the
+  // visual runtime from inventing a different set of systems than the
+  // blueprint/test architecture.
+  const composed = composeGamePlan(b);
+  const systems = new Set<string>(composed.systems.map((system) => system.id));
+  systems.add("movement");
+  systems.add("interaction");
+  systems.add("collectibles");
 
   const worldType: KimiStyleGameProfile["worldType"] =
     has(text, /village|desa|kampung|town|farm|farming/) ? "village" :
@@ -64,11 +61,11 @@ export function createKimiStyleGameProfile(b: GameBlueprint): KimiStyleGameProfi
     genre: b.genre || "2D adventure",
     worldType,
     systems: [...systems],
-    playerActions: [...new Set(["move", "interact", ...b.playerActions])],
+    playerActions: [...new Set(["move", "interact", ...composed.requiredActions])],
     locations,
     worldProps: [
       "paths", "trees", "rocks", "landmarks",
-      ...(systems.has("npc-dialogue") ? ["signs", "conversation spots"] : []),
+      ...(systems.has("npc") || systems.has("dialogue") ? ["signs", "conversation spots"] : []),
       ...(systems.has("economy") ? ["shop stalls", "currency props"] : []),
       ...(systems.has("farming") ? ["farm plots", "crop props"] : []),
       ...(systems.has("crafting") ? ["workbench", "crafting props"] : []),
