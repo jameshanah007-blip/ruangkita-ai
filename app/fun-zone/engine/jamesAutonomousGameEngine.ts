@@ -2,6 +2,7 @@ import type { GameBlueprint } from "../laboratory/types";
 import type { AssetMaterializationResult } from "./assetMaterializer";
 import { mechanicKnowledge, worldKnowledge } from "./jamesGameKnowledge";
 import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "./james2DTopDownTemplate";
+import { buildFarmingGameHtml, buildRacingGameHtml, isFarmingRuntime, isRacingRuntime } from "./jamesGenreRuntimeTemplates";
 import { buildRacing3DGameHtml, isRacing3DRequest } from "./jamesRacing3DTemplate";
 
 /**
@@ -394,8 +395,15 @@ export function buildAutonomousGameHtml(
   blueprint: GameBlueprint,
   materializedAssets?: AssetMaterializationResult,
 ): string {
-  // The first-class 2D foundation is a dedicated top-down tile/sprite runtime.
-  // Generic games keep the existing autonomous engine unchanged.
+  // Runtime selection is semantic: the user's requested genre owns the visual/runtime family.
+  // Farming and racing must never fall through to the generic adventure renderer.
+  if (isRacingRuntime(blueprint)) {
+    return buildRacingGameHtml(blueprint);
+  }
+  if (isFarmingRuntime(blueprint)) {
+    return buildFarmingGameHtml(blueprint);
+  }
+  // The dedicated 2D foundation remains the runtime for authored top-down RPG/adventure games.
   if (isTopDown2DTemplateRequest(blueprint)) {
     return buildTopDown2DGameHtml(blueprint, materializedAssets);
   }
