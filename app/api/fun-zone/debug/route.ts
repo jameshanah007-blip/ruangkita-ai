@@ -42,7 +42,7 @@ function extractHtml(text: string): string {
   return trimmed;
 }
 
-function validateGameHtml(html: string): string[] {
+function validateGameHtml(html: string, allowWebGL = false): string[] {
   const errors: string[] = [];
 
   if (!html.trim()) {
@@ -76,9 +76,13 @@ function validateGameHtml(html: string): string[] {
     errors.push("Game tidak menggunakan Canvas.");
   }
 
-  if (!/getContext\s*\(\s*["']2d["']\s*\)/i.test(html)) {
+  const hasCanvas2D = /getContext\s*\(\s*["']2d["']\s*\)/i.test(html);
+  const hasWebGL = /getContext\s*\(\s*["'](?:webgl|experimental-webgl)["']\s*\)/i.test(html);
+  if (!hasCanvas2D && !(allowWebGL && hasWebGL)) {
     errors.push(
-      "Game tidak terlihat menggunakan Canvas 2D."
+      allowWebGL
+        ? "Game tidak terlihat menggunakan Canvas 2D atau WebGL."
+        : "Game tidak terlihat menggunakan Canvas 2D."
     );
   }
 
@@ -990,8 +994,12 @@ Output hanya HTML.
       }
     }
 
+    const safeBlueprintForValidation = normalizeBlueprint(blueprint);
+    const validationAllowsWebGL = Boolean(
+      safeBlueprintForValidation && isRacing3DRequest(safeBlueprintForValidation)
+    );
     let validationErrors =
-      validateGameHtml(fixedHtml);
+      validateGameHtml(fixedHtml, validationAllowsWebGL);
 
     if (validationErrors.length > 0 && blueprint) {
       console.warn(
@@ -1033,7 +1041,7 @@ Output hanya HTML.
         provider = "james-autonomous-fallback";
         model = "autonomous-evolution-engine-v1";
       }
-      validationErrors = validateGameHtml(fixedHtml);
+      validationErrors = validateGameHtml(fixedHtml, validationAllowsWebGL);
     }
 
     if (validationErrors.length > 0) {
