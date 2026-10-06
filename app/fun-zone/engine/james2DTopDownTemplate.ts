@@ -483,6 +483,26 @@ function drawSystemStations(){
 }
 
 
+function drawInteractionPrompt(){
+  var target=nearestSystem();
+  var label=target
+    ? (target.kind==="farm"?"E · FARM":target.kind==="shop"?"E · SHOP":target.kind==="craft"?"E · CRAFT":"E · QUEST")
+    : null;
+  var npcNear=Math.min(dist(state.player,state.npc),dist(state.player,state.npc2))<58;
+  var enemyNear=hasSystem("combat")&&dist(state.player,state.creature)<58&&!state.creature.defeated;
+  if(!label&&npcNear)label="E · TALK";
+  if(!label&&enemyNear)label="SPACE / E · ATTACK";
+  var old=document.getElementById("interactionPrompt");
+  if(!old){
+    old=document.createElement("div");
+    old.id="interactionPrompt";
+    old.style.cssText="position:absolute;left:50%;bottom:88px;transform:translateX(-50%);padding:6px 11px;border:1px solid rgba(255,255,255,.28);background:rgba(20,25,20,.88);border-radius:6px;color:#fff;font:700 11px system-ui;pointer-events:none;text-shadow:0 1px 2px #000;display:none";
+    root.appendChild(old);
+  }
+  old.textContent=label||"";
+  old.style.display=label?"block":"none";
+}
+
 function drawWorld(){
   // Follow the player with a dead-zone camera instead of pinning the
   // character permanently to screen center. This makes four-direction
@@ -734,6 +754,7 @@ function frame(now){
   checkCrystals();
   drawWorld();
   updateHud();
+  drawInteractionPrompt();
   window.__RK_GAME_RENDERED__=true;
   window.__RK_GAME_LOOP_STARTED__=true;
   raf=requestAnimationFrame(frame);
