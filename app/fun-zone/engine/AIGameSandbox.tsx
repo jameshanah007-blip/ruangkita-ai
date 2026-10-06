@@ -2754,6 +2754,12 @@ evidence: {
   restartVerified:
     result.restartVerified,
 
+  tutorialAvailable:
+    result.tutorialAvailable,
+
+  directionalControls:
+    result.directionalControls,
+
   gameTestError:
     result.gameTestError,
  },
