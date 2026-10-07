@@ -181,6 +181,11 @@ export function compilePhaserGameSpec(
   if (!genre) return null;
   const definition = getGenreDefinition(genre);
   const playerAsset = assets.find((asset) => asset.id === playerAssetId);
+  if (!playerAsset) {
+    throw new Error(
+      `Phaser player contract failed: declared player asset "${playerAssetId}" is missing from the asset manifest.`,
+    );
+  }
 
   return {
     version: "ruangkita-game-spec-v1",
