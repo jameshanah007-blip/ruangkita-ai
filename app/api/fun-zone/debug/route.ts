@@ -874,11 +874,10 @@ export async function POST(request: Request) {
     let fixedHtml = "";
 
     try {
-        const result =
-          await runJamesBrain({
-          surface: "fun_zone",
-          mode: "game_debugger",
-          systemInstruction: `
+      const result = await runJamesBrain({
+        surface: "fun_zone",
+        mode: "game_debugger",
+        systemInstruction: `
 Kamu adalah AI Game Debugger profesional untuk
 laboratorium game RuangKita AI.
 
@@ -895,40 +894,29 @@ dapat dijalankan browser.
 Tidak boleh ada markdown, code fence, atau penjelasan.
 Output hanya HTML.
 `,
-          prompt,
-          temperature: 0.1,
-          maxOutputTokens: 16000,
-        });
+        prompt,
+        temperature: 0.1,
+        maxOutputTokens: 16000,
+      });
 
       provider = result.provider;
       model = result.model;
-        fixedHtml = extractHtml(result.text);
-      } catch (providerError) {
-      /*
-       * Provider AI tidak boleh membuat Laboratory berhenti
-       * setelah seluruh fallback provider habis.
-       *
-       * Gunakan repair engine deterministik James sebagai
-       * safety net. Ini tetap membangun game dari blueprint
-       * yang sama dan tidak memalsukan TestReport.
-       */
+      fixedHtml = extractHtml(result.text);
+    } catch (providerError) {
       console.warn(
         "AI Game Debugger provider fallback:",
         providerError instanceof Error
           ? providerError.message
-          : String(providerError)
+          : String(providerError),
       );
 
-      if (blueprint) {
-        fixedHtml = buildAutonomousGameHtml(
-          normalizeBlueprint(blueprint)!
-        );
-        provider = "james-autonomous-fallback";
-        model = "phaser-2d-runtime-v1";
-      } else {
+      if (!blueprint) {
         throw providerError;
       }
-      }
+
+      fixedHtml = buildAutonomousGameHtml(normalizeBlueprint(blueprint)!);
+      provider = "james-autonomous-fallback";
+      model = "phaser-2d-runtime-v1";
     }
 
     let validationErrors =
