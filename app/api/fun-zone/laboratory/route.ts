@@ -384,6 +384,20 @@ export async function POST(
       : [];
     const generatedAssets = await generateGameAssets(assetRegistry, realAssetProviders);
     const materializedAssets = materializeGameAssets(generatedAssets);
+    const runtimeCharacterAsset = materializedAssets.assets.find(
+      (asset) =>
+        asset.kind === "character" &&
+        asset.status === "ready" &&
+        typeof asset.uri === "string" &&
+        asset.uri.length > 0,
+    );
+
+    if (!runtimeCharacterAsset) {
+      throw new Error(
+        "Fun Zone asset contract failed: Laboratory could not materialize a playable character asset before Phaser build.",
+      );
+    }
+
     const composedBlueprint: GameBlueprint = {
       ...effectiveBlueprint,
       mechanics: [...new Set([...effectiveBlueprint.mechanics, ...composedPlan.systems.map((system) => system.id)])],
