@@ -465,7 +465,7 @@ export async function POST(
           success: true,
           provider: "james-autonomous",
           model: "autonomous-game-compiler-v1",
-          gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets),
+          gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets, prompt),
           validation: {
             valid: true,
             errors: [],
@@ -478,7 +478,7 @@ export async function POST(
         success: true,
         provider: "james-autonomous",
         model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets),
+        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets, prompt),
         validation: {
           valid: true,
           errors: [],
@@ -492,7 +492,7 @@ export async function POST(
         success: true,
         provider: "james-autonomous",
         model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets),
+        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets, prompt),
         validation: {
           valid: true,
           errors: [],
@@ -526,7 +526,7 @@ export async function POST(
      * ke client bersama session.
      */
 
-    const gameHtml = builder.gameHtml ?? buildAutonomousGameHtml(composedBlueprint, materializedAssets);
+    const gameHtml = builder.gameHtml ?? buildAutonomousGameHtml(composedBlueprint, materializedAssets, prompt);
     await persistCloudSession(session, gameHtml);
 
 
