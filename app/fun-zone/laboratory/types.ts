@@ -155,6 +155,10 @@ export type SandboxTestEvidence = {
   runtimeVisualAnalysis?: RuntimeVisualAnalysis;
   referenceVisualComparison?: ReferenceVisualComparison;
 
+  engine2D?: boolean;
+  engine2DGenre?: string;
+  engine2DSystems?: string[];
+
   gameTestProtocol: boolean;
   stateChanged: boolean;
   objectiveChanged: boolean;
@@ -228,6 +232,10 @@ export type TestReport = {
   screenshot?: RuntimeScreenshotEvidence;
   runtimeVisualAnalysis?: RuntimeVisualAnalysis;
   referenceVisualComparison?: ReferenceVisualComparison;
+
+  engine2D?: boolean;
+  engine2DGenre?: string;
+  engine2DSystems?: string[];
 
   hardFailures: string[];
   softWarnings: string[];
