@@ -1089,6 +1089,14 @@ function readGameTestSnapshot() {
         protocol.getLoseState() === true;
     }
 
+    if (
+      typeof protocol.getGenreState ===
+      "function"
+    ) {
+      snapshot.genreState =
+        protocol.getGenreState();
+    }
+
     return {
       protocol: protocol,
       snapshot: snapshot
