@@ -73,7 +73,10 @@ function buildVerifierHtml(gameHtml: string, actions: string[]) {
     const before=snap(),beforeCanvas=canvas(),p=before.protocol;
     let actionExecuted=false;
     if(p&&typeof p.performTestAction==="function"){
-      for(const a of (window.__RK_AUTONOMOUS_ACTIONS__.length?window.__RK_AUTONOMOUS_ACTIONS__:["move","interact","jump","attack","collect","dodge","shoot","open_door","use_item","talk","solve"])){
+      let candidates=window.__RK_AUTONOMOUS_ACTIONS__.slice();
+      try{const boot=window.__RK_PHASER_BOOT_SPEC__;if(boot&&Array.isArray(boot.actions))candidates=candidates.concat(boot.actions);}catch(_){}
+      if(!candidates.length)candidates=["move","interact","jump","attack","collect","dodge","shoot","open_door","use_item","talk","solve"];
+      for(const a of candidates){
         try{await Promise.resolve(p.performTestAction(a));actionExecuted=true;break}catch(_){}
       }
     }else{
