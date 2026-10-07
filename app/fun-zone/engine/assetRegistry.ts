@@ -48,7 +48,7 @@ export function buildAssetRegistry(visual: {
 }): AssetRegistry {
   const assets: GameAssetSpec[] = [];
 
-  for (const character of visual.characters) {
+  // The protagonist is the authoritative player identity. Keep it explicit in the registry even if a refinement/provider omits it from the generic characters array.\n  const characterSpecs = [visual.protagonist, ...visual.characters.filter((character) => character.id !== visual.protagonist.id)];\n\n  for (const character of characterSpecs) {
     const kind: AssetKind = character.role === "protagonist" ? "character" : character.role;
     assets.push({
       id: character.id,
