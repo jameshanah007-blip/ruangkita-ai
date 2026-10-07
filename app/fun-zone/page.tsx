@@ -454,9 +454,6 @@ export default function FunZonePage() {
       null
     );
 
-  const [autonomousRepairAttempts, setAutonomousRepairAttempts] =
-    useState(0);
-
   const [labSession, setLabSession] =
     useState<LabSession | null>(null);
 
@@ -863,73 +860,35 @@ const handleTestReport =
         return;
       }
 
-      const nextRepairAttempt = autonomousRepairAttempts + 1;
-
       setLabSession((previous) => {
         if (!previous) return previous;
 
         const next: LabSession = {
           ...previous,
-          status: nextRepairAttempt <= 3 ? "repairing" : "debugging",
-          stage: nextRepairAttempt <= 3 ? "debugger" : "debugger",
+          status: "debugging",
+          stage: "debugger",
           testReports: [...previous.testReports, effectiveReport],
-          currentAttempt: nextRepairAttempt,
+          currentAttempt: report.attempt,
           updatedAt: new Date().toISOString(),
-          error: (Array.isArray(effectiveReport.hardFailures) ? effectiveReport.hardFailures : []).join(" ") || previous.error,
+          error:
+            (Array.isArray(effectiveReport.hardFailures)
+              ? effectiveReport.hardFailures
+              : []).join(" ") ||
+            previous.error,
         };
 
         void persistLabSession(next);
         return next;
       });
 
-      if (nextRepairAttempt > 3 || !blueprint) {
-        setStage("debugging");
-        setError(
-          (Array.isArray(effectiveReport.hardFailures) ? effectiveReport.hardFailures : []).join(" ") ||
-          "James membutuhkan pemeriksaan debugger lebih lanjut."
-        );
-        return;
-      }
-
-      setAutonomousRepairAttempts(nextRepairAttempt);
-      setStage("retesting");
-      setError("James menganalisis hasil test dan mengembangkan game secara mandiri...");
-
-      try {
-        const response = await fetch("/api/fun-zone/autonomous-repair", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            blueprint,
-            report: effectiveReport,
-            attempt: nextRepairAttempt,
-          }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok || !data?.success || !data?.gameHtml || !data?.blueprint) {
-          throw new Error(data?.error || "James Autonomous Repair gagal.");
-        }
-
-        setBlueprint(data.blueprint);
-        setTitle(data.blueprint.title);
-        setGenre(data.blueprint.genre);
-        setProvider(data.provider || "james-autonomous");
-        setModel(data.model || "autonomous-evolution-engine-v1");
-        setGameHtml(data.gameHtml);
-        setTestReport(null);
-        setStage("testing");
-        setError("");
-      } catch (error) {
-        setStage("debugging");
-        setError(
-          error instanceof Error
-            ? error.message
-            : "James Autonomous Repair gagal."
-        );
-      }
-    },
+      setStage("debugging");
+      setError(
+        (Array.isArray(effectiveReport.hardFailures)
+          ? effectiveReport.hardFailures
+          : []).join(" ") ||
+        "James sedang melakukan repair pada runtime Phaser yang sama."
+      );
+    }, [blueprint, experimentId],
     [autonomousRepairAttempts, blueprint, experimentId]
   );
 
