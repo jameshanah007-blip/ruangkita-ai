@@ -1,3 +1,5 @@
+import type { VisualBlueprint } from "./visualBlueprint";
+
 export type AssetKind =
   | "character"
   | "npc"
@@ -38,14 +40,7 @@ export type AssetRegistry = {
   requiredAssetIds: string[];
 };
 
-export function buildAssetRegistry(visual: {
-  protagonist: { id: string; appearance: string[]; outfit: string[]; equipment: string[]; animationNeeds: string[] };
-  characters: Array<{ id: string; role: AssetKind | "protagonist"; archetype: string; appearance: string[]; outfit: string[]; equipment: string[]; animationNeeds: string[] }>;
-  environments: Array<{ id: string; description: string; props: string[] }>;
-  props: string[];
-  effects: string[];
-  ui: string[];
-}): AssetRegistry {
+export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
   const assets: GameAssetSpec[] = [];
 
   // The protagonist is the authoritative player identity. Keep it explicit in the registry even if a refinement/provider omits it from the generic characters array.
