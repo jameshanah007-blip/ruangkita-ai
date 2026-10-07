@@ -14,6 +14,7 @@ import type {
 } from "../../../fun-zone/laboratory/types";
 import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
+import { isPokemon2DRequest } from "../../../fun-zone/engine/jamesPokemon2DTemplate";
 import { composeGamePlan } from "../../../fun-zone/engine/gameComposer";
 import { createVisualBlueprint } from "../../../fun-zone/engine/visualDirector";
 import { buildAssetRegistry } from "../../../fun-zone/engine/assetRegistry";
@@ -455,7 +456,26 @@ export async function POST(
     let builder: BuilderResponse;
     let builderProvider = "james-autonomous";
 
-    if (PROVIDER_ENHANCEMENT_ENABLED) {
+    // Specialized 2D runtimes are authoritative. Provider-generated HTML must
+    // never replace a genre-specific runtime with the generic legacy template.
+    const requiresPokemon2DRuntime =
+      isPokemon2DRequest(composedBlueprint) ||
+      /pokemon|pokémon|monster tamer|monster-tamer|creature tamer|creature collection|monster trainer|monster collection/i.test(prompt);
+
+    if (requiresPokemon2DRuntime) {
+      builder = {
+        success: true,
+        provider: "james-specialized-2d",
+        model: "pokemon-2d-runtime-v1",
+        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets, prompt),
+        validation: {
+          valid: true,
+          errors: [],
+          warnings: ["Specialized 2D genre runtime selected from the original user request."],
+        },
+      };
+      builderProvider = "james-specialized-2d";
+    } else if (PROVIDER_ENHANCEMENT_ENABLED) {
       try {
         builder = await callBuilder(request, composedBlueprint);
         builderProvider = builder.provider || "provider-enhanced";
