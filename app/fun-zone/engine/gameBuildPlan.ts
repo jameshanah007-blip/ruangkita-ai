@@ -53,7 +53,7 @@ export function createGameBuildPlan(b: GameBlueprint): GameBuildPlan {
   const text = textOf(b);
   const explicit3D = /(?:\b3d\b|three.?dimensional|3d game)/.test(text);
   const topDown = !explicit3D && /(pokemon|pokémon|top.?down|monster tamer|creature collection|pixel art|pixel-art|2d rpg|\b2d\b|farming|farm|bertani)/.test(text);
-  const sideScroller = /(platformer|side.?scroll|metroidvania|platform game|mario-like)/.test(text);
+  const sideScroller = !explicit3D && /(platformer|side.?scroll|metroidvania|platform game|mario-like)/.test(text);
   const voxel = /(minecraft|voxel|block world|block-based|sandbox building)/.test(text);
   const thirdPerson = /(?:third.?person|open world|3d adventure|3d rpg|racing|race|balap)/.test(text);
   const firstPerson = /(first.?person|fps|shooter 3d)/.test(text);
