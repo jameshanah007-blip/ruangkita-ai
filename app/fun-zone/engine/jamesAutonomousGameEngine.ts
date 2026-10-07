@@ -5,6 +5,7 @@ import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "./james2DTop
 import { buildRacing3DGameHtml, isRacing3DRequest } from "./jamesRacing3DTemplate";
 import { buildPhaserGameHtml } from "../phaser/runtime";
 import { compilePhaserGameSpec } from "../phaser/genreDefinitions";
+import { validatePlayableRuntimeContract } from "./runtimeContract";
 
 /**
  * James Autonomous Game Engine
@@ -421,6 +422,17 @@ export function buildAutonomousGameHtml(
       : undefined,
     characterDNA: (asset.metadata.providerMetadata?.characterDNA as Record<string, unknown> | undefined) || null,
   }));
+  const runtimeContract = validatePlayableRuntimeContract(
+    blueprint,
+    materializedAssets || { assets: [], warnings: [] },
+    playerAssetId,
+  );
+  if (!runtimeContract.valid) {
+    throw new Error(
+      "Fun Zone runtime contract failed: " + runtimeContract.errors.join("; "),
+    );
+  }
+
   const phaserSpec = compilePhaserGameSpec(
     blueprint,
     blueprint.concept || blueprint.title,
