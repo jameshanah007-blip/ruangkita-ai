@@ -84,7 +84,7 @@ for (const [genre, contract] of Object.entries(expected)) {
   );
 
   assert(
-    runtime.includes('if(" + genre + "===\'' + genre + '\'')'),
+    runtime.includes(`if(\" + genre + \"==='${genre}')`),
     genre + ": runtime tidak memiliki dispatcher genre."
   );
 
