@@ -37,6 +37,7 @@ type GameTestSnapshot = {
   state?: unknown;
   player?: unknown;
   objective?: unknown;
+  genreState?: unknown;
   won?: boolean;
   lost?: boolean;
 };
@@ -1183,6 +1184,12 @@ var beforeLost =
         "solve"
       ];
       var declaredTestActions = ${JSON.stringify(blueprintActions)};
+      try {
+        var phaserBootSpec = window.__RK_PHASER_BOOT_SPEC__;
+        if (phaserBootSpec && Array.isArray(phaserBootSpec.actions)) {
+          declaredTestActions = declaredTestActions.concat(phaserBootSpec.actions);
+        }
+      } catch (_) {}
 
       if (
         gameTestProtocol &&
