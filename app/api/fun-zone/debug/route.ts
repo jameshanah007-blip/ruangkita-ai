@@ -469,7 +469,7 @@ Prioritas debugging:
 1. Perbaiki SyntaxError terlebih dahulu.
 2. Perbaiki ReferenceError / TypeError.
 3. Perbaiki initialization error.
-4. Pastikan Canvas dibuat dan context 2D tersedia.
+4. Pastikan Phaser 4.2.1 berhasil di-load dan membuat game canvas.
 5. Pastikan game loop benar-benar berjalan.
 6. Pastikan update state berjalan.
 7. Pastikan render berjalan.
@@ -483,9 +483,9 @@ Prioritas debugging:
 
 Jika tester mengatakan:
 
-CANVAS FAIL
+PHASER BOOT FAIL
 ----------------
-Cari penyebab canvas/context tidak tersedia.
+Cari penyebab Phaser 4.2.1 atau Phaser.Game tidak berhasil diinisialisasi.
 Jangan sekadar membuat flag menjadi true.
 
 RENDER FAIL
@@ -924,7 +924,7 @@ Output hanya HTML.
           normalizeBlueprint(blueprint)!
         );
         provider = "james-autonomous-fallback";
-        model = "autonomous-evolution-engine-v1";
+        model = "phaser-2d-runtime-v1";
       } else {
         throw providerError;
       }
