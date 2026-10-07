@@ -298,13 +298,18 @@ function checkPlayerGuidanceAndControls(
 
 function checkEngineArchitecture(blueprint: GameBlueprint, evidence: SandboxTestEvidence, checks: TestCheck[]): string[] {
   const failures: string[] = [];
-  const profile = resolve2DGenre(blueprint);
-  if (!profile) return failures;
+  const genre = resolvePhaserGenre(blueprint);
+  if (!genre) return failures;
 
-  const enginePassed = evidence.engine2D === true;
+  const enginePassed = evidence.engine2D === true && evidence.runtimeEngine === "Phaser";
   addCheck(checks, "2d_engine", enginePassed,
-    enginePassed ? "Game berjalan pada James 2D Engine v2." : "Genre 2D terdeteksi tetapi runtime bukan James 2D Engine v2.");
-  if (!enginePassed) failures.push("Genre 2D wajib menggunakan James 2D Engine v2.");
+    enginePassed ? "Game berjalan menggunakan Phaser." : "Game 2D tidak terbukti berjalan menggunakan Phaser.");
+  if (!enginePassed) failures.push("Genre 2D wajib menggunakan runtime Phaser.");
+
+  const versionPassed = evidence.runtimeVersion === "3.90.0";
+  addCheck(checks, "phaser_version", versionPassed,
+    versionPassed ? "Phaser 3.90.0 terdeteksi." : "Versi Phaser runtime tidak sesuai.");
+  if (!versionPassed) failures.push("Runtime Phaser yang digunakan harus 3.90.0.");
 
   const genrePassed = evidence.engine2DGenre === genre;
   addCheck(checks, "2d_genre_identity", genrePassed,
