@@ -30,6 +30,12 @@ export type PhaserAssetManifestEntry = {
   characterDNA?: Record<string, unknown> | null;
 };
 
+export type PhaserPlayerEntity = {
+  assetId: string;
+  entityKind: "character" | "vehicle" | "creature" | "ship" | "other";
+  requiredAnimations: string[];
+};
+
 export type PhaserGameSpec = {
   version: string;
   title: string;
@@ -55,7 +61,7 @@ export type PhaserGameSpec = {
   sourcePrompt: string;
   runtimeId: string;
   assets: PhaserAssetManifestEntry[];
-  playerAssetId?: string;
+  player: PhaserPlayerEntity;
 };
 
 export type PhaserRuntimeBuild = {
