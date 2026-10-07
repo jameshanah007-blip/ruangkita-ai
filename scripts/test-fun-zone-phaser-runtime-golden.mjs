@@ -18,6 +18,7 @@ execFileSync(
     "--target", "ES2022",
     "--module", "CommonJS",
     "--moduleResolution", "Node",
+    "--rootDir", root,
     "--skipLibCheck",
     "--esModuleInterop",
     "--outDir", outDir,
