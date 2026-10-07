@@ -1707,6 +1707,7 @@ var beforeLost =
                     engine2D: engine2D,
                     engine2DGenre: engine2DGenre,
                     engine2DSystems: engine2DSystems,
+                    genreState: genreState && typeof genreState === "object" ? genreState : undefined,
 
                     gameTestProtocol:
                       gameTestProtocol,
@@ -1846,6 +1847,7 @@ var beforeLost =
         engine2D: !!window.__RK_2D_ENGINE_V2__,
         engine2DGenre: window.__RK_2D_ENGINE_V2__ ? String(window.__RK_2D_ENGINE_V2__.genre || "") : "",
         engine2DSystems: window.__RK_2D_ENGINE_V2__ && Array.isArray(window.__RK_2D_ENGINE_V2__.systems) ? window.__RK_2D_ENGINE_V2__.systems.map(String) : [],
+        genreState: undefined,
         gameTestProtocol: !!window.__RK_GAME_TEST__,
         stateChanged: false,
         objectiveChanged: false,
@@ -2684,6 +2686,9 @@ evidence: {
 
   engine2DSystems:
     result.engine2DSystems,
+
+  genreState:
+    result.genreState,
 
   gameTestProtocol:
     result.gameTestProtocol,
