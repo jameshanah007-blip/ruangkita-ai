@@ -160,7 +160,6 @@ export type SandboxTestEvidence = {
   engine2DSystems?: string[];
   runtimeEngine?: string;
   runtimeVersion?: string;
-  runtimeVersion?: string;
   genreState?: Record<string, unknown>;
 
   gameTestProtocol: boolean;
