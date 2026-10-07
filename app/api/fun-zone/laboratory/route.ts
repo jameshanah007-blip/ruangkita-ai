@@ -27,7 +27,6 @@ import { createGameBuildPlan } from "../../../fun-zone/engine/gameBuildPlan";
 import { applyVisualRefinement, evaluateVisualBuild } from "../../../fun-zone/engine/visualQa";
 import { analyzeReferenceImage, type ReferenceImageAnalysis } from "../../../fun-zone/engine/referenceImageAnalyzer";
 
-const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
 
 import {
   createArtifact,
@@ -176,45 +175,6 @@ async function callDirector(
     throw new Error(
       data?.error ||
         "AI Director gagal."
-    );
-  }
-
-  return data;
-}
-
-async function callBuilder(
-  request: Request,
-  blueprint: GameBlueprint
-): Promise<BuilderResponse> {
-  const response =
-    await fetch(
-      absoluteUrl(
-        request,
-        "/api/fun-zone/factory"
-      ),
-      {
-        method: "POST",
-
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-
-        body: JSON.stringify({
-          blueprint,
-        }),
-
-        cache: "no-store",
-      }
-    );
-
-  const data =
-    await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data?.error ||
-        "AI Builder gagal."
     );
   }
 
@@ -452,41 +412,23 @@ export async function POST(
 
     session = markBuilderStarted(session);
 
-    let builder: BuilderResponse;
-    let builderProvider = "james-autonomous";
-
-    if (PROVIDER_ENHANCEMENT_ENABLED) {
-      try {
-        builder = await callBuilder(request, composedBlueprint);
-        builderProvider = builder.provider || "provider-enhanced";
-      } catch (error) {
-        console.warn("Provider Builder unavailable; using James autonomous compiler.", error);
-        builder = {
-          success: true,
-          provider: "james-autonomous",
-          model: "autonomous-game-compiler-v1",
-          gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets),
-          validation: {
-            valid: true,
-            errors: [],
-            warnings: ["Compiled by James Autonomous Game Engine after provider failure."],
-          },
-        };
-      }
-    } else {
-      builder = {
-        success: true,
-        provider: "james-autonomous",
-        model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets),
-        validation: {
-          valid: true,
-          errors: [],
-          warnings: ["Compiled entirely by James without an AI provider."],
-        },
-      };
-    }
-
+    // Laboratory is the authoritative builder path.
+    // Provider enhancement may advise the Director and asset providers,
+    // but it must never bypass the materialized-asset contract.
+    // This guarantees the Phaser runtime receives the same assets that
+    // passed through Visual Director -> Registry -> Generator -> Materializer.
+    let builder: BuilderResponse = {
+      success: true,
+      provider: "james-autonomous",
+      model: "autonomous-game-compiler-v2-asset-contract",
+      gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets),
+      validation: {
+        valid: true,
+        errors: [],
+        warnings: ["Laboratory authoritative builder: materialized assets are mandatory runtime inputs."],
+      },
+    };
+    const builderProvider = "james-autonomous";
     if (!builder.gameHtml) {
       builder = {
         success: true,
