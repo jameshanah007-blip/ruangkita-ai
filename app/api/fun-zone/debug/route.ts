@@ -84,13 +84,16 @@ function validateGameHtml(html: string): string[] {
     errors.push("Game tidak memiliki game loop.");
   }
 
-  if (
-    !/addEventListener\s*\(\s*["'](?:pointer|touch|mousedown|keydown|click)/i.test(
-      html
-    )
-  ) {
+  const hasPhaserInput =
+    isPhaserRuntime &&
+    /\.on\(\s*["'](?:pointer|pointerdown|pointerup|pointermove|pointerover|pointerout)/i.test(html);
+
+  const hasDomInput =
+    /addEventListener\s*\(\s*["'](?:pointer|touch|mousedown|keydown|click)/i.test(html);
+
+  if (!hasPhaserInput && !hasDomInput) {
     errors.push(
-      "Game tidak terlihat memiliki input interaction."
+      "Game tidak terlihat memiliki input interaction Phaser/DOM."
     );
   }
 
@@ -469,11 +472,11 @@ Prioritas debugging:
 1. Perbaiki SyntaxError terlebih dahulu.
 2. Perbaiki ReferenceError / TypeError.
 3. Perbaiki initialization error.
-4. Pastikan Phaser 4.2.1 berhasil di-load dan membuat game canvas.
+4. Pastikan Phaser 4.2.1 berhasil di-load dan membuat game canvas 2D.
 5. Pastikan game loop benar-benar berjalan.
 6. Pastikan update state berjalan.
 7. Pastikan render berjalan.
-8. Pastikan input game terpasang.
+8. Pastikan input game terpasang melalui Phaser Input atau DOM.
 9. Pastikan objective/gameplay tetap ada.
 10. Pastikan win condition tetap ada.
 11. Pastikan lose condition tetap ada.
@@ -495,8 +498,7 @@ menggambar sesuatu ke canvas.
 
 LOOP FAIL
 ----------------
-Pastikan requestAnimationFrame menjalankan
-update + render secara terus-menerus.
+Pastikan Phaser game loop menjalankan update + render secara terus-menerus.
 
 FRAME FAIL
 ----------------
@@ -585,7 +587,7 @@ GAME REQUIREMENTS
 Game harus:
 
 - standalone HTML
-- HTML + CSS + vanilla JavaScript
+- HTML + CSS + JavaScript
 - Phaser 4.2.1 2D runtime
 - playable
 - responsive
@@ -689,10 +691,10 @@ Sebelum output:
 5. Semua template literal tertutup.
 6. Canvas tetap ada.
 7. Canvas 2D tetap ada.
-8. requestAnimationFrame tetap ada.
+8. Phaser 4.2.1 tetap menjadi runtime tunggal.
 9. update loop tetap ada.
 10. render loop tetap ada.
-11. input tetap ada.
+11. input Phaser/DOM tetap ada.
 12. gameplay tetap ada.
 13. objective tetap ada.
 14. win condition tetap ada.
