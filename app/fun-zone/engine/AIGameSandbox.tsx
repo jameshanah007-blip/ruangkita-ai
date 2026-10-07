@@ -85,8 +85,9 @@ type TestResult = {
   engine2DSystems?: string[];
   runtimeEngine?: string;
   runtimeVersion?: string;
+  genreState?: Record<string, unknown>;
 
-gameTestProtocol: boolean;
+  gameTestProtocol: boolean;
 
 stateChanged: boolean;
 
