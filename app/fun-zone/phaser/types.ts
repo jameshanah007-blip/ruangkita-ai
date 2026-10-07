@@ -22,6 +22,11 @@ export type PhaserAssetManifestEntry = {
   kind: "character" | "npc" | "enemy" | "companion" | "environment" | "prop" | "effect" | "ui";
   uri: string;
   animationNeeds: string[];
+  animationMode?: "sprite-sheet" | "single-image";
+  frameWidth?: number;
+  frameHeight?: number;
+  frameCount?: number;
+  rowCount?: number;
   characterDNA?: Record<string, unknown> | null;
 };
 
