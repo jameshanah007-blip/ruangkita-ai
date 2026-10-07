@@ -26,6 +26,7 @@ execFileSync(
     join(root, "app/fun-zone/phaser/types.ts"),
     join(root, "app/fun-zone/phaser/genreDefinitions.ts"),
     join(root, "app/fun-zone/phaser/contracts.ts"),
+    join(root, "app/fun-zone/phaser/characterAssets.ts"),
     join(root, "app/fun-zone/phaser/runtime.ts"),
     join(root, "app/fun-zone/phaser/builder.ts"),
   ],
@@ -91,6 +92,19 @@ function createSceneBase() {
       rectangle: object,
       circle: object,
       triangle: object,
+      sprite: () => ({
+        ...makeGameObject(),
+        setScale() { return this; },
+        play() { return this; },
+        setDepth() { return this; },
+        setName() { return this; },
+      }),
+    },
+    load: { image: noOp },
+    anims: {
+      _keys: new Set(),
+      exists(key) { return this._keys.has(key); },
+      create(config) { this._keys.add(config.key); return config; },
     },
     input: {
       on: noOp,
@@ -135,7 +149,10 @@ class MockGame {
       if (instance.update) instance.update();
     };
     this.scene = { start };
-    if (instances.length) start(instances[0].rkKey);
+    if (instances.length) {
+      for (const instance of instances) if (instance.preload) instance.preload();
+      start(instances[0].rkKey);
+    }
   }
 }
 
@@ -217,8 +234,13 @@ for (const genre of expectedGenres) {
   const protocol = context.window.__RK_GAME_TEST__;
   const engine = context.window.__RK_2D_ENGINE_V2__;
   const boot = context.window.__RK_PHASER_BOOT_SPEC__;
+  const character = context.window.__RK_CHARACTER_STATE__;
 
   assert(protocol && typeof protocol.performTestAction === "function", genre + ": Game Test Protocol hilang.");
+  assert(character?.type === "animated-sprite-2d", genre + ": character bukan animated 2D sprite.");
+  assert(character?.playerFrames >= 4, genre + ": character animation frame count terlalu kecil.");
+  assert(character?.playerAnimation === "rk-player-walk", genre + ": player animation key salah.");
+  assert(typeof protocol.getCharacterState === "function", genre + ": character state accessor hilang.");
   assert(typeof protocol.getGenreState === "function", genre + ": genre state accessor hilang.");
   assert(engine?.engine === "Phaser", genre + ": engine identity tidak benar.");
   assert(engine?.phaserVersion === "3.90.0", genre + ": runtime version tidak benar.");
