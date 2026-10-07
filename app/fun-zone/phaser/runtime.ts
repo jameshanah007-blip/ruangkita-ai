@@ -1,6 +1,6 @@
 import type { PhaserGameSpec, PhaserRuntimeBuild } from "./types";
 import { getGenreDefinition } from "./genreDefinitions";
-import { buildFarmingGameHtml } from "./farmingRuntime";
+import { assertPhaserGenreAdapter } from "./runtimeAdapters";
 
 const PHASER_VERSION = "4.2.1";
 const PHASER_CDN = "https://cdn.jsdelivr.net/npm/phaser@" + PHASER_VERSION + "/dist/phaser.min.js";
@@ -74,7 +74,8 @@ function buildRuntimeScript(spec: PhaserGameSpec): string {
 }
 
 export function buildPhaserGameHtml(spec: PhaserGameSpec): string {
-  if (spec.genre === "farming") return buildFarmingGameHtml(spec);
+  const adapter = assertPhaserGenreAdapter(spec);
+  if (adapter.genre === spec.genre) return adapter.build(spec);
   const definition = getGenreDefinition(spec.genre);
   return [
     "<!doctype html>",
