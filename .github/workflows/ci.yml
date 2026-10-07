@@ -46,5 +46,8 @@ jobs:
       - name: Fun Zone Phaser architecture
         run: npm run test:fun-zone-phaser-architecture
 
+      - name: Fun Zone Phaser runtime golden suite
+        run: npm run test:fun-zone-phaser-runtime-golden
+
       - name: Production build
         run: npm run build
