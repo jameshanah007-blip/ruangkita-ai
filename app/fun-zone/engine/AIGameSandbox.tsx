@@ -79,6 +79,10 @@ type TestResult = {
 
   gameplayTest: boolean;
 
+  engine2D?: boolean;
+  engine2DGenre?: string;
+  engine2DSystems?: string[];
+
 gameTestProtocol: boolean;
 
 stateChanged: boolean;
