@@ -7,7 +7,7 @@ export type GenreContract={
 };
 
 export const GENRE_CONTRACTS:Record<Engine2DGenre,GenreContract>={
-  monster_tamer:{genre:"monster_tamer",requiredActions:["talk","accept_quest","encounter","attack","capture","add_party"],requiredSignals:["dialogueStarted","questAccepted","encounterStarted","battleStarted","captureCount","partyCount"]},
+  monster_tamer:{genre:"monster_tamer",requiredActions:["talk","accept_quest","encounter","attack","capture","add_party"],requiredSignals:["dialogueStarted","questAccepted","encounterStarted","battleCompleted","captureCount","partyCount"]},
   farming:{genre:"farming",requiredActions:["till","plant","water","harvest","sell"],requiredSignals:["tilled","planted","watered","harvested","sold"]},
   adventure:{genre:"adventure",requiredActions:["talk","collect","open_exit"],requiredSignals:["dialogueStarted","itemsCollected","exitOpened"]},
   rpg:{genre:"rpg",requiredActions:["talk","battle","loot","level_up"],requiredSignals:["dialogueStarted","battleWins","lootCount","level"]},
