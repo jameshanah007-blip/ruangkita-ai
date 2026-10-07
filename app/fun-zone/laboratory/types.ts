@@ -239,6 +239,9 @@ export type TestReport = {
   engine2D?: boolean;
   engine2DGenre?: string;
   engine2DSystems?: string[];
+  runtimeEngine?: string;
+  runtimeVersion?: string;
+  genreState?: Record<string, unknown>;
 
   hardFailures: string[];
   softWarnings: string[];
