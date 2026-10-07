@@ -1,4 +1,7 @@
-export { resolve2DGenre, getGenreProfile } from "./genreResolver";
-export { compile2DSpec, validate2DSpec } from "./specCompiler";
-export { build2DGameHtml } from "./runtimeCompiler";
-export type * from "./types";
+export * from "./types";
+export * from "./genreResolver";
+export * from "./genreContracts";
+export * from "./specCompiler";
+export * from "./registry";
+export * from "./runtimeCompiler";
+export * from "./authoritative2D";
