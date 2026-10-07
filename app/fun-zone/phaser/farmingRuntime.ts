@@ -27,6 +27,17 @@ const CFG=\${config};
 const FARMER_ASSET=\${farmerAssetLiteral};
 let farm={money:50,wheat:0,tool:"till",harvested:0,day:1,plots:Array.from({length:12},()=>({state:"empty"}))};
 
+function targetMoney(){
+  const text=String(CFG.objective||"")+" "+String(CFG.winCondition||"");
+  const match=text.match(/\\b(\\d{2,})\\s*(?:uang|money|coins?|gold|dollars?|rupiah|rp)\\b/i);
+  return match ? Number(match[1]) : null;
+}
+
+function objectiveProgress(){
+  const target=targetMoney();
+  return target && target>0 ? Math.min(1,farm.money/target) : Math.min(1,farm.harvested/3);
+}
+
 window.__RK_GAME_READY__=false;
 window.__RK_GAME_RENDERED__=false;
 window.__RK_GAME_LOOP_STARTED__=false;
@@ -73,8 +84,8 @@ function testAction(action){
 window.__RK_GAME_TEST__={
   getState:()=>JSON.parse(JSON.stringify(farm)),
   getPlayerState:()=>({x:window.__RK_FARM_PLAYER__?.x||0,y:window.__RK_FARM_PLAYER__?.y||0}),
-  getObjectiveState:()=>({progress:Math.min(1,farm.harvested/3),harvested:farm.harvested}),
-  getWinState:()=>farm.harvested>=3,
+  getObjectiveState:()=>({progress:objectiveProgress(),harvested:farm.harvested,money:farm.money,targetMoney:targetMoney()}),
+  getWinState:()=>{const target=targetMoney();return target && target>0 ? farm.money>=target : farm.harvested>=3;},
   getLoseState:()=>false,
   performTestAction:(action)=>testAction(action),
   restart:()=>{resetFarm();return true;},
