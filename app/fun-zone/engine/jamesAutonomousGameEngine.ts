@@ -3,6 +3,7 @@ import type { AssetMaterializationResult } from "./assetMaterializer";
 import { mechanicKnowledge, worldKnowledge } from "./jamesGameKnowledge";
 import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "./james2DTopDownTemplate";
 import { buildRacing3DGameHtml, isRacing3DRequest } from "./jamesRacing3DTemplate";
+import { buildPokemon2DGameHtml, isPokemon2DRequest } from "./jamesPokemon2DTemplate";
 
 /**
  * James Autonomous Game Engine
