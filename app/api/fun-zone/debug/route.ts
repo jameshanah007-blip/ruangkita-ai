@@ -5,9 +5,8 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 import { runJamesBrain } from "../../../core/james/jamesBrain";
-import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
-import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "../../../fun-zone/engine/james2DTopDownTemplate";
-import { buildAuthoritative2DGame } from "../../../fun-zone/engine2d";
+import { resolvePhaserGenre } from "../../../fun-zone/phaser/genreDefinitions";
+import { PHASER_GENRE_CONTRACTS } from "../../../fun-zone/phaser/contracts";
 import type {
   GameBlueprint,
   RuntimeError,
@@ -42,64 +41,13 @@ function extractHtml(text: string): string {
 
 function validateGameHtml(html: string): string[] {
   const errors: string[] = [];
-
-  if (!html.trim()) {
-    errors.push("AI tidak menghasilkan HTML.");
-    return errors;
-  }
-
-  if (!/<html[\s>]/i.test(html)) {
-    errors.push("Dokumen tidak memiliki tag HTML.");
-  }
-
-  if (!/<\/html>/i.test(html)) {
-    errors.push(
-      "Dokumen tidak memiliki penutup </html>."
-    );
-  }
-
-  if (!/<head[\s>]/i.test(html)) {
-    errors.push("Dokumen tidak memiliki tag head.");
-  }
-
-  if (!/<body[\s>]/i.test(html)) {
-    errors.push("Dokumen tidak memiliki tag body.");
-  }
-
-  if (!/<script[\s>]/i.test(html)) {
-    errors.push("Game tidak memiliki JavaScript.");
-  }
-
-  if (!/<canvas[\s>]/i.test(html)) {
-    errors.push("Game tidak menggunakan Canvas.");
-  }
-
-  if (!/getContext\s*\(\s*["']2d["']\s*\)/i.test(html)) {
-    errors.push(
-      "Game tidak terlihat menggunakan Canvas 2D."
-    );
-  }
-
-  if (!/requestAnimationFrame\s*\(/i.test(html)) {
-    errors.push(
-      "Game tidak memiliki game loop requestAnimationFrame."
-    );
-  }
-
-  if (
-    !/addEventListener\s*\(\s*["'](?:pointer|touch|mousedown|keydown|click)/i.test(
-      html
-    )
-  ) {
-    errors.push(
-      "Game tidak terlihat memiliki input interaction."
-    );
-  }
-
-  if (html.length > 400_000) {
-    errors.push("Ukuran game terlalu besar.");
-  }
-
+  if (!html.trim()) return ["AI tidak menghasilkan HTML."];
+  if (!/<html[\s>]/i.test(html)) errors.push("Dokumen tidak memiliki tag HTML.");
+  if (!/<\/html>/i.test(html)) errors.push("Dokumen tidak memiliki penutup </html>.");
+  if (!/<canvas[\s>]/i.test(html)) errors.push("Game Phaser tidak memiliki canvas.");
+  if (!/phaser@3\.90\.0[\\/"']|Phaser\.Game|Phaser\.Scene/i.test(html)) errors.push("Game 2D wajib menggunakan Phaser 3.90.0.");
+  if (!/new\s+Phaser\.Game\s*\(/i.test(html)) errors.push("Phaser.Game tidak diinisialisasi.");
+  if (html.length > 400_000) errors.push("Ukuran game terlalu besar.");
   const forbiddenPatterns = [
     /fetch\s*\(/i,
     /XMLHttpRequest/i,
@@ -109,43 +57,21 @@ function validateGameHtml(html: string): string[] {
     /sessionStorage/i,
     /document\.cookie/i,
     /window\.parent/i,
-    /parent\./i,
     /window\.top/i,
-    /top\./i,
     /eval\s*\(/i,
     /new\s+Function\s*\(/i,
     /import\s*\(/i,
     /require\s*\(/i,
     /process\./i,
   ];
-
   const forbiddenNames = [
-    "fetch",
-    "XMLHttpRequest",
-    "WebSocket",
-    "EventSource",
-    "localStorage",
-    "sessionStorage",
-    "document.cookie",
-    "window.parent",
-    "parent",
-    "window.top",
-    "top",
-    "eval",
-    "Function",
-    "import",
-    "require",
-    "process",
+    "fetch","XMLHttpRequest","WebSocket","EventSource","localStorage",
+    "sessionStorage","document.cookie","window.parent","window.top",
+    "eval","Function","import","require","process",
   ];
-
   forbiddenPatterns.forEach((pattern, index) => {
-    if (pattern.test(html)) {
-      errors.push(
-        `Game menggunakan kemampuan yang tidak diizinkan: ${forbiddenNames[index]}.`
-      );
-    }
+    if (pattern.test(html)) errors.push("Game menggunakan kemampuan yang tidak diizinkan: " + forbiddenNames[index] + ".");
   });
-
   return errors;
 }
 
@@ -365,361 +291,66 @@ function buildDebuggerPrompt({
   blueprint: GameBlueprint | null;
   attempt: number;
 }) {
-  const failureFocus =
-    determineFailureFocus(
-      runtimeErrors,
-      testReport
-    );
-
+  const resolvedGenre = blueprint ? resolvePhaserGenre(blueprint) : null;
+  const contract = resolvedGenre ? PHASER_GENRE_CONTRACTS[resolvedGenre] : null;
   return `
-RUANGKITA AI — GAME DEBUGGER / REPAIR ENGINE
+RUANGKITA FUN ZONE — PHASER REPAIR AGENT
 
-Kamu adalah AI Game Debugger profesional.
+You are repairing an existing Phaser browser game.
 
-Game berikut SUDAH dibuat oleh AI Game Builder.
+This is a PATCH task, not a redesign task.
 
-Game tersebut kemudian dijalankan di isolated browser
-sandbox dan mengalami kegagalan pada tahap testing.
+ENGINE CONTRACT
+- Phaser 3.90.0 is mandatory.
+- Keep the existing game concept, genre, scenes, mechanics, visual direction and controls.
+- Never replace Phaser with Canvas-only JavaScript, another engine, a generic template, or a different genre.
+- Preserve the Game Test Protocol: __RK_GAME_TEST__.
+- Preserve runtime identity: __RK_2D_ENGINE_V2__.
+- Preserve the canonical Phaser boot spec: __RK_PHASER_BOOT_SPEC__.
+- Do not remove gameplay to make a test pass.
 
-Tugasmu adalah memperbaiki GAME YANG SUDAH ADA.
+GENRE
+${resolvedGenre || genre || "unknown"}
 
-JANGAN membuat game baru.
+CONTRACT ACTIONS
+${contract ? contract.requiredActions.join(", ") : "Use the actions already declared by the game."}
 
-JANGAN mengganti konsep game.
+REQUIRED SIGNALS
+${contract ? contract.requiredSignals.join(", ") : "Preserve all existing semantic state signals."}
 
-JANGAN melakukan redesign besar.
-
-JANGAN menghapus gameplay hanya agar tester menjadi PASS.
-
-Pertahankan sebanyak mungkin:
-
-- visual
-- mekanik
-- objective
-- progression
-- score
-- player
-- enemy
-- world
-- win condition
-- lose condition
-- restart
-- mobile controls
-- desktop controls
-- identitas game
-
-Jika error hanya berada pada satu bagian kode,
-perbaiki bagian tersebut dan pertahankan bagian lainnya.
-
-==================================================
 REPAIR ATTEMPT
-==================================================
-
-Attempt:
 ${attempt}
 
-==================================================
-GAME IDENTITY
-==================================================
-
-Genre:
-${genre || blueprint?.genre || "unknown"}
-
-Blueprint:
-${formatBlueprint(blueprint)}
-
-==================================================
-FAILURE FOCUS
-==================================================
-
-${failureFocus.map((item) => `- ${item}`).join("\n")}
-
-==================================================
-RUNTIME ERRORS
-==================================================
-
-${formatRuntimeErrors(runtimeErrors)}
-
-==================================================
-PRIMARY ERROR
-==================================================
-
-Message:
+FAILURE
 ${errorMessage || "none"}
 
-Source:
-${errorSource || "unknown"}
+SOURCE
+${errorSource || "unknown"} line=${errorLine ?? "unknown"} column=${errorColumn ?? "unknown"}
 
-Line:
-${errorLine ?? "unknown"}
+RUNTIME ERRORS
+${runtimeErrors.length ? runtimeErrors.map((e) => e.message).join("\n") : "none"}
 
-Column:
-${errorColumn ?? "unknown"}
-
-==================================================
 TEST REPORT
-==================================================
-
 ${formatTestReport(testReport)}
 
-==================================================
-DEBUGGING STRATEGY
-==================================================
+GAME SPECIFICATION
+${formatBlueprint(blueprint)}
 
-Prioritas debugging:
+REPAIR RULES
+1. Find the smallest root-cause fix.
+2. Prefer patching the existing Phaser scene/system code.
+3. Keep the same Phaser scenes and runtime id unless the current source is demonstrably corrupted.
+4. Keep input, mobile controls, restart, objective, win/lose behavior.
+5. Keep genre-specific gameplay contract intact.
+6. Never add network calls, browser storage, cookies, Node APIs, eval, Function constructor, dynamic import or external APIs.
+7. The returned file must be one complete runnable HTML document.
+8. The returned file must load Phaser 3.90.0 and instantiate Phaser.Game.
+9. Return the repaired source, not an explanation.
 
-1. Perbaiki SyntaxError terlebih dahulu.
-2. Perbaiki ReferenceError / TypeError.
-3. Perbaiki initialization error.
-4. Pastikan Canvas dibuat dan context 2D tersedia.
-5. Pastikan game loop benar-benar berjalan.
-6. Pastikan update state berjalan.
-7. Pastikan render berjalan.
-8. Pastikan input game terpasang.
-9. Pastikan objective/gameplay tetap ada.
-10. Pastikan win condition tetap ada.
-11. Pastikan lose condition tetap ada.
-12. Pastikan restart tetap berfungsi.
-13. Pastikan mobile touch input tetap berfungsi.
-14. Pastikan desktop keyboard/mouse tetap berfungsi.
-
-Jika tester mengatakan:
-
-CANVAS FAIL
-----------------
-Cari penyebab canvas/context tidak tersedia.
-Jangan sekadar membuat flag menjadi true.
-
-RENDER FAIL
-----------------
-Pastikan draw/render function benar-benar
-menggambar sesuatu ke canvas.
-
-LOOP FAIL
-----------------
-Pastikan requestAnimationFrame menjalankan
-update + render secara terus-menerus.
-
-FRAME FAIL
-----------------
-Pastikan loop tidak langsung berhenti karena
-exception atau kondisi game yang salah.
-
-INPUT FAIL
-----------------
-Pastikan listener input benar-benar terpasang
-pada window/document/canvas dan mengubah state game.
-
-GAMEPLAY FAIL
-----------------
-Pastikan ada player state, interaction,
-objective, dan perubahan state yang nyata.
-
-RUNTIME ERROR
-----------------
-Perbaiki penyebab error yang sebenarnya.
-Jangan menutupi error dengan try/catch kosong.
-
-==================================================
-SYNTAX REPAIR
-==================================================
-
-Jika ditemukan:
-
-SyntaxError
-Unexpected token
-Unexpected identifier
-Unexpected string
-Unexpected end of input
-missing )
-missing }
-missing ]
-missing ;
-unterminated string
-unterminated template literal
-
-periksa secara teliti:
-
-- ()
-- {}
-- []
-- quotes
-- template literals
-- commas
-- semicolons
-- function declaration
-- arrow function
-- object literal
-- array literal
-- callbacks
-- if/else
-- nested functions
-
-Pastikan JavaScript dapat diparse browser.
-
-==================================================
-SELF DIAGNOSTIC FLAGS
-==================================================
-
-Jika game memiliki flag:
-
-window.__RK_GAME_READY__
-window.__RK_GAME_RENDERED__
-window.__RK_GAME_LOOP_STARTED__
-
-pertahankan dan perbaiki jika rusak.
-
-Flag bukan pengganti gameplay.
-
-JANGAN membuat:
-
-window.__RK_GAME_READY__ = true;
-
-sebagai satu-satunya solusi.
-
-Flag harus mencerminkan kondisi game
-yang benar-benar sudah initialized/rendered/running.
-
-==================================================
-GAME REQUIREMENTS
-==================================================
-
-Game harus:
-
-- standalone HTML
-- HTML + CSS + vanilla JavaScript
-- Canvas 2D
-- playable
-- responsive
-- mobile friendly
-- touch friendly
-- mouse friendly
-- keyboard friendly jika relevan
-- memiliki game loop
-- memiliki update
-- memiliki render
-- memiliki objective
-- memiliki win condition
-- memiliki lose condition
-- memiliki restart
-- tidak menggunakan external library
-- tidak menggunakan external asset
-- tidak menggunakan network
-- tidak menggunakan API eksternal
-
-DILARANG:
-
-fetch
-XMLHttpRequest
-WebSocket
-EventSource
-localStorage
-sessionStorage
-document.cookie
-window.parent
-window.top
-eval
-Function constructor
-import()
-require()
-process
-filesystem
-Node.js
-server
-database
-Supabase
-API key
-
-==================================================
-MOBILE REQUIREMENTS
-==================================================
-
-Pastikan:
-
-- viewport tersedia
-- canvas menyesuaikan layar
-- tidak membutuhkan hover
-- touch/pointer input nyaman
-- tombol tidak terlalu kecil
-- game tidak bergantung pada keyboard saja
-- tidak menggunakan layout yang rusak pada portrait mobile
-
-==================================================
-IMPORTANT
-==================================================
-
-Jangan mengubah game menjadi sekadar demo canvas.
-
-Game harus tetap merupakan GAME.
-
-Jika game memiliki:
-
-player
-enemy
-items
-keys
-score
-timer
-health
-stamina
-levels
-rooms
-doors
-weapons
-puzzles
-objectives
-
-pertahankan elemen-elemen tersebut jika tidak
-berhubungan langsung dengan error.
-
-==================================================
-CURRENT GAME HTML
-==================================================
-
+CURRENT GAME SOURCE
 ${gameHtml}
 
-==================================================
-FINAL VALIDATION
-==================================================
-
-Sebelum output:
-
-1. HTML lengkap.
-2. JavaScript valid.
-3. Semua (), {}, [] tertutup.
-4. Semua string tertutup.
-5. Semua template literal tertutup.
-6. Canvas tetap ada.
-7. Canvas 2D tetap ada.
-8. requestAnimationFrame tetap ada.
-9. update loop tetap ada.
-10. render loop tetap ada.
-11. input tetap ada.
-12. gameplay tetap ada.
-13. objective tetap ada.
-14. win condition tetap ada.
-15. lose condition tetap ada.
-16. restart tetap ada.
-17. mobile controls tetap ada.
-18. tidak ada network request.
-19. tidak ada external dependency.
-20. tidak ada kode yang terpotong.
-21. tidak membuat game baru.
-22. tidak menghapus gameplay untuk mengakali tester.
-
-OUTPUT HANYA HTML.
-
-Mulai:
-
-<!DOCTYPE html>
-
-dan akhiri:
-
-</html>
-
-Tanpa markdown.
-Tanpa code fence.
-Tanpa penjelasan.
+OUTPUT ONLY THE COMPLETE REPAIRED HTML.
 `;
 }
 
@@ -871,112 +502,45 @@ export async function POST(request: Request) {
       attempt,
     });
 
+    const normalizedBlueprint = blueprint ? normalizeBlueprint(blueprint) : null;
+    const resolvedGenre = normalizedBlueprint ? resolvePhaserGenre(normalizedBlueprint) : null;
+
+    if (!resolvedGenre) {
+      return NextResponse.json(
+        { success: false, error: "Blueprint tidak memiliki genre Phaser yang didukung." },
+        { status: 422 },
+      );
+    }
+
+    const prompt = buildDebuggerPrompt({
+      gameHtml,
+      errorMessage,
+      errorSource,
+      errorLine,
+      errorColumn,
+      genre: resolvedGenre,
+      runtimeErrors,
+      testReport,
+      blueprint: normalizedBlueprint,
+      attempt,
+    });
+
     let provider = "james-brain";
     let model = "provider";
     let fixedHtml = "";
 
-    /*
-     * First-class 2D top-down games use James' deterministic runtime as the
-     * repair authority. Provider output is intentionally not allowed to
-     * rewrite this foundation after a test failure: low-output/partial AI
-     * responses were previously replacing a healthy game with truncated HTML,
-     * which then triggered the five-attempt loop and could remove movement.
-     */
-    const normalizedDebugBlueprint = blueprint ? normalizeBlueprint(blueprint)! : null;
-    const authoritative2D = normalizedDebugBlueprint
-      ? buildAuthoritative2DGame(normalizedDebugBlueprint, normalizedDebugBlueprint.concept)
-      : null;
+    const result = await runJamesBrain({
+      surface: "fun_zone",
+      mode: "game_debugger",
+      systemInstruction: "Repair the existing Phaser 3.90.0 game. Return only the complete repaired HTML. Preserve the canonical GameSpec, Phaser runtime identity, genre contract and Test Protocol. Do not generate a new generic game.",
+      prompt,
+      temperature: 0.1,
+      maxOutputTokens: 24000,
+    });
 
-    if (authoritative2D) {
-      fixedHtml = authoritative2D.html;
-      provider = "james-2d-engine-repair";
-      model = authoritative2D.runtimeId;
-    } else {
-      try {
-        const result =
-          await runJamesBrain({
-          surface: "fun_zone",
-          mode: "game_debugger",
-          systemInstruction: `
-Kamu adalah AI Game Debugger profesional untuk
-laboratorium game RuangKita AI.
-
-Kamu menerima source HTML game, blueprint,
-runtime errors, sandbox evidence, dan test report.
-
-Tugasmu adalah melakukan REPAIR terhadap game
-yang sudah ada. Jangan membuat game baru.
-Perbaiki akar masalah dan pertahankan gameplay.
-
-Output harus satu HTML lengkap yang langsung
-dapat dijalankan browser.
-
-Tidak boleh ada markdown, code fence, atau penjelasan.
-Output hanya HTML.
-`,
-          prompt,
-          temperature: 0.1,
-          maxOutputTokens: 16000,
-        });
-
-      provider = result.provider;
-      model = result.model;
-        fixedHtml = extractHtml(result.text);
-      } catch (providerError) {
-      /*
-       * Provider AI tidak boleh membuat Laboratory berhenti
-       * setelah seluruh fallback provider habis.
-       *
-       * Gunakan repair engine deterministik James sebagai
-       * safety net. Ini tetap membangun game dari blueprint
-       * yang sama dan tidak memalsukan TestReport.
-       */
-      console.warn(
-        "AI Game Debugger provider fallback:",
-        providerError instanceof Error
-          ? providerError.message
-          : String(providerError)
-      );
-
-      if (blueprint) {
-        fixedHtml = buildAutonomousGameHtml(
-          normalizeBlueprint(blueprint)!
-        );
-        provider = "james-autonomous-fallback";
-        model = "autonomous-evolution-engine-v1";
-      } else {
-        throw providerError;
-      }
-      }
-    }
-
-    let validationErrors =
-      validateGameHtml(fixedHtml);
-
-    if (validationErrors.length > 0 && blueprint) {
-      console.warn(
-        "AI Game Debugger produced invalid HTML; using deterministic James fallback.",
-        validationErrors
-      );
-      const safeBlueprint = normalizeBlueprint(blueprint)!;
-      const safeAuthoritative2D = buildAuthoritative2DGame(safeBlueprint, safeBlueprint.concept);
-      if (safeAuthoritative2D) {
-        fixedHtml = safeAuthoritative2D.html;
-        provider = "james-2d-engine-repair";
-        model = safeAuthoritative2D.runtimeId;
-      } else {
-        fixedHtml = isTopDown2DTemplateRequest(safeBlueprint)
-          ? buildTopDown2DGameHtml(safeBlueprint)
-          : buildAutonomousGameHtml(safeBlueprint);
-        provider = isTopDown2DTemplateRequest(safeBlueprint)
-          ? "james-autonomous-topdown-repair"
-          : "james-autonomous-fallback";
-        model = isTopDown2DTemplateRequest(safeBlueprint)
-          ? "james-2d-topdown-runtime-v2"
-          : "autonomous-evolution-engine-v1";
-      }
-      validationErrors = validateGameHtml(fixedHtml);
-    }
+    provider = result.provider;
+    model = result.model;
+    fixedHtml = extractHtml(result.text);
 
     if (validationErrors.length > 0) {
       return NextResponse.json(
