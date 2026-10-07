@@ -489,19 +489,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const prompt = buildDebuggerPrompt({
-      gameHtml,
-      errorMessage,
-      errorSource,
-      errorLine,
-      errorColumn,
-      genre,
-      runtimeErrors,
-      testReport,
-      blueprint,
-      attempt,
-    });
-
     const normalizedBlueprint = blueprint ? normalizeBlueprint(blueprint) : null;
     const resolvedGenre = normalizedBlueprint ? resolvePhaserGenre(normalizedBlueprint) : null;
 
@@ -541,6 +528,7 @@ export async function POST(request: Request) {
     provider = result.provider;
     model = result.model;
     fixedHtml = extractHtml(result.text);
+    const validationErrors = validateGameHtml(fixedHtml);
 
     if (validationErrors.length > 0) {
       return NextResponse.json(
