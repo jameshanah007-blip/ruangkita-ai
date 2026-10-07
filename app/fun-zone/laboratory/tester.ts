@@ -1,5 +1,5 @@
-import { resolve2DGenre } from "../engine2d/genreResolver";
-import { GENRE_CONTRACTS } from "../engine2d/genreContracts";
+import { resolvePhaserGenre } from "../phaser/genreDefinitions";
+import { PHASER_GENRE_CONTRACTS } from "../phaser/contracts";
 import type {
   GameBlueprint,
   SandboxTestEvidence,
@@ -259,9 +259,9 @@ function checkInput(
  * Game Test Protocol.
  */
 function checkGenreGameplay(blueprint: GameBlueprint, evidence: SandboxTestEvidence, checks: TestCheck[]): string[] {
-  const profile = resolve2DGenre(blueprint);
-  if (!profile) return [];
-  const contract = GENRE_CONTRACTS[profile.genre];
+  const genre = resolvePhaserGenre(blueprint);
+  if (!genre) return [];
+  const contract = PHASER_GENRE_CONTRACTS[genre];
   const state = evidence.genreState ?? {};
   const failures: string[] = [];
   const presentSignals = contract.requiredSignals.filter((signal) => {
@@ -274,7 +274,7 @@ function checkGenreGameplay(blueprint: GameBlueprint, evidence: SandboxTestEvide
   const passed = presentSignals.length === contract.requiredSignals.length;
   addCheck(checks, "2d_genre_gameplay", passed,
     passed
-      ? profile.genre + " gameplay contract terbukti melalui state runtime."
+      ? genre + " gameplay contract terbukti melalui state runtime."
       : "Milestone genre yang belum terbukti: " + contract.requiredSignals.filter((signal) => !presentSignals.includes(signal)).join(", "));
   if (!passed) failures.push("Gameplay khusus genre belum terbukti: " + contract.requiredSignals.filter((signal) => !presentSignals.includes(signal)).join(", "));
   return failures;
@@ -306,13 +306,26 @@ function checkEngineArchitecture(blueprint: GameBlueprint, evidence: SandboxTest
     enginePassed ? "Game berjalan pada James 2D Engine v2." : "Genre 2D terdeteksi tetapi runtime bukan James 2D Engine v2.");
   if (!enginePassed) failures.push("Genre 2D wajib menggunakan James 2D Engine v2.");
 
-  const genrePassed = evidence.engine2DGenre === profile.genre;
+  const genrePassed = evidence.engine2DGenre === genre;
   addCheck(checks, "2d_genre_identity", genrePassed,
     genrePassed ? "Genre runtime sesuai dengan genre yang diminta." : "Identitas genre runtime tidak sesuai dengan genre yang diminta.");
   if (!genrePassed) failures.push("Runtime genre tidak sesuai dengan Game Specification.");
 
   const systems = new Set(evidence.engine2DSystems ?? []);
-  const missing = profile.requiredSystems.filter((s) => !systems.has(s));
+  const requiredSystemNames = {
+    monster_tamer: ["movement","dialogue","quest","encounter","battle","capture","party","progression"],
+    farming: ["movement","farming","inventory","economy","npc","dialogue","day_cycle"],
+    adventure: ["movement","dialogue","collection","exploration"],
+    rpg: ["movement","dialogue","battle","loot","progression"],
+    platformer: ["movement","platform","collision","progression"],
+    racing: ["movement","racing","collision","progression"],
+    puzzle: ["puzzle","selection","progression"],
+    shooter: ["movement","shooting","collision","survival"],
+    strategy: ["strategy","placement","command","capture","economy"],
+    simulation: ["simulation","building","allocation","progression"],
+    survival: ["movement","survival","scavenge","crafting","defense","progression"],
+  }[genre];
+  const missing = requiredSystemNames.filter((s) => !systems.has(s));
   const systemsPassed = missing.length === 0;
   addCheck(checks, "2d_required_systems", systemsPassed,
     systemsPassed ? "Semua system wajib genre tersedia." : "System genre yang hilang: " + missing.join(", "));
@@ -673,6 +686,10 @@ export function testGame({
       evidence.engine2DGenre,
     engine2DSystems:
       evidence.engine2DSystems,
+    runtimeEngine:
+      evidence.runtimeEngine,
+    runtimeVersion:
+      evidence.runtimeVersion,
 
     performanceTest:
       evidence.performanceTest,
