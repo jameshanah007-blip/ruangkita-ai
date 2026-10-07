@@ -442,7 +442,7 @@ export async function POST(
         warnings: ["Laboratory authoritative builder: materialized assets are mandatory runtime inputs."],
       },
     };
-    const builderProvider = "james-autonomous";
+    let builderProvider = "james-autonomous";
     if (!builder.gameHtml) {
       builder = {
         success: true,
