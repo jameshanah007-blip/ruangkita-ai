@@ -120,6 +120,14 @@ export type RuntimeError = {
   column?: number | null;
 };
 
+export type CharacterRuntimeEvidence = {
+  type: "animated-sprite-2d" | string;
+  playerAnimation?: string;
+  playerFrames?: number;
+  playerKind?: string;
+  creatureAnimation?: string | null;
+};
+
 export type SandboxTestEvidence = {
   hardFailures: string[];
   softWarnings: string[];
@@ -161,6 +169,7 @@ export type SandboxTestEvidence = {
   runtimeEngine?: string;
   runtimeVersion?: string;
   genreState?: Record<string, unknown>;
+  characterState?: CharacterRuntimeEvidence;
 
   gameTestProtocol: boolean;
   stateChanged: boolean;
