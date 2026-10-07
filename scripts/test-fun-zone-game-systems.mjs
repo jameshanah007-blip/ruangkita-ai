@@ -8,6 +8,7 @@ import { materializeGameAssets } from "../app/fun-zone/engine/assetMaterializer.
 import { buildCharacterAssetPlan } from "../app/fun-zone/engine/characterAssetPipeline.ts";
 import { createAssetProviderRouter } from "../app/fun-zone/engine/assetProviderRouter.ts";
 import { validatePlayableRuntimeContract } from "../app/fun-zone/engine/runtimeContract.ts";
+import { getPhaserGenreAdapter } from "../app/fun-zone/phaser/runtimeAdapters.ts";
 import {
   createModularGameState,
   captureCreature,
@@ -73,6 +74,8 @@ assert.equal(
   validatePlayableRuntimeContract(pokemonLike, materialized, visual.protagonist.id).valid,
   true,
 );
+assert.ok(getPhaserGenreAdapter("farming"));
+assert.equal(getPhaserGenreAdapter("platformer"), null);
 
 const provider = {
   name: "test-image-provider",
