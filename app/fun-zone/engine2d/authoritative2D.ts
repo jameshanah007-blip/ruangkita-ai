@@ -1,11 +1,13 @@
 import type { GameBlueprint } from "../laboratory/types";
 import { buildAuthoritativePhaserGame } from "../phaser";
+import type { PhaserGameSpec } from "../phaser";
 
 export type Authoritative2DBuild = {
   html: string;
   genre: string;
   runtimeId: string;
   systems: string[];
+  spec: PhaserGameSpec;
 };
 
 export function buildAuthoritative2DGame(
@@ -20,5 +22,6 @@ export function buildAuthoritative2DGame(
     genre: runtime.genre,
     runtimeId: runtime.runtimeId,
     systems: runtime.systems,
+    spec: runtime.spec,
   };
 }
