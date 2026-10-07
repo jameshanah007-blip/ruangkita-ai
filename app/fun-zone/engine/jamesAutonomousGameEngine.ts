@@ -396,7 +396,14 @@ export function buildAutonomousGameHtml(
   blueprint: GameBlueprint,
   materializedAssets?: AssetMaterializationResult,
 ): string {
-  const phaserSpec = compilePhaserGameSpec(blueprint, blueprint.concept || blueprint.title);
+  const phaserAssets = (materializedAssets?.assets || []).map((asset) => ({
+    id: asset.id,
+    kind: asset.kind,
+    uri: asset.uri,
+    animationNeeds: asset.metadata.animationNeeds || [],
+    characterDNA: (asset.metadata.providerMetadata?.characterDNA as Record<string, unknown> | undefined) || null,
+  }));
+  const phaserSpec = compilePhaserGameSpec(blueprint, blueprint.concept || blueprint.title, phaserAssets);
   if (phaserSpec) {
     return buildPhaserGameHtml(phaserSpec);
   }
