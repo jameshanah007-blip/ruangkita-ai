@@ -47,6 +47,9 @@ type GameTestProtocol = {
   getObjectiveState?: () => unknown;
   getWinState?: () => boolean;
   getLoseState?: () => boolean;
+  getTutorialState?: () => unknown;
+  getControlState?: () => unknown;
+  testDirectionalControl?: (direction: string) => boolean;
   performTestAction?: (
     action: string
   ) => unknown;
@@ -1198,6 +1201,29 @@ var beforeLost =
               }
             }
 
+            var directionalTestResults = {up:false,down:false,left:false,right:false};
+            try {
+              var p = gameTestBefore.protocol;
+              if (p && typeof p.testDirectionalControl === "function") {
+                ["up","down","left","right"].forEach(function(direction) {
+                  try { directionalTestResults[direction] = p.testDirectionalControl(direction) === true; } catch (_) {}
+                });
+              } else if (p && typeof p.getControlState === "function") {
+                var cs = p.getControlState();
+                if (cs) {
+                  directionalTestResults.up=cs.up===true; directionalTestResults.down=cs.down===true;
+                  directionalTestResults.left=cs.left===true; directionalTestResults.right=cs.right===true;
+                }
+              }
+            } catch (_) {}
+            var tutorialAvailable = false;
+            try {
+              var tp = gameTestBefore.protocol;
+              if (tp && typeof tp.getTutorialState === "function") {
+                var ts = tp.getTutorialState();
+                tutorialAvailable = !!(ts && (ts.available === true || ts.visible === true));
+              }
+            } catch (_) {}
             var executedActions = [];
 
             for (
@@ -1675,6 +1701,9 @@ var beforeLost =
                     restartVerified:
                       restartVerified,
 
+                    tutorialAvailable: tutorialAvailable,
+                    directionalControls: directionalTestResults,
+
                     gameTestError:
                       gameTestError ||
                       undefined,
@@ -1793,6 +1822,8 @@ var beforeLost =
         winStateDetected: false,
         loseStateDetected: false,
         restartVerified: false,
+        tutorialAvailable: false,
+        directionalControls: {up:false,down:false,left:false,right:false},
         gameTestError: "Sandbox diagnostic timeout.",
         performanceTest: false,
         runtimeOk: false,
