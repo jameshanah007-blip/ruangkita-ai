@@ -10,6 +10,21 @@ export function buildFarmingGameHtml(spec: PhaserGameSpec): string {
       "Farming Phaser runtime requires the declared player asset: " + spec.player.assetId,
     );
   }
+  if (farmerAsset.animationMode !== "sprite-sheet") {
+    throw new Error(
+      "Farming Phaser runtime requires a sprite-sheet player asset; single-image characters are not accepted.",
+    );
+  }
+  if (
+    !farmerAsset.frameWidth ||
+    !farmerAsset.frameHeight ||
+    !farmerAsset.frameCount ||
+    farmerAsset.frameCount < 2
+  ) {
+    throw new Error(
+      "Farming Phaser runtime received invalid player sprite-sheet metadata.",
+    );
+  }
   const config = JSON.stringify({
     title: spec.title,
     objective: spec.objective,
