@@ -1,3 +1,4 @@
+import { resolve2DGenre } from "../engine2d/genreResolver";
 import type {
   GameBlueprint,
   SandboxTestEvidence,
@@ -272,6 +273,30 @@ function checkPlayerGuidanceAndControls(
   return failures;
 }
 
+function checkEngineArchitecture(blueprint: GameBlueprint, evidence: SandboxTestEvidence, checks: TestCheck[]): string[] {
+  const failures: string[] = [];
+  const profile = resolve2DGenre(blueprint);
+  if (!profile) return failures;
+
+  const enginePassed = evidence.engine2D === true;
+  addCheck(checks, "2d_engine", enginePassed,
+    enginePassed ? "Game berjalan pada James 2D Engine v2." : "Genre 2D terdeteksi tetapi runtime bukan James 2D Engine v2.");
+  if (!enginePassed) failures.push("Genre 2D wajib menggunakan James 2D Engine v2.");
+
+  const genrePassed = evidence.engine2DGenre === profile.genre;
+  addCheck(checks, "2d_genre_identity", genrePassed,
+    genrePassed ? "Genre runtime sesuai dengan genre yang diminta." : "Identitas genre runtime tidak sesuai dengan genre yang diminta.");
+  if (!genrePassed) failures.push("Runtime genre tidak sesuai dengan Game Specification.");
+
+  const systems = new Set(evidence.engine2DSystems ?? []);
+  const missing = profile.requiredSystems.filter((s) => !systems.has(s));
+  const systemsPassed = missing.length === 0;
+  addCheck(checks, "2d_required_systems", systemsPassed,
+    systemsPassed ? "Semua system wajib genre tersedia." : "System genre yang hilang: " + missing.join(", "));
+  if (!systemsPassed) failures.push("2D runtime kehilangan system wajib: " + missing.join(", "));
+  return failures;
+}
+
 function checkGameplay(
   evidence: SandboxTestEvidence,
   checks: TestCheck[]
@@ -527,6 +552,14 @@ export function testGame({
   );
 
   hardFailures.push(
+    ...checkEngineArchitecture(
+      blueprint,
+      evidence,
+      checks
+    )
+  );
+
+  hardFailures.push(
     ...checkPlayerGuidanceAndControls(
       evidence,
       checks
@@ -606,6 +639,13 @@ export function testGame({
 
     gameplayTest:
       evidence.gameplayTest,
+
+    engine2D:
+      evidence.engine2D,
+    engine2DGenre:
+      evidence.engine2DGenre,
+    engine2DSystems:
+      evidence.engine2DSystems,
 
     performanceTest:
       evidence.performanceTest,
