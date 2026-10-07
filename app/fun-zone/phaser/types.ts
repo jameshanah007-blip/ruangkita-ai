@@ -53,4 +53,5 @@ export type PhaserRuntimeBuild = {
   engine: "phaser";
   phaserVersion: "3.90.0";
   systems: string[];
+  spec: PhaserGameSpec;
 };
