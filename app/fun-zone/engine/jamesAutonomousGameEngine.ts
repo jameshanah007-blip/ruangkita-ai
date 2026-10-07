@@ -395,6 +395,7 @@ function runtimeAssets(materializedAssets?: AssetMaterializationResult) {
 export function buildAutonomousGameHtml(
   blueprint: GameBlueprint,
   materializedAssets?: AssetMaterializationResult,
+  playerAssetId = "protagonist",
 ): string {
   const phaserAssets = (materializedAssets?.assets || []).map((asset) => ({
     id: asset.id,
@@ -420,7 +421,12 @@ export function buildAutonomousGameHtml(
       : undefined,
     characterDNA: (asset.metadata.providerMetadata?.characterDNA as Record<string, unknown> | undefined) || null,
   }));
-  const phaserSpec = compilePhaserGameSpec(blueprint, blueprint.concept || blueprint.title, phaserAssets);
+  const phaserSpec = compilePhaserGameSpec(
+    blueprint,
+    blueprint.concept || blueprint.title,
+    phaserAssets,
+    playerAssetId,
+  );
   if (phaserSpec) {
     return buildPhaserGameHtml(phaserSpec);
   }
