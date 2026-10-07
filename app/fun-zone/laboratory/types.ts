@@ -165,6 +165,14 @@ export type SandboxTestEvidence = {
 
   restartVerified: boolean;
 
+  tutorialAvailable?: boolean;
+  directionalControls?: {
+    up: boolean;
+    down: boolean;
+    left: boolean;
+    right: boolean;
+  };
+
   gameTestError?: string;
 };
 
