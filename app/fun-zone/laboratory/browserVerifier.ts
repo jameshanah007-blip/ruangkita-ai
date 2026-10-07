@@ -131,7 +131,8 @@ function buildVerifierHtml(gameHtml: string, actions: string[]) {
       runtimeEngine:engine.engine ? String(engine.engine) : undefined,
       runtimeVersion:engine.phaserVersion ? String(engine.phaserVersion) : undefined,
       tutorialAvailable:!!(p&&typeof p.getTutorialState==="function"&&p.getTutorialState().available),
-      directionalControls:typeof p?.getControlState==="function"?p.getControlState():undefined
+      directionalControls:typeof p?.getControlState==="function"?p.getControlState():undefined,
+      characterState:typeof p?.getCharacterState==="function"?p.getCharacterState():undefined
     })
   };
 })();
