@@ -19,7 +19,12 @@ function textOf(b: GameBlueprint): string {
  * It does not depend on third-party game assets.
  */
 export function isPokemon2DRequest(b: GameBlueprint): boolean {
-  return /pokemon|pokémon|monster tamer|monster-tamer|creature collection|creature tamer|monster collection|monster trainer/i.test(textOf(b));
+  const text = textOf(b);
+  const explicitMonsterTamer =
+    /pokemon|pokémon|monster tamer|monster-tamer|creature collection|creature tamer|monster collection|monster trainer/i.test(text);
+  const rpgCreaturePattern =
+    /(?:\\b(?:rpg|role.?playing)\\b).{0,140}(?:monster|creature|tamer|capture|collection)|(?:monster|creature).{0,140}(?:rpg|tamer|capture|collection)/i.test(text);
+  return explicitMonsterTamer || rpgCreaturePattern;
 }
 
 export function buildPokemon2DGameHtml(b: GameBlueprint): string {
