@@ -1,4 +1,4 @@
-import { resolvePhaserGenre } from "../phaser/genreDefinitions";
+import { getGenreDefinition, resolvePhaserGenre } from "../phaser/genreDefinitions";
 import { PHASER_GENRE_CONTRACTS } from "../phaser/contracts";
 import type {
   GameBlueprint,
@@ -317,19 +317,7 @@ function checkEngineArchitecture(blueprint: GameBlueprint, evidence: SandboxTest
   if (!genrePassed) failures.push("Runtime genre tidak sesuai dengan Game Specification.");
 
   const systems = new Set(evidence.engine2DSystems ?? []);
-  const requiredSystemNames = {
-    monster_tamer: ["movement","dialogue","quest","encounter","battle","capture","party","progression"],
-    farming: ["movement","farming","inventory","economy","npc","dialogue","day_cycle"],
-    adventure: ["movement","dialogue","collection","exploration"],
-    rpg: ["movement","dialogue","battle","loot","progression"],
-    platformer: ["movement","platform","collision","progression"],
-    racing: ["movement","racing","collision","progression"],
-    puzzle: ["puzzle","selection","progression"],
-    shooter: ["movement","shooting","collision","survival"],
-    strategy: ["strategy","placement","command","capture","economy"],
-    simulation: ["simulation","building","allocation","progression"],
-    survival: ["movement","survival","scavenge","crafting","defense","progression"],
-  }[genre];
+  const requiredSystemNames = getGenreDefinition(genre).systems;
   const missing = requiredSystemNames.filter((s) => !systems.has(s));
   const systemsPassed = missing.length === 0;
   addCheck(checks, "2d_required_systems", systemsPassed,
