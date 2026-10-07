@@ -405,7 +405,7 @@ export function buildAutonomousGameHtml(
       (asset.metadata.providerMetadata?.spriteSheet ? "sprite-sheet" :
         asset.kind === "character" || asset.kind === "npc" || asset.kind === "enemy" || asset.kind === "companion"
           ? "single-image"
-          : undefined),
+          : undefined) as "sprite-sheet" | "single-image" | undefined,
     frameWidth: typeof asset.metadata.providerMetadata?.spriteSheet === "object" && asset.metadata.providerMetadata?.spriteSheet
       ? Number((asset.metadata.providerMetadata.spriteSheet as { frameWidth?: number }).frameWidth || 256)
       : undefined,
