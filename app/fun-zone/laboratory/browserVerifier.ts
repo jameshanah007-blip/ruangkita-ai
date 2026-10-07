@@ -46,7 +46,10 @@ function buildVerifierHtml(gameHtml: string, actions: string[]) {
   window.addEventListener("error",e=>s.errors.push({message:String(e.message||"runtime error"),source:e.filename||undefined,line:e.lineno||null,column:e.colno||null}));
   window.addEventListener("unhandledrejection",e=>s.errors.push({message:String(e.reason?.message||e.reason||"unhandled rejection")}));
   const add=EventTarget.prototype.addEventListener;
-  EventTarget.prototype.addEventListener=function(t,l,o){if(["keydown","keyup","pointerdown","pointerup","mousedown","mouseup","touchstart","touchend","click"].includes(String(t).toLowerCase()))s.inputListeners++;return add.call(this,t,l,o)};
+  const inputTypes=["keydown","keyup","pointerdown","pointerup","mousedown","mouseup","touchstart","touchend","click"];
+  const originalDispatch=EventTarget.prototype.dispatchEvent;
+  EventTarget.prototype.addEventListener=function(t,l,o){if(inputTypes.includes(String(t).toLowerCase()))s.inputListeners++;return add.call(this,t,l,o)};
+  EventTarget.prototype.dispatchEvent=function(ev){if(ev&&inputTypes.includes(String(ev.type).toLowerCase()))s.inputEvents++;return originalDispatch.call(this,ev)};
   const raf=window.requestAnimationFrame;
   window.requestAnimationFrame=function(cb){return raf.call(window,t=>{s.frames++;cb(t)})};
   window.__RK_AUTONOMOUS_ACTIONS__=__ACTION_PLACEHOLDER__;
@@ -72,17 +75,38 @@ function buildVerifierHtml(gameHtml: string, actions: string[]) {
     await sleep(700);
     const before=snap(),beforeCanvas=canvas(),p=before.protocol;
     let actionExecuted=false;
+    let actionResults=[];
     if(p&&typeof p.performTestAction==="function"){
-      let candidates=window.__RK_AUTONOMOUS_ACTIONS__.slice();
-      try{const boot=window.__RK_PHASER_BOOT_SPEC__;if(boot&&Array.isArray(boot.actions))candidates=candidates.concat(boot.actions);}catch(_){}
+      let candidates=[];
+      try{
+        const boot=window.__RK_PHASER_BOOT_SPEC__;
+        if(boot&&Array.isArray(boot.actions))candidates=boot.actions.slice();
+      }catch(_){}
+      if(!candidates.length)candidates=window.__RK_AUTONOMOUS_ACTIONS__.slice();
       if(!candidates.length)candidates=["move","interact","jump","attack","collect","dodge","shoot","open_door","use_item","talk","solve"];
       for(const a of candidates){
-        try{await Promise.resolve(p.performTestAction(a));actionExecuted=true;break}catch(_){}
+        try{
+          const result=await Promise.resolve(p.performTestAction(a));
+          actionResults.push({action:String(a),ok:result!==false});
+        }catch(error){
+          actionResults.push({action:String(a),ok:false,error:String(error?.message||error)});
+        }
+        await sleep(90);
       }
+      actionExecuted=actionResults.some(r=>r.ok);
     }else{
       const b=document.querySelector("button");if(b){b.click();actionExecuted=true}
       const c=document.querySelector("canvas");if(c){try{c.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true}))}catch(_){}}
     }
+    try{
+      const c=document.querySelector("canvas");
+      if(c){
+        c.dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowRight",bubbles:true}));
+        c.dispatchEvent(new KeyboardEvent("keyup",{key:"ArrowRight",bubbles:true}));
+        c.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,clientX:20,clientY:20}));
+        c.dispatchEvent(new PointerEvent("pointerup",{bubbles:true,clientX:20,clientY:20}));
+      }
+    }catch(_){}
     await sleep(1000);
     const after=snap(),afterCanvas=canvas();
     let restartVerified=false;
@@ -94,18 +118,20 @@ function buildVerifierHtml(gameHtml: string, actions: string[]) {
       runtimeErrors:s.errors.slice(0,10),runtimeOk:s.errors.length===0,
       rendered:afterCanvas.nonBlankPixels>=10,loopStarted:s.frames>=5,frameAdvanced:s.frames>=5,
       canvasValid:afterCanvas.valid&&afterCanvas.width>=100&&afterCanvas.height>=100,
-      inputTest:actionExecuted||s.inputEvents>0,gameplayTest:actionExecuted,performanceTest:elapsed<=15000,
+      inputTest:actionExecuted||s.inputEvents>0,gameplayTest:actionExecuted && actionResults.length>0 && actionResults.every(r=>r.ok),performanceTest:elapsed<=15000,
       frameCount:s.frames,gameAnimationFrames:s.frames,inputEvents:s.inputEvents,inputListeners:s.inputListeners,
       canvasWidth:afterCanvas.width,canvasHeight:afterCanvas.height,nonBlankPixels:afterCanvas.nonBlankPixels,
       renderChanged:beforeCanvas.nonBlankPixels!==afterCanvas.nonBlankPixels,elapsedMs:elapsed,
       gameTestProtocol:!!p,stateChanged:diff(before.state,after.state),objectiveChanged:diff(before.objective,after.objective),
-      playerChanged:diff(before.player,after.player),winStateDetected:after.won===true,loseStateDetected:after.lost===true,
+      playerChanged:diff(before.player,after.player),genreState:after.protocol&&typeof after.protocol.getGenreState==="function"?after.protocol.getGenreState():undefined,winStateDetected:after.won===true,loseStateDetected:after.lost===true,
       restartVerified,gameTestError:before.error,
       engine2D:engine.version ? true : undefined,
       engine2DGenre:engine.genre ? String(engine.genre) : undefined,
       engine2DSystems:Array.isArray(engine.systems) ? engine.systems.map(String) : undefined,
       runtimeEngine:engine.engine ? String(engine.engine) : undefined,
-      runtimeVersion:engine.phaserVersion ? String(engine.phaserVersion) : undefined
+      runtimeVersion:engine.phaserVersion ? String(engine.phaserVersion) : undefined,
+      tutorialAvailable:!!(p&&typeof p.getTutorialState==="function"&&p.getTutorialState().available),
+      directionalControls:typeof p?.getControlState==="function"?p.getControlState():undefined
     })
   };
 })();
