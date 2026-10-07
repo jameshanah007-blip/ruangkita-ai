@@ -5,5 +5,16 @@ export type Visual2DProfile={style:"original_pixel_art"|"hand_drawn"|"vector"|"m
 export type EntitySpec2D={id:string;kind:"player"|"npc"|"enemy"|"creature"|"item"|"obstacle"|"goal";label:string;x:number;y:number;width:number;height:number;interactive?:boolean;hp?:number;metadata?:Record<string,string|number|boolean>};
 export type SceneSpec2D={id:string;name:string;width:number;height:number;background:string;entities:EntitySpec2D[];exits?:Array<{targetScene:string;x:number;y:number;width:number;height:number}>};
 export type AssetSpec2D={id:string;kind:"sprite"|"tileset"|"icon"|"background";source:"generated"|"embedded"|"external";uri?:string;frames?:number};
-export type GameSpecification2D={version:"2d-engine-v2";title:string;genre:Engine2DGenre;camera:Camera2DMode;objective:string;winCondition:string;loseCondition:string;systems:Game2DSystem[];controls:{keyboard:string[];touch:string[]};visual:Visual2DProfile;scenes:SceneSpec2D[];assets:AssetSpec2D[];metadata:{sourcePrompt:string;deterministicSeed:number;engine:"james-2d"}};
+export type GameSpecification2D={version:"2d-engine-v2";title:string;genre:Engine2DGenre;camera:Camera2DMode;objective:string;winCondition:string;loseCondition:string;systems:Game2DSystem[];controls:{keyboard:string[];touch:string[]};visual:Visual2DProfile;scenes:SceneSpec2D[];assets:AssetSpec2D[];metadata:{sourcePrompt:string;deterministicSeed:number;engine:"james-2d";runtimeId?:string}};
 export type GenreProfile2D={genre:Engine2DGenre;camera:Camera2DMode;requiredSystems:Game2DSystem[];visualDefaults:Visual2DProfile;minimumScenes:number;requiredEntityKinds:EntitySpec2D["kind"][]};
+
+export type GenreRuntimePlan={
+  genre:Engine2DGenre;
+  runtimeId:string;
+  label:string;
+  palette:{background:string;panel:string;ground:string;accent:string;danger:string;light:string};
+  tutorial:{title:string;body:string};
+  testActions:string[];
+  sourceVersion:"genre-runtime-v1";
+  script:string;
+};
