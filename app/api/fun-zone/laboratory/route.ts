@@ -15,7 +15,7 @@ import type {
 import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
 import { isPokemon2DRequest } from "../../../fun-zone/engine/jamesPokemon2DTemplate";
-import { resolve2DGenre, compile2DSpec, validate2DSpec, build2DGameHtml } from "../../../fun-zone/engine2d";
+import { buildAuthoritative2DGame } from "../../../fun-zone/engine2d";
 import { composeGamePlan } from "../../../fun-zone/engine/gameComposer";
 import { createVisualBlueprint } from "../../../fun-zone/engine/visualDirector";
 import { buildAssetRegistry } from "../../../fun-zone/engine/assetRegistry";
@@ -459,23 +459,21 @@ export async function POST(
 
     // Specialized 2D runtimes are authoritative. Provider-generated HTML must
     // never replace a genre-specific runtime with the generic legacy template.
-    const genre2D = resolve2DGenre(prompt) || resolve2DGenre(composedBlueprint);
-    const spec2D = genre2D ? compile2DSpec(composedBlueprint, prompt) : null;
-    const specErrors = spec2D ? validate2DSpec(spec2D) : [];
-    const requires2DEngine = Boolean(genre2D && spec2D && specErrors.length === 0);
+    const authoritative2D = buildAuthoritative2DGame(composedBlueprint, prompt);
 
-    if (requires2DEngine && spec2D) {
+    if (authoritative2D) {
       builder = {
         success: true,
         provider: "james-2d-engine",
-        model: "2d-engine-v2",
-        gameHtml: build2DGameHtml(spec2D),
+        model: authoritative2D.runtimeId,
+        gameHtml: authoritative2D.html,
         validation: {
           valid: true,
           errors: [],
           warnings: [
-            "Compiled from GameSpecification2D.",
-            "Genre profile, scenes, entities and systems are explicit.",
+            "Compiled from the authoritative 2D GameSpecification.",
+            "Dedicated genre runtime module selected: " + authoritative2D.runtimeId,
+            "Required systems: " + authoritative2D.systems.join(", "),
           ],
         },
       };
