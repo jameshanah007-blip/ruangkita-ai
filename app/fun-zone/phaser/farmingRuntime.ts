@@ -14,14 +14,17 @@ export function buildFarmingGameHtml(spec: PhaserGameSpec): string {
     palette: spec.visual.palette,
     playerAssetUri: farmerAsset.uri,
     playerAssetId: farmerAsset.id,
+    playerAnimationMode: farmerAsset.animationMode || "single-image",
+    playerFrameWidth: farmerAsset.frameWidth || 256,
+    playerFrameHeight: farmerAsset.frameHeight || 256,
   }).replace(/</g, "\\u003c");
 
-  const farmerSvgLiteral = JSON.stringify(farmerAsset.uri);
+  const farmerAssetLiteral = JSON.stringify(farmerAsset.uri);
 
   const script = `
 "use strict";
 const CFG=\${config};
-const FARMER_SVG=\${farmerSvgLiteral};
+const FARMER_ASSET=\${farmerAssetLiteral};
 let farm={money:50,wheat:0,tool:"till",harvested:0,day:1,plots:Array.from({length:12},()=>({state:"empty"}))};
 
 window.__RK_GAME_READY__=false;
@@ -81,20 +84,11 @@ class FarmScene extends Phaser.Scene {
   constructor(){super({key:"FarmScene"});}
 
   preload(){
-    this.load.spritesheet(
-      "farmer",
-      FARMER_SVG,
-      {frameWidth:256,frameHeight:256}
-    );
+    if(CFG.playerAnimationMode==="sprite-sheet"){this.load.spritesheet("farmer",FARMER_ASSET,{frameWidth:CFG.playerFrameWidth,frameHeight:CFG.playerFrameHeight});}else{this.load.image("farmer",FARMER_ASSET);}
   }
 
   create(){
-    this.anims.create({
-      key:"farmer-idle",
-      frames:this.anims.generateFrameNumbers("farmer",{start:0,end:3}),
-      frameRate:5,
-      repeat:-1
-    });
+    if(CFG.playerAnimationMode==="sprite-sheet"){this.anims.create({key:"farmer-idle",frames:this.anims.generateFrameNumbers("farmer",{start:0,end:3}),frameRate:5,repeat:-1});}
 
     this.cameras.main.setBackgroundColor("#9bcf7b");
     this.add.rectangle(480,320,960,640,0x9bcf7b);
@@ -129,8 +123,8 @@ class FarmScene extends Phaser.Scene {
       {fontSize:"13px",fontFamily:"Arial",color:"#365314"}
     );
 
-    const player=this.add.sprite(120,470,"farmer").setScale(.75);
-    player.play("farmer-idle");
+    const player=this.add.sprite(120,470,"farmer").setScale(CFG.playerAnimationMode==="sprite-sheet"?.75:.42);
+    if(CFG.playerAnimationMode==="sprite-sheet") player.play("farmer-idle");
     window.__RK_FARM_PLAYER__=player;
 
     ["till","plant","water","harvest","sell"].forEach((tool,index)=>{
@@ -195,6 +189,10 @@ class FarmScene extends Phaser.Scene {
 
   update(){
     window.__RK_GAME_LOOP_STARTED__=true;
+    if(window.__RK_FARM_PLAYER__ && CFG.playerAnimationMode!=="sprite-sheet"){
+      const t=performance.now();
+      window.__RK_FARM_PLAYER__.setAngle(Math.sin(t/700)*1.2).setScale(.42+Math.sin(t/260)*.008);
+    }
   }
 }
 
