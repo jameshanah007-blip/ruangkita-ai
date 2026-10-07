@@ -401,6 +401,23 @@ export function buildAutonomousGameHtml(
     kind: asset.kind,
     uri: asset.uri,
     animationNeeds: asset.metadata.animationNeeds || [],
+    animationMode:
+      (asset.metadata.providerMetadata?.spriteSheet ? "sprite-sheet" :
+        asset.kind === "character" || asset.kind === "npc" || asset.kind === "enemy" || asset.kind === "companion"
+          ? "single-image"
+          : undefined),
+    frameWidth: typeof asset.metadata.providerMetadata?.spriteSheet === "object" && asset.metadata.providerMetadata?.spriteSheet
+      ? Number((asset.metadata.providerMetadata.spriteSheet as { frameWidth?: number }).frameWidth || 256)
+      : undefined,
+    frameHeight: typeof asset.metadata.providerMetadata?.spriteSheet === "object" && asset.metadata.providerMetadata?.spriteSheet
+      ? Number((asset.metadata.providerMetadata.spriteSheet as { frameHeight?: number }).frameHeight || 256)
+      : undefined,
+    frameCount: typeof asset.metadata.providerMetadata?.spriteSheet === "object" && asset.metadata.providerMetadata?.spriteSheet
+      ? Number((asset.metadata.providerMetadata.spriteSheet as { frameCount?: number }).frameCount || 4)
+      : undefined,
+    rowCount: typeof asset.metadata.providerMetadata?.spriteSheet === "object" && asset.metadata.providerMetadata?.spriteSheet
+      ? Number((asset.metadata.providerMetadata.spriteSheet as { rowCount?: number }).rowCount || 1)
+      : undefined,
     characterDNA: (asset.metadata.providerMetadata?.characterDNA as Record<string, unknown> | undefined) || null,
   }));
   const phaserSpec = compilePhaserGameSpec(blueprint, blueprint.concept || blueprint.title, phaserAssets);
