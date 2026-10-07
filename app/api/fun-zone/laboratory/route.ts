@@ -15,6 +15,7 @@ import type {
 import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies, applyJamesEffectiveStrategies, getJamesEffectiveStrategies } from "../../../fun-zone/engine/jamesGameLearning";
 import { analyzeReferenceImage, type ReferenceImageAnalysis } from "../../../fun-zone/engine/referenceImageAnalyzer";
+import { buildAuthoritativePhaserGame } from "../../../fun-zone/phaser";
 
 import {
   createArtifact,
@@ -427,22 +428,8 @@ export async function POST(
       blueprint:
         composedBlueprint,
 
-      visualBlueprint,
-
-      visualQa,
-      referenceVisualTarget: visualQa.referenceTarget,
       referenceImage: referenceImageMetadata,
       referenceImageAnalysis,
-      refinementPlan: visualQa.refinement,
-      refinementPasses,
-
-      assetRegistry,
-
-      characterAssetPlan,
-
-      generatedAssets,
-
-      materializedAssets,
 
       artifact,
 
