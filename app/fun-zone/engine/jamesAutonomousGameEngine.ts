@@ -394,8 +394,16 @@ function runtimeAssets(materializedAssets?: AssetMaterializationResult) {
 export function buildAutonomousGameHtml(
   blueprint: GameBlueprint,
   materializedAssets?: AssetMaterializationResult,
+  originalPrompt?: string,
 ): string {
-  if (isPokemon2DRequest(blueprint)) {
+  // The original user request is authoritative for genre routing. AI Director/provider
+  // output may paraphrase the request and accidentally erase genre keywords; routing must
+  // never fall back to the generic runtime just because the provider renamed the genre.
+  const authoritativePokemonRequest =
+    isPokemon2DRequest(blueprint) ||
+    /pokemon|pokémon|monster tamer|monster-tamer|creature tamer|creature collection|monster trainer|monster collection/i.test(originalPrompt || "");
+
+  if (authoritativePokemonRequest) {
     return buildPokemon2DGameHtml(blueprint);
   }
 
