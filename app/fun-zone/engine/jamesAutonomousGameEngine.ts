@@ -395,6 +395,10 @@ export function buildAutonomousGameHtml(
   blueprint: GameBlueprint,
   materializedAssets?: AssetMaterializationResult,
 ): string {
+  if (isPokemon2DRequest(blueprint)) {
+    return buildPokemon2DGameHtml(blueprint);
+  }
+
   // The first-class 2D foundation is a dedicated top-down tile/sprite runtime.
   // Generic games keep the existing autonomous engine unchanged.
   if (isTopDown2DTemplateRequest(blueprint)) {
