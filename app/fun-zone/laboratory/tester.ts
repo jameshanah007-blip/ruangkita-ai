@@ -256,6 +256,22 @@ function checkInput(
  * Game harus memberikan bukti semantic melalui
  * Game Test Protocol.
  */
+function checkPlayerGuidanceAndControls(
+  evidence: SandboxTestEvidence,
+  checks: TestCheck[],
+): string[] {
+  const failures: string[] = [];
+  const tutorialPassed = evidence.tutorialAvailable === true;
+  addCheck(checks,"tutorial",tutorialPassed,tutorialPassed ? "Petunjuk bermain tersedia." : "Game belum membuktikan adanya petunjuk bermain.");
+  if (!tutorialPassed) failures.push("Petunjuk bermain wajib tersedia.");
+
+  const controls = evidence.directionalControls;
+  const controlsPassed = controls?.up === true && controls?.down === true && controls?.left === true && controls?.right === true;
+  addCheck(checks,"directional_controls",controlsPassed,controlsPassed ? "Kontrol 4 arah tersedia." : "Kontrol 4 arah belum terbukti lengkap.");
+  if (!controlsPassed) failures.push("Kontrol 4 arah wajib tersedia dan terbukti.");
+  return failures;
+}
+
 function checkGameplay(
   evidence: SandboxTestEvidence,
   checks: TestCheck[]
