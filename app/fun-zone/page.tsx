@@ -620,7 +620,6 @@ export default function FunZonePage() {
     setModel("");
     setSeed("");
     setTestReport(null);
-    setAutonomousRepairAttempts(0);
     setTerminalTick(0);
     setIsGenerating(true);
 
