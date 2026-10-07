@@ -6,7 +6,6 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 import { runJamesBrain } from "../../../core/james/jamesBrain";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
-import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "../../../fun-zone/engine/james2DTopDownTemplate";
 import type {
   GameBlueprint,
   RuntimeError,
@@ -959,15 +958,9 @@ Output hanya HTML.
         validationErrors
       );
       const safeBlueprint = normalizeBlueprint(blueprint)!;
-      fixedHtml = isTopDown2DTemplateRequest(safeBlueprint)
-        ? buildTopDown2DGameHtml(safeBlueprint)
-        : buildAutonomousGameHtml(safeBlueprint);
-      provider = isTopDown2DTemplateRequest(safeBlueprint)
-        ? "james-autonomous-topdown-repair"
-        : "james-autonomous-fallback";
-      model = isTopDown2DTemplateRequest(safeBlueprint)
-        ? "james-2d-topdown-runtime-v2"
-        : "autonomous-evolution-engine-v1";
+      fixedHtml = buildAutonomousGameHtml(safeBlueprint);
+      provider = "james-autonomous-fallback";
+      model = "phaser-2d-runtime-v1";
       validationErrors = validateGameHtml(fixedHtml);
     }
 
