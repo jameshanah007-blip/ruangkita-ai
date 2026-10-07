@@ -4,8 +4,12 @@ const PHASER_VERSION = "4.2.1";
 const PHASER_CDN = "https://cdn.jsdelivr.net/npm/phaser@" + PHASER_VERSION + "/dist/phaser.min.js";
 
 export function buildFarmingGameHtml(spec: PhaserGameSpec): string {
-  const farmerAsset = spec.assets.find((asset) => asset.id === spec.playerAssetId) || spec.assets.find((asset) => asset.kind === "character");
-  if (!farmerAsset) throw new Error("Farming Phaser runtime requires a character asset.");
+  const farmerAsset = spec.assets.find((asset) => asset.id === spec.player.assetId);
+  if (!farmerAsset) {
+    throw new Error(
+      "Farming Phaser runtime requires the declared player asset: " + spec.player.assetId,
+    );
+  }
   const config = JSON.stringify({
     title: spec.title,
     objective: spec.objective,
@@ -13,7 +17,7 @@ export function buildFarmingGameHtml(spec: PhaserGameSpec): string {
     loseCondition: spec.loseCondition,
     palette: spec.visual.palette,
     playerAssetUri: farmerAsset.uri,
-    playerAssetId: farmerAsset.id,
+    playerAssetId: spec.player.assetId,
     playerAnimationMode: farmerAsset.animationMode || "single-image",
     playerFrameWidth: farmerAsset.frameWidth || 256,
     playerFrameHeight: farmerAsset.frameHeight || 256,
