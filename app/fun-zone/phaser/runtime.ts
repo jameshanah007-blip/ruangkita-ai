@@ -147,5 +147,6 @@ export function buildPhaserRuntime(spec: PhaserGameSpec): PhaserRuntimeBuild {
     engine: "phaser",
     phaserVersion: "3.90.0",
     systems: Array.from(new Set(spec.systems)),
+    spec,
   };
 }
