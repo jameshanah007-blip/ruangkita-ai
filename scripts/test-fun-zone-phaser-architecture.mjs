@@ -22,7 +22,7 @@ for (const genre of genres) {
   }
 }
 
-for (const marker of ['Phaser.Scene','new Phaser.Game','Phaser.AUTO','Phaser.Scale.FIT','__RK_GAME_TEST__','__RK_2D_ENGINE_V2__','__RK_PHASER_BOOT_SPEC__','performTestAction','restart']) {
+for (const marker of ['Phaser.Scene','new Phaser.Game','Phaser.AUTO','Phaser.Scale.FIT','__RK_GAME_TEST__','__RK_2D_ENGINE_V2__','__RK_PHASER_BOOT_SPEC__','__RK_CHARACTER_STATE__','this.add.sprite','this.anims.create','rk-player-walk','performTestAction','restart']) {
   if (!runtime.includes(marker)) throw new Error('Missing runtime marker: ' + marker);
 }
 
@@ -31,6 +31,7 @@ if (!laboratory.includes('buildAuthoritativePhaserGame')) throw new Error('Labor
 if (!debugRoute.includes('Phaser 3.90.0')) throw new Error('Debugger route does not enforce Phaser 3.90.0 authority.');
 if (existsSync(legacyEngineDir)) throw new Error('Legacy app/fun-zone/engine2d path must remain removed from the active architecture.');
 if (runtime.includes('window.parent.postMessage')) throw new Error('Phaser runtime must not communicate with the parent window.');
+if (runtime.includes('var pl=this.add.rectangle') && runtime.includes('window.__RK_GAME_PLAYER__=pl')) throw new Error('Player character must use an animated sprite, not a geometric rectangle.');
 if (debugRoute.includes('engine2d/')) throw new Error('Debugger route must not import the legacy engine2d path.');
 if (laboratory.includes('engine2d/')) throw new Error('Laboratory route must not import the legacy engine2d path.');
 
