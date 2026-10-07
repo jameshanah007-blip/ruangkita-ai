@@ -527,6 +527,13 @@ export function testGame({
   );
 
   hardFailures.push(
+    ...checkPlayerGuidanceAndControls(
+      evidence,
+      checks
+    )
+  );
+
+  hardFailures.push(
     ...checkPerformance(
       evidence,
       checks
