@@ -78,6 +78,7 @@ function buildRuntimeScript(spec: PhaserGameSpec): string {
     "var rkState=JSON.parse(JSON.stringify(rkInitialState));",
     "var rkTesting=false;",
     "function bump(a){rkState.actions[a]=(rkState.actions[a]||0)+1;rkState.progress+=1;}",
+    "function go(id){rkState.scene=String(id||rkState.scene);if(window.__RK_GAME_INSTANCE__&&window.__RK_GAME_INSTANCE__.scene){try{window.__RK_GAME_INSTANCE__.scene.start(rkState.scene);}catch(_){}}return true;}",
     "function action(a){a=String(a||'');var ok=false;",
     "if(" + genre + "==='farming'){if(a==='till'){rkState.tilled=true;ok=true;}if(a==='plant'&&(rkTesting||rkState.tilled)){rkState.planted=true;ok=true;}if(a==='water'&&(rkTesting||rkState.planted)){rkState.watered=true;ok=true;}if(a==='harvest'&&(rkTesting||rkState.watered)){rkState.harvested=true;ok=true;}if(a==='sell'&&(rkTesting||rkState.harvested)){rkState.sold=true;rkState.money+=25;rkState.won=true;go('market');ok=true;}}",
     "if(" + genre + "==='monster_tamer'){if(a==='talk'){rkState.dialogueStarted=true;ok=true;}if(a==='accept_quest'&&(rkTesting||rkState.dialogueStarted)){rkState.questAccepted=true;ok=true;}if(a==='encounter'&&(rkTesting||rkState.questAccepted)){rkState.encounterStarted=true;rkState.battleStarted=true;go('battle');ok=true;}if(a==='attack'&&(rkTesting||rkState.battleStarted)){rkState.battleCompleted=true;ok=true;}if(a==='capture'&&(rkTesting||rkState.battleCompleted)){rkState.captureCount=1;ok=true;}if(a==='add_party'&&(rkTesting||rkState.captureCount>0)){rkState.partyCount=1;rkState.won=true;go('village');ok=true;}}",
@@ -122,7 +123,7 @@ function buildRuntimeScript(spec: PhaserGameSpec): string {
     "window.__RK_PHASER_BOOT_SPEC__={version:" + js(spec.version) + ",genre:" + genre + ",runtimeId:" + runtimeId + ",scenes:" + scenes + ",systems:" + systems + ",actions:" + actions + "};",
     spec.scenes.map((scene, index) => "class RKScene" + index + " extends RKSceneBase{constructor(){super(" + js(scene.id) + ");}}").join("\n"),
     "var rkSceneClasses=[" + spec.scenes.map((_, index) => "RKScene" + index).join(",") + "];",
-    "new Phaser.Game({type:Phaser.AUTO,width:960,height:640,parent:'game',backgroundColor:" + js(p.background) + ",scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:960,height:640},scene:rkSceneClasses,render:{antialias:false,roundPixels:true}});",
+    "window.__RK_GAME_INSTANCE__=new Phaser.Game({type:Phaser.AUTO,width:960,height:640,parent:'game',backgroundColor:" + js(p.background) + ",scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:960,height:640},scene:rkSceneClasses,render:{antialias:false,roundPixels:true}});",
   ].join("\n");
 }
 
