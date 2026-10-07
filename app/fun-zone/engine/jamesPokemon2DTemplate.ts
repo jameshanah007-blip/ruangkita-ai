@@ -104,9 +104,16 @@ var input={up:false,down:false,left:false,right:false,action:false};
 var state,started=false,tutorial=document.getElementById("tutorial"),message=document.getElementById("message");
 var titleEl=document.getElementById("title"),statsEl=document.getElementById("stats"),objectiveEl=document.getElementById("objective");
 window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;
+function createOriginalSpriteAtlas(){
+var atlas=document.createElement("canvas");atlas.width=256;atlas.height=256;var c=atlas.getContext("2d");c.imageSmoothingEnabled=false;function p(x,y,w,h,col){c.fillStyle=col;c.fillRect(x,y,w,h)}
+function hero(f,d){var ox=f*64,oy=d*64,b=f%2?1:0;p(ox+17,oy+51,30,5,"#0004");p(ox+22,oy+30+b,20,20,"#3e6fae");p(ox+24,oy+47+b,7,9,"#49352d");p(ox+33,oy+47+b,7,9,"#49352d");p(ox+23,oy+31+b,18,8,"#ead5ae");p(ox+22,oy+10+b,20,21,"#e8b28a");p(ox+19,oy+8+b,26,8,"#392825");p(ox+19,oy+13+b,5,10,"#392825");p(ox+40,oy+13+b,5,10,"#392825");if(d===0){p(ox+27,oy+19+b,3,3,"#20262b");p(ox+35,oy+19+b,3,3,"#20262b")}if(d===1)p(ox+38,oy+19+b,3,3,"#20262b");if(d===3)p(ox+23,oy+19+b,3,3,"#20262b");if(f===1){p(ox+14,oy+34,8,4,"#2b527f");p(ox+42,oy+31,8,4,"#2b527f")}if(f===3){p(ox+16,oy+31,8,4,"#2b527f");p(ox+40,oy+34,8,4,"#2b527f")}}
+function creature(f,d){var ox=f*64,oy=128+d*32;p(ox+10,oy+25,44,20,"#0004");p(ox+14,oy+12,36,26,"#d47b45");p(ox+18,oy+6,11,10,"#d47b45");p(ox+35,oy+6,11,10,"#d47b45");p(ox+20,oy+16,24,13,"#f0c36a");p(ox+21,oy+12,5,5,"#1d2930");p(ox+38,oy+12,5,5,"#1d2930");p(ox+5,oy+17,9,7,"#7b3d34");p(ox+50,oy+17,9,7,"#7b3d34");p(ox+18+(f%2)*2,oy+38,9,5,"#7b3d34");p(ox+37-(f%2)*2,oy+38,9,5,"#7b3d34")}
+for(var d=0;d<4;d++)for(var f=0;f<4;f++){hero(f,d);creature(f,d)}return atlas}
+function spriteDraw(ctx,atlas,e,kind,size,elapsed){var f=e.moving?Math.floor((e.animTime||0)*9)%4:Math.floor(elapsed*3)%2;var d=e.dir||0,sx=f*64,sy=kind==="creature"?128+d*32:d*64,sh=kind==="creature"?32:64;ctx.imageSmoothingEnabled=false;ctx.drawImage(atlas,sx,sy,64,sh,e.x-size/2,e.y-size*.78,size,size)}
+var spriteAtlas=createOriginalSpriteAtlas();window.__RK_2D_CORE_VERSION__="1.0.0";window.__RK_2D_CORE_CAPABILITIES__=["sprite_atlas","4_direction_animation","keyboard","touch","camera","collision","entity_state"];
 
 function resize(){var r=c.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,2);W=Math.max(320,r.width);H=Math.max(520,r.height);c.width=Math.floor(W*dpr);c.height=Math.floor(H*dpr);x.setTransform(dpr,0,0,dpr,0,0)}
-function reset(){state={px:360,py:420,dir:"down",hp:100,coins:120,creatures:0,steps:0,npcTalked:false,wildSeen:false,captured:false,stateChanges:0,objectiveChanges:0,won:false,lost:false,restartCount:0,dialog:"",dialogUntil:0,flash:0};message.style.display="none";updateHud()}
+function reset(){state={px:360,py:420,dir:"down",moving:false,animTime:0,hp:100,coins:120,creatures:0,steps:0,npcTalked:false,wildSeen:false,captured:false,stateChanges:0,objectiveChanges:0,won:false,lost:false,restartCount:0,dialog:"",dialogUntil:0,flash:0};message.style.display="none";updateHud()}
 function setInput(k,v){input[k]=v}
 function bindHold(el,key){el.addEventListener("pointerdown",function(e){e.preventDefault();el.setPointerCapture&&el.setPointerCapture(e.pointerId);setInput(key,true)});["pointerup","pointercancel","pointerleave"].forEach(function(t){el.addEventListener(t,function(e){e.preventDefault();setInput(key,false)})})}
 document.querySelectorAll("[data-dir]").forEach(function(el){bindHold(el,el.getAttribute("data-dir"))});
@@ -128,7 +135,7 @@ function action(){
 }
 function move(dt){
  var dx=(input.right?1:0)-(input.left?1:0),dy=(input.down?1:0)-(input.up?1:0);
- var moving=dx||dy;if(!moving)return;
+ var moving=dx||dy;state.moving=!!moving;if(!moving)return;state.animTime+=dt;
  var len=Math.hypot(dx,dy)||1,speed=155;
  state.px=Math.max(45,Math.min(675,state.px+dx/len*speed*dt));
  state.py=Math.max(155,Math.min(H-55,state.py+dy/len*speed*dt));
@@ -140,9 +147,9 @@ function showMessage(t,b){document.getElementById("messageTitle").textContent=t;
 function updateHud(){titleEl.textContent=G.title;statsEl.textContent="HP "+state.hp+" · COIN "+state.coins+" · CREATURE "+state.creatures;objectiveEl.textContent=G.objective||"Jelajahi, bicara dengan NPC, temukan dan tangkap creature."}
 function tree(px,py,s){x.fillStyle="#62452d";x.fillRect(px-5,py+s*.25,10,s*.75);x.fillStyle="#2e7040";x.fillRect(px-s*.5,py-s*.1,s,s*.7);x.fillStyle="#43834a";x.fillRect(px-s*.32,py-s*.35,s*.64,s*.45)}
 function house(px,py){x.fillStyle="#b78a58";x.fillRect(px,py,150,85);x.fillStyle="#d56e3b";x.beginPath();x.moveTo(px-15,py);x.lineTo(px+75,py-65);x.lineTo(px+165,py);x.fill();x.fillStyle="#f2e4bd";x.fillRect(px+20,py+24,32,32);x.fillRect(px+98,py+24,32,32);x.fillStyle="#744a37";x.fillRect(px+64,py+40,25,45)}
-function creature(px,py){x.save();x.translate(px,py);x.fillStyle="#f08b34";x.fillRect(-24,-18,48,38);x.fillStyle="#f7c96a";x.fillRect(-15,-8,30,20);x.fillStyle="#26343a";x.fillRect(-12,-8,6,6);x.fillRect(6,-8,6,6);x.fillStyle="#e35b45";x.fillRect(-31,-6,8,8);x.fillRect(23,-6,8,8);x.restore()}
-function player(px,py){x.fillStyle="#0004";x.beginPath();x.ellipse(px,py+24,18,7,0,0,Math.PI*2);x.fill();x.fillStyle="#3d70b8";x.fillRect(px-13,py-3,26,29);x.fillStyle="#f1c39b";x.beginPath();x.arc(px,py-16,13,0,Math.PI*2);x.fill();x.fillStyle="#b83c38";x.fillRect(px-15,py-29,30,8);x.fillStyle="#f4e1bd";x.fillRect(px-12,py+26,9,8);x.fillRect(px+3,py+26,9,8)}
-function npc(px,py){x.fillStyle="#eee2c4";x.fillRect(px-12,py-4,24,32);x.fillStyle="#d5b35d";x.beginPath();x.arc(px,py-17,14,0,Math.PI*2);x.fill();x.fillStyle="#39433a";x.fillRect(px-18,py-27,36,7)}
+function creature(px,py){spriteDraw(x,spriteAtlas,{x:px,y:py,dir:0,moving:false,animTime:elapsed},"creature",72,elapsed)}
+function player(px,py){spriteDraw(x,spriteAtlas,{x:px,y:py,dir:state.dir==="left"?3:state.dir==="right"?1:state.dir==="up"?2:0,moving:state.moving,animTime:state.animTime},"hero",82,elapsed)}
+function npc(px,py){spriteDraw(x,spriteAtlas,{x:px,y:py,dir:0,moving:false,animTime:elapsed},"hero",72,elapsed)}
 function draw(){
  x.fillStyle="#83b96d";x.fillRect(0,0,W,H);
  x.fillStyle="#6da25d";x.fillRect(0,H*.54,W,H*.46);
