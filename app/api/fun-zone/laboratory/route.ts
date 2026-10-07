@@ -13,23 +13,8 @@ import type {
   ReferenceImageEvidence,
 } from "../../../fun-zone/laboratory/types";
 import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
-import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
-import { isPokemon2DRequest } from "../../../fun-zone/engine/jamesPokemon2DTemplate";
-import { buildAuthoritative2DGame } from "../../../fun-zone/engine2d";
-import { composeGamePlan } from "../../../fun-zone/engine/gameComposer";
-import { createVisualBlueprint } from "../../../fun-zone/engine/visualDirector";
-import { buildAssetRegistry } from "../../../fun-zone/engine/assetRegistry";
-import { generateGameAssets } from "../../../fun-zone/engine/assetGenerator";
-import { materializeGameAssets } from "../../../fun-zone/engine/assetMaterializer";
-import { buildCharacterAssetPlan } from "../../../fun-zone/engine/characterAssetPipeline";
-import { createOpenAIImageProvider } from "../../../fun-zone/engine/openAIImageProvider";
-import { createGeminiImageProvider } from "../../../fun-zone/engine/geminiImageProvider";
 import { applyJamesGameLessons, getJamesGameLessons, applyJamesGameMastery, getJamesGameMastery, applyJamesGameAdaptations, getJamesGameAdaptations, applyJamesFailedStrategyAvoidance, getJamesFailedStrategies, applyJamesEffectiveStrategies, getJamesEffectiveStrategies } from "../../../fun-zone/engine/jamesGameLearning";
-import { createGameBuildPlan } from "../../../fun-zone/engine/gameBuildPlan";
-import { applyVisualRefinement, evaluateVisualBuild } from "../../../fun-zone/engine/visualQa";
 import { analyzeReferenceImage, type ReferenceImageAnalysis } from "../../../fun-zone/engine/referenceImageAnalyzer";
-
-const PROVIDER_ENHANCEMENT_ENABLED = process.env.JAMES_ENABLE_PROVIDER_ENHANCEMENT === "true";
 
 import {
   createArtifact,
@@ -178,45 +163,6 @@ async function callDirector(
     throw new Error(
       data?.error ||
         "AI Director gagal."
-    );
-  }
-
-  return data;
-}
-
-async function callBuilder(
-  request: Request,
-  blueprint: GameBlueprint
-): Promise<BuilderResponse> {
-  const response =
-    await fetch(
-      absoluteUrl(
-        request,
-        "/api/fun-zone/factory"
-      ),
-      {
-        method: "POST",
-
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-
-        body: JSON.stringify({
-          blueprint,
-        }),
-
-        cache: "no-store",
-      }
-    );
-
-  const data =
-    await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data?.error ||
-        "AI Builder gagal."
     );
   }
 
@@ -396,43 +342,9 @@ export async function POST(
     const avoidanceBlueprint = applyJamesFailedStrategyAvoidance(adaptationBlueprint, failedGameStrategies);
     const learnedBlueprint = applyJamesEffectiveStrategies(avoidanceBlueprint, effectiveGameStrategies);
 
-    // Compose reusable gameplay systems before the existing autonomous builder runs.
-    // We enrich the existing blueprint instead of replacing the current architecture.
-    let effectiveBlueprint = learnedBlueprint;
-    const composedPlan = composeGamePlan(effectiveBlueprint);
-    let buildPlan = createGameBuildPlan(effectiveBlueprint);
-    let visualBlueprint = createVisualBlueprint(learnedBlueprint);
-    let visualQa = evaluateVisualBuild(learnedBlueprint, buildPlan, visualBlueprint);
-    let refinementPasses = 0;
-
-    // Execute at most one bounded visual refinement before asset generation.
-    // This is intentionally additive: the original blueprint remains the base,
-    // while QA feedback enriches the next build specification.
-    if (visualQa.refinement.required && visualQa.refinement.maxPasses > 0) {
-      effectiveBlueprint = applyVisualRefinement(effectiveBlueprint, visualQa);
-      buildPlan = createGameBuildPlan(effectiveBlueprint);
-      visualBlueprint = createVisualBlueprint(effectiveBlueprint);
-      visualQa = evaluateVisualBuild(effectiveBlueprint, buildPlan, visualBlueprint);
-      refinementPasses = 1;
-    }
-
-    const characterAssetPlan = buildCharacterAssetPlan(visualBlueprint.characters, visualBlueprint.artDirection.style);
-    const assetRegistry = buildAssetRegistry(visualBlueprint);
-    const realAssetProviders = process.env.JAMES_ENABLE_REAL_ASSET_GENERATION === "true"
-      ? [
-          createGeminiImageProvider(),
-          createOpenAIImageProvider(),
-        ].filter((provider): provider is NonNullable<typeof provider> => Boolean(provider))
-      : [];
-    const generatedAssets = await generateGameAssets(assetRegistry, realAssetProviders);
-    const materializedAssets = materializeGameAssets(generatedAssets);
-    const composedBlueprint: GameBlueprint = {
-      ...effectiveBlueprint,
-      mechanics: [...new Set([...effectiveBlueprint.mechanics, ...composedPlan.systems.map((system) => system.id)])],
-      playerActions: [...new Set([...effectiveBlueprint.playerActions, ...composedPlan.requiredActions])],
-      testRequirements: [...new Set([...effectiveBlueprint.testRequirements, ...composedPlan.testGoals, ...buildPlan.testStages])],
-      controls: [...new Set([...effectiveBlueprint.controls, ...buildPlan.controls.keyboard, ...buildPlan.controls.touch])],
-    };
+    // GameSpec is the only build contract. Learning may enrich the Director blueprint,
+    // but no second composer/build-plan/template is allowed to create another runtime.
+    const composedBlueprint: GameBlueprint = learnedBlueprint;
 
     session =
       markDirectorCompleted(
@@ -442,88 +354,40 @@ export async function POST(
 
     /*
      * ==========================================
-     * JAMES AUTONOMOUS BUILDER
+     * PHASER GAME RUNTIME
      * ==========================================
      *
-     * This is the normal Laboratory path.
-     * James compiles the blueprint directly into
-     * a standalone HTML5 game without calling a
-     * provider. A provider can be enabled later as
-     * an optional enhancement, never as a dependency.
+     * Phaser is the sole 2D runtime authority.
+     * The Director blueprint is compiled into one
+     * canonical Phaser GameSpec and one runtime.
      */
-
     session = markBuilderStarted(session);
 
-    let builder: BuilderResponse;
-    let builderProvider = "james-autonomous";
-
-    // Specialized 2D runtimes are authoritative. Provider-generated HTML must
-    // never replace a genre-specific runtime with the generic legacy template.
-    const authoritative2D = buildAuthoritative2DGame(composedBlueprint, prompt);
-
-    if (authoritative2D) {
-      builder = {
-        success: true,
-        provider: "james-2d-engine",
-        model: authoritative2D.runtimeId,
-        gameHtml: authoritative2D.html,
-        validation: {
-          valid: true,
-          errors: [],
-          warnings: [
-            "Compiled from the authoritative 2D GameSpecification.",
-            "Dedicated genre runtime module selected: " + authoritative2D.runtimeId,
-            "Required systems: " + authoritative2D.systems.join(", "),
-          ],
-        },
-      };
-      builderProvider = "james-2d-engine";
-    } else if (PROVIDER_ENHANCEMENT_ENABLED) {
-      try {
-        builder = await callBuilder(request, composedBlueprint);
-        builderProvider = builder.provider || "provider-enhanced";
-      } catch (error) {
-        console.warn("Provider Builder unavailable; using James autonomous compiler.", error);
-        builder = {
-          success: true,
-          provider: "james-autonomous",
-          model: "autonomous-game-compiler-v1",
-          gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets, prompt),
-          validation: {
-            valid: true,
-            errors: [],
-            warnings: ["Compiled by James Autonomous Game Engine after provider failure."],
-          },
-        };
-      }
-    } else {
-      builder = {
-        success: true,
-        provider: "james-autonomous",
-        model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets, prompt),
-        validation: {
-          valid: true,
-          errors: [],
-          warnings: ["Compiled entirely by James without an AI provider."],
-        },
-      };
+    const phaserBuild = buildAuthoritativePhaserGame(composedBlueprint, prompt);
+    if (!phaserBuild) {
+      throw new Error(
+        "Game Specification tidak dapat dipetakan ke genre Phaser yang didukung."
+      );
     }
 
-    if (!builder.gameHtml) {
-      builder = {
-        success: true,
-        provider: "james-autonomous",
-        model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets, prompt),
-        validation: {
-          valid: true,
-          errors: [],
-          warnings: ["James autonomous compiler regenerated the artifact."],
-        },
-      };
-      builderProvider = "james-autonomous";
-    }
+    const builder: BuilderResponse = {
+      success: true,
+      provider: "james-phaser",
+      model: phaserBuild.runtimeId,
+      gameHtml: phaserBuild.html,
+      validation: {
+        valid: true,
+        errors: [],
+        warnings: [
+          "Built from canonical GameSpec using Phaser.",
+          "Runtime: " + phaserBuild.runtimeId,
+          "Systems: " + phaserBuild.systems.join(", "),
+        ],
+      },
+    };
+
+    const builderProvider = "james-phaser";
+    const gameSpec = phaserBuild.spec;
 
     const artifact =
       createArtifactFromBuilder(
@@ -549,7 +413,7 @@ export async function POST(
      * ke client bersama session.
      */
 
-    const gameHtml = builder.gameHtml ?? buildAutonomousGameHtml(composedBlueprint, materializedAssets, prompt);
+    const gameHtml = builder.gameHtml ?? phaserBuild.html;
     await persistCloudSession(session, gameHtml);
 
 
@@ -583,6 +447,8 @@ export async function POST(
       artifact,
 
       gameHtml,
+
+      gameSpec,
 
       validation:
         builder.validation || null,
