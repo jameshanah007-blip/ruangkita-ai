@@ -15,6 +15,7 @@ import type {
 import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
 import { isPokemon2DRequest } from "../../../fun-zone/engine/jamesPokemon2DTemplate";
+import { resolve2DGenre, compile2DSpec, validate2DSpec, build2DGameHtml } from "../../../fun-zone/engine2d";
 import { composeGamePlan } from "../../../fun-zone/engine/gameComposer";
 import { createVisualBlueprint } from "../../../fun-zone/engine/visualDirector";
 import { buildAssetRegistry } from "../../../fun-zone/engine/assetRegistry";
@@ -458,23 +459,27 @@ export async function POST(
 
     // Specialized 2D runtimes are authoritative. Provider-generated HTML must
     // never replace a genre-specific runtime with the generic legacy template.
-    const requiresPokemon2DRuntime =
-      isPokemon2DRequest(composedBlueprint) ||
-      /pokemon|pokémon|monster tamer|monster-tamer|creature tamer|creature collection|monster trainer|monster collection/i.test(prompt);
+    const genre2D = resolve2DGenre(prompt) || resolve2DGenre(composedBlueprint);
+    const spec2D = genre2D ? compile2DSpec(composedBlueprint, prompt) : null;
+    const specErrors = spec2D ? validate2DSpec(spec2D) : [];
+    const requires2DEngine = Boolean(genre2D && spec2D && specErrors.length === 0);
 
-    if (requiresPokemon2DRuntime) {
+    if (requires2DEngine && spec2D) {
       builder = {
         success: true,
-        provider: "james-specialized-2d",
-        model: "pokemon-2d-runtime-v1",
-        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets, prompt),
+        provider: "james-2d-engine",
+        model: "2d-engine-v2",
+        gameHtml: build2DGameHtml(spec2D),
         validation: {
           valid: true,
           errors: [],
-          warnings: ["Specialized 2D genre runtime selected from the original user request."],
+          warnings: [
+            "Compiled from GameSpecification2D.",
+            "Genre profile, scenes, entities and systems are explicit.",
+          ],
         },
       };
-      builderProvider = "james-specialized-2d";
+      builderProvider = "james-2d-engine";
     } else if (PROVIDER_ENHANCEMENT_ENABLED) {
       try {
         builder = await callBuilder(request, composedBlueprint);
