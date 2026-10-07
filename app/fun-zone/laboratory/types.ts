@@ -158,6 +158,8 @@ export type SandboxTestEvidence = {
   engine2D?: boolean;
   engine2DGenre?: string;
   engine2DSystems?: string[];
+  genreState?: Record<string, unknown>;
+  genreState?: Record<string, unknown>;
 
   gameTestProtocol: boolean;
   stateChanged: boolean;
