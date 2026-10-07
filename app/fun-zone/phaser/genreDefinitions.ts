@@ -12,7 +12,7 @@ export type GenreDefinition = {
   touch: string[];
 };
 
-const d = <PhaserGenre, GenreDefinition>{
+const d: Record<PhaserGenre, GenreDefinition> = {
   monster_tamer:{genre:"monster_tamer",systems:["movement","dialogue","quest","encounter","battle","capture","party","progression"],scenes:[{id:"village",name:"Village",role:"world"},{id:"route",name:"Route",role:"world"},{id:"forest",name:"Forest",role:"world"},{id:"battle",name:"Battle",role:"battle"}],actions:["talk","accept_quest","encounter","attack","capture","add_party"],visualMode:"creature-adventure",palette:{background:"#132238",ground:"#356a4f",accent:"#ffd166",danger:"#ef476f",light:"#f1faee"},keyboard:["Arrow keys","WASD","E","Space"],touch:["4-direction D-pad","Action buttons"]},
   farming:{genre:"farming",systems:["movement","farming","inventory","economy","npc","dialogue","day_cycle"],scenes:[{id:"farm",name:"Farm",role:"world"},{id:"market",name:"Market",role:"shop"}],actions:["till","plant","water","harvest","sell"],visualMode:"cozy-farm",palette:{background:"#5c4033",ground:"#8bb174",accent:"#f6bd60",danger:"#d1495b",light:"#fff8e7"},keyboard:["Arrow keys","WASD","E","Space"],touch:["4-direction D-pad","Action buttons"]},
   adventure:{genre:"adventure",systems:["movement","dialogue","collection","exploration"],scenes:[{id:"ruins",name:"Ruins",role:"world"}],actions:["talk","collect","open_exit"],visualMode:"ancient-ruins",palette:{background:"#1d2433",ground:"#5b6475",accent:"#e9c46a",danger:"#e76f51",light:"#f4f1de"},keyboard:["Arrow keys","WASD","E"],touch:["4-direction D-pad","Action button"]},
