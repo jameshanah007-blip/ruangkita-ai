@@ -7,6 +7,7 @@ import { generateGameAssets, generateLocalGameAssets } from "../app/fun-zone/eng
 import { materializeGameAssets } from "../app/fun-zone/engine/assetMaterializer.ts";
 import { buildCharacterAssetPlan } from "../app/fun-zone/engine/characterAssetPipeline.ts";
 import { createAssetProviderRouter } from "../app/fun-zone/engine/assetProviderRouter.ts";
+import { validatePlayableRuntimeContract } from "../app/fun-zone/engine/runtimeContract.ts";
 import {
   createModularGameState,
   captureCreature,
@@ -66,6 +67,12 @@ assert.ok(registry.requiredAssetIds.length > 0);
 assert.equal(materialized.assets.length, registry.assets.length);
 assert.ok(materialized.assets.every((asset) => asset.uri.startsWith("data:image/svg+xml")));
 assert.ok(materialized.assets.every((asset) => asset.status === "ready"));
+const protagonistAsset = materialized.assets.find((asset) => asset.id === visual.protagonist.id);
+assert.ok(protagonistAsset);
+assert.equal(
+  validatePlayableRuntimeContract(pokemonLike, materialized, visual.protagonist.id).valid,
+  true,
+);
 
 const provider = {
   name: "test-image-provider",
