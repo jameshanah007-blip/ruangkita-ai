@@ -1,5 +1,5 @@
 import type { GameBlueprint } from "../laboratory/types";
-import type { PhaserGameSpec, PhaserGenre } from "./types";
+import type { PhaserGameSpec, PhaserGenre, PhaserAssetManifestEntry } from "./types";
 
 type GenreDefinition = {
   genre: PhaserGenre;
@@ -174,6 +174,7 @@ export function resolvePhaserGenre(blueprint: GameBlueprint): PhaserGenre | null
 export function compilePhaserGameSpec(
   blueprint: GameBlueprint,
   prompt: string,
+  assets: PhaserAssetManifestEntry[] = [],
 ): PhaserGameSpec | null {
   const genre = resolvePhaserGenre(blueprint);
   if (!genre) return null;
@@ -203,5 +204,7 @@ export function compilePhaserGameSpec(
     },
     sourcePrompt: prompt,
     runtimeId: "rk-phaser-" + genre + "-v1",
+    assets,
+    playerAssetId: assets.find((asset) => asset.kind === "character")?.id,
   };
 }
