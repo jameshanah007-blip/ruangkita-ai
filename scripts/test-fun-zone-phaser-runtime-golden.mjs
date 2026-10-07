@@ -168,9 +168,23 @@ function createContext() {
 }
 
 function extractRuntime(html) {
-  const match = html.match(/<script>\(function\(\)\{try\{([\\s\\S]*)\}catch\(error\)/);
-  if (!match) throw new Error("Tidak menemukan bootstrap runtime Phaser.");
-  return match[1];
+  const scriptStart = html.lastIndexOf("<script>");
+  const scriptEnd = html.lastIndexOf("</script>");
+  if (scriptStart < 0 || scriptEnd <= scriptStart) {
+    throw new Error("Tidak menemukan inline bootstrap runtime Phaser.");
+  }
+
+  const wrapped = html.slice(scriptStart + "<script>".length, scriptEnd);
+  const prefix = "(function(){try{";
+  const suffix = "}catch(error){";
+  const start = wrapped.indexOf(prefix);
+  const end = wrapped.lastIndexOf(suffix);
+
+  if (start < 0 || end <= start) {
+    throw new Error("Tidak menemukan isi runtime Phaser di bootstrap.");
+  }
+
+  return wrapped.slice(start + prefix.length, end);
 }
 
 function assert(condition, message) {
