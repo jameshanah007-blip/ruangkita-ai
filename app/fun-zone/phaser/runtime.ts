@@ -136,7 +136,7 @@ export function buildPhaserGameHtml(spec: PhaserGameSpec): string {
     "<div id=\"game\"></div>",
     "<div id=\"rk-hint\">" + definition.touch.join(" · ") + "</div>",
     "<script src=\"" + PHASER_CDN + "\"></script>",
-    "<script>(function(){try{" + buildRuntimeScript(spec) + "}catch(error){window.parent&&window.parent.postMessage({type:\"AI_GAME_ERROR\",message:String(error&&error.message||error)},\"*\");throw error;}})();</script>",
+    "<script>(function(){try{" + buildRuntimeScript(spec) + "}catch(error){console.error(\"AI_GAME_ERROR\",String(error&&error.message||error));throw error;}})();</script>",
     "</body></html>",
   ].join("\n");
 }
