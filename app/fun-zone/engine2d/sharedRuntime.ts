@@ -47,7 +47,7 @@ var SPEC=${payload};
 var canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
 var W=720,H=900,dpr=1,last=0,elapsed=0,started=false,won=false,lost=false,raf=0;
 var input={up:false,down:false,left:false,right:false,action:false};
-var runtimeState=null;
+var runtimeState=null;\nvar testMode=false;
 function resize(){var r=canvas.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,2);W=Math.max(320,r.width);H=Math.max(520,r.height);canvas.width=Math.floor(W*dpr);canvas.height=Math.floor(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0)}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
 function text(t,x,y,s){ctx.font="bold "+(s||12)+"px system-ui";ctx.fillStyle="#fff";ctx.fillText(t,x,y)}
@@ -79,7 +79,7 @@ getTutorialState:function(){return {available:true,visible:document.getElementBy
 getControlState:function(){return {up:true,down:true,left:true,right:true}},
 testDirectionalControl:function(direction){if(typeof testDirection==="function")return testDirection(direction);return false},
 getGenreState:function(){return typeof getGenreState==="function"?getGenreState():{}},
-performTestAction:function(action){started=true;return typeof performGameAction==="function"?performGameAction(action)===true:false},
+performTestAction:function(action){started=true;testMode=true;try{return typeof performGameAction==="function"?performGameAction(action)===true:false}finally{testMode=false}},
 restart:function(){restartGame();started=true;hideMessage();return true}
 };
 function loop(now){var dt=Math.min(.05,(now-last)/1000||.016);last=now;elapsed+=dt;if(started&&!won&&!lost&&typeof updateGame==="function")updateGame(dt);if(typeof renderGame==="function")renderGame();commonHud();window.__RK_GAME_LOOP_STARTED__=true;window.__RK_GAME_RENDERED__=true;raf=requestAnimationFrame(loop)}
