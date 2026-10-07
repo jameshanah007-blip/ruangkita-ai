@@ -227,7 +227,7 @@ class FarmScene extends Phaser.Scene {
 }
 
 new Phaser.Game({
-  type:Phaser.AUTO,
+  type:Phaser.CANVAS,
   width:960,
   height:640,
   parent:"game",
