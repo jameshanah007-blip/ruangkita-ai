@@ -1,0 +1,9 @@
+export type Engine2DGenre = "monster_tamer"|"farming"|"adventure"|"rpg"|"platformer"|"racing"|"puzzle"|"shooter"|"strategy"|"simulation"|"survival";
+export type Camera2DMode = "top_down"|"side_scroll"|"isometric"|"follow";
+export type Game2DSystem = "movement"|"collision"|"camera"|"dialogue"|"quest"|"encounter"|"battle"|"capture"|"party"|"inventory"|"farming"|"economy"|"platform"|"racing"|"puzzle"|"shooting"|"strategy"|"survival";
+export type Visual2DProfile={style:"original_pixel_art"|"hand_drawn"|"vector"|"minimal";camera:Camera2DMode;paletteMood:string;characterAnimation:boolean;tileBased:boolean};
+export type EntitySpec2D={id:string;kind:"player"|"npc"|"enemy"|"creature"|"item"|"obstacle"|"goal";label:string;x:number;y:number;width:number;height:number;interactive?:boolean;hp?:number;metadata?:Record<string,string|number|boolean>};
+export type SceneSpec2D={id:string;name:string;width:number;height:number;background:string;entities:EntitySpec2D[];exits?:Array<{targetScene:string;x:number;y:number;width:number;height:number}>};
+export type AssetSpec2D={id:string;kind:"sprite"|"tileset"|"icon"|"background";source:"generated"|"embedded"|"external";uri?:string;frames?:number};
+export type GameSpecification2D={version:"2d-engine-v2";title:string;genre:Engine2DGenre;camera:Camera2DMode;objective:string;winCondition:string;loseCondition:string;systems:Game2DSystem[];controls:{keyboard:string[];touch:string[]};visual:Visual2DProfile;scenes:SceneSpec2D[];assets:AssetSpec2D[];metadata:{sourcePrompt:string;deterministicSeed:number;engine:"james-2d"}};
+export type GenreProfile2D={genre:Engine2DGenre;camera:Camera2DMode;requiredSystems:Game2DSystem[];visualDefaults:Visual2DProfile;minimumScenes:number;requiredEntityKinds:EntitySpec2D["kind"][]};
