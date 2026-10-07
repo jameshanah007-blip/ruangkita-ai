@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { consumeJamesRateLimit } from "../../tools/jamesRateLimit";
 import type { GameBlueprint, TestReport } from "../../../fun-zone/laboratory/types";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
+import { buildAuthoritative2DGame } from "../../../fun-zone/engine2d";
 
 
 export const runtime = "nodejs";
@@ -93,12 +94,15 @@ export async function POST(request: Request) {
     }
 
     const evolvedBlueprint = evolveBlueprint(blueprint, report, attempt);
-    const gameHtml = buildAutonomousGameHtml(evolvedBlueprint);
+    const authoritative2D = buildAuthoritative2DGame(evolvedBlueprint, evolvedBlueprint.concept);
+    const gameHtml = authoritative2D?.html ?? buildAutonomousGameHtml(evolvedBlueprint);
+    const provider = authoritative2D ? "james-2d-engine-repair" : "james-autonomous";
+    const model = authoritative2D?.runtimeId ?? "autonomous-evolution-engine-v1";
 
     return NextResponse.json({
       success: true,
-      provider: "james-autonomous",
-      model: "autonomous-evolution-engine-v1",
+      provider,
+      model,
       attempt,
       blueprint: evolvedBlueprint,
       gameHtml,
@@ -108,7 +112,9 @@ export async function POST(request: Request) {
         changes: [
           "James analyzed runtime evidence.",
           "James evolved the gameplay genome.",
-          "James regenerated the standalone game artifact.",
+          authoritative2D
+            ? "James rebuilt the same genre through its authoritative 2D runtime module."
+            : "James regenerated the standalone game artifact.",
         ],
       },
     });

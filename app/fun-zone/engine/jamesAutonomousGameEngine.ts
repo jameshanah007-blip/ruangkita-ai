@@ -3,6 +3,7 @@ import type { AssetMaterializationResult } from "./assetMaterializer";
 import { mechanicKnowledge, worldKnowledge } from "./jamesGameKnowledge";
 import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "./james2DTopDownTemplate";
 import { buildRacing3DGameHtml, isRacing3DRequest } from "./jamesRacing3DTemplate";
+import { buildPokemon2DGameHtml, isPokemon2DRequest } from "./jamesPokemon2DTemplate";
 
 /**
  * James Autonomous Game Engine
@@ -393,7 +394,19 @@ function runtimeAssets(materializedAssets?: AssetMaterializationResult) {
 export function buildAutonomousGameHtml(
   blueprint: GameBlueprint,
   materializedAssets?: AssetMaterializationResult,
+  originalPrompt?: string,
 ): string {
+  // The original user request is authoritative for genre routing. AI Director/provider
+  // output may paraphrase the request and accidentally erase genre keywords; routing must
+  // never fall back to the generic runtime just because the provider renamed the genre.
+  const authoritativePokemonRequest =
+    isPokemon2DRequest(blueprint) ||
+    /pokemon|pokémon|monster tamer|monster-tamer|creature tamer|creature collection|monster trainer|monster collection/i.test(originalPrompt || "");
+
+  if (authoritativePokemonRequest) {
+    return buildPokemon2DGameHtml(blueprint);
+  }
+
   // The first-class 2D foundation is a dedicated top-down tile/sprite runtime.
   // Generic games keep the existing autonomous engine unchanged.
   if (isTopDown2DTemplateRequest(blueprint)) {

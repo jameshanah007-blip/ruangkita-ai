@@ -1,3 +1,5 @@
+import { resolvePhaserGenre } from "../phaser/genreDefinitions";
+import { PHASER_GENRE_CONTRACTS } from "../phaser/contracts";
 import type {
   GameBlueprint,
   SandboxTestEvidence,
@@ -256,6 +258,86 @@ function checkInput(
  * Game harus memberikan bukti semantic melalui
  * Game Test Protocol.
  */
+function checkGenreGameplay(blueprint: GameBlueprint, evidence: SandboxTestEvidence, checks: TestCheck[]): string[] {
+  const genre = resolvePhaserGenre(blueprint);
+  if (!genre) return [];
+  const contract = PHASER_GENRE_CONTRACTS[genre];
+  const state = evidence.genreState ?? {};
+  const failures: string[] = [];
+  const presentSignals = contract.requiredSignals.filter((signal) => {
+    const value = state[signal];
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value > 0;
+    if (typeof value === "string") return value.length > 0;
+    return value != null;
+  });
+  const passed = presentSignals.length === contract.requiredSignals.length;
+  addCheck(checks, "2d_genre_gameplay", passed,
+    passed
+      ? genre + " gameplay contract terbukti melalui state runtime."
+      : "Milestone genre yang belum terbukti: " + contract.requiredSignals.filter((signal) => !presentSignals.includes(signal)).join(", "));
+  if (!passed) failures.push("Gameplay khusus genre belum terbukti: " + contract.requiredSignals.filter((signal) => !presentSignals.includes(signal)).join(", "));
+  return failures;
+}
+
+function checkPlayerGuidanceAndControls(
+  evidence: SandboxTestEvidence,
+  checks: TestCheck[],
+): string[] {
+  const failures: string[] = [];
+  const tutorialPassed = evidence.tutorialAvailable === true;
+  addCheck(checks,"tutorial",tutorialPassed,tutorialPassed ? "Petunjuk bermain tersedia." : "Game belum membuktikan adanya petunjuk bermain.");
+  if (!tutorialPassed) failures.push("Petunjuk bermain wajib tersedia.");
+
+  const controls = evidence.directionalControls;
+  const controlsPassed = controls?.up === true && controls?.down === true && controls?.left === true && controls?.right === true;
+  addCheck(checks,"directional_controls",controlsPassed,controlsPassed ? "Kontrol 4 arah tersedia." : "Kontrol 4 arah belum terbukti lengkap.");
+  if (!controlsPassed) failures.push("Kontrol 4 arah wajib tersedia dan terbukti.");
+  return failures;
+}
+
+function checkEngineArchitecture(blueprint: GameBlueprint, evidence: SandboxTestEvidence, checks: TestCheck[]): string[] {
+  const failures: string[] = [];
+  const genre = resolvePhaserGenre(blueprint);
+  if (!genre) return failures;
+
+  const enginePassed = evidence.engine2D === true && evidence.runtimeEngine === "Phaser";
+  addCheck(checks, "2d_engine", enginePassed,
+    enginePassed ? "Game berjalan menggunakan Phaser." : "Game 2D tidak terbukti berjalan menggunakan Phaser.");
+  if (!enginePassed) failures.push("Genre 2D wajib menggunakan runtime Phaser.");
+
+  const versionPassed = evidence.runtimeVersion === "3.90.0";
+  addCheck(checks, "phaser_version", versionPassed,
+    versionPassed ? "Phaser 3.90.0 terdeteksi." : "Versi Phaser runtime tidak sesuai.");
+  if (!versionPassed) failures.push("Runtime Phaser yang digunakan harus 3.90.0.");
+
+  const genrePassed = evidence.engine2DGenre === genre;
+  addCheck(checks, "2d_genre_identity", genrePassed,
+    genrePassed ? "Genre runtime sesuai dengan genre yang diminta." : "Identitas genre runtime tidak sesuai dengan genre yang diminta.");
+  if (!genrePassed) failures.push("Runtime genre tidak sesuai dengan Game Specification.");
+
+  const systems = new Set(evidence.engine2DSystems ?? []);
+  const requiredSystemNames = {
+    monster_tamer: ["movement","dialogue","quest","encounter","battle","capture","party","progression"],
+    farming: ["movement","farming","inventory","economy","npc","dialogue","day_cycle"],
+    adventure: ["movement","dialogue","collection","exploration"],
+    rpg: ["movement","dialogue","battle","loot","progression"],
+    platformer: ["movement","platform","collision","progression"],
+    racing: ["movement","racing","collision","progression"],
+    puzzle: ["puzzle","selection","progression"],
+    shooter: ["movement","shooting","collision","survival"],
+    strategy: ["strategy","placement","command","capture","economy"],
+    simulation: ["simulation","building","allocation","progression"],
+    survival: ["movement","survival","scavenge","crafting","defense","progression"],
+  }[genre];
+  const missing = requiredSystemNames.filter((s) => !systems.has(s));
+  const systemsPassed = missing.length === 0;
+  addCheck(checks, "2d_required_systems", systemsPassed,
+    systemsPassed ? "Semua system wajib genre tersedia." : "System genre yang hilang: " + missing.join(", "));
+  if (!systemsPassed) failures.push("2D runtime kehilangan system wajib: " + missing.join(", "));
+  return failures;
+}
+
 function checkGameplay(
   evidence: SandboxTestEvidence,
   checks: TestCheck[]
@@ -511,6 +593,25 @@ export function testGame({
   );
 
   hardFailures.push(
+    ...checkEngineArchitecture(
+      blueprint,
+      evidence,
+      checks
+    )
+  );
+
+  hardFailures.push(
+    ...checkGenreGameplay(blueprint, evidence, checks)
+  );
+
+  hardFailures.push(
+    ...checkPlayerGuidanceAndControls(
+      evidence,
+      checks
+    )
+  );
+
+  hardFailures.push(
     ...checkPerformance(
       evidence,
       checks
@@ -583,6 +684,17 @@ export function testGame({
 
     gameplayTest:
       evidence.gameplayTest,
+
+    engine2D:
+      evidence.engine2D,
+    engine2DGenre:
+      evidence.engine2DGenre,
+    engine2DSystems:
+      evidence.engine2DSystems,
+    runtimeEngine:
+      evidence.runtimeEngine,
+    runtimeVersion:
+      evidence.runtimeVersion,
 
     performanceTest:
       evidence.performanceTest,

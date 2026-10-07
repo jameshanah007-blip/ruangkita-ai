@@ -37,6 +37,7 @@ type GameTestSnapshot = {
   state?: unknown;
   player?: unknown;
   objective?: unknown;
+  genreState?: unknown;
   won?: boolean;
   lost?: boolean;
 };
@@ -47,6 +48,9 @@ type GameTestProtocol = {
   getObjectiveState?: () => unknown;
   getWinState?: () => boolean;
   getLoseState?: () => boolean;
+  getTutorialState?: () => unknown;
+  getControlState?: () => unknown;
+  testDirectionalControl?: (direction: string) => boolean;
   performTestAction?: (
     action: string
   ) => unknown;
@@ -76,6 +80,12 @@ type TestResult = {
 
   gameplayTest: boolean;
 
+  engine2D?: boolean;
+  engine2DGenre?: string;
+  engine2DSystems?: string[];
+  runtimeEngine?: string;
+  runtimeVersion?: string;
+
 gameTestProtocol: boolean;
 
 stateChanged: boolean;
@@ -89,6 +99,14 @@ winStateDetected: boolean;
 loseStateDetected: boolean;
 
 restartVerified: boolean;
+
+tutorialAvailable?: boolean;
+directionalControls?: {
+  up: boolean;
+  down: boolean;
+  left: boolean;
+  right: boolean;
+};
 
 gameTestError?: string;
 
@@ -1074,6 +1092,14 @@ function readGameTestSnapshot() {
         protocol.getLoseState() === true;
     }
 
+    if (
+      typeof protocol.getGenreState ===
+      "function"
+    ) {
+      snapshot.genreState =
+        protocol.getGenreState();
+    }
+
     return {
       protocol: protocol,
       snapshot: snapshot
@@ -1106,6 +1132,13 @@ var gameTestBefore =
 
 var gameTestProtocol =
   !!gameTestBefore.protocol;
+
+var engine2D = !!window.__RK_2D_ENGINE_V2__;
+var engine2DGenre = engine2D ? String(window.__RK_2D_ENGINE_V2__.genre || "") : "";
+var engine2DSystems = engine2D && Array.isArray(window.__RK_2D_ENGINE_V2__.systems) ? window.__RK_2D_ENGINE_V2__.systems.map(String) : [];
+var runtimeEngine = engine2D ? String(window.__RK_2D_ENGINE_V2__.engine || "") : "";
+var runtimeVersion = engine2D ? String(window.__RK_2D_ENGINE_V2__.phaserVersion || "") : "";
+var genreState = gameTestBefore.snapshot.genreState;
 
 var gameTestError =
   gameTestBefore.error || "";
@@ -1151,6 +1184,12 @@ var beforeLost =
         "solve"
       ];
       var declaredTestActions = ${JSON.stringify(blueprintActions)};
+      try {
+        var phaserBootSpec = window.__RK_PHASER_BOOT_SPEC__;
+        if (phaserBootSpec && Array.isArray(phaserBootSpec.actions)) {
+          declaredTestActions = declaredTestActions.concat(phaserBootSpec.actions);
+        }
+      } catch (_) {}
 
       if (
         gameTestProtocol &&
@@ -1198,6 +1237,29 @@ var beforeLost =
               }
             }
 
+            var directionalTestResults = {up:false,down:false,left:false,right:false};
+            try {
+              var p = gameTestBefore.protocol;
+              if (p && typeof p.testDirectionalControl === "function") {
+                ["up","down","left","right"].forEach(function(direction) {
+                  try { directionalTestResults[direction] = p.testDirectionalControl(direction) === true; } catch (_) {}
+                });
+              } else if (p && typeof p.getControlState === "function") {
+                var cs = p.getControlState();
+                if (cs) {
+                  directionalTestResults.up=cs.up===true; directionalTestResults.down=cs.down===true;
+                  directionalTestResults.left=cs.left===true; directionalTestResults.right=cs.right===true;
+                }
+              }
+            } catch (_) {}
+            var tutorialAvailable = false;
+            try {
+              var tp = gameTestBefore.protocol;
+              if (tp && typeof tp.getTutorialState === "function") {
+                var ts = tp.getTutorialState();
+                tutorialAvailable = !!(ts && (ts.available === true || ts.visible === true));
+              }
+            } catch (_) {}
             var executedActions = [];
 
             for (
@@ -1654,6 +1716,13 @@ var beforeLost =
                     gameplayTest:
                       gameplayTest,
 
+                    engine2D: engine2D,
+                    engine2DGenre: engine2DGenre,
+                    engine2DSystems: engine2DSystems,
+                    runtimeEngine: runtimeEngine,
+                    runtimeVersion: runtimeVersion,
+                    genreState: genreState && typeof genreState === "object" ? genreState : undefined,
+
                     gameTestProtocol:
                       gameTestProtocol,
 
@@ -1674,6 +1743,9 @@ var beforeLost =
 
                     restartVerified:
                       restartVerified,
+
+                    tutorialAvailable: tutorialAvailable,
+                    directionalControls: directionalTestResults,
 
                     gameTestError:
                       gameTestError ||
@@ -1786,6 +1858,12 @@ var beforeLost =
         canvasValid: !!getCanvas(),
         inputTest: false,
         gameplayTest: false,
+        engine2D: !!window.__RK_2D_ENGINE_V2__,
+        engine2DGenre: window.__RK_2D_ENGINE_V2__ ? String(window.__RK_2D_ENGINE_V2__.genre || "") : "",
+        engine2DSystems: window.__RK_2D_ENGINE_V2__ && Array.isArray(window.__RK_2D_ENGINE_V2__.systems) ? window.__RK_2D_ENGINE_V2__.systems.map(String) : [],
+        runtimeEngine: window.__RK_2D_ENGINE_V2__ ? String(window.__RK_2D_ENGINE_V2__.engine || "") : "",
+        runtimeVersion: window.__RK_2D_ENGINE_V2__ ? String(window.__RK_2D_ENGINE_V2__.phaserVersion || "") : "",
+        genreState: undefined,
         gameTestProtocol: !!window.__RK_GAME_TEST__,
         stateChanged: false,
         objectiveChanged: false,
@@ -1793,6 +1871,8 @@ var beforeLost =
         winStateDetected: false,
         loseStateDetected: false,
         restartVerified: false,
+        tutorialAvailable: false,
+        directionalControls: {up:false,down:false,left:false,right:false},
         gameTestError: "Sandbox diagnostic timeout.",
         performanceTest: false,
         runtimeOk: false,
@@ -2614,6 +2694,18 @@ evidence: {
   /*
    * Semantic Game Test Protocol
    */
+  engine2D:
+    result.engine2D,
+
+  engine2DGenre:
+    result.engine2DGenre,
+
+  engine2DSystems:
+    result.engine2DSystems,
+
+  genreState:
+    result.genreState,
+
   gameTestProtocol:
     result.gameTestProtocol,
 
@@ -2634,6 +2726,12 @@ evidence: {
 
   restartVerified:
     result.restartVerified,
+
+  tutorialAvailable:
+    result.tutorialAvailable,
+
+  directionalControls:
+    result.directionalControls,
 
   gameTestError:
     result.gameTestError,

@@ -2,6 +2,7 @@ import type { GameBlueprint, TestReport, SandboxTestEvidence } from "./types";
 import { testGame } from "./tester";
 
 const BROWSER_WAIT_MS = 2500;
+const PHASER_CDN = "https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js";
 
 function credentials() {
   if (process.env.VERCEL_TOKEN && process.env.VERCEL_TEAM_ID && process.env.VERCEL_PROJECT_ID) {
@@ -24,6 +25,17 @@ async function getSandboxRuntime() {
 async function command(sandbox: BrowserSandbox, cmd: string, args: string[]) {
   const result = await sandbox.runCommand(cmd, args);
   return result.stdout();
+}
+
+async function preparePhaserRuntime(sandbox: BrowserSandbox) {
+  await command(
+    sandbox,
+    "sh",
+    [
+      "-lc",
+      "mkdir -p /tmp/rk-phaser && cd /tmp/rk-phaser && npm install --silent phaser@3.90.0 >/dev/null 2>&1 && cp node_modules/phaser/dist/phaser.min.js /tmp/phaser.min.js",
+    ],
+  );
 }
 
 function buildVerifierHtml(gameHtml: string, actions: string[]) {
@@ -61,7 +73,10 @@ function buildVerifierHtml(gameHtml: string, actions: string[]) {
     const before=snap(),beforeCanvas=canvas(),p=before.protocol;
     let actionExecuted=false;
     if(p&&typeof p.performTestAction==="function"){
-      for(const a of (window.__RK_AUTONOMOUS_ACTIONS__.length?window.__RK_AUTONOMOUS_ACTIONS__:["move","interact","jump","attack","collect","dodge","shoot","open_door","use_item","talk","solve"])){
+      let candidates=window.__RK_AUTONOMOUS_ACTIONS__.slice();
+      try{const boot=window.__RK_PHASER_BOOT_SPEC__;if(boot&&Array.isArray(boot.actions))candidates=candidates.concat(boot.actions);}catch(_){}
+      if(!candidates.length)candidates=["move","interact","jump","attack","collect","dodge","shoot","open_door","use_item","talk","solve"];
+      for(const a of candidates){
         try{await Promise.resolve(p.performTestAction(a));actionExecuted=true;break}catch(_){}
       }
     }else{
@@ -74,6 +89,7 @@ function buildVerifierHtml(gameHtml: string, actions: string[]) {
     if(p&&typeof p.restart==="function"){try{await Promise.resolve(p.restart());await sleep(350);restartVerified=!!snap().protocol}catch(_){}}
     else{try{location.reload();await sleep(700);restartVerified=true}catch(_){}}
     const s=window.__RK_AUTONOMOUS,elapsed=Date.now()-s.startedAt;
+    const engine = window.__RK_2D_ENGINE_V2__ || {};
     return JSON.stringify({
       runtimeErrors:s.errors.slice(0,10),runtimeOk:s.errors.length===0,
       rendered:afterCanvas.nonBlankPixels>=10,loopStarted:s.frames>=5,frameAdvanced:s.frames>=5,
@@ -84,13 +100,19 @@ function buildVerifierHtml(gameHtml: string, actions: string[]) {
       renderChanged:beforeCanvas.nonBlankPixels!==afterCanvas.nonBlankPixels,elapsedMs:elapsed,
       gameTestProtocol:!!p,stateChanged:diff(before.state,after.state),objectiveChanged:diff(before.objective,after.objective),
       playerChanged:diff(before.player,after.player),winStateDetected:after.won===true,loseStateDetected:after.lost===true,
-      restartVerified,gameTestError:before.error
+      restartVerified,gameTestError:before.error,
+      engine2D:engine.version ? true : undefined,
+      engine2DGenre:engine.genre ? String(engine.genre) : undefined,
+      engine2DSystems:Array.isArray(engine.systems) ? engine.systems.map(String) : undefined,
+      runtimeEngine:engine.engine ? String(engine.engine) : undefined,
+      runtimeVersion:engine.phaserVersion ? String(engine.phaserVersion) : undefined
     })
   };
 })();
 </script>`;
 
-  return prelude + gameHtml + epilogue;
+  const isolatedGameHtml = gameHtml.replace(PHASER_CDN, "file:///tmp/phaser.min.js");
+  return prelude + isolatedGameHtml + epilogue;
 }
 
 async function createSandbox() {
@@ -108,7 +130,11 @@ export async function verifyGameInBrowser(gameHtml:string, blueprint:GameBluepri
       await command(sandbox,"npm",["install","-g","agent-browser"]);
       await command(sandbox,"npx",["agent-browser","install"]);
     }
+
+    await sandbox.updateNetworkPolicy("allow-all");
+    await preparePhaserRuntime(sandbox);
     await sandbox.updateNetworkPolicy("deny-all");
+
     const html=buildVerifierHtml(gameHtml,blueprint.playerActions??[]);
     const encoded=Buffer.from(html,"utf8").toString("base64");
     await command(sandbox,"sh",["-lc",`echo ${encoded} | base64 -d > /tmp/james-game.html`]);

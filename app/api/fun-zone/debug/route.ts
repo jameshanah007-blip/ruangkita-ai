@@ -7,6 +7,7 @@ export const maxDuration = 120;
 import { runJamesBrain } from "../../../core/james/jamesBrain";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
 import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "../../../fun-zone/engine/james2DTopDownTemplate";
+import { buildAuthoritative2DGame } from "../../../fun-zone/engine2d";
 import type {
   GameBlueprint,
   RuntimeError,
@@ -882,15 +883,14 @@ export async function POST(request: Request) {
      * which then triggered the five-attempt loop and could remove movement.
      */
     const normalizedDebugBlueprint = blueprint ? normalizeBlueprint(blueprint)! : null;
-    const isTopDownFoundation = Boolean(
-      normalizedDebugBlueprint &&
-      isTopDown2DTemplateRequest(normalizedDebugBlueprint)
-    );
+    const authoritative2D = normalizedDebugBlueprint
+      ? buildAuthoritative2DGame(normalizedDebugBlueprint, normalizedDebugBlueprint.concept)
+      : null;
 
-    if (isTopDownFoundation) {
-      fixedHtml = buildTopDown2DGameHtml(normalizedDebugBlueprint!);
-      provider = "james-autonomous-topdown-repair";
-      model = "james-2d-topdown-runtime-v2";
+    if (authoritative2D) {
+      fixedHtml = authoritative2D.html;
+      provider = "james-2d-engine-repair";
+      model = authoritative2D.runtimeId;
     } else {
       try {
         const result =
@@ -959,15 +959,22 @@ Output hanya HTML.
         validationErrors
       );
       const safeBlueprint = normalizeBlueprint(blueprint)!;
-      fixedHtml = isTopDown2DTemplateRequest(safeBlueprint)
-        ? buildTopDown2DGameHtml(safeBlueprint)
-        : buildAutonomousGameHtml(safeBlueprint);
-      provider = isTopDown2DTemplateRequest(safeBlueprint)
-        ? "james-autonomous-topdown-repair"
-        : "james-autonomous-fallback";
-      model = isTopDown2DTemplateRequest(safeBlueprint)
-        ? "james-2d-topdown-runtime-v2"
-        : "autonomous-evolution-engine-v1";
+      const safeAuthoritative2D = buildAuthoritative2DGame(safeBlueprint, safeBlueprint.concept);
+      if (safeAuthoritative2D) {
+        fixedHtml = safeAuthoritative2D.html;
+        provider = "james-2d-engine-repair";
+        model = safeAuthoritative2D.runtimeId;
+      } else {
+        fixedHtml = isTopDown2DTemplateRequest(safeBlueprint)
+          ? buildTopDown2DGameHtml(safeBlueprint)
+          : buildAutonomousGameHtml(safeBlueprint);
+        provider = isTopDown2DTemplateRequest(safeBlueprint)
+          ? "james-autonomous-topdown-repair"
+          : "james-autonomous-fallback";
+        model = isTopDown2DTemplateRequest(safeBlueprint)
+          ? "james-2d-topdown-runtime-v2"
+          : "autonomous-evolution-engine-v1";
+      }
       validationErrors = validateGameHtml(fixedHtml);
     }
 

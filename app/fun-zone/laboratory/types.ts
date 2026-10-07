@@ -155,6 +155,13 @@ export type SandboxTestEvidence = {
   runtimeVisualAnalysis?: RuntimeVisualAnalysis;
   referenceVisualComparison?: ReferenceVisualComparison;
 
+  engine2D?: boolean;
+  engine2DGenre?: string;
+  engine2DSystems?: string[];
+  runtimeEngine?: string;
+  runtimeVersion?: string;
+  genreState?: Record<string, unknown>;
+
   gameTestProtocol: boolean;
   stateChanged: boolean;
   objectiveChanged: boolean;
@@ -164,6 +171,14 @@ export type SandboxTestEvidence = {
   loseStateDetected: boolean;
 
   restartVerified: boolean;
+
+  tutorialAvailable?: boolean;
+  directionalControls?: {
+    up: boolean;
+    down: boolean;
+    left: boolean;
+    right: boolean;
+  };
 
   gameTestError?: string;
 };
@@ -220,6 +235,10 @@ export type TestReport = {
   screenshot?: RuntimeScreenshotEvidence;
   runtimeVisualAnalysis?: RuntimeVisualAnalysis;
   referenceVisualComparison?: ReferenceVisualComparison;
+
+  engine2D?: boolean;
+  engine2DGenre?: string;
+  engine2DSystems?: string[];
 
   hardFailures: string[];
   softWarnings: string[];

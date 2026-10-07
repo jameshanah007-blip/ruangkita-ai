@@ -14,6 +14,8 @@ import type {
 } from "../../../fun-zone/laboratory/types";
 import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
+import { isPokemon2DRequest } from "../../../fun-zone/engine/jamesPokemon2DTemplate";
+import { buildAuthoritative2DGame } from "../../../fun-zone/engine2d";
 import { composeGamePlan } from "../../../fun-zone/engine/gameComposer";
 import { createVisualBlueprint } from "../../../fun-zone/engine/visualDirector";
 import { buildAssetRegistry } from "../../../fun-zone/engine/assetRegistry";
@@ -455,7 +457,28 @@ export async function POST(
     let builder: BuilderResponse;
     let builderProvider = "james-autonomous";
 
-    if (PROVIDER_ENHANCEMENT_ENABLED) {
+    // Specialized 2D runtimes are authoritative. Provider-generated HTML must
+    // never replace a genre-specific runtime with the generic legacy template.
+    const authoritative2D = buildAuthoritative2DGame(composedBlueprint, prompt);
+
+    if (authoritative2D) {
+      builder = {
+        success: true,
+        provider: "james-2d-engine",
+        model: authoritative2D.runtimeId,
+        gameHtml: authoritative2D.html,
+        validation: {
+          valid: true,
+          errors: [],
+          warnings: [
+            "Compiled from the authoritative 2D GameSpecification.",
+            "Dedicated genre runtime module selected: " + authoritative2D.runtimeId,
+            "Required systems: " + authoritative2D.systems.join(", "),
+          ],
+        },
+      };
+      builderProvider = "james-2d-engine";
+    } else if (PROVIDER_ENHANCEMENT_ENABLED) {
       try {
         builder = await callBuilder(request, composedBlueprint);
         builderProvider = builder.provider || "provider-enhanced";
@@ -465,7 +488,7 @@ export async function POST(
           success: true,
           provider: "james-autonomous",
           model: "autonomous-game-compiler-v1",
-          gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets),
+          gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets, prompt),
           validation: {
             valid: true,
             errors: [],
@@ -478,7 +501,7 @@ export async function POST(
         success: true,
         provider: "james-autonomous",
         model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets),
+        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets, prompt),
         validation: {
           valid: true,
           errors: [],
@@ -492,7 +515,7 @@ export async function POST(
         success: true,
         provider: "james-autonomous",
         model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets),
+        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets, prompt),
         validation: {
           valid: true,
           errors: [],
@@ -526,7 +549,7 @@ export async function POST(
      * ke client bersama session.
      */
 
-    const gameHtml = builder.gameHtml ?? buildAutonomousGameHtml(composedBlueprint, materializedAssets);
+    const gameHtml = builder.gameHtml ?? buildAutonomousGameHtml(composedBlueprint, materializedAssets, prompt);
     await persistCloudSession(session, gameHtml);
 
 

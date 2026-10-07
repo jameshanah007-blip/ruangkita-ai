@@ -1,6 +1,7 @@
 import type { GameBlueprint } from "../laboratory/types";
 import type { AssetMaterializationResult } from "./assetMaterializer";
 import { createKimiStyleGameProfile } from "./kimiStyleGameProfile";
+import { buildGenre2DGameHtml, classify2DGenre } from "./james2DGenreTemplates";
 
 function textOf(blueprint: GameBlueprint): string {
   return [
@@ -46,6 +47,16 @@ export function buildTopDown2DGameHtml(
   blueprint: GameBlueprint,
   materializedAssets?: AssetMaterializationResult,
 ): string {
+  // Genre routing lives at the 2D runtime boundary so a broad 2D request
+  // can never silently render the same adventure template for every genre.
+  const classifiedGenre = classify2DGenre(blueprint);
+  if (
+    classifiedGenre &&
+    classifiedGenre !== "adventure" &&
+    classifiedGenre !== "rpg"
+  ) {
+    return buildGenre2DGameHtml(blueprint, classifiedGenre);
+  }
   const playerAsset = assetUri(materializedAssets, "character");
   const npcAsset = assetUri(materializedAssets, "npc");
   const enemyAsset = assetUri(materializedAssets, "enemy");
