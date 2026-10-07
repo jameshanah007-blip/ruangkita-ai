@@ -72,7 +72,7 @@ function buildRuntimeScript(spec: PhaserGameSpec): string {
   });
 
   return [
-    ""use strict";",
+    '"use strict";',
     "window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;",
     "var rkInitialState=" + state + ";",
     "var rkState=JSON.parse(JSON.stringify(rkInitialState));",
