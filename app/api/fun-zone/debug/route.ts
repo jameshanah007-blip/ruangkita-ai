@@ -68,20 +68,20 @@ function validateGameHtml(html: string): string[] {
     errors.push("Game tidak memiliki JavaScript.");
   }
 
-  if (!/<canvas[\s>]/i.test(html)) {
-    errors.push("Game tidak menggunakan Canvas.");
+  const isPhaserRuntime =
+    /phaser@4\.2\.1/i.test(html) ||
+    /Phaser\.Game\s*\(/i.test(html);
+
+  if (!isPhaserRuntime && !/<canvas[\s>]/i.test(html)) {
+    errors.push("Game tidak memiliki Canvas/Phaser runtime.");
   }
 
-  if (!/getContext\s*\(\s*["']2d["']\s*\)/i.test(html)) {
-    errors.push(
-      "Game tidak terlihat menggunakan Canvas 2D."
-    );
+  if (!isPhaserRuntime && !/getContext\s*\(\s*["']2d["']\s*\)/i.test(html)) {
+    errors.push("Game tidak terlihat menggunakan Canvas 2D.");
   }
 
-  if (!/requestAnimationFrame\s*\(/i.test(html)) {
-    errors.push(
-      "Game tidak memiliki game loop requestAnimationFrame."
-    );
+  if (!isPhaserRuntime && !/requestAnimationFrame\s*\(/i.test(html)) {
+    errors.push("Game tidak memiliki game loop.");
   }
 
   if (
@@ -586,7 +586,7 @@ Game harus:
 
 - standalone HTML
 - HTML + CSS + vanilla JavaScript
-- Canvas 2D
+- Phaser 4.2.1 2D runtime
 - playable
 - responsive
 - mobile friendly
@@ -600,8 +600,8 @@ Game harus:
 - memiliki win condition
 - memiliki lose condition
 - memiliki restart
-- tidak menggunakan external library
-- tidak menggunakan external asset
+- menggunakan Phaser 4.2.1 sebagai satu-satunya runtime
+- tidak menggunakan runtime engine lain
 - tidak menggunakan network
 - tidak menggunakan API eksternal
 
@@ -873,25 +873,7 @@ export async function POST(request: Request) {
     let model = "provider";
     let fixedHtml = "";
 
-    /*
-     * First-class 2D top-down games use James' deterministic runtime as the
-     * repair authority. Provider output is intentionally not allowed to
-     * rewrite this foundation after a test failure: low-output/partial AI
-     * responses were previously replacing a healthy game with truncated HTML,
-     * which then triggered the five-attempt loop and could remove movement.
-     */
-    const normalizedDebugBlueprint = blueprint ? normalizeBlueprint(blueprint)! : null;
-    const isTopDownFoundation = Boolean(
-      normalizedDebugBlueprint &&
-      isTopDown2DTemplateRequest(normalizedDebugBlueprint)
-    );
-
-    if (isTopDownFoundation) {
-      fixedHtml = buildTopDown2DGameHtml(normalizedDebugBlueprint!);
-      provider = "james-autonomous-topdown-repair";
-      model = "james-2d-topdown-runtime-v2";
-    } else {
-      try {
+    try {
         const result =
           await runJamesBrain({
           surface: "fun_zone",
