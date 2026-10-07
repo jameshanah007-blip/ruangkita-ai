@@ -17,6 +17,14 @@ export type PhaserSceneSpec = {
   role: string;
 };
 
+export type PhaserAssetManifestEntry = {
+  id: string;
+  kind: "character" | "npc" | "enemy" | "companion" | "environment" | "prop" | "effect" | "ui";
+  uri: string;
+  animationNeeds: string[];
+  characterDNA?: Record<string, unknown> | null;
+};
+
 export type PhaserGameSpec = {
   version: string;
   title: string;
@@ -41,6 +49,8 @@ export type PhaserGameSpec = {
   };
   sourcePrompt: string;
   runtimeId: string;
+  assets: PhaserAssetManifestEntry[];
+  playerAssetId?: string;
 };
 
 export type PhaserRuntimeBuild = {
