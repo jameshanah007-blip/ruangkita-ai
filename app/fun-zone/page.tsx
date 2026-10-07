@@ -888,8 +888,7 @@ const handleTestReport =
           : []).join(" ") ||
         "James sedang melakukan repair pada runtime Phaser yang sama."
       );
-    }, [blueprint, experimentId],
-    [autonomousRepairAttempts, blueprint, experimentId]
+    }, [blueprint, experimentId]
   );
 
 const handleSandboxGameHtmlChange =
@@ -902,7 +901,7 @@ const handleSandboxGameHtmlChange =
       void persistLabSession(previous, html);
       return previous;
     });
-  }, [blueprint, experimentId, experimentClaimToken, autonomousRepairAttempts]);  
+  }, [blueprint, experimentId, experimentClaimToken]);  
 
   function resumeSavedGame() {
     if (!savedLabSession) return;
