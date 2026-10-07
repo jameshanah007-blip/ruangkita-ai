@@ -1,4 +1,5 @@
 import { resolve2DGenre } from "../engine2d/genreResolver";
+import { GENRE_CONTRACTS } from "../engine2d/genreContracts";
 import type {
   GameBlueprint,
   SandboxTestEvidence,
@@ -257,6 +258,28 @@ function checkInput(
  * Game harus memberikan bukti semantic melalui
  * Game Test Protocol.
  */
+function checkGenreGameplay(blueprint: GameBlueprint, evidence: SandboxTestEvidence, checks: TestCheck[]): string[] {
+  const profile = resolve2DGenre(blueprint);
+  if (!profile) return [];
+  const contract = GENRE_CONTRACTS[profile.genre];
+  const state = evidence.genreState ?? {};
+  const failures: string[] = [];
+  const presentSignals = contract.requiredSignals.filter((signal) => {
+    const value = state[signal];
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value > 0;
+    if (typeof value === "string") return value.length > 0;
+    return value != null;
+  });
+  const passed = presentSignals.length === contract.requiredSignals.length;
+  addCheck(checks, "2d_genre_gameplay", passed,
+    passed
+      ? profile.genre + " gameplay contract terbukti melalui state runtime."
+      : "Milestone genre yang belum terbukti: " + contract.requiredSignals.filter((signal) => !presentSignals.includes(signal)).join(", "));
+  if (!passed) failures.push("Gameplay khusus genre belum terbukti: " + contract.requiredSignals.filter((signal) => !presentSignals.includes(signal)).join(", "));
+  return failures;
+}
+
 function checkPlayerGuidanceAndControls(
   evidence: SandboxTestEvidence,
   checks: TestCheck[],
@@ -557,6 +580,10 @@ export function testGame({
       evidence,
       checks
     )
+  );
+
+  hardFailures.push(
+    ...checkGenreGameplay(blueprint, evidence, checks)
   );
 
   hardFailures.push(
