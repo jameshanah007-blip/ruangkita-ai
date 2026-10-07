@@ -1,5 +1,6 @@
 import type { PhaserGameSpec, PhaserRuntimeBuild } from "./types";
 import { getGenreDefinition } from "./genreDefinitions";
+import { getCharacterSpriteSet } from "./characterAssets";
 
 const PHASER_CDN = "https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js";
 
@@ -20,6 +21,7 @@ function buildRuntimeScript(spec: PhaserGameSpec): string {
   const systems = JSON.stringify(Array.from(new Set(spec.systems)));
   const scenes = JSON.stringify(spec.scenes);
   const actions = JSON.stringify(spec.actions);
+  const characterAssets = JSON.stringify(getCharacterSpriteSet(spec.genre, p));
 
   const state = JSON.stringify({
     genre: spec.genre,
@@ -76,6 +78,7 @@ function buildRuntimeScript(spec: PhaserGameSpec): string {
     "window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;",
     "var rkInitialState=" + state + ";",
     "var rkState=JSON.parse(JSON.stringify(rkInitialState));",
+    "window.__RK_CHARACTER_ASSETS__=" + characterAssets + ";window.__RK_CHARACTER_STATE__={type:'animated-sprite-2d',playerAnimation:'rk-player-walk',playerFrames:4,playerKind:" + genre + ",creatureAnimation:" + (spec.genre === "monster_tamer" ? "'rk-creature-bob'" : "null") + "};",
     "var rkTesting=false;",
     "function bump(a){rkState.actions[a]=(rkState.actions[a]||0)+1;rkState.progress+=1;}",
     "function go(id){rkState.scene=String(id||rkState.scene);if(window.__RK_GAME_INSTANCE__&&window.__RK_GAME_INSTANCE__.scene){try{window.__RK_GAME_INSTANCE__.scene.start(rkState.scene);}catch(_){}}return true;}",
@@ -93,14 +96,19 @@ function buildRuntimeScript(spec: PhaserGameSpec): string {
     "if(" + genre + "==='survival'){if(a==='scavenge'){rkState.resources=3;ok=true;}if(a==='craft'&&(rkTesting||rkState.resources>0)){rkState.crafted=1;ok=true;}if(a==='defend'&&(rkTesting||rkState.crafted>0)){rkState.defended=1;ok=true;}if(a==='survive_wave'&&(rkTesting||rkState.defended>0)){rkState.waves=5;rkState.won=true;ok=true;}}",
     "if(ok)bump(a);return ok;}",
     "function reset(){rkState=JSON.parse(JSON.stringify(rkInitialState));if(window.__RK_GAME_PLAYER__){window.__RK_GAME_PLAYER__.x=rkState.player.x;window.__RK_GAME_PLAYER__.y=rkState.player.y;}}",
-    "window.__RK_GAME_TEST__={getState:function(){return JSON.parse(JSON.stringify(rkState));},getPlayerState:function(){return JSON.parse(JSON.stringify(rkState.player));},getObjectiveState:function(){return {progress:rkState.progress,won:rkState.won,scene:rkState.scene};},getGenreState:function(){return JSON.parse(JSON.stringify(rkState));},getWinState:function(){return rkState.won===true;},getLoseState:function(){return rkState.lost===true;},getTutorialState:function(){return {available:true,visible:true};},getControlState:function(){return {up:true,down:true,left:true,right:true};},testDirectionalControl:function(d){var b=rkState.player.x+':' + rkState.player.y;if(d==='up')rkState.player.y-=5;if(d==='down')rkState.player.y+=5;if(d==='left')rkState.player.x-=5;if(d==='right')rkState.player.x+=5;return b!==(rkState.player.x+':' + rkState.player.y);},performTestAction:function(a){rkTesting=true;try{return action(a);}finally{rkTesting=false;}},restart:function(){reset();}};",
-    "class RKSceneBase extends Phaser.Scene{constructor(key){super({key:key});this.rkKey=key;}create(){",
+    "window.__RK_GAME_TEST__={getState:function(){return JSON.parse(JSON.stringify(rkState));},getPlayerState:function(){return JSON.parse(JSON.stringify(rkState.player));},getObjectiveState:function(){return {progress:rkState.progress,won:rkState.won,scene:rkState.scene};},getGenreState:function(){return JSON.parse(JSON.stringify(rkState));},getWinState:function(){return rkState.won===true;},getLoseState:function(){return rkState.lost===true;},getTutorialState:function(){return {available:true,visible:true};},getControlState:function(){return {up:true,down:true,left:true,right:true};},getCharacterState:function(){return JSON.parse(JSON.stringify(window.__RK_CHARACTER_STATE__||{}));},testDirectionalControl:function(d){var b=rkState.player.x+':' + rkState.player.y;if(d==='up')rkState.player.y-=5;if(d==='down')rkState.player.y+=5;if(d==='left')rkState.player.x-=5;if(d==='right')rkState.player.x+=5;return b!==(rkState.player.x+':' + rkState.player.y);},performTestAction:function(a){rkTesting=true;try{return action(a);}finally{rkTesting=false;}},restart:function(){reset();}};",
+    "class RKSceneBase extends Phaser.Scene{constructor(key){super({key:key});this.rkKey=key;}",
+    "preload(){var a=window.__RK_CHARACTER_ASSETS__||{};for(var i=0;i<(a.player||[]).length;i++)this.load.image('rk-player-'+i,a.player[i]);for(var j=0;j<(a.creature||[]).length;j++)this.load.image('rk-creature-'+j,a.creature[j]);}",
+    "createCharacterAnimations(){if(!this.anims.exists('rk-player-walk'))this.anims.create({key:'rk-player-walk',frames:[0,1,2,3].map(function(i){return {key:'rk-player-'+i};}),frameRate:8,repeat:-1});if((window.__RK_CHARACTER_ASSETS__||{}).creature&&!this.anims.exists('rk-creature-bob'))this.anims.create({key:'rk-creature-bob',frames:[0,1,2,3].map(function(i){return {key:'rk-creature-'+i};}),frameRate:5,repeat:-1});}",
+    "makeCharacter(kind,x,y){var key=kind==='creature'?'rk-creature-0':'rk-player-0';var s=this.add.sprite(x,y,key);s.setScale(kind==='creature'?1.15:0.9);s.play(kind==='creature'?'rk-creature-bob':'rk-player-walk');s.setDepth(20);s.setName(kind==='creature'?'wild-creature':'player-character');if(kind==='creature')s.setInteractive();return s;}",
+    "create(){",
     "window.__RK_GAME_READY__=true;this.cameras.main.setBackgroundColor(" + js(p.background) + ");",
+    "this.createCharacterAnimations();",
     "this.add.text(28,20," + title + ",{fontFamily:'Arial',fontSize:'24px',color:" + js(p.light) + "});",
     "this.add.text(28,56," + objective + ",{fontFamily:'Arial',fontSize:'13px',color:" + js(p.accent) + ",wordWrap:{width:700}});",
     "this.add.text(770,25,String(this.rkKey).toUpperCase(),{fontFamily:'Arial',fontSize:'12px',color:" + js(p.light) + "});",
     "this.drawGenre(this.rkKey);",
-    "var pl=this.add.rectangle(rkState.player.x,rkState.player.y,36,36," + hex(p.accent) + ").setStrokeStyle(3,0xffffff);window.__RK_GAME_PLAYER__=pl;",
+    "var pl=this.makeCharacter('player',rkState.player.x,rkState.player.y);window.__RK_GAME_PLAYER__=pl;",
     "this.cursors=this.input.keyboard.createCursorKeys();this.keys=this.input.keyboard.addKeys('W,A,S,D');",
     "this.input.on('pointerdown',function(){if(window.__RK_GAME_TEST__)window.__RK_GAME_TEST__.testDirectionalControl('right');});",
     "window.__RK_2D_ENGINE_V2__={version:'3.0.0',architecture:'ruangkita-phaser-game-spec-v1',engine:'Phaser',phaserVersion:'3.90.0',genre:" + genre + ",runtimeId:" + runtimeId + ",systems:" + systems + ",sceneCount:" + spec.scenes.length + ",scenes:" + scenes + ",actions:" + actions + ",visualMode:" + js(spec.visual.mode) + "};",
@@ -108,8 +116,8 @@ function buildRuntimeScript(spec: PhaserGameSpec): string {
     "update(){window.__RK_GAME_LOOP_STARTED__=true;var dx=0,dy=0;if(this.cursors.left.isDown||this.keys.A.isDown)dx-=1;if(this.cursors.right.isDown||this.keys.D.isDown)dx+=1;if(this.cursors.up.isDown||this.keys.W.isDown)dy-=1;if(this.cursors.down.isDown||this.keys.S.isDown)dy+=1;if(dx||dy){rkState.player.x+=dx*3;rkState.player.y+=dy*3;if(window.__RK_GAME_PLAYER__){window.__RK_GAME_PLAYER__.x=rkState.player.x;window.__RK_GAME_PLAYER__.y=rkState.player.y;}}}",
     "drawGenre(id){",
     "var g=" + genre + ";",
-    "if(g==='farming'){for(var x=0;x<6;x++)for(var y=0;y<4;y++){var t=this.add.rectangle(120+x*78,220+y*58,58,42," + hex(p.ground) + ").setStrokeStyle(2,0x556b2f);t.setInteractive();t.on('pointerdown',function(){action('till');});}this.add.rectangle(720,250,180,150,0xb97745).setStrokeStyle(3," + hex(p.accent) + ");this.add.text(675,345,'MARKET',{fontSize:18,color:" + js(p.light) + "});}",
-    "if(g==='monster_tamer'){for(var i=0;i<8;i++)this.add.triangle(100+i%4*180,220+Math.floor(i/4)*120,0,90,45,0,90,90,0x2f855a);this.add.rectangle(180,470,190,80,0x916f52).setStrokeStyle(3," + hex(p.accent) + ");this.add.circle(690,330,46,0x8ecae6).setStrokeStyle(4," + hex(p.accent) + ");this.add.text(610,400,'WILD CREATURE',{fontSize:16,color:" + js(p.light) + "});}",
+    "if(g==='farming'){for(var x=0;x<6;x++)for(var y=0;y<4;y++){var t=this.add.rectangle(120+x*78,220+y*58,58,42," + hex(p.ground) + ").setStrokeStyle(2,0x556b2f);t.setInteractive();t.on('pointerdown',function(){if(!rkState.tilled)action('till');else if(!rkState.planted)action('plant');else if(!rkState.watered)action('water');else if(!rkState.harvested)action('harvest');});}this.add.rectangle(720,250,180,150,0xb97745).setStrokeStyle(3," + hex(p.accent) + ");var market=this.add.text(675,345,'MARKET',{fontSize:18,color:" + js(p.light) + "});market.setInteractive();market.on('pointerdown',function(){action('sell');});}",
+    "if(g==='monster_tamer'){for(var i=0;i<8;i++)this.add.triangle(100+i%4*180,220+Math.floor(i/4)*120,0,90,45,0,90,90,0x2f855a);this.add.rectangle(180,470,190,80,0x916f52).setStrokeStyle(3," + hex(p.accent) + ");var wc=this.makeCharacter('creature',690,330);wc.on('pointerdown',function(){action('encounter');});this.add.text(610,400,'WILD CREATURE',{fontSize:16,color:" + js(p.light) + "});}",
     "if(g==='racing'){if(id==='garage'){this.add.rectangle(480,390,760,300,0x20242b);this.add.rectangle(480,380,170,90," + hex(p.accent) + ");this.add.text(390,250,'GARAGE',{fontSize:34,color:" + js(p.light) + "});}else if(id==='results'){this.add.text(335,300,'RACE COMPLETE',{fontSize:32,color:" + js(p.light) + "});this.add.text(355,350,'Checkpoint 3 / 3',{fontSize:18,color:" + js(p.accent) + "});}else{this.add.rectangle(480,350,800,400," + hex(p.ground) + ").setStrokeStyle(4," + hex(p.accent) + ");for(var l=0;l<6;l++)this.add.rectangle(480,180+l*55,760,3,0x888888);this.add.rectangle(150,350,42,42," + hex(p.danger) + ");}}",
     "if(g==='platformer'){this.add.rectangle(480,500,900,90," + hex(p.ground) + ");this.add.rectangle(330,390,190,22," + hex(p.ground) + ");this.add.rectangle(650,310,150,22," + hex(p.ground) + ");for(var c=0;c<5;c++)this.add.circle(140+c*130,240-(c%2)*25,12," + hex(p.accent) + ");this.add.rectangle(850,260,30,230," + hex(p.danger) + ");}",
     "if(g==='puzzle'){for(var r=0;r<4;r++)for(var c=0;c<4;c++){var cell=this.add.rectangle(270+c*90,220+r*70,64,50," + hex(p.ground) + ").setStrokeStyle(2," + hex(p.accent) + ");cell.setInteractive();cell.on('pointerdown',function(){action('select');});}}",
