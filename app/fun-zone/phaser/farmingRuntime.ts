@@ -4,16 +4,19 @@ const PHASER_VERSION = "4.2.1";
 const PHASER_CDN = "https://cdn.jsdelivr.net/npm/phaser@" + PHASER_VERSION + "/dist/phaser.min.js";
 
 export function buildFarmingGameHtml(spec: PhaserGameSpec): string {
+  const farmerAsset = spec.assets.find((asset) => asset.id === spec.playerAssetId) || spec.assets.find((asset) => asset.kind === "character");
+  if (!farmerAsset) throw new Error("Farming Phaser runtime requires a character asset.");
   const config = JSON.stringify({
     title: spec.title,
     objective: spec.objective,
     winCondition: spec.winCondition,
     loseCondition: spec.loseCondition,
     palette: spec.visual.palette,
+    playerAssetUri: farmerAsset.uri,
+    playerAssetId: farmerAsset.id,
   }).replace(/</g, "\\u003c");
 
-  const farmerSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="32"><g stroke="#ffffff" stroke-width="2" fill="#f6bd60"><rect x="4" y="6" width="22" height="22" rx="8"/><circle cx="15" cy="13" r="2" fill="#365314"/><rect x="36" y="4" width="22" height="24" rx="8"/><circle cx="47" cy="12" r="2" fill="#365314"/><rect x="68" y="7" width="22" height="21" rx="8"/><circle cx="79" cy="13" r="2" fill="#365314"/><rect x="100" y="4" width="22" height="24" rx="8"/><circle cx="111" cy="12" r="2" fill="#365314"/></g></svg>';
-  const farmerSvgLiteral = JSON.stringify(farmerSvg);
+  const farmerSvgLiteral = JSON.stringify(farmerAsset.uri);
 
   const script = `
 "use strict";
@@ -80,8 +83,8 @@ class FarmScene extends Phaser.Scene {
   preload(){
     this.load.spritesheet(
       "farmer",
-      "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(FARMER_SVG),
-      {frameWidth:32,frameHeight:32}
+      FARMER_SVG,
+      {frameWidth:256,frameHeight:256}
     );
   }
 
@@ -126,7 +129,7 @@ class FarmScene extends Phaser.Scene {
       {fontSize:"13px",fontFamily:"Arial",color:"#365314"}
     );
 
-    const player=this.add.sprite(120,470,"farmer").setScale(2.2);
+    const player=this.add.sprite(120,470,"farmer").setScale(.75);
     player.play("farmer-idle");
     window.__RK_FARM_PLAYER__=player;
 
