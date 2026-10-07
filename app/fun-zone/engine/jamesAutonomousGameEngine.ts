@@ -1,5 +1,8 @@
 import type { GameBlueprint } from "../laboratory/types";
-import type { AssetMaterializationResult } from "./assetMaterializer";
+import { buildAssetRegistry } from "./assetRegistry";
+import { generateLocalGameAssets } from "./assetGenerator";
+import { materializeGameAssets, type AssetMaterializationResult } from "./assetMaterializer";
+import { buildVisualBlueprint } from "./visualBlueprint";
 import { buildPhaserGameHtml } from "../phaser/runtime";
 import { compilePhaserGameSpec } from "../phaser/genreDefinitions";
 import { validatePlayableRuntimeContract } from "./runtimeContract";
@@ -60,12 +63,15 @@ export function createAutonomousGameBlueprint(prompt: string): GameBlueprint {
 
 export function buildAutonomousGameHtml(
   blueprint: GameBlueprint,
-  materializedAssets: AssetMaterializationResult,
+  materializedAssets?: AssetMaterializationResult,
   playerAssetId = "protagonist",
 ): string {
+  const runtimeAssets = materializedAssets ?? materializeGameAssets(
+    generateLocalGameAssets(buildAssetRegistry(buildVisualBlueprint(blueprint))),
+  );
   const runtimeContract = validatePlayableRuntimeContract(
     blueprint,
-    materializedAssets,
+    runtimeAssets,
     playerAssetId,
   );
 
@@ -75,7 +81,7 @@ export function buildAutonomousGameHtml(
     );
   }
 
-  const phaserAssets = materializedAssets.assets.map((asset) => {
+  const phaserAssets = runtimeAssets.assets.map((asset) => {
     const sheet = asset.metadata.providerMetadata?.spriteSheet;
     const spriteSheet =
       typeof sheet === "object" && sheet !== null
