@@ -171,39 +171,16 @@ export function resolvePhaserGenre(blueprint: GameBlueprint): PhaserGenre | null
   return (normalizedValue in DEFINITIONS ? normalizedValue : null) as PhaserGenre | null;
 }
 
-function normalizePhaserAssets(assets: PhaserAssetManifestEntry[]): PhaserAssetManifestEntry[] {
-  if (assets.some((asset) => asset.kind === "character")) return assets;
-
-  // The protagonist is an invariant at the Phaser boundary. If an upstream
-  // provider/refinement accidentally changes the kind, recover the player
-  // from the strongest character identity signal instead of letting the
-  // genre runtime fail with a generic "character asset missing" error.
-  const protagonistCandidate =
-    assets.find((asset) => asset.id === "protagonist") ||
-    assets.find((asset) =>
-      ["npc", "enemy", "companion"].includes(asset.kind) &&
-      asset.animationNeeds.some((need) => /idle|walk|move/i.test(need)),
-    );
-
-  if (!protagonistCandidate) return assets;
-
-  return assets.map((asset) =>
-    asset.id === protagonistCandidate.id
-      ? { ...asset, kind: "character" }
-      : asset,
-  );
-}
-
 export function compilePhaserGameSpec(
   blueprint: GameBlueprint,
   prompt: string,
   assets: PhaserAssetManifestEntry[] = [],
+  playerAssetId = "protagonist",
 ): PhaserGameSpec | null {
   const genre = resolvePhaserGenre(blueprint);
   if (!genre) return null;
   const definition = getGenreDefinition(genre);
-  const normalizedAssets = normalizePhaserAssets(assets);
-  const playerAssetId = normalizedAssets.find((asset) => asset.kind === "character")?.id;
+  const playerAsset = assets.find((asset) => asset.id === playerAssetId);
 
   return {
     version: "ruangkita-game-spec-v1",
@@ -229,7 +206,13 @@ export function compilePhaserGameSpec(
     },
     sourcePrompt: prompt,
     runtimeId: "rk-phaser-" + genre + "-v1",
-    assets: normalizedAssets,
-    playerAssetId,
+    assets,
+    player: {
+      assetId: playerAssetId,
+      entityKind: genre === "racing" ? "vehicle" : "character",
+      requiredAnimations: playerAsset?.animationNeeds?.length
+        ? playerAsset.animationNeeds
+        : ["idle", "walk"],
+    },
   };
 }
