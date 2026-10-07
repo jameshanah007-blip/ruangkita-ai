@@ -280,6 +280,35 @@ function checkGenreGameplay(blueprint: GameBlueprint, evidence: SandboxTestEvide
   return failures;
 }
 
+function checkAnimatedCharacter(
+  evidence: SandboxTestEvidence,
+  checks: TestCheck[],
+): string[] {
+  const failures: string[] = [];
+  const character = evidence.characterState;
+  const passed =
+    character?.type === "animated-sprite-2d" &&
+    character.playerAnimation === "rk-player-walk" &&
+    Number(character.playerFrames ?? 0) >= 4;
+
+  addCheck(
+    checks,
+    "animated_2d_character",
+    passed,
+    passed
+      ? "Karakter pemain menggunakan sprite 2D animasi dengan minimal 4 frame."
+      : "Karakter pemain belum terbukti menggunakan sprite 2D animasi."
+  );
+
+  if (!passed) {
+    failures.push(
+      "Karakter pemain wajib menggunakan animated 2D sprite, bukan geometri runtime."
+    );
+  }
+
+  return failures;
+}
+
 function checkPlayerGuidanceAndControls(
   evidence: SandboxTestEvidence,
   checks: TestCheck[],
@@ -600,6 +629,13 @@ export function testGame({
   );
 
   hardFailures.push(
+    ...checkAnimatedCharacter(
+      evidence,
+      checks
+    )
+  );
+
+  hardFailures.push(
     ...checkPerformance(
       evidence,
       checks
@@ -683,6 +719,9 @@ export function testGame({
       evidence.runtimeEngine,
     runtimeVersion:
       evidence.runtimeVersion,
+
+    characterState:
+      evidence.characterState,
 
     performanceTest:
       evidence.performanceTest,
