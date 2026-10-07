@@ -398,7 +398,7 @@ export async function POST(
         .map((asset) => `${asset.id}:${asset.kind}:${asset.status}`)
         .join(", ");
       throw new Error(
-        `Fun Zone asset contract failed: playable protagonist asset was not materialized. Expected id "${protagonistId}" or kind "character". Materialized assets: ${materializedSummary || "none"}.`,
+        `Fun Zone asset contract failed: playable protagonist asset was not materialized. Expected exact protagonist id "${protagonistId}". Materialized assets: ${materializedSummary || "none"}.`,
       );
     }
 
