@@ -384,17 +384,21 @@ export async function POST(
       : [];
     const generatedAssets = await generateGameAssets(assetRegistry, realAssetProviders);
     const materializedAssets = materializeGameAssets(generatedAssets);
+    const protagonistId = visualBlueprint.protagonist.id;
     const runtimeCharacterAsset = materializedAssets.assets.find(
       (asset) =>
-        asset.kind === "character" &&
         asset.status === "ready" &&
         typeof asset.uri === "string" &&
-        asset.uri.length > 0,
+        asset.uri.length > 0 &&
+        (asset.kind === "character" || asset.id === protagonistId),
     );
 
     if (!runtimeCharacterAsset) {
+      const materializedSummary = materializedAssets.assets
+        .map((asset) => `${asset.id}:${asset.kind}:${asset.status}`)
+        .join(", ");
       throw new Error(
-        "Fun Zone asset contract failed: Laboratory could not materialize a playable character asset before Phaser build.",
+        `Fun Zone asset contract failed: playable protagonist asset was not materialized. Expected id "${protagonistId}" or kind "character". Materialized assets: ${materializedSummary || "none"}.`,
       );
     }
 
