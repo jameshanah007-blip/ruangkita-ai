@@ -3,6 +3,8 @@ import type { AssetMaterializationResult } from "./assetMaterializer";
 import { mechanicKnowledge, worldKnowledge } from "./jamesGameKnowledge";
 import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "./james2DTopDownTemplate";
 import { buildRacing3DGameHtml, isRacing3DRequest } from "./jamesRacing3DTemplate";
+import { buildPhaserGameHtml } from "../phaser/runtime";
+import { compilePhaserGameSpec } from "../phaser/genreDefinitions";
 
 /**
  * James Autonomous Game Engine
@@ -394,6 +396,11 @@ export function buildAutonomousGameHtml(
   blueprint: GameBlueprint,
   materializedAssets?: AssetMaterializationResult,
 ): string {
+  const phaserSpec = compilePhaserGameSpec(blueprint, blueprint.concept || blueprint.title);
+  if (phaserSpec) {
+    return buildPhaserGameHtml(phaserSpec);
+  }
+
   // The first-class 2D foundation is a dedicated top-down tile/sprite runtime.
   // Generic games keep the existing autonomous engine unchanged.
   if (isTopDown2DTemplateRequest(blueprint)) {
