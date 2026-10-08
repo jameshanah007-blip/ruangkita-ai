@@ -11,8 +11,8 @@ export function buildRacingGameHtml(spec: PhaserGameSpec): string {
   if (carAsset.entityKind !== "vehicle") {
     throw new Error("Racing Phaser runtime rejected a non-vehicle player asset.");
   }
-  if (carAsset.animationMode !== "sprite-sheet") {
-    throw new Error("Racing Phaser runtime requires an image-backed vehicle sprite-sheet.");
+  if (carAsset.animationMode !== "sprite-sheet" && carAsset.animationMode !== "single-image") {
+    throw new Error("Racing Phaser runtime requires an image-backed vehicle asset.");
   }
   if (!carAsset.provider || /local-fallback|james-native/i.test(carAsset.provider)) {
     throw new Error("Racing Phaser runtime rejects procedural/native vehicle assets.");
@@ -31,7 +31,10 @@ export function buildRacingGameHtml(spec: PhaserGameSpec): string {
   if (racing.checkpointAnchors.length !== racing.checkpointCount) {
     throw new Error("Racing Phaser runtime received incomplete checkpoint layout data.");
   }
-  if (!carAsset.frameWidth || !carAsset.frameHeight || !carAsset.frameCount || carAsset.frameCount < 2 || carAsset.animationMode !== "sprite-sheet") {
+  if (
+    carAsset.animationMode === "sprite-sheet" &&
+    (!carAsset.frameWidth || !carAsset.frameHeight || !carAsset.frameCount || carAsset.frameCount < 2)
+  ) {
     throw new Error("Racing Phaser runtime received invalid vehicle sprite-sheet metadata.");
   }
 
@@ -44,6 +47,7 @@ export function buildRacingGameHtml(spec: PhaserGameSpec): string {
     carAssetUri: carAsset.uri,
     carAssetId: spec.player.assetId,
     trackAssetUri: trackAsset.uri,
+    animationMode: carAsset.animationMode,
     frameWidth: carAsset.frameWidth,
     frameHeight: carAsset.frameHeight,
     frameCount: carAsset.frameCount,
@@ -158,10 +162,14 @@ class RacingScene extends Phaser.Scene{
   constructor(){super({key:"RacingScene"});}
 
   preload(){
-    this.load.spritesheet("car",CAR_ASSET,{
-      frameWidth:CFG.frameWidth,
-      frameHeight:CFG.frameHeight
-    });
+    if(CFG.animationMode==="sprite-sheet"){
+      this.load.spritesheet("car",CAR_ASSET,{
+        frameWidth:CFG.frameWidth,
+        frameHeight:CFG.frameHeight
+      });
+    }else{
+      this.load.image("car",CAR_ASSET);
+    }
     this.load.image("track-environment",CFG.trackAssetUri);
   }
 
@@ -200,16 +208,23 @@ class RacingScene extends Phaser.Scene{
       fontStyle:"bold"
     });
 
-    const car=this.add.sprite(480,470,"car").setScale(2.35);
+    const car=this.add.image(480,470,"car").setScale(CFG.animationMode==="single-image" ? 1.15 : 2.35);
     car.setOrigin(0.5);
-    this.anims.create({
-      key:"car-drive",
-      frames:this.anims.generateFrameNumbers("car",{start:0,end:Math.min(3,CFG.frameCount-1)}),
-      frameRate:8,
-      repeat:-1
-    });
-    car.play("car-drive");
-    window.__RK_RACING_PLAYER__=car;
+    if(CFG.animationMode==="sprite-sheet"){
+      const animatedCar=this.add.sprite(480,470,"car").setScale(2.35);
+      animatedCar.setOrigin(0.5);
+      this.anims.create({
+        key:"car-drive",
+        frames:this.anims.generateFrameNumbers("car",{start:0,end:Math.min(3,CFG.frameCount-1)}),
+        frameRate:8,
+        repeat:-1
+      });
+      animatedCar.play("car-drive");
+      car.destroy();
+      window.__RK_RACING_PLAYER__=animatedCar;
+    }else{
+      window.__RK_RACING_PLAYER__=car;
+    }
 
     this.keys=this.input.keyboard ? this.input.keyboard.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") : null;
     this.touch={left:false,right:false,accelerate:false,brake:false};
