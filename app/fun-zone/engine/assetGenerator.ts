@@ -26,6 +26,7 @@ export type GeneratedAsset = {
     provider?: string;
     providerMetadata?: Record<string, unknown>;
     fallback?: boolean;
+    imageBacked?: boolean;
   };
 };
 
@@ -107,6 +108,7 @@ export async function generateGameAssets(
           characterDNA,
         },
         fallback: routed.fallback,
+        imageBacked: routed.result.metadata?.imageBacked === true,
       },
     });
   }
