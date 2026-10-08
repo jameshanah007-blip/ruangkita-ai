@@ -93,6 +93,8 @@ export function createGeminiImageProvider(): AssetProvider | null {
           provider: "gemini-3.1-flash-image",
           model: "gemini-3.1-flash-image",
           identityPreserved: true,
+          imageBacked: true,
+          fallback: false,
           prompt,
           chromaKey: "#ff00ff",
         },
