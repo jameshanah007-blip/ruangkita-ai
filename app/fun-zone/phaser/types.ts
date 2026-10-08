@@ -27,6 +27,8 @@ export type PhaserAssetManifestEntry = {
   frameHeight?: number;
   frameCount?: number;
   rowCount?: number;
+  imageCrop?: { x: number; y: number; width: number; height: number };
+  racingTrackLayout?: "square-loop" | "modular-preview";
   characterDNA?: Record<string, unknown> | null;
   entityKind?: "character" | "vehicle" | "creature" | "ship" | "other";
   tags?: string[];
