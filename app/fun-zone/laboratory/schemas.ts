@@ -170,10 +170,25 @@ export const TestReportSchema: z.ZodType<TestReport> =
 
     performanceTest: z.boolean(),
 
+    gameTestProtocol: z.boolean(),
+
     stateChanged: z.boolean(),
     objectiveChanged: z.boolean(),
     playerChanged: z.boolean(),
+    winStateDetected: z.boolean(),
+    loseStateDetected: z.boolean(),
     restartVerified: z.boolean(),
+
+    gameTestError: z.string().max(1000).optional(),
+
+    protocolActions: z.array(z.string().min(1).max(120)).max(50),
+    protocolActionResults: z.array(
+      z.object({
+        action: z.string().min(1).max(120),
+        executed: z.boolean(),
+        result: z.unknown().optional(),
+      })
+    ).max(50),
 
     frameCount: z.number().int().min(0),
 
