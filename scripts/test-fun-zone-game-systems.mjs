@@ -159,7 +159,20 @@ const provider = {
   async generate(asset) {
     return {
       uri: `data:image/test,${asset.id}`,
-      metadata: { identityKey: asset.id, promptEcho: asset.prompt },
+      metadata: {
+        identityKey: asset.id,
+        promptEcho: asset.prompt,
+        ...(asset.animationNeeds.length > 0
+          ? {
+              spriteSheet: {
+                frameWidth: 256,
+                frameHeight: 256,
+                frameCount: Math.max(2, asset.animationNeeds.length * 2),
+                rowCount: Math.max(1, asset.animationNeeds.length),
+              },
+            }
+          : {}),
+      },
     };
   },
 };
