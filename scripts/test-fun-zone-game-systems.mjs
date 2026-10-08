@@ -150,6 +150,8 @@ assert.ok(farmingRuntimeHtml.includes("phaser@4.2.1"));
 assert.ok(farmingRuntimeHtml.includes("Phaser.CANVAS"));
 assert.ok(farmingRuntimeHtml.includes("FARMER_ASSET="));
 assert.ok(!farmingRuntimeHtml.includes("\\${"));
+assert.ok(!farmingRuntimeHtml.includes("this.this.moveState"));
+assert.ok(farmingRuntimeHtml.includes("performTestAction"));
 
 const provider = {
   name: "test-image-provider",
@@ -220,6 +222,15 @@ const farming = buildGameSystemPlan(blueprint({
 assert.ok(farming.systems.includes("farming"));
 assert.ok(farming.systems.includes("crafting"));
 assert.ok(farming.systems.includes("economy"));
+
+const composedFarming = composeGamePlan(blueprint({
+  concept: "A farming life simulation where the player tills soil, plants seeds, waters crops, harvests wheat and sells crops for money.",
+  genre: "Farming",
+  mechanics: ["till", "plant", "water", "harvest", "sell"],
+}));
+for (const required of ["till", "plant", "water", "harvest", "sell"]) {
+  assert.ok(composedFarming.requiredActions.includes(required), "farming test plan should include " + required);
+}
 
 const racing = buildGameSystemPlan(blueprint({
   concept: "Fast mobile racing game with checkpoints, laps and vehicle upgrades.",
