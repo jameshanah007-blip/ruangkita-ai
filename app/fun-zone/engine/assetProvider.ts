@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import type { AssetKind, GameAssetSpec } from "./assetRegistry";
 
 export type AssetProviderResult = {
@@ -17,22 +15,22 @@ type LocalRealAssetEntry = {
   uri: string;
   entityKind?: GameAssetSpec["entityKind"];
   tags: string[];
-  source: "vendored";
+  source: "curated-public";
   license: "CC0";
   animationMode?: "sprite-sheet" | "single-image";
 };
 
 const LOCAL_REAL_ASSETS: LocalRealAssetEntry[] = [
   {
-    uri: "/fun-zone-assets/racing/vehicles/car-red.png",
+    uri: "https://opengameart.org/sites/default/files/rccarspritesheet_0.png",
     entityKind: "vehicle",
     tags: ["racing-vehicle", "sprite-asset", "top-down", "racing"],
-    source: "vendored",
+    source: "curated-public",
     license: "CC0",
     animationMode: "single-image",
   },
   {
-    uri: "/fun-zone-assets/racing/tracks/racing-circuit.png",
+    uri: "https://opengameart.org/sites/default/files/trackselectbackground_0.png",
     tags: ["racing-track", "track", "environment-asset", "top-down", "racing"],
     source: "vendored",
     license: "CC0",
@@ -52,7 +50,7 @@ function matches(entry: LocalRealAssetEntry, asset: GameAssetSpec): boolean {
 }
 
 export const localRealAssetProvider: AssetProvider = {
-  name: "local-real-asset-library-v1",
+  name: "curated-real-asset-library-v1",
   supports: ["character", "environment"],
   async generate(asset) {
     if (!isRacingAsset(asset)) {
@@ -62,14 +60,10 @@ export const localRealAssetProvider: AssetProvider = {
     if (!entry) {
       throw new Error("No matching vendored real image asset exists for: " + asset.id);
     }
-    const relativePath = entry.uri.replace(/^\//, "");
-    if (!existsSync(join(process.cwd(), "public", relativePath))) {
-      throw new Error("Vendored real image asset is not present in the deployment: " + entry.uri);
-    }
     return {
       uri: entry.uri,
       metadata: {
-        provider: "local-real-asset-library-v1",
+        provider: "curated-real-asset-library-v1",
         source: entry.source,
         license: entry.license,
         imageBacked: true,
