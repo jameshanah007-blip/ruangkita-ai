@@ -180,17 +180,34 @@ class RacingScene extends Phaser.Scene{
 
   create(){
     this.cameras.main.setBackgroundColor(CFG.palette.background);
-    const trackImage=this.add.image(480,330,"track-environment").setDepth(-10);
+    let trackImage;
     if(CFG.trackCrop){
-      trackImage.setCrop(
-        CFG.trackCrop.x,
-        CFG.trackCrop.y,
+      const sourceImage=this.textures.get("track-environment").getSourceImage();
+      const cropTexture=this.textures.createCanvas(
+        "track-loop",
         CFG.trackCrop.width,
         CFG.trackCrop.height
       );
-      trackImage.setDisplaySize(540,540);
+      if(!sourceImage || !cropTexture){
+        throw new Error("Racing Phaser runtime could not materialize the verified track image crop.");
+      }
+      const context=cropTexture.getContext();
+      context.clearRect(0,0,CFG.trackCrop.width,CFG.trackCrop.height);
+      context.drawImage(
+        sourceImage,
+        CFG.trackCrop.x,
+        CFG.trackCrop.y,
+        CFG.trackCrop.width,
+        CFG.trackCrop.height,
+        0,
+        0,
+        CFG.trackCrop.width,
+        CFG.trackCrop.height
+      );
+      cropTexture.refresh();
+      trackImage=this.add.image(480,330,"track-loop").setDisplaySize(540,540).setDepth(-10);
     }else{
-      trackImage.setDisplaySize(960,540);
+      trackImage=this.add.image(480,330,"track-environment").setDisplaySize(960,540).setDepth(-10);
     }
 
     this.add.text(32,22,CFG.title,{
@@ -222,10 +239,10 @@ class RacingScene extends Phaser.Scene{
       fontStyle:"bold"
     });
 
-    const car=this.add.image(480,520,"car").setScale(CFG.animationMode==="single-image" ? 1.15 : 2.35);
+    const car=this.add.image(480,520,"car").setScale(CFG.animationMode==="single-image" ? 0.72 : 1.65);
     car.setOrigin(0.5);
     if(CFG.animationMode==="sprite-sheet"){
-      const animatedCar=this.add.sprite(480,520,"car").setScale(2.35);
+      const animatedCar=this.add.sprite(480,520,"car").setScale(1.65);
       animatedCar.setOrigin(0.5);
       this.anims.create({
         key:"car-drive",
