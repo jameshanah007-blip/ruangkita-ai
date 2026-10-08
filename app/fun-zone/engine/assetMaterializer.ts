@@ -49,7 +49,7 @@ function hasRealRacingImageContract(asset: GeneratedAsset): boolean {
   const provider = String(asset.metadata.provider || "");
   if (!provider || /local-fallback|james-native/i.test(provider)) return false;
   if (asset.metadata.fallback === true) return false;
-  if (asset.metadata.providerMetadata?.imageBacked !== true) return false;
+  if (asset.metadata.imageBacked !== true && asset.metadata.providerMetadata?.imageBacked !== true) return false;
   if (asset.entityKind === "vehicle") {
     const mode = asset.metadata.providerMetadata?.animationMode;
     return mode === "single-image" || hasSpriteSheetMetadata(asset);
