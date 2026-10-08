@@ -48,7 +48,6 @@ type GameTestProtocol = {
   getWinState?: () => boolean;
   getLoseState?: () => boolean;
   testActions?: string[];
-  testActions?: string[];
   performTestAction?: (
     action: string
   ) => unknown;
