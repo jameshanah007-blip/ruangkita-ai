@@ -16,7 +16,7 @@ type LocalRealAssetEntry = {
   entityKind?: GameAssetSpec["entityKind"];
   tags: string[];
   source: "curated-public";
-  license: "CC0";
+  license: "CC0" | "CC-BY-3.0";
   animationMode?: "sprite-sheet" | "single-image";
   frameWidth?: number;
   frameHeight?: number;
@@ -34,10 +34,10 @@ const LOCAL_REAL_ASSETS: LocalRealAssetEntry[] = [
     animationMode: "single-image",
   },
   {
-    uri: "https://raw.githubusercontent.com/ETdoFresh/kenney.nl/master/kenney_racingpack_updated/Sample.png",
-    tags: ["racing-track", "track", "environment-asset", "top-down", "racing", "curated-sample"],
+    uri: "https://opengameart.org/sites/default/files/trackpreview.png",
+    tags: ["racing-track", "track", "environment-asset", "top-down", "racing", "real-image"],
     source: "curated-public",
-    license: "CC0",
+    license: "CC-BY-3.0",
     animationMode: "single-image",
   },
 ];
