@@ -708,6 +708,20 @@ export function createDebugContext(
   lines.push(
     `Restart verified: ${report.restartVerified}`
   );
+
+  lines.push(
+    `Protocol actions: ${report.protocolActions.join(", ") || "none"}`
+  );
+
+  if (report.protocolActionResults.length > 0) {
+    lines.push("Protocol action results:");
+    for (const item of report.protocolActionResults) {
+      lines.push(
+        `- ${item.action}: ${item.executed ? "executed" : "rejected"}`
+      );
+    }
+  }
+
   if (report.gameTestError) {
     lines.push(`Game Test Error: ${report.gameTestError}`);
   }
