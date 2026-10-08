@@ -28,6 +28,9 @@ export function buildRacingGameHtml(spec: PhaserGameSpec): string {
   if (!trackAsset.provider || /local-fallback|james-native/i.test(trackAsset.provider)) {
     throw new Error("Racing Phaser runtime rejects procedural/native track assets.");
   }
+  if (trackAsset.racingTrackLayout === "square-loop" && !trackAsset.imageCrop) {
+    throw new Error("Racing Phaser runtime requires crop metadata for the curated square-loop track image.");
+  }
   if (racing.checkpointAnchors.length !== racing.checkpointCount) {
     throw new Error("Racing Phaser runtime received incomplete checkpoint layout data.");
   }
@@ -74,7 +77,7 @@ const race={
   upgradeLevel:0,
   finished:false,
   elapsed:0,
-  position:{x:480,y:470},
+  position:{x:480,y:520},
 };
 
 window.__RK_GAME_READY__=false;
@@ -95,7 +98,7 @@ function resetRace(){
   race.lap=1;
   race.finished=false;
   race.elapsed=0;
-  race.position={x:480,y:470};
+  race.position={x:480,y:520};
   if(window.__RK_RACING_PLAYER__){
     window.__RK_RACING_PLAYER__.x=480;
     window.__RK_RACING_PLAYER__.y=520;
