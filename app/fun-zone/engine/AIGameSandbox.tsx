@@ -47,6 +47,7 @@ type GameTestProtocol = {
   getObjectiveState?: () => unknown;
   getWinState?: () => boolean;
   getLoseState?: () => boolean;
+  testActions?: string[];
   performTestAction?: (
     action: string
   ) => unknown;
@@ -113,6 +114,13 @@ gameTestError?: string;
   renderChanged: boolean;
 
   elapsedMs: number;
+
+  protocolActions: string[];
+  protocolActionResults: Array<{
+    action: string;
+    executed: boolean;
+    result?: unknown;
+  }>;
 
   runtimeVisualAnalysis?: {
     version: 1;
@@ -1169,6 +1177,28 @@ var beforeLost =
           } else {
             var actionCandidates = [];
 
+            var protocolDeclaredActions =
+              Array.isArray(protocol.testActions)
+                ? protocol.testActions
+                : [];
+
+            for (
+              var protocolIndex = 0;
+              protocolIndex < protocolDeclaredActions.length;
+              protocolIndex++
+            ) {
+              var protocolDeclaredAction =
+                String(protocolDeclaredActions[protocolIndex] || "").trim();
+
+              if (
+                protocolDeclaredAction &&
+                protocolDeclaredAction.toLowerCase() !== "restart" &&
+                actionCandidates.indexOf(protocolDeclaredAction) === -1
+              ) {
+                actionCandidates.push(protocolDeclaredAction);
+              }
+            }
+
             for (
               var declaredIndex = 0;
               declaredIndex < declaredTestActions.length;
@@ -1199,6 +1229,7 @@ var beforeLost =
             }
 
             var executedActions = [];
+            var actionResults = [];
 
             for (
               var actionIndex = 0;
@@ -1209,9 +1240,19 @@ var beforeLost =
               var action = actionCandidates[actionIndex];
 
               try {
-                protocol.performTestAction(action);
-                protocolActionExecuted = true;
-                executedActions.push(action);
+                var actionResult =
+                  protocol.performTestAction(action);
+
+                actionResults.push({
+                  action: action,
+                  executed: actionResult !== false,
+                  result: actionResult
+                });
+
+                if (actionResult !== false) {
+                  protocolActionExecuted = true;
+                  executedActions.push(action);
+                }
 
                 if (!protocolAction) {
                   protocolAction = action;
