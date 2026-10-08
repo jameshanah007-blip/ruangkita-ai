@@ -24,6 +24,14 @@ function isProceduralProvider(provider: AssetProvider): boolean {
   return /local-fallback|james-native/i.test(provider.name);
 }
 
+function isVerifiedRealImageResult(result: AssetProviderResult): boolean {
+  return (
+    result.metadata?.imageBacked === true &&
+    typeof result.uri === "string" &&
+    result.uri.startsWith("data:image/")
+  );
+}
+
 export function createAssetProviderRouter(providers: AssetProvider[] = []): AssetProviderRouter {
   const candidates = providers.filter((provider) => provider.name !== localAssetProvider.name);
 
@@ -51,6 +59,9 @@ export function createAssetProviderRouter(providers: AssetProvider[] = []): Asse
     for (const provider of supported) {
       try {
         const result = await provider.generate(asset);
+        if (strictImageAsset && !isVerifiedRealImageResult(result)) {
+          throw new Error("Provider returned an unverified racing image result.");
+        }
         console.info("Fun Zone asset generated:", {
           assetId: asset.id,
           kind: asset.kind,
