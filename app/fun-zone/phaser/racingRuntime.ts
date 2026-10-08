@@ -67,6 +67,7 @@ export function buildRacingGameHtml(spec: PhaserGameSpec): string {
 const CFG=${config};
 const CAR_ASSET=${carAssetLiteral};
 
+const START_POSITION={x:480,y:520};
 const race={
   speed:0,
   maxSpeed:CFG.racing.maxSpeed,
@@ -77,7 +78,7 @@ const race={
   upgradeLevel:0,
   finished:false,
   elapsed:0,
-  position:{x:480,y:520},
+  position:{x:START_POSITION.x,y:START_POSITION.y},
 };
 
 window.__RK_GAME_READY__=false;
@@ -98,10 +99,10 @@ function resetRace(){
   race.lap=1;
   race.finished=false;
   race.elapsed=0;
-  race.position={x:480,y:520};
+  race.position={x:START_POSITION.x,y:START_POSITION.y};
   if(window.__RK_RACING_PLAYER__){
-    window.__RK_RACING_PLAYER__.x=480;
-    window.__RK_RACING_PLAYER__.y=520;
+    window.__RK_RACING_PLAYER__.x=START_POSITION.x;
+    window.__RK_RACING_PLAYER__.y=START_POSITION.y;
     window.__RK_RACING_PLAYER__.angle=0;
   }
 }
@@ -210,39 +211,27 @@ class RacingScene extends Phaser.Scene{
       trackImage=this.add.image(480,330,"track-environment").setDisplaySize(960,540).setDepth(-10);
     }
 
-    this.add.text(32,22,CFG.title,{
-      fontSize:"24px",
-      fontFamily:"Arial",
-      color:CFG.palette.light,
-      fontStyle:"bold"
-    });
-
-    this.add.text(32,58,CFG.objective,{
-      fontSize:"12px",
-      fontFamily:"Arial",
-      color:CFG.palette.light,
-      wordWrap:{width:700}
-    });
-
-    const hud=this.add.text(32,92,"Speed: 0 · Lap: 1/"+race.totalLaps+" · Checkpoint: 0/"+race.checkpoints,{
-      fontSize:"14px",
+    // The laboratory shell already renders the game title and prompt.
+    // Keep the in-canvas HUD in the top margin so it never obscures the real track image.
+    const hud=this.add.text(16,16,"Speed: 0 · Lap: 1/"+race.totalLaps+" · Checkpoint: 0/"+race.checkpoints,{
+      fontSize:"13px",
       fontFamily:"Arial",
       color:CFG.palette.light,
       backgroundColor:"#101820",
       padding:{x:8,y:5}
     });
 
-    this.add.text(690,28,CFG.racing.trackStyle.toUpperCase(),{
-      fontSize:"12px",
+    this.add.text(16,55,"Track: "+CFG.racing.trackStyle.toUpperCase(),{
+      fontSize:"11px",
       fontFamily:"Arial",
       color:CFG.palette.accent,
       fontStyle:"bold"
     });
 
-    const car=this.add.image(480,520,"car").setScale(CFG.animationMode==="single-image" ? 0.72 : 1.65);
+    const car=this.add.image(START_POSITION.x,START_POSITION.y,"car").setScale(CFG.animationMode==="single-image" ? 0.55 : 1.45);
     car.setOrigin(0.5);
     if(CFG.animationMode==="sprite-sheet"){
-      const animatedCar=this.add.sprite(480,520,"car").setScale(1.65);
+      const animatedCar=this.add.sprite(START_POSITION.x,START_POSITION.y,"car").setScale(1.45);
       animatedCar.setOrigin(0.5);
       this.anims.create({
         key:"car-drive",
@@ -280,7 +269,7 @@ class RacingScene extends Phaser.Scene{
 
     this.checkpointSprites=CFG.racing.checkpointAnchors.map((point)=>({x:point.x,y:point.y}));
 
-    this.status=this.add.text(32,575,"",{
+    this.status=this.add.text(16,78,"",{
       fontSize:"13px",
       fontFamily:"Arial",
       color:CFG.palette.light
@@ -303,7 +292,7 @@ class RacingScene extends Phaser.Scene{
     this.status.setText(
       race.finished
         ? "🏁 Finish! Race completed."
-        : "Checkpoint "+(race.checkpoint+1)+" of "+race.checkpoints+" · Lap "+race.lap+" of "+race.totalLaps+
+        : "Checkpoint "+race.checkpoint+"/"+race.checkpoints+" · Lap "+race.lap+"/"+race.totalLaps+
           (CFG.racing.upgradeEnabled ? " · Vehicle upgrade available" : "")
     );
   }
@@ -330,7 +319,7 @@ class RacingScene extends Phaser.Scene{
     player.x+=Math.cos(radians)*race.speed;
     player.y+=Math.sin(radians)*race.speed;
     player.x=Math.max(150,Math.min(810,player.x));
-    player.y=Math.max(130,Math.min(510,player.y));
+    player.y=Math.max(110,Math.min(560,player.y));
 
     race.position.x=player.x;
     race.position.y=player.y;

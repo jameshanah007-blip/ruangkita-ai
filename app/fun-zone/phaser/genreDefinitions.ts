@@ -197,6 +197,8 @@ export function compilePhaserGameSpec(
   };
   const buildCheckpointAnchors = (count: number, trackLayout?: PhaserAssetManifestEntry["racingTrackLayout"]) => {
     if (trackLayout === "square-loop") {
+      // Anchors follow the verified 540px square-loop crop rendered at (480,330).
+      // Keep them on the road centerline rather than on the green infield.
       const loop = [
         { x: 480, y: 150 },
         { x: 670, y: 250 },
