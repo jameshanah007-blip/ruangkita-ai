@@ -96,7 +96,10 @@ export function buildAutonomousGameHtml(
     return {
       id: asset.id,
       kind: asset.kind,
+      entityKind: asset.entityKind,
       uri: asset.uri,
+      tags: asset.metadata.tags || [],
+      provider: asset.metadata.provider || undefined,
       animationNeeds: asset.metadata.animationNeeds || [],
       animationMode: spriteSheet ? ("sprite-sheet" as const) : ("single-image" as const),
       frameWidth: spriteSheet?.frameWidth,

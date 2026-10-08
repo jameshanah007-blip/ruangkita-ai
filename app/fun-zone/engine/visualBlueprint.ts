@@ -119,6 +119,16 @@ function racingProtagonist(): VisualCharacterSpec {
   };
 }
 
+function racingEnvironment(text: string): VisualEnvironmentSpec {
+  const features = ["prompt-derived racing circuit", "road layout derived from the requested race style", "start/finish area", "checkpoint landmarks", "barriers and track-side scenery"];
+  if (/city|kota|urban/i.test(text)) features.push("urban buildings and city lights");
+  if (/forest|hutan|jungle/i.test(text)) features.push("forest scenery and natural obstacles");
+  if (/desert|gurun/i.test(text)) features.push("desert terrain and dust atmosphere");
+  if (/snow|salju|ice|es/i.test(text)) features.push("snow or ice scenery");
+  if (/night|malam/i.test(text)) features.push("night lighting and illuminated track markers");
+  return { id: "world-primary", role: "world", description: features.join(", "), props: ["track barriers", "checkpoint gates", "start/finish marker", "prompt-derived scenery"], atmosphere: ["racing energy", "clear driving line", "prompt-derived environment"] };
+}
+
 export function buildVisualBlueprint(b: GameBlueprint): VisualBlueprint {
   const text = sourceText(b);
   const isRacing = /racing|race|balap|driving|car|mobil/i.test(text);
@@ -154,7 +164,7 @@ export function buildVisualBlueprint(b: GameBlueprint): VisualBlueprint {
     });
   }
 
-  const environments: VisualEnvironmentSpec[] = [{
+  const environments: VisualEnvironmentSpec[] = isRacing ? [racingEnvironment(text)] : [{
     id: "world-primary",
     role: "world",
     description: b.world || "Environment derived from the game world.",

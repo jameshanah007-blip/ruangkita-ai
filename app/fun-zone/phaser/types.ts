@@ -28,6 +28,9 @@ export type PhaserAssetManifestEntry = {
   frameCount?: number;
   rowCount?: number;
   characterDNA?: Record<string, unknown> | null;
+  entityKind?: "character" | "vehicle" | "creature" | "ship" | "other";
+  tags?: string[];
+  provider?: string;
 };
 
 export type PhaserPlayerEntity = {
@@ -62,6 +65,17 @@ export type PhaserGameSpec = {
   runtimeId: string;
   assets: PhaserAssetManifestEntry[];
   player: PhaserPlayerEntity;
+  racing?: {
+    laps: number;
+    checkpointCount: number;
+    trackAssetId: string;
+    trackDescription: string;
+    vehicleDescription: string;
+    maxSpeed: number;
+    upgradeEnabled: boolean;
+    trackStyle: string;
+    checkpointAnchors: Array<{ x: number; y: number }>;
+  };
 };
 
 export type PhaserRuntimeBuild = {

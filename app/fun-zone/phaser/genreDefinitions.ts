@@ -181,6 +181,29 @@ export function compilePhaserGameSpec(
   if (!genre) return null;
   const definition = getGenreDefinition(genre);
   const playerAsset = assets.find((asset) => asset.id === playerAssetId);
+  const conceptText = [
+    blueprint.title, blueprint.concept, blueprint.coreLoop, blueprint.objective,
+    blueprint.progression, blueprint.replayability,
+    ...(blueprint.mechanics || []), ...(blueprint.playerActions || []),
+  ].join(" ");
+  const parseCount = (patterns: RegExp[], fallback: number) => {
+    for (const pattern of patterns) {
+      const match = conceptText.match(pattern);
+      const value = match ? Number(match[1]) : NaN;
+      if (Number.isFinite(value) && value > 0) return Math.min(20, Math.floor(value));
+    }
+    return fallback;
+  };
+  const buildCheckpointAnchors = (count: number) => {
+    const anchors: Array<{ x: number; y: number }> = [];
+    const radiusX = /street|city|urban/i.test(conceptText) ? 350 : 300;
+    const radiusY = /street|city|urban/i.test(conceptText) ? 210 : 230;
+    for (let index = 0; index < count; index += 1) {
+      const angle = -Math.PI / 2 + (index / count) * Math.PI * 2;
+      anchors.push({ x: Math.round(480 + Math.cos(angle) * radiusX), y: Math.round(330 + Math.sin(angle) * radiusY) });
+    }
+    return anchors;
+  };
   if (!playerAsset) {
     throw new Error(
       `Phaser player contract failed: declared player asset "${playerAssetId}" is missing from the asset manifest.`,
@@ -219,5 +242,20 @@ export function compilePhaserGameSpec(
         ? playerAsset.animationNeeds
         : ["idle", "walk"],
     },
+    ...(genre === "racing"
+      ? {
+          racing: {
+            laps: parseCount([/(\d+)\s*(?:lap|laps)/i, /(?:lap|laps)\s*(?:sebanyak|total|of)?\s*(\d+)/i], 3),
+            checkpointCount: parseCount([/(\d+)\s*checkpoint/i, /checkpoint(?:s)?\s*(?:sebanyak|total|of)?\s*(\d+)/i], 4),
+            trackAssetId: assets.find((asset) => asset.kind === "environment" && (asset.tags || []).includes("racing-track"))?.id || assets.find((asset) => asset.kind === "environment")?.id || "",
+            trackDescription: blueprint.world,
+            vehicleDescription: blueprint.concept,
+            maxSpeed: /fast|cepat|turbo|high speed|ngebut/i.test(conceptText) ? 8 : 6,
+            upgradeEnabled: /upgrade|upgrades|upgrade kendaraan|modif|tuning|garage/i.test(conceptText),
+            trackStyle: /street|city|urban/i.test(conceptText) ? "urban street circuit" : /forest|hutan|jungle/i.test(conceptText) ? "forest rally circuit" : /desert|gurun/i.test(conceptText) ? "desert rally circuit" : /snow|salju|ice|es/i.test(conceptText) ? "ice circuit" : /oval/i.test(conceptText) ? "oval circuit" : "prompt-derived circuit",
+            checkpointAnchors: buildCheckpointAnchors(parseCount([/(\d+)\s*checkpoint/i, /checkpoint(?:s)?\s*(?:sebanyak|total|of)?\s*(\d+)/i], 4)),
+          },
+        }
+      : {}),
   };
 }
