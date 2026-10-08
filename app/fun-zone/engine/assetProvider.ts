@@ -62,6 +62,10 @@ export const localRealAssetProvider: AssetProvider = {
     if (!entry) {
       throw new Error("No matching vendored real image asset exists for: " + asset.id);
     }
+    const relativePath = entry.uri.replace(/^\//, "");
+    if (!existsSync(join(process.cwd(), "public", relativePath))) {
+      throw new Error("Vendored real image asset is not present in the deployment: " + entry.uri);
+    }
     return {
       uri: entry.uri,
       metadata: {
