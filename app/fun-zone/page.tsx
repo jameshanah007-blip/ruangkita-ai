@@ -1682,6 +1682,7 @@ const handleSandboxError =
                       </div>
                     )}
                   </details>
+                  </div>
                 )}
 
                 <div className="mt-6 rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.03] p-4">
