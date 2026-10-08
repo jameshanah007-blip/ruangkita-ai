@@ -87,6 +87,8 @@ export function createOpenAIImageProvider(): AssetProvider | null {
           provider: "openai-gpt-image-2",
           model: "gpt-image-2",
           identityPreserved: true,
+          imageBacked: true,
+          fallback: false,
           prompt,
           revisedPrompt: data.data?.[0]?.revised_prompt || null,
         },
