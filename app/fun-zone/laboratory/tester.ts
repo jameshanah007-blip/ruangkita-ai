@@ -611,6 +611,12 @@ export function testGame({
     gameTestError:
       evidence.gameTestError,
 
+    protocolActions:
+      evidence.protocolActions,
+
+    protocolActionResults:
+      evidence.protocolActionResults,
+
     frameCount:
       evidence.frameCount,
 
