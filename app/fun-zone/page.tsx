@@ -1556,8 +1556,6 @@ const handleSandboxError =
                         </div>
                       )}
 
-                  </div>
-
                   <details className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
                     <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-cyan-300">
                       🔎 Test Evidence — buka untuk audit
