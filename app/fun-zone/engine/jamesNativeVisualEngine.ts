@@ -199,9 +199,7 @@ export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; 
   const isCharacter = ["character", "npc", "enemy", "companion"].includes(asset.kind);
   const svg = asset.kind === "environment"
     ? environmentSvg(asset)
-    : asset.entityKind === "vehicle"
-      ? vehicleSpriteSheetSvg(asset)
-      : isCharacter
+: isCharacter
         ? characterSpriteSheetSvg(asset)
         : asset.kind === "effect"
           ? effectSvg(asset)

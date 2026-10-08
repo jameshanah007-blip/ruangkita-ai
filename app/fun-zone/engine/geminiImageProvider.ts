@@ -65,7 +65,7 @@ export function createGeminiImageProvider(): AssetProvider | null {
             response_format: {
               type: "image",
               mime_type: "image/jpeg",
-              aspect_ratio: isRacingTrack ? "16:9" : "1:1",
+              aspect_ratio: asset.tags.includes("racing-track") ? "16:9" : "1:1",
               image_size: "1K",
             },
           }),

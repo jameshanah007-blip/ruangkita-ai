@@ -61,7 +61,7 @@ export function createOpenAIImageProvider(): AssetProvider | null {
           prompt,
           size: "1024x1024",
           quality: "low",
-          background: isRacingTrack ? "opaque" : "transparent",
+          background: asset.tags.includes("racing-track") ? "opaque" : "transparent",
           output_format: "png",
         }),
         cache: "no-store",
