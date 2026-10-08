@@ -20,8 +20,16 @@ export function validatePlayableRuntimeContract(
   else {
     if (player.status !== "ready") errors.push(`player asset "${playerAssetId}" is not ready`);
     if (!player.uri || !player.uri.startsWith("data:image/")) errors.push(`player asset "${playerAssetId}" is not a materialized image`);
-    if (player.metadata.animationNeeds.length > 0 && !player.metadata.providerMetadata?.spriteSheet) {
-      errors.push(`player asset "${playerAssetId}" has animation requirements but no sprite-sheet contract`);
+    const racingSingleImage =
+      blueprint.genre === "racing" &&
+      player.entityKind === "vehicle" &&
+      player.metadata.providerMetadata?.animationMode === "single-image";
+    if (
+      player.metadata.animationNeeds.length > 0 &&
+      !player.metadata.providerMetadata?.spriteSheet &&
+      !racingSingleImage
+    ) {
+      errors.push(`player asset "${playerAssetId}" has animation requirements but no valid animation contract`);
     }
   }
 
