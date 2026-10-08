@@ -1646,6 +1646,24 @@ const handleSandboxError =
                       </div>
                     )}
 
+                    {testReport.protocolActionResults.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">
+                          Game Test Protocol Actions
+                        </p>
+                        <div className="mt-2 space-y-1">
+                          {testReport.protocolActionResults.map((item, index) => (
+                            <div key={index} className="flex items-center justify-between rounded-lg border border-white/5 px-3 py-2 text-[10px]">
+                              <span className="text-slate-400">{item.action}</span>
+                              <span className={item.executed ? "text-emerald-400" : "text-red-300"}>
+                                {item.executed ? "EXECUTED" : "REJECTED"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {testReport.checks.length > 0 && (
                       <div className="mt-4">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
