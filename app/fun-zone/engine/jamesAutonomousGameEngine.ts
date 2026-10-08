@@ -122,5 +122,18 @@ export function buildAutonomousGameHtml(
     );
   }
 
+  const specContract = validatePlayableRuntimeContract(
+    blueprint,
+    runtimeAssets,
+    playerAssetId,
+    spec,
+  );
+
+  if (!specContract.valid) {
+    throw new Error(
+      "Fun Zone Phaser spec contract failed: " + specContract.errors.join("; "),
+    );
+  }
+
   return buildPhaserGameHtml(spec);
 }
