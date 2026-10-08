@@ -2685,6 +2685,12 @@ evidence: {
 
   gameTestError:
     result.gameTestError,
+
+  protocolActions:
+    result.protocolActions,
+
+  protocolActionResults:
+    result.protocolActionResults,
  },
       });
 
