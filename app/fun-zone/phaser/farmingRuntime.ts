@@ -128,7 +128,7 @@ class FarmScene extends Phaser.Scene {
   }
 
   create(){
-    if(CFG.playerAnimationMode==="sprite-sheet"){this.anims.create({key:"farmer-idle",frames:this.anims.generateFrameNumbers("farmer",{start:0,end:3}),frameRate:5,repeat:-1});}
+    if(CFG.playerAnimationMode==="sprite-sheet"){this.anims.create({key:"farmer-idle",frames:this.anims.generateFrameNumbers("farmer",{start:0,end:3}),frameRate:5,repeat:-1}); this.anims.create({key:"farmer-walk",frames:this.anims.generateFrameNumbers("farmer",{start:4,end:7}),frameRate:8,repeat:-1});}
 
     this.cameras.main.setBackgroundColor("#9bcf7b");
     this.add.rectangle(480,320,960,640,0x9bcf7b);
@@ -171,20 +171,20 @@ class FarmScene extends Phaser.Scene {
 
     const player=this.add.sprite(180,430,"farmer").setScale(CFG.playerAnimationMode==="sprite-sheet" ? 0.75 : 0.42);
     if(CFG.playerAnimationMode==="sprite-sheet") player.play("farmer-idle");
-    const keys=this.input.keyboard ? this.input.keyboard.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") : null;
-    const moveState={left:false,right:false,up:false,down:false};
+    this.farmKeys=this.input.keyboard ? this.input.keyboard.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") : null;
+    this.moveState={left:false,right:false,up:false,down:false};
     const moveButton=(x,y,label,direction)=>{
       const control=this.add.circle(x,y,24,0x365314,0.9).setInteractive({useHandCursor:true});
       this.add.text(x,y,label,{fontSize:"18px",fontFamily:"Arial",color:"#fff8e7",fontStyle:"bold"}).setOrigin(.5);
-      control.on("pointerdown",()=>{moveState[direction]=true;});
-      control.on("pointerup",()=>{moveState[direction]=false;});
+      control.on("pointerdown",()=>{this.moveState[direction]=true;});
+      control.on("pointerup",()=>{this.moveState[direction]=false;});
       control.on("pointerout",()=>{moveState[direction]=false;});
       return control;
     };
-    moveButton(82,548,"▲","up");
-    moveButton(82,612,"▼","down");
-    moveButton(42,580,"◀","left");
-    moveButton(122,580,"▶","right");
+    moveButton(82,468,"▲","up");
+    moveButton(82,532,"▼","down");
+    moveButton(42,500,"◀","left");
+    moveButton(122,500,"▶","right");
     window.__RK_FARM_PLAYER__=player;
 
     ["till","plant","water","harvest","sell"].forEach((tool,index)=>{
@@ -252,17 +252,18 @@ class FarmScene extends Phaser.Scene {
     const player=window.__RK_FARM_PLAYER__;
     if(!player) return;
     const speed=2.4;
-    const left=moveState.left || (keys && (keys.A.isDown || keys.LEFT.isDown));
-    const right=moveState.right || (keys && (keys.D.isDown || keys.RIGHT.isDown));
-    const up=moveState.up || (keys && (keys.W.isDown || keys.UP.isDown));
-    const down=moveState.down || (keys && (keys.S.isDown || keys.DOWN.isDown));
+    const left=this.moveState.left || (this.farmKeys && (this.farmKeys.A.isDown || this.farmKeys.LEFT.isDown));
+    const right=this.moveState.right || (this.farmKeys && (this.farmKeys.D.isDown || this.farmKeys.RIGHT.isDown));
+    const up=this.moveState.up || (this.farmKeys && (this.farmKeys.W.isDown || this.farmKeys.UP.isDown));
+    const down=this.moveState.down || (this.farmKeys && (this.farmKeys.S.isDown || this.farmKeys.DOWN.isDown));
     if(left) player.x=Math.max(48,player.x-speed);
     if(right) player.x=Math.min(912,player.x+speed);
     if(up) player.y=Math.max(150,player.y-speed);
     if(down) player.y=Math.min(510,player.y+speed);
     if(CFG.playerAnimationMode==="sprite-sheet"){
       const moving=left||right||up||down;
-      if(moving && player.anims.currentAnim && player.anims.currentAnim.key!=="farmer-idle") player.play("farmer-idle",true);
+      if(moving && player.anims.currentAnim && player.anims.currentAnim.key!=="farmer-walk") player.play("farmer-walk",true);
+      if(!moving && player.anims.currentAnim && player.anims.currentAnim.key!=="farmer-idle") player.play("farmer-idle",true);
     }
   }
 }
