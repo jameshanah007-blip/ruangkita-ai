@@ -811,20 +811,6 @@ const handleTestReport =
         }
       }
 
-      if (blueprint) {
-        void fetch("/api/fun-zone/learning", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            blueprint,
-            report: effectiveReport,
-            attempt: report.attempt,
-          }),
-        }).catch((error) => {
-          console.warn("James Game Brain learning request failed:", error);
-        });
-      }
-
       if (experimentId && blueprint) {
         void fetch("/api/fun-zone/experiment/verify", {
           method: "POST",
