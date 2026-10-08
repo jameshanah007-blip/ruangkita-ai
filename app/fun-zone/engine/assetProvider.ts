@@ -32,7 +32,7 @@ const LOCAL_REAL_ASSETS: LocalRealAssetEntry[] = [
   {
     uri: "https://opengameart.org/sites/default/files/trackselectbackground_0.png",
     tags: ["racing-track", "track", "environment-asset", "top-down", "racing"],
-    source: "vendored",
+    source: "curated-public",
     license: "CC0",
     animationMode: "single-image",
   },
@@ -58,7 +58,7 @@ export const localRealAssetProvider: AssetProvider = {
     }
     const entry = LOCAL_REAL_ASSETS.find((candidate) => matches(candidate, asset));
     if (!entry) {
-      throw new Error("No matching vendored real image asset exists for: " + asset.id);
+      throw new Error("No matching curated real image asset exists for: " + asset.id);
     }
     return {
       uri: entry.uri,
