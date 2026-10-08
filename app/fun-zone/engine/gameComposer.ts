@@ -1,5 +1,5 @@
 import type { GameBlueprint } from "../laboratory/types";
-import { buildGameSystemPlan, type GameSystemId, type GameSystemPlan } from "./gameSystemFactory.ts";
+import { buildGameSystemPlan, type GameSystemId, type GameSystemPlan } from "./gameSystemFactory";
 
 export type GameSystemModule = {
   id: GameSystemId;
