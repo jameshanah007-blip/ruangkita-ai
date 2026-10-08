@@ -198,10 +198,14 @@ export type TestReport = {
   gameplayTest: boolean;
   performanceTest: boolean;
 
+  gameTestProtocol: boolean;
   stateChanged: boolean;
   objectiveChanged: boolean;
   playerChanged: boolean;
+  winStateDetected: boolean;
+  loseStateDetected: boolean;
   restartVerified: boolean;
+  gameTestError?: string;
 
   frameCount: number;
   gameAnimationFrames: number;
