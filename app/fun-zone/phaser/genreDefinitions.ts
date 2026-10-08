@@ -200,10 +200,10 @@ export function compilePhaserGameSpec(
       // Anchors follow the verified 540px square-loop crop rendered at (480,330).
       // Keep them on the road centerline rather than on the green infield.
       const loop = [
-        { x: 480, y: 150 },
-        { x: 670, y: 250 },
-        { x: 670, y: 455 },
-        { x: 480, y: 535 },
+        { x: 480, y: 186 },
+        { x: 670, y: 266 },
+        { x: 670, y: 430 },
+        { x: 480, y: 494 },
         { x: 290, y: 330 },
       ];
       return Array.from({ length: count }, (_, index) => loop[index % loop.length]);

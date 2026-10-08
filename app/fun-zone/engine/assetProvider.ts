@@ -41,7 +41,7 @@ const LOCAL_REAL_ASSETS: LocalRealAssetEntry[] = [
     source: "curated-public",
     license: "CC-BY-3.0",
     animationMode: "single-image",
-    imageCrop: { x: 35, y: 18, width: 225, height: 225 },
+    imageCrop: { x: 35, y: 18, width: 225, height: 180 },
     racingTrackLayout: "square-loop",
   },
 ];

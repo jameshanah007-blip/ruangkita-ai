@@ -67,7 +67,7 @@ export function buildRacingGameHtml(spec: PhaserGameSpec): string {
 const CFG=${config};
 const CAR_ASSET=${carAssetLiteral};
 
-const START_POSITION={x:480,y:520};
+const START_POSITION={x:480,y:494};
 const race={
   speed:0,
   maxSpeed:CFG.racing.maxSpeed,
@@ -206,7 +206,7 @@ class RacingScene extends Phaser.Scene{
         CFG.trackCrop.height
       );
       cropTexture.refresh();
-      trackImage=this.add.image(480,330,"track-loop").setDisplaySize(540,540).setDepth(-10);
+      trackImage=this.add.image(480,330,"track-loop").setDisplaySize(540,432).setDepth(-10);
     }else{
       trackImage=this.add.image(480,330,"track-environment").setDisplaySize(960,540).setDepth(-10);
     }
@@ -267,7 +267,18 @@ class RacingScene extends Phaser.Scene{
     button(110,435,"▲","accelerate");
     button(110,535,"▼","brake");
 
-    this.checkpointSprites=CFG.racing.checkpointAnchors.map((point)=>({x:point.x,y:point.y}));
+    this.checkpointSprites=CFG.racing.checkpointAnchors.map((point,index)=>({
+      x:point.x,
+      y:point.y,
+      marker:this.add.circle(point.x,point.y,15,CFG.palette.accent,0.16).setStrokeStyle(2,CFG.palette.accent).setDepth(2),
+      label:this.add.text(point.x,point.y,String(index+1),{
+        fontSize:"11px",
+        fontFamily:"Arial",
+        color:CFG.palette.light,
+        fontStyle:"bold",
+        align:"center"
+      }).setOrigin(0.5).setDepth(3)
+    }));
 
     this.status=this.add.text(16,78,"",{
       fontSize:"13px",
@@ -324,6 +335,12 @@ class RacingScene extends Phaser.Scene{
     race.position.x=player.x;
     race.position.y=player.y;
     race.elapsed+=delta;
+
+    this.checkpointSprites.forEach((checkpoint,index)=>{
+      const active=index===race.checkpoint && !race.finished;
+      checkpoint.marker.setAlpha(active ? 0.9 : 0.16);
+      checkpoint.label.setAlpha(active ? 1 : 0.55);
+    });
 
     const target=this.checkpointSprites[race.checkpoint];
     if(target){
