@@ -1,5 +1,5 @@
 import type { AssetRegistry, GameAssetSpec } from "./assetRegistry";
-import { localAssetProvider, type AssetProvider } from "./assetProvider";
+import { localAssetProvider, localRealAssetProvider, type AssetProvider } from "./assetProvider";
 import { createAssetProviderRouter } from "./assetProviderRouter";
 import { generateJamesNativeVisual } from "./jamesNativeVisualEngine";
 import { buildCharacterDNA } from "./characterDNA";
@@ -67,7 +67,10 @@ export async function generateGameAssets(
     : provider
       ? [provider]
       : [];
-  const providers = [...externalProviders, jamesNativeProvider];
+
+  // Local real assets are the quota-independent baseline. AI providers remain
+  // available for assets that need prompt-specific generation.
+  const providers = [localRealAssetProvider, ...externalProviders, jamesNativeProvider];
   const router = createAssetProviderRouter(providers);
   const warnings: string[] = [];
   const assets: GeneratedAsset[] = [];
