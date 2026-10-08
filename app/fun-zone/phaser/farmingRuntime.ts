@@ -111,6 +111,7 @@ function testAction(action){
 }
 
 window.__RK_GAME_TEST__={
+  testActions:["till","plant","water","harvest","sell"],
   getState:()=>JSON.parse(JSON.stringify(farm)),
   getPlayerState:()=>({x:window.__RK_FARM_PLAYER__ ? window.__RK_FARM_PLAYER__.x : 0,y:window.__RK_FARM_PLAYER__ ? window.__RK_FARM_PLAYER__.y : 0}),
   getObjectiveState:()=>({progress:objectiveProgress(),harvested:farm.harvested,money:farm.money,targetMoney:targetMoney()}),
