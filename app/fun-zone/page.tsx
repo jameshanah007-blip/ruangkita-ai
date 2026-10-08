@@ -1578,8 +1578,8 @@ const handleSandboxError =
                         ["Lose Detected", testReport.loseStateDetected],
                         ["Restart Verified", testReport.restartVerified],
                         ["Performance", testReport.performanceTest],
-                      ].map(([label, value]) => (
-                        <div key={label} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                      ].map(([label, value], index) => (
+                        <div key={index} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
                           <span className="text-slate-500">{label}</span>
                           <span className={value ? "text-emerald-400" : "text-red-300"}>
                             {value ? "PASS" : "FAIL"}
