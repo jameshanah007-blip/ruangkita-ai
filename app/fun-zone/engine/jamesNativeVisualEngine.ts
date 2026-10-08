@@ -218,7 +218,7 @@ export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; 
       assetPrompt: asset.prompt,
       characterDNA: dna,
       identityKey: dna?.identityKey ?? asset.id,
-      spriteSheet: isCharacter ? { frameWidth: 256, frameHeight: 256, frameCount: 4, rowCount: 10, states: ["idle-down","walk-down","walk-up","walk-left","right","action","attack","hit","talk","defeat"], fps: 8 } : null,
+      spriteSheet: isCharacter ? { frameWidth: 256, frameHeight: 256, frameCount: 4, rowCount: 10, states: ["idle-down","walk-down","walk-up","walk-left","walk-right","action","attack","hit","talk","defeat"], fps: 8 } : null,
     },
   };
 }

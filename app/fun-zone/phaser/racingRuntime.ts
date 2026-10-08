@@ -8,8 +8,28 @@ export function buildRacingGameHtml(spec: PhaserGameSpec): string {
   if (!carAsset) {
     throw new Error("Racing Phaser runtime requires the declared player asset: " + spec.player.assetId);
   }
+  if (carAsset.entityKind !== "vehicle") {
+    throw new Error("Racing Phaser runtime rejected a non-vehicle player asset.");
+  }
   if (carAsset.animationMode !== "sprite-sheet") {
-    throw new Error("Racing Phaser runtime requires a sprite-sheet vehicle asset; single-image vehicles are not accepted.");
+    throw new Error("Racing Phaser runtime requires an image-backed vehicle sprite-sheet.");
+  }
+  if (!carAsset.provider || /local-fallback|james-native/i.test(carAsset.provider)) {
+    throw new Error("Racing Phaser runtime rejects procedural/native vehicle assets.");
+  }
+  const racing = spec.racing;
+  if (!racing) {
+    throw new Error("Racing Phaser runtime requires a racing visual/gameplay specification.");
+  }
+  const trackAsset = spec.assets.find((asset) => asset.id === racing.trackAssetId);
+  if (!trackAsset || trackAsset.kind !== "environment") {
+    throw new Error("Racing Phaser runtime requires a declared prompt-derived track environment asset.");
+  }
+  if (!trackAsset.provider || /local-fallback|james-native/i.test(trackAsset.provider)) {
+    throw new Error("Racing Phaser runtime rejects procedural/native track assets.");
+  }
+  if (racing.checkpointAnchors.length !== racing.checkpointCount) {
+    throw new Error("Racing Phaser runtime received incomplete checkpoint layout data.");
   }
   if (!carAsset.frameWidth || !carAsset.frameHeight || !carAsset.frameCount || carAsset.frameCount < 2) {
     throw new Error("Racing Phaser runtime received invalid vehicle sprite-sheet metadata.");
@@ -23,30 +43,29 @@ export function buildRacingGameHtml(spec: PhaserGameSpec): string {
     palette: spec.visual.palette,
     carAssetUri: carAsset.uri,
     carAssetId: spec.player.assetId,
+    trackAssetUri: trackAsset.uri,
     frameWidth: carAsset.frameWidth,
     frameHeight: carAsset.frameHeight,
     frameCount: carAsset.frameCount,
+    racing,
   }).replace(/</g, "\\u003c");
 
   const carAssetLiteral = JSON.stringify(carAsset.uri).replace(/</g, "\\u003c");
-  const environmentAsset = spec.assets.find((asset) => asset.kind === "environment");
-  const environmentAssetLiteral = environmentAsset
-    ? JSON.stringify(environmentAsset.uri).replace(/</g, "\\u003c")
-    : "null";
+
 
   const script = `
 "use strict";
 const CFG=${config};
 const CAR_ASSET=${carAssetLiteral};
-const TRACK_ASSET=${environmentAssetLiteral};
 
 const race={
   speed:0,
   maxSpeed:6,
   checkpoint:0,
-  checkpoints:4,
+  checkpoints:CFG.racing.checkpointCount,
   lap:1,
-  totalLaps:3,
+  totalLaps:CFG.racing.laps,
+  upgradeLevel:0,
   finished:false,
   elapsed:0,
   position:{x:480,y:470},
@@ -65,7 +84,7 @@ function objectiveProgress(){
 
 function resetRace(){
   race.speed=0;
-  race.maxSpeed=6;
+  race.maxSpeed=CFG.racing.maxSpeed+race.upgradeLevel;
   race.checkpoint=0;
   race.lap=1;
   race.finished=false;
@@ -92,10 +111,18 @@ function passCheckpoint(){
   return true;
 }
 
+function upgradeVehicle(){
+  if(!CFG.racing.upgradeEnabled || race.upgradeLevel>=3) return false;
+  race.upgradeLevel+=1;
+  race.maxSpeed=CFG.racing.maxSpeed+race.upgradeLevel;
+  return true;
+}
+
 function testAction(action){
   if(action==="accelerate"){ race.speed=Math.min(race.maxSpeed,race.speed+1); return true; }
-  if(action==="steer"){ race.position.x=Math.min(760,Math.max(200,race.position.x+40)); return true; }
+  if(action==="steer"){ race.position.x=Math.min(820,Math.max(140,race.position.x+40)); return true; }
   if(action==="checkpoint"){ return passCheckpoint(); }
+  if(action==="upgrade"){ return upgradeVehicle(); }
   if(action==="finish"){
     while(!race.finished) passCheckpoint();
     return true;
@@ -104,7 +131,7 @@ function testAction(action){
 }
 
 window.__RK_GAME_TEST__={
-  testActions:["accelerate","steer","checkpoint","finish"],
+  testActions:["accelerate","steer","checkpoint","finish"].concat(CFG.racing.upgradeEnabled?["upgrade"]:[]),
   getState:()=>JSON.parse(JSON.stringify(race)),
   getPlayerState:()=>({
     x:race.position.x,
@@ -112,7 +139,8 @@ window.__RK_GAME_TEST__={
     speed:race.speed,
     checkpoint:race.checkpoint,
     lap:race.lap,
-    finished:race.finished
+    finished:race.finished,
+    upgradeLevel:race.upgradeLevel
   }),
   getObjectiveState:()=>({
     progress:objectiveProgress(),
@@ -134,20 +162,16 @@ class RacingScene extends Phaser.Scene{
       frameWidth:CFG.frameWidth,
       frameHeight:CFG.frameHeight
     });
-    if(TRACK_ASSET) this.load.image("track-environment",TRACK_ASSET);
+    this.load.image("track-environment",CFG.trackAssetUri);
   }
 
   create(){
     this.cameras.main.setBackgroundColor(CFG.palette.background);
     this.add.rectangle(480,320,960,640,0x101820);
 
-    if(TRACK_ASSET){
-      this.add.image(480,320,"track-environment")
-        .setDisplaySize(960,540)
-        .setDepth(-10);
-    }else{
-      this.drawTrack();
-    }
+    this.add.image(480,320,"track-environment")
+      .setDisplaySize(960,640)
+      .setDepth(-10);
 
     this.add.text(32,22,CFG.title,{
       fontSize:"24px",
@@ -171,7 +195,7 @@ class RacingScene extends Phaser.Scene{
       padding:{x:8,y:5}
     });
 
-    this.add.text(690,28,"TOP-DOWN CIRCUIT",{
+    this.add.text(690,28,CFG.racing.trackStyle.toUpperCase(),{
       fontSize:"12px",
       fontFamily:"Arial",
       color:CFG.palette.accent,
@@ -211,19 +235,12 @@ class RacingScene extends Phaser.Scene{
     button(110,435,"▲","accelerate");
     button(110,535,"▼","brake");
 
-    this.checkpointMarkers=[
-      {x:480,y:160},
-      {x:760,y:320},
-      {x:480,y:490},
-      {x:200,y:320}
-    ];
-
-    this.checkpointSprites=this.checkpointMarkers.map((point,index)=>
+    this.checkpointSprites=CFG.racing.checkpointAnchors.map((point,index)=>
       this.add.circle(point.x,point.y,14,index===0 ? 0x00d4ff : 0x263646,0.9)
         .setStrokeStyle(3,0x00d4ff)
     );
 
-    this.status=this.add.text(32,575,"Accelerate, steer through the checkpoints, and finish 3 laps.",{
+    this.status=this.add.text(32,575,"",{
       fontSize:"13px",
       fontFamily:"Arial",
       color:CFG.palette.light
@@ -233,18 +250,22 @@ class RacingScene extends Phaser.Scene{
     window.__RK_GAME_RENDERED__=true;
 
     this.hud=hud;
+    this.updateHud();
   }
 
-  drawTrack(){
-    this.add.circle(480,320,300,0x3b3f46);
-    this.add.circle(480,320,205,0x101820);
-    this.add.rectangle(480,320,610,12,0xf5f7fa,0.5);
-    this.add.rectangle(480,320,12,610,0xf5f7fa,0.5);
-    this.add.text(480,320,"START / FINISH",{
-      fontSize:"16px",
-      fontFamily:"Arial",
-      color:"#f5f7fa"
-    }).setOrigin(0.5);
+  updateHud(){
+    this.hud.setText(
+      "Speed: "+Math.round(race.speed*20)+
+      " · Lap: "+race.lap+"/"+race.totalLaps+
+      " · Checkpoint: "+race.checkpoint+"/"+race.checkpoints+
+      (CFG.racing.upgradeEnabled ? " · Upgrade: "+race.upgradeLevel : "")
+    );
+    this.status.setText(
+      race.finished
+        ? "🏁 Finish! Race completed."
+        : "Checkpoint "+(race.checkpoint+1)+" of "+race.checkpoints+" · Lap "+race.lap+" of "+race.totalLaps+
+          (CFG.racing.upgradeEnabled ? " · Vehicle upgrade available" : "")
+    );
   }
 
   update(_,delta){
@@ -285,17 +306,7 @@ class RacingScene extends Phaser.Scene{
       marker.setFillStyle(index===race.checkpoint ? 0x00d4ff : 0x263646);
     });
 
-    this.hud.setText(
-      "Speed: "+Math.round(race.speed*20)+
-      " · Lap: "+race.lap+"/3"+
-      " · Checkpoint: "+race.checkpoint+"/4"
-    );
-
-    this.status.setText(
-      race.finished
-        ? "🏁 Finish! Race completed."
-        : "Checkpoint "+(race.checkpoint+1)+" of "+race.checkpoints+" · Lap "+race.lap+" of "+race.totalLaps
-    );
+    this.updateHud();
   }
 }
 
