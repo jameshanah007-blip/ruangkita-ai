@@ -2164,7 +2164,7 @@ export default function AIGameSandbox({
           currentHtml,
           blueprint?.playerActions ?? []
         ),
-      [currentHtml]
+      [currentHtml, blueprint?.playerActions]
     );
 
   const startTest =
