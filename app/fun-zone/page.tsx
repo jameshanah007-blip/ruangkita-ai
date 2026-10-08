@@ -1557,6 +1557,113 @@ const handleSandboxError =
                       )}
 
                   </div>
+
+                  <details className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-cyan-300">
+                      🔎 Test Evidence — buka untuk audit
+                    </summary>
+
+                    <div className="mt-4 grid gap-2 text-[10px] md:grid-cols-2">
+                      {[
+                        ["Runtime", testReport.runtimeOk],
+                        ["Rendering", testReport.rendered],
+                        ["Game Loop", testReport.loopStarted],
+                        ["Frame Advanced", testReport.frameAdvanced],
+                        ["Canvas", testReport.canvasValid],
+                        ["Input", testReport.inputTest],
+                        ["Gameplay", testReport.gameplayTest],
+                        ["Game Test Protocol", testReport.gameTestProtocol],
+                        ["State Changed", testReport.stateChanged],
+                        ["Player Changed", testReport.playerChanged],
+                        ["Objective Changed", testReport.objectiveChanged],
+                        ["Win Detected", testReport.winStateDetected],
+                        ["Lose Detected", testReport.loseStateDetected],
+                        ["Restart Verified", testReport.restartVerified],
+                        ["Performance", testReport.performanceTest],
+                      ].map(([label, value]) => (
+                        <div key={label} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                          <span className="text-slate-500">{label}</span>
+                          <span className={value ? "text-emerald-400" : "text-red-300"}>
+                            {value ? "PASS" : "FAIL"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 grid gap-2 text-[10px] md:grid-cols-3">
+                      {[
+                        ["Canvas", `${testReport.canvasWidth} × ${testReport.canvasHeight}`],
+                        ["Visible Pixels", testReport.nonBlankPixels.toLocaleString()],
+                        ["Game RAF", testReport.frameCount.toString()],
+                        ["Animation Frames", testReport.gameAnimationFrames.toString()],
+                        ["Input Events", testReport.inputEvents.toString()],
+                        ["Input Listeners", testReport.inputListeners.toString()],
+                        ["Elapsed", `${testReport.elapsedMs} ms`],
+                      ].map(([label, value]) => (
+                        <div key={label} className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                          <div className="text-slate-600">{label}</div>
+                          <div className="mt-1 text-slate-300">{value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {testReport.hardFailures.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-red-400">
+                          Hard Failures ({testReport.hardFailures.length})
+                        </p>
+                        <div className="mt-2 space-y-2">
+                          {testReport.hardFailures.map((failure, index) => (
+                            <div key={index} className="rounded-lg border border-red-400/10 bg-red-400/[0.03] px-3 py-2 text-[10px] leading-4 text-red-100/80">
+                              {index + 1}. {failure}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {testReport.runtimeErrors.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-red-400">
+                          Runtime Errors ({testReport.runtimeErrors.length})
+                        </p>
+                        <div className="mt-2 space-y-2">
+                          {testReport.runtimeErrors.map((error, index) => (
+                            <div key={index} className="rounded-lg border border-red-400/10 bg-red-400/[0.03] px-3 py-2 text-[10px] leading-4 text-red-100/80">
+                              {index + 1}. {error.message}
+                              {error.source ? ` · ${error.source}` : ""}
+                              {error.line != null ? ` · line ${error.line}` : ""}
+                              {error.column != null ? ` · col ${error.column}` : ""}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {testReport.gameTestError && (
+                      <div className="mt-4 rounded-lg border border-amber-400/10 bg-amber-400/[0.03] px-3 py-2 text-[10px] leading-4 text-amber-200/80">
+                        <strong>Game Test Error:</strong> {testReport.gameTestError}
+                      </div>
+                    )}
+
+                    {testReport.checks.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Tester Checks
+                        </p>
+                        <div className="mt-2 space-y-1">
+                          {testReport.checks.map((check, index) => (
+                            <div key={index} className="flex items-center justify-between rounded-lg border border-white/5 px-3 py-2 text-[10px]">
+                              <span className="text-slate-400">{check.name}</span>
+                              <span className={check.passed ? "text-emerald-400" : "text-red-300"}>
+                                {check.passed ? "PASS" : "FAIL"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </details>
                 )}
 
                 <div className="mt-6 rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.03] p-4">
