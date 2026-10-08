@@ -584,6 +584,9 @@ export function testGame({
     gameplayTest:
       evidence.gameplayTest,
 
+    gameTestProtocol:
+      evidence.gameTestProtocol,
+
     performanceTest:
       evidence.performanceTest,
 
@@ -596,8 +599,17 @@ export function testGame({
     playerChanged:
       evidence.playerChanged,
 
+    winStateDetected:
+      evidence.winStateDetected,
+
+    loseStateDetected:
+      evidence.loseStateDetected,
+
     restartVerified:
       evidence.restartVerified,
+
+    gameTestError:
+      evidence.gameTestError,
 
     frameCount:
       evidence.frameCount,
