@@ -102,7 +102,7 @@ function testAction(action){
 
 window.__RK_GAME_TEST__={
   getState:()=>JSON.parse(JSON.stringify(farm)),
-  getPlayerState:()=>({x:window.__RK_FARM_PLAYER__?.x||0,y:window.__RK_FARM_PLAYER__?.y||0}),
+  getPlayerState:()=>({x:window.__RK_FARM_PLAYER__ ? window.__RK_FARM_PLAYER__.x : 0,y:window.__RK_FARM_PLAYER__ ? window.__RK_FARM_PLAYER__.y : 0}),
   getObjectiveState:()=>({progress:objectiveProgress(),harvested:farm.harvested,money:farm.money,targetMoney:targetMoney()}),
   getWinState:()=>{const target=targetMoney();return target && target>0 ? farm.money>=target : farm.harvested>=3;},
   getLoseState:()=>false,
@@ -153,7 +153,7 @@ class FarmScene extends Phaser.Scene {
       {fontSize:"13px",fontFamily:"Arial",color:"#365314"}
     );
 
-    const player=this.add.sprite(120,470,"farmer").setScale(CFG.playerAnimationMode==="sprite-sheet"?.75:.42);
+    const player=this.add.sprite(120,470,"farmer").setScale(CFG.playerAnimationMode==="sprite-sheet" ? 0.75 : 0.42);
     if(CFG.playerAnimationMode==="sprite-sheet") player.play("farmer-idle");
     window.__RK_FARM_PLAYER__=player;
 
