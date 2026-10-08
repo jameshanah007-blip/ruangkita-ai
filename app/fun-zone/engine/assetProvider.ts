@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { AssetKind, GameAssetSpec } from "./assetRegistry";
 
 export type AssetProviderResult = {
