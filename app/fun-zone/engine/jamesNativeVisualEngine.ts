@@ -82,9 +82,36 @@ function characterSvg(asset: GameAssetSpec): string {
 function environmentSvg(asset: GameAssetSpec): string {
   const seed = hash(asset.prompt);
   const night = /night|malam|dark/i.test(asset.prompt) || seed % 2 === 0;
-  const sky = night ? "#10172a" : "#87ceeb";
-  const ground = night ? "#164e3b" : "#4d9b45";
+  const farming = /farm|farming|tanam|bertani|panen|crop|kebun|petani/i.test(asset.prompt);
+  const sky = night ? "#10172a" : farming ? "#8fd3ff" : "#87ceeb";
+  const ground = night ? "#164e3b" : farming ? "#69a84f" : "#4d9b45";
   const water = /water|river|lake|laut|sungai/i.test(asset.prompt);
+
+  if (farming) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 288">
+  <defs>
+    <linearGradient id="farm-sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="${sky}"/><stop offset="1" stop-color="#dbeafe"/></linearGradient>
+    <linearGradient id="farm-ground" x1="0" y1="0" x2="0" y2="1"><stop stop-color="${ground}"/><stop offset="1" stop-color="#3f7d3a"/></linearGradient>
+  </defs>
+  <rect width="512" height="288" fill="url(#farm-sky)"/>
+  <circle cx="430" cy="48" r="25" fill="${night ? "#f8fafc" : "#fde68a"}"/>
+  <rect y="118" width="512" height="170" fill="url(#farm-ground)"/>
+  <path d="M0 137 Q92 105 182 138 T356 136 T512 140" fill="none" stroke="#2f6f38" stroke-width="16" opacity=".7"/>
+  <path d="M0 225 H512" stroke="#b7793e" stroke-width="46" opacity=".9"/>
+  <path d="M24 207 H488 M24 241 H488" stroke="#8b5a2b" stroke-width="9" stroke-dasharray="18 10"/>
+  <g fill="#65a30d"><circle cx="62" cy="199" r="7"/><circle cx="91" cy="199" r="7"/><circle cx="120" cy="199" r="7"/><circle cx="366" cy="199" r="7"/><circle cx="395" cy="199" r="7"/><circle cx="424" cy="199" r="7"/></g>
+  <g stroke="#78350f" stroke-width="6"><path d="M18 259 H494"/><path d="M30 248 V271 M78 248 V271 M126 248 V271 M174 248 V271 M222 248 V271 M270 248 V271 M318 248 V271 M366 248 V271 M414 248 V271 M462 248 V271"/></g>
+  <path d="M62 111 H153 V170 H62Z" fill="#f4a261" stroke="#78350f" stroke-width="5"/>
+  <path d="M52 112 L107 76 L163 112Z" fill="#b23a48" stroke="#78350f" stroke-width="5"/>
+  <rect x="97" y="137" width="22" height="33" fill="#7c2d12"/><rect x="72" y="129" width="16" height="16" fill="#bfdbfe"/>
+  <g fill="#166534"><circle cx="201" cy="100" r="29"/><circle cx="232" cy="92" r="34"/><circle cx="260" cy="104" r="27"/></g>
+  <g stroke="#78350f" stroke-width="10"><path d="M232 112 V160"/><path d="M201 117 V157"/><path d="M260 119 V161"/></g>
+  <path d="M310 156 H470" stroke="#d6d3d1" stroke-width="8" opacity=".85"/>
+  ${water ? '<path d="M0 268 Q90 248 180 270 T360 268 T512 272 V288 H0Z" fill="#2563a8"/>' : ""}
+  <title>Farming environment: ${esc(asset.prompt.slice(0, 180))}</title>
+</svg>`;
+  }
+
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 288">
   <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="${sky}"/><stop offset="1" stop-color="${night ? "#312e81" : "#dbeafe"}"/></linearGradient></defs>
   <rect width="512" height="288" fill="url(#sky)"/>
@@ -98,7 +125,6 @@ function environmentSvg(asset: GameAssetSpec): string {
   <title>${esc(asset.prompt.slice(0, 180))}</title>
 </svg>`;
 }
-
 function propSvg(asset: GameAssetSpec): string {
   const seed = hash(asset.prompt);
   const body = /chest|treasure|peti/i.test(asset.prompt)
