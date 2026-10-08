@@ -22,6 +22,8 @@ type LocalRealAssetEntry = {
   frameHeight?: number;
   frameCount?: number;
   rowCount?: number;
+  imageCrop?: { x: number; y: number; width: number; height: number };
+  racingTrackLayout?: "square-loop" | "modular-preview";
 };
 
 const LOCAL_REAL_ASSETS: LocalRealAssetEntry[] = [
@@ -39,6 +41,8 @@ const LOCAL_REAL_ASSETS: LocalRealAssetEntry[] = [
     source: "curated-public",
     license: "CC-BY-3.0",
     animationMode: "single-image",
+    imageCrop: { x: 35, y: 18, width: 225, height: 225 },
+    racingTrackLayout: "square-loop",
   },
 ];
 
@@ -105,6 +109,8 @@ export const localRealAssetProvider: AssetProvider = {
           frameCount: entry.frameCount,
           rowCount: entry.rowCount,
         } } : {}),
+        ...(entry.imageCrop ? { imageCrop: entry.imageCrop } : {}),
+        ...(entry.racingTrackLayout ? { racingTrackLayout: entry.racingTrackLayout } : {}),
         sourceUri: entry.uri,
       },
     };
