@@ -43,5 +43,8 @@ jobs:
       - name: Social Memory behavior tests
         run: npm run test:social-memory
 
+      - name: Fun Zone runtime contract tests
+        run: npm run test:fun-zone-systems
+
       - name: Production build
         run: npm run build
