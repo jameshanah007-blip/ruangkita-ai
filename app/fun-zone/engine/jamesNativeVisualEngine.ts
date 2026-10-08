@@ -191,16 +191,51 @@ function characterSpriteSheetSvg(asset: GameAssetSpec): string {
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="2560" viewBox="0 0 1024 2560"><defs><g id="character-body">${body}</g></defs>${frameGroups}</svg>`;
 }
+function vehicleSpriteSheetSvg(asset: GameAssetSpec): string {
+  const seed = hash(asset.prompt + asset.id);
+  const carColors = ["#ef4444", "#2563eb", "#16a34a", "#f59e0b", "#9333ea", "#0891b2"];
+  const body = carColors[seed % carColors.length];
+  const accent = carColors[(seed + 2) % carColors.length];
+
+  const frames = [0, 1, 2, 3].map((frame) => {
+    const x = frame * 256;
+    const tilt = frame === 1 ? -2 : frame === 3 ? 2 : 0;
+    const wheelOffset = frame % 2 === 0 ? 0 : 2;
+    return `<g transform="translate(${x} 0)">
+      <g transform="translate(128 128) rotate(${tilt}) translate(-128 -128)">
+        <ellipse cx="128" cy="224" rx="54" ry="9" fill="#020617" opacity=".35"/>
+        <rect x="76" y="48" width="104" height="160" rx="34" fill="#111827" stroke="#020617" stroke-width="7"/>
+        <rect x="84" y="42" width="88" height="170" rx="30" fill="${body}" stroke="#0f172a" stroke-width="6"/>
+        <rect x="99" y="65" width="58" height="58" rx="18" fill="#bfdbfe" stroke="#172033" stroke-width="5"/>
+        <path d="M102 119 Q128 132 154 119 L164 174 Q128 190 92 174Z" fill="${accent}" opacity=".92"/>
+        <path d="M95 137 H161" stroke="#f8fafc" stroke-width="5" opacity=".7"/>
+        <rect x="102" y="177" width="52" height="18" rx="9" fill="#111827"/>
+        <circle cx="96" cy="54" r="9" fill="#fde68a"/>
+        <circle cx="160" cy="54" r="9" fill="#fde68a"/>
+        <rect x="62" y="${92 + wheelOffset}" width="30" height="58" rx="13" fill="#020617"/>
+        <rect x="164" y="${92 - wheelOffset}" width="30" height="58" rx="13" fill="#020617"/>
+        <rect x="67" y="99" width="20" height="44" rx="9" fill="#334155"/>
+        <rect x="169" y="99" width="20" height="44" rx="9" fill="#334155"/>
+        <path d="M107 48 H149" stroke="#fff" stroke-width="4" opacity=".65"/>
+      </g>
+    </g>`;
+  }).join("");
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="256" viewBox="0 0 1024 256"><title>Racing vehicle: ${esc(asset.prompt.slice(0, 180))}</title>${frames}</svg>`;
+}
+
 export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; metadata: Record<string, unknown> } {
   const dna = buildCharacterDNA(asset);
   const isCharacter = ["character", "npc", "enemy", "companion"].includes(asset.kind);
   const svg = asset.kind === "environment"
     ? environmentSvg(asset)
-    : isCharacter
-      ? characterSpriteSheetSvg(asset)
-      : asset.kind === "effect"
-        ? effectSvg(asset)
-        : propSvg(asset);
+    : asset.entityKind === "vehicle"
+      ? vehicleSpriteSheetSvg(asset)
+      : isCharacter
+        ? characterSpriteSheetSvg(asset)
+        : asset.kind === "effect"
+          ? effectSvg(asset)
+          : propSvg(asset);
 
   return {
     uri: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
@@ -213,7 +248,11 @@ export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; 
       assetPrompt: asset.prompt,
       characterDNA: dna,
       identityKey: dna?.identityKey ?? asset.id,
-      spriteSheet: isCharacter ? { frameWidth: 256, frameHeight: 256, frameCount: 4, rowCount: 10, states: ["idle-down","walk-down","walk-up","walk-left","walk-right","action","attack","hit","talk","defeat"], fps: 8 } : null,
+      spriteSheet: asset.entityKind === "vehicle"
+        ? { frameWidth: 256, frameHeight: 256, frameCount: 4, rowCount: 1, states: ["idle","drive","steer","finish"], fps: 8 }
+        : isCharacter
+          ? { frameWidth: 256, frameHeight: 256, frameCount: 4, rowCount: 10, states: ["idle-down","walk-down","walk-up","walk-left","walk-right","action","attack","hit","talk","defeat"], fps: 8 }
+          : null,
     },
   };
 }

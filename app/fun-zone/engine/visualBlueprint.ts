@@ -102,9 +102,27 @@ function characterFromPrompt(text: string): VisualCharacterSpec {
   };
 }
 
+function racingProtagonist(): VisualCharacterSpec {
+  return {
+    id: "protagonist",
+    role: "protagonist",
+    archetype: "racing vehicle",
+    appearance: [
+      "2D playable racing vehicle",
+      "top-down readable vehicle silhouette",
+      "vehicle body derived from the user's racing description",
+    ],
+    outfit: ["vehicle paint and body styling derived from the prompt"],
+    equipment: ["four wheels", "headlights", "racing body"],
+    expression: "dynamic racing stance",
+    animationNeeds: ["idle", "drive", "steer", "finish"],
+  };
+}
+
 export function buildVisualBlueprint(b: GameBlueprint): VisualBlueprint {
   const text = sourceText(b);
-  const protagonist = characterFromPrompt(text);
+  const isRacing = /racing|race|balap|driving|car|mobil/i.test(text);
+  const protagonist = isRacing ? racingProtagonist() : characterFromPrompt(text);
   const isAnime = /anime|manga|isekai|japanese animation/i.test(text);
   const style = isAnime ? ["anime-inspired"] : (Array.isArray(b.visualStyle) ? b.visualStyle.filter(Boolean) : [b.visualStyle || "game-specific visual style"]);
 

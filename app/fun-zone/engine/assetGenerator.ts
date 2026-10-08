@@ -79,6 +79,14 @@ export async function generateGameAssets(
       warnings.push(`Asset "${asset.id}" used emergency placeholder fallback.`);
     }
 
+    const characterDNA =
+      asset.entityKind === "vehicle"
+        ? null
+        : (() => {
+            const dna = buildCharacterDNA(asset);
+            return dna ? { ...dna, poseSet: buildCharacterPoseSet(dna) } : null;
+          })();
+
     assets.push({
       id: asset.id,
       kind: asset.kind,
@@ -91,7 +99,7 @@ export async function generateGameAssets(
         provider: routed.provider,
         providerMetadata: {
           ...routed.result.metadata,
-          characterDNA: (() => { const dna = buildCharacterDNA(asset); return dna ? { ...dna, poseSet: buildCharacterPoseSet(dna) } : null; })(),
+          characterDNA,
         },
         fallback: routed.fallback,
       },

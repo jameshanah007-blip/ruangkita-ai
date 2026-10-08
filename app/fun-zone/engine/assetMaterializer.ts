@@ -15,6 +15,7 @@ function nativeFallback(asset: GeneratedAsset): { uri: string; metadata: Record<
   return generateJamesNativeVisual({
     id: asset.id,
     kind: asset.kind,
+    entityKind: asset.entityKind,
     role: asset.kind,
     prompt: asset.metadata.prompt,
     tags: asset.metadata.tags,
@@ -36,13 +37,14 @@ function hasSpriteSheetMetadata(asset: GeneratedAsset): boolean {
   );
 }
 
-function requiresAnimatedCharacter(asset: GeneratedAsset): boolean {
+function requiresAnimatedSprite(asset: GeneratedAsset): boolean {
   return (
-    asset.kind === "character" ||
-    asset.kind === "npc" ||
-    asset.kind === "enemy" ||
-    asset.kind === "companion"
-  ) && asset.metadata.animationNeeds.length > 0;
+    asset.entityKind === "vehicle" ||
+    (
+      ["character", "npc", "enemy", "companion"].includes(asset.kind) &&
+      asset.metadata.animationNeeds.length > 0
+    )
+  );
 }
 
 export function materializeGameAssets(
@@ -50,13 +52,14 @@ export function materializeGameAssets(
 ): AssetMaterializationResult {
   const assets = generation.assets.map((asset) => {
     const providerUri = asset.status === "ready" && !asset.uri.startsWith("asset://placeholder/");
-    const animationContractMissing = requiresAnimatedCharacter(asset) && !hasSpriteSheetMetadata(asset);
+    const animationContractMissing = requiresAnimatedSprite(asset) && !hasSpriteSheetMetadata(asset);
     const useNative = !providerUri || animationContractMissing;
 
     if (animationContractMissing) {
-      console.warn("Fun Zone asset provider lacks required character animation contract; using James Native Visual Engine:", {
+      console.warn("Fun Zone asset provider lacks required sprite animation contract; using James Native Visual Engine:", {
         assetId: asset.id,
         kind: asset.kind,
+        entityKind: asset.entityKind,
       });
     }
 

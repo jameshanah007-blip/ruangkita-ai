@@ -10,6 +10,8 @@ export type AssetKind =
   | "effect"
   | "ui";
 
+export type AssetEntityKind = "character" | "vehicle";
+
 export type AssetSource =
   | "generated"
   | "procedural"
@@ -20,6 +22,7 @@ export type AssetSource =
 export type GameAssetSpec = {
   id: string;
   kind: AssetKind;
+  entityKind?: AssetEntityKind;
   role: string;
   prompt: string;
   tags: string[];
@@ -48,9 +51,15 @@ export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
 
   for (const character of characterSpecs) {
     const kind: AssetKind = character.role === "protagonist" ? "character" : character.role;
+    const entityKind: AssetEntityKind =
+      character.role === "protagonist" && visual.artDirection.genre === "racing"
+        ? "vehicle"
+        : "character";
+
     assets.push({
       id: character.id,
       kind,
+      entityKind,
       role: character.role,
       prompt: [
         character.archetype,
@@ -69,6 +78,7 @@ export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
     assets.push({
       id: environment.id,
       kind: "environment",
+      entityKind: undefined,
       role: "world environment",
       prompt: [environment.description, ...environment.props].join(", "),
       tags: [environment.id],
@@ -82,6 +92,7 @@ export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
     assets.push({
       id: `prop-${index + 1}`,
       kind: "prop",
+      entityKind: undefined,
       role: "gameplay prop",
       prompt: prop,
       tags: ["gameplay", "interactive"],
@@ -95,6 +106,7 @@ export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
     assets.push({
       id: `effect-${index + 1}`,
       kind: "effect",
+      entityKind: undefined,
       role: "gameplay effect",
       prompt: effect,
       tags: ["gameplay", "feedback"],
@@ -108,6 +120,7 @@ export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
     assets.push({
       id: `ui-${index + 1}`,
       kind: "ui",
+      entityKind: undefined,
       role: "interface",
       prompt: ui,
       tags: ["ui", "mobile"],
