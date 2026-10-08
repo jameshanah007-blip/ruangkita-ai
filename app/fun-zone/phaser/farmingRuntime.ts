@@ -179,7 +179,7 @@ class FarmScene extends Phaser.Scene {
       const control=this.add.circle(x,y,24,0x365314,0.9).setInteractive({useHandCursor:true});
       this.add.text(x,y,label,{fontSize:"18px",fontFamily:"Arial",color:"#fff8e7",fontStyle:"bold"}).setOrigin(.5);
       control.on("pointerdown",()=>{this.moveState[direction]=true;});
-      control.on("pointerup",()=>{this.this.moveState[direction]=false;});
+      control.on("pointerup",()=>{this.moveState[direction]=false;});
       control.on("pointerout",()=>{this.moveState[direction]=false;});
       return control;
     };
