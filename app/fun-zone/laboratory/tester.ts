@@ -681,6 +681,31 @@ export function createDebugContext(
     `Passed: ${report.passed}`
   );
 
+  lines.push(
+    `Game Test Protocol: ${report.gameTestProtocol}`
+  );
+  lines.push(
+    `State changed: ${report.stateChanged}`
+  );
+  lines.push(
+    `Player changed: ${report.playerChanged}`
+  );
+  lines.push(
+    `Objective changed: ${report.objectiveChanged}`
+  );
+  lines.push(
+    `Win detected: ${report.winStateDetected}`
+  );
+  lines.push(
+    `Lose detected: ${report.loseStateDetected}`
+  );
+  lines.push(
+    `Restart verified: ${report.restartVerified}`
+  );
+  if (report.gameTestError) {
+    lines.push(`Game Test Error: ${report.gameTestError}`);
+  }
+
   if (report.hardFailures.length > 0) {
     lines.push(
       "Hard failures:"
