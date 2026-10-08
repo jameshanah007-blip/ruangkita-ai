@@ -176,7 +176,7 @@ class RacingScene extends Phaser.Scene{
   create(){
     this.cameras.main.setBackgroundColor(CFG.palette.background);
     this.add.image(480,320,"track-environment")
-      .setDisplaySize(960,640)
+      .setDisplaySize(960, Math.round(960 * 515 / 918))
       .setDepth(-10);
 
     this.add.text(32,22,CFG.title,{
