@@ -51,6 +51,8 @@ export function buildRacingGameHtml(spec: PhaserGameSpec): string {
     frameWidth: carAsset.frameWidth,
     frameHeight: carAsset.frameHeight,
     frameCount: carAsset.frameCount,
+    trackCrop: trackAsset.imageCrop,
+    racingTrackLayout: trackAsset.racingTrackLayout,
     racing,
   }).replace(/</g, "\\u003c");
 
@@ -96,7 +98,7 @@ function resetRace(){
   race.position={x:480,y:470};
   if(window.__RK_RACING_PLAYER__){
     window.__RK_RACING_PLAYER__.x=480;
-    window.__RK_RACING_PLAYER__.y=470;
+    window.__RK_RACING_PLAYER__.y=520;
     window.__RK_RACING_PLAYER__.angle=0;
   }
 }
@@ -175,9 +177,18 @@ class RacingScene extends Phaser.Scene{
 
   create(){
     this.cameras.main.setBackgroundColor(CFG.palette.background);
-    this.add.image(480,320,"track-environment")
-      .setDisplaySize(960, Math.round(960 * 515 / 918))
-      .setDepth(-10);
+    const trackImage=this.add.image(480,330,"track-environment").setDepth(-10);
+    if(CFG.trackCrop){
+      trackImage.setCrop(
+        CFG.trackCrop.x,
+        CFG.trackCrop.y,
+        CFG.trackCrop.width,
+        CFG.trackCrop.height
+      );
+      trackImage.setDisplaySize(540,540);
+    }else{
+      trackImage.setDisplaySize(960,540);
+    }
 
     this.add.text(32,22,CFG.title,{
       fontSize:"24px",
@@ -208,10 +219,10 @@ class RacingScene extends Phaser.Scene{
       fontStyle:"bold"
     });
 
-    const car=this.add.image(480,470,"car").setScale(CFG.animationMode==="single-image" ? 1.15 : 2.35);
+    const car=this.add.image(480,520,"car").setScale(CFG.animationMode==="single-image" ? 1.15 : 2.35);
     car.setOrigin(0.5);
     if(CFG.animationMode==="sprite-sheet"){
-      const animatedCar=this.add.sprite(480,470,"car").setScale(2.35);
+      const animatedCar=this.add.sprite(480,520,"car").setScale(2.35);
       animatedCar.setOrigin(0.5);
       this.anims.create({
         key:"car-drive",
