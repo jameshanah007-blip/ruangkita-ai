@@ -216,9 +216,13 @@ const failingProvider = {
   },
 };
 const fallbackGenerated = await generateGameAssets(registry, failingProvider);
-assert.ok(fallbackGenerated.warnings.some((warning) => warning.includes("failing-provider")));
-assert.ok(fallbackGenerated.assets.every((asset) => asset.status === "placeholder"));
-assert.ok(fallbackGenerated.assets.every((asset) => asset.metadata.provider === "local-fallback"));
+assert.ok(fallbackGenerated.assets.every((asset) => asset.status === "ready"));
+assert.ok(
+  fallbackGenerated.assets.every(
+    (asset) => asset.metadata.provider === "james-native-visual-engine-v2",
+  ),
+  "provider outage should fall through to the next viable provider",
+);
 
 const composed = composeGamePlan(pokemonLike);
 assert.ok(composed.requiredActions.includes("capture"));
