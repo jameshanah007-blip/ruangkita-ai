@@ -181,6 +181,7 @@ export function compilePhaserGameSpec(
   if (!genre) return null;
   const definition = getGenreDefinition(genre);
   const playerAsset = assets.find((asset) => asset.id === playerAssetId);
+  const racingTrackAsset = assets.find((asset) => asset.kind === "environment" && (asset.tags || []).includes("racing-track"));
   const conceptText = [
     blueprint.title, blueprint.concept, blueprint.coreLoop, blueprint.objective,
     blueprint.progression, blueprint.replayability,
@@ -194,7 +195,17 @@ export function compilePhaserGameSpec(
     }
     return fallback;
   };
-  const buildCheckpointAnchors = (count: number) => {
+  const buildCheckpointAnchors = (count: number, trackLayout?: PhaserAssetManifestEntry["racingTrackLayout"]) => {
+    if (trackLayout === "square-loop") {
+      const loop = [
+        { x: 480, y: 150 },
+        { x: 670, y: 250 },
+        { x: 670, y: 455 },
+        { x: 480, y: 535 },
+        { x: 290, y: 330 },
+      ];
+      return Array.from({ length: count }, (_, index) => loop[index % loop.length]);
+    }
     const anchors: Array<{ x: number; y: number }> = [];
     const radiusX = /street|city|urban/i.test(conceptText) ? 350 : 300;
     const radiusY = /street|city|urban/i.test(conceptText) ? 210 : 230;
@@ -247,7 +258,7 @@ export function compilePhaserGameSpec(
           racing: {
             laps: parseCount([/(\d+)\s*(?:lap|laps)/i, /(?:lap|laps)\s*(?:sebanyak|total|of)?\s*(\d+)/i], 3),
             checkpointCount: parseCount([/(\d+)\s*checkpoint/i, /checkpoint(?:s)?\s*(?:sebanyak|total|of)?\s*(\d+)/i], 4),
-            trackAssetId: assets.find((asset) => asset.kind === "environment" && (asset.tags || []).includes("racing-track"))?.id || assets.find((asset) => asset.kind === "environment")?.id || "",
+            trackAssetId: racingTrackAsset?.id || assets.find((asset) => asset.kind === "environment")?.id || "",
             trackDescription: blueprint.world,
             vehicleDescription: blueprint.concept,
             maxSpeed: /fast|cepat|turbo|high speed|ngebut/i.test(conceptText) ? 8 : 6,
