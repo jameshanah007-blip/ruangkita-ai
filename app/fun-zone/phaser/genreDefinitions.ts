@@ -264,7 +264,10 @@ export function compilePhaserGameSpec(
             maxSpeed: /fast|cepat|turbo|high speed|ngebut/i.test(conceptText) ? 8 : 6,
             upgradeEnabled: /upgrade|upgrades|upgrade kendaraan|modif|tuning|garage/i.test(conceptText),
             trackStyle: /street|city|urban/i.test(conceptText) ? "urban street circuit" : /forest|hutan|jungle/i.test(conceptText) ? "forest rally circuit" : /desert|gurun/i.test(conceptText) ? "desert rally circuit" : /snow|salju|ice|es/i.test(conceptText) ? "ice circuit" : /oval/i.test(conceptText) ? "oval circuit" : "prompt-derived circuit",
-            checkpointAnchors: buildCheckpointAnchors(parseCount([/(\d+)\s*checkpoint/i, /checkpoint(?:s)?\s*(?:sebanyak|total|of)?\s*(\d+)/i], 4)),
+            checkpointAnchors: buildCheckpointAnchors(
+              parseCount([/(\d+)\s*checkpoint/i, /checkpoint(?:s)?\s*(?:sebanyak|total|of)?\s*(\d+)/i], 4),
+              racingTrackAsset?.racingTrackLayout,
+            ),
           },
         }
       : {}),
