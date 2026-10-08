@@ -26,20 +26,16 @@ type LocalRealAssetEntry = {
 
 const LOCAL_REAL_ASSETS: LocalRealAssetEntry[] = [
   {
-    uri: "https://lpc.opengameart.org/sites/default/files/car_frames.png",
+    uri: "https://raw.githubusercontent.com/ETdoFresh/kenney.nl/master/kenney_racingpack_updated/PNG/Cars/car_red_1.png",
     entityKind: "vehicle",
-    tags: ["racing-vehicle", "sprite-asset", "top-down", "racing", "animated"],
+    tags: ["racing-vehicle", "image-asset", "top-down", "racing"],
     source: "curated-public",
     license: "CC0",
-    animationMode: "sprite-sheet",
-    frameWidth: 32,
-    frameHeight: 32,
-    frameCount: 65,
-    rowCount: 65,
+    animationMode: "single-image",
   },
   {
-    uri: "https://opengameart.org/sites/default/files/trackselectbackground_0.png",
-    tags: ["racing-track", "track", "environment-asset", "top-down", "racing"],
+    uri: "https://raw.githubusercontent.com/ETdoFresh/kenney.nl/master/kenney_racingpack_updated/Sample.png",
+    tags: ["racing-track", "track", "environment-asset", "top-down", "racing", "curated-sample"],
     source: "curated-public",
     license: "CC0",
     animationMode: "single-image",
@@ -102,6 +98,7 @@ export const localRealAssetProvider: AssetProvider = {
         fallback: false,
         tags: entry.tags,
         animationMode: entry.animationMode,
+        ...(entry.animationMode ? { imageBackedAnimation: entry.animationMode } : {}),
         ...(entry.frameWidth ? { spriteSheet: {
           frameWidth: entry.frameWidth,
           frameHeight: entry.frameHeight,
