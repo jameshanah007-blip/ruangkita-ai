@@ -51,7 +51,9 @@ export function buildFarmingGameHtml(spec: PhaserGameSpec): string {
   const script = `
 "use strict";
 const CFG=${config};
-const FARMER_ASSET=${farmerAssetLiteral};\nconst FARM_ENVIRONMENT_ASSET=${environmentAssetLiteral || "null"};\nconst FARM_NPC_ASSET=${npcAssetLiteral || "null"};
+const FARMER_ASSET=${farmerAssetLiteral};
+const FARM_ENVIRONMENT_ASSET=${environmentAssetLiteral || "null"};
+const FARM_NPC_ASSET=${npcAssetLiteral || "null"};
 let farm={money:50,wheat:0,tool:"till",harvested:0,day:1,plots:Array.from({length:12},()=>({state:"empty"}))};
 
 function targetMoney(){
@@ -177,8 +179,8 @@ class FarmScene extends Phaser.Scene {
       const control=this.add.circle(x,y,24,0x365314,0.9).setInteractive({useHandCursor:true});
       this.add.text(x,y,label,{fontSize:"18px",fontFamily:"Arial",color:"#fff8e7",fontStyle:"bold"}).setOrigin(.5);
       control.on("pointerdown",()=>{this.moveState[direction]=true;});
-      control.on("pointerup",()=>{this.moveState[direction]=false;});
-      control.on("pointerout",()=>{moveState[direction]=false;});
+      control.on("pointerup",()=>{this.this.moveState[direction]=false;});
+      control.on("pointerout",()=>{this.moveState[direction]=false;});
       return control;
     };
     moveButton(82,468,"▲","up");
