@@ -38,12 +38,20 @@ export function buildFarmingGameHtml(spec: PhaserGameSpec): string {
     playerFrameHeight: farmerAsset.frameHeight || 256,
   }).replace(/</g, "\\u003c");
 
-  const farmerAssetLiteral = JSON.stringify(farmerAsset.uri);
+  const farmerAssetLiteral = JSON.stringify(farmerAsset.uri).replace(/</g, "\\u003c");
+  const environmentAsset = spec.assets.find((asset) => asset.kind === "environment");
+  const environmentAssetLiteral = environmentAsset
+    ? JSON.stringify(environmentAsset.uri).replace(/</g, "\\u003c")
+    : null;
+  const npcAsset = spec.assets.find((asset) => asset.kind === "npc");
+  const npcAssetLiteral = npcAsset
+    ? JSON.stringify(npcAsset.uri).replace(/</g, "\\u003c")
+    : null;
 
   const script = `
 "use strict";
 const CFG=${config};
-const FARMER_ASSET=\${farmerAssetLiteral};
+const FARMER_ASSET=${farmerAssetLiteral};\nconst FARM_ENVIRONMENT_ASSET=${environmentAssetLiteral || "null"};\nconst FARM_NPC_ASSET=${npcAssetLiteral || "null"};
 let farm={money:50,wheat:0,tool:"till",harvested:0,day:1,plots:Array.from({length:12},()=>({state:"empty"}))};
 
 function targetMoney(){
@@ -115,6 +123,8 @@ class FarmScene extends Phaser.Scene {
 
   preload(){
     if(CFG.playerAnimationMode==="sprite-sheet"){this.load.spritesheet("farmer",FARMER_ASSET,{frameWidth:CFG.playerFrameWidth,frameHeight:CFG.playerFrameHeight});}else{this.load.image("farmer",FARMER_ASSET);}
+    if(FARM_ENVIRONMENT_ASSET){this.load.image("farm-environment",FARM_ENVIRONMENT_ASSET);}
+    if(FARM_NPC_ASSET){this.load.spritesheet("farm-npc",FARM_NPC_ASSET,{frameWidth:256,frameHeight:256});}
   }
 
   create(){
@@ -122,6 +132,12 @@ class FarmScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor("#9bcf7b");
     this.add.rectangle(480,320,960,640,0x9bcf7b);
+    if(FARM_ENVIRONMENT_ASSET){this.add.image(480,270,"farm-environment").setDisplaySize(960,540).setDepth(-10);}
+    if(FARM_NPC_ASSET){
+      this.anims.create({key:"npc-idle",frames:this.anims.generateFrameNumbers("farm-npc",{start:0,end:3}),frameRate:5,repeat:-1});
+      const npc=this.add.sprite(820,420,"farm-npc").setScale(.42);
+      npc.play("npc-idle");
+    }
     this.add.rectangle(120,150,190,105,0xd6b06e).setStrokeStyle(4,0x8b5a2b);
     this.add.rectangle(820,180,170,135,0xe8d9b5).setStrokeStyle(5,0x7a5534);
 
@@ -153,8 +169,22 @@ class FarmScene extends Phaser.Scene {
       {fontSize:"13px",fontFamily:"Arial",color:"#365314"}
     );
 
-    const player=this.add.sprite(120,470,"farmer").setScale(CFG.playerAnimationMode==="sprite-sheet" ? 0.75 : 0.42);
+    const player=this.add.sprite(180,430,"farmer").setScale(CFG.playerAnimationMode==="sprite-sheet" ? 0.75 : 0.42);
     if(CFG.playerAnimationMode==="sprite-sheet") player.play("farmer-idle");
+    const keys=this.input.keyboard ? this.input.keyboard.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") : null;
+    const moveState={left:false,right:false,up:false,down:false};
+    const moveButton=(x,y,label,direction)=>{
+      const control=this.add.circle(x,y,24,0x365314,0.9).setInteractive({useHandCursor:true});
+      this.add.text(x,y,label,{fontSize:"18px",fontFamily:"Arial",color:"#fff8e7",fontStyle:"bold"}).setOrigin(.5);
+      control.on("pointerdown",()=>{moveState[direction]=true;});
+      control.on("pointerup",()=>{moveState[direction]=false;});
+      control.on("pointerout",()=>{moveState[direction]=false;});
+      return control;
+    };
+    moveButton(82,548,"▲","up");
+    moveButton(82,612,"▼","down");
+    moveButton(42,580,"◀","left");
+    moveButton(122,580,"▶","right");
     window.__RK_FARM_PLAYER__=player;
 
     ["till","plant","water","harvest","sell"].forEach((tool,index)=>{
@@ -219,9 +249,20 @@ class FarmScene extends Phaser.Scene {
 
   update(){
     window.__RK_GAME_LOOP_STARTED__=true;
-    if(window.__RK_FARM_PLAYER__ && CFG.playerAnimationMode!=="sprite-sheet"){
-      const t=performance.now();
-      window.__RK_FARM_PLAYER__.setAngle(Math.sin(t/700)*1.2).setScale(.42+Math.sin(t/260)*.008);
+    const player=window.__RK_FARM_PLAYER__;
+    if(!player) return;
+    const speed=2.4;
+    const left=moveState.left || (keys && (keys.A.isDown || keys.LEFT.isDown));
+    const right=moveState.right || (keys && (keys.D.isDown || keys.RIGHT.isDown));
+    const up=moveState.up || (keys && (keys.W.isDown || keys.UP.isDown));
+    const down=moveState.down || (keys && (keys.S.isDown || keys.DOWN.isDown));
+    if(left) player.x=Math.max(48,player.x-speed);
+    if(right) player.x=Math.min(912,player.x+speed);
+    if(up) player.y=Math.max(150,player.y-speed);
+    if(down) player.y=Math.min(510,player.y+speed);
+    if(CFG.playerAnimationMode==="sprite-sheet"){
+      const moving=left||right||up||down;
+      if(moving && player.anims.currentAnim && player.anims.currentAnim.key!=="farmer-idle") player.play("farmer-idle",true);
     }
   }
 }
@@ -241,6 +282,15 @@ new Phaser.Game({
   scene:[FarmScene]
 });
 `;
+
+  try {
+    new Function(script);
+  } catch (error) {
+    throw new Error(
+      "Farming Phaser runtime generated invalid JavaScript: " +
+      (error instanceof Error ? error.message : String(error)),
+    );
+  }
 
   return "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no\"><title>" +
     spec.title.replace(/</g, "&lt;") +
