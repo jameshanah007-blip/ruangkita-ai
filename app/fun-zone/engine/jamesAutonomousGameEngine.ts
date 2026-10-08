@@ -109,6 +109,12 @@ export function buildAutonomousGameHtml(
       frameHeight: spriteSheet?.frameHeight,
       frameCount: spriteSheet?.frameCount,
       rowCount: spriteSheet?.rowCount,
+      imageCrop:
+        (asset.metadata.providerMetadata?.imageCrop as { x: number; y: number; width: number; height: number } | undefined) ||
+        undefined,
+      racingTrackLayout:
+        (asset.metadata.providerMetadata?.racingTrackLayout as "square-loop" | "modular-preview" | undefined) ||
+        undefined,
       characterDNA:
         (asset.metadata.providerMetadata?.characterDNA as Record<string, unknown> | undefined) ||
         null,
