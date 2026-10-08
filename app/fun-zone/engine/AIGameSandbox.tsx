@@ -1721,6 +1721,12 @@ var beforeLost =
                       gameTestError ||
                       undefined,
 
+                    protocolActions:
+                      executedActions,
+
+                    protocolActionResults:
+                      actionResults,
+
                     performanceTest:
                       performanceTest,
 
