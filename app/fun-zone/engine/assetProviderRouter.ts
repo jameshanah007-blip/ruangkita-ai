@@ -30,7 +30,13 @@ export function createAssetProviderRouter(providers: AssetProvider[] = []): Asse
   const select = (asset: GameAssetSpec): AssetProvider => {
     const supported = candidates.filter((provider) => supports(provider, asset.kind));
     if (requiresRealImageProvider(asset)) {
-      return supported.find((provider) => !isProceduralProvider(provider)) ?? localAssetProvider;
+      const realProvider = supported.find((provider) => !isProceduralProvider(provider));
+      if (!realProvider) {
+        throw new Error(
+          `Racing asset "${asset.id}" requires a real image provider; no eligible provider is configured.`,
+        );
+      }
+      return realProvider;
     }
     return supported[0] ?? localAssetProvider;
   };
