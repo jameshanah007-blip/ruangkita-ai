@@ -42,7 +42,7 @@ export function buildFarmingGameHtml(spec: PhaserGameSpec): string {
 
   const script = `
 "use strict";
-const CFG=\${config};
+const CFG=${config};
 const FARMER_ASSET=\${farmerAssetLiteral};
 let farm={money:50,wheat:0,tool:"till",harvested:0,day:1,plots:Array.from({length:12},()=>({state:"empty"}))};
 
