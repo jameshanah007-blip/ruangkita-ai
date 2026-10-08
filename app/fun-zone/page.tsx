@@ -1655,8 +1655,8 @@ const handleSandboxError =
                           {testReport.checks.map((check, index) => (
                             <div key={index} className="flex items-center justify-between rounded-lg border border-white/5 px-3 py-2 text-[10px]">
                               <span className="text-slate-400">{check.name}</span>
-                              <span className={check.passed ? "text-emerald-400" : "text-red-300"}>
-                                {check.passed ? "PASS" : "FAIL"}
+                              <span className={check.status === "pass" ? "text-emerald-400" : check.status === "warning" ? "text-amber-300" : "text-red-300"}>
+                                {check.status.toUpperCase()}
                               </span>
                             </div>
                           ))}
