@@ -16,6 +16,7 @@ const jamesNativeProvider: AssetProvider = {
 export type GeneratedAsset = {
   id: string;
   kind: GameAssetSpec["kind"];
+  entityKind?: GameAssetSpec["entityKind"];
   status: "ready" | "placeholder";
   uri: string;
   metadata: {
@@ -90,6 +91,7 @@ export async function generateGameAssets(
     assets.push({
       id: asset.id,
       kind: asset.kind,
+      entityKind: asset.entityKind,
       status: isPlaceholder ? "placeholder" : "ready",
       uri: routed.result.uri,
       metadata: {
