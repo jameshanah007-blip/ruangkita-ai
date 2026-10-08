@@ -60,7 +60,7 @@ const CAR_ASSET=${carAssetLiteral};
 
 const race={
   speed:0,
-  maxSpeed:6,
+  maxSpeed:CFG.racing.maxSpeed,
   checkpoint:0,
   checkpoints:CFG.racing.checkpointCount,
   lap:1,
@@ -187,7 +187,7 @@ class RacingScene extends Phaser.Scene{
       wordWrap:{width:700}
     });
 
-    const hud=this.add.text(32,92,"Speed: 0 · Lap: 1/3 · Checkpoint: 0/4",{
+    const hud=this.add.text(32,92,"Speed: 0 · Lap: 1/"+race.totalLaps+" · Checkpoint: 0/"+race.checkpoints,{
       fontSize:"14px",
       fontFamily:"Arial",
       color:CFG.palette.light,
@@ -296,7 +296,7 @@ class RacingScene extends Phaser.Scene{
     race.position.y=player.y;
     race.elapsed+=delta;
 
-    const target=this.checkpointMarkers[race.checkpoint];
+    const target=this.checkpointSprites[race.checkpoint];
     if(target){
       const distance=Phaser.Math.Distance.Between(player.x,player.y,target.x,target.y);
       if(distance<42) passCheckpoint();
