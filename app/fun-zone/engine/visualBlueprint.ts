@@ -25,7 +25,7 @@ export type VisualBlueprint = {
     genre: string;
     mood: string;
     theme: string;
-    camera: "top-down" | "side-view" | "third-person" | "isometric" | "2d-ui";
+    camera: "top-down" | "side-view" | "2d-ui";
   };
   protagonist: VisualCharacterSpec;
   characters: VisualCharacterSpec[];
@@ -52,9 +52,8 @@ function sourceText(b: GameBlueprint): string {
 function pickCamera(text: string): VisualBlueprint["artDirection"]["camera"] {
   if (/(platformer|side.?scroll|2d)/i.test(text)) return "side-view";
   if (/(top.?down|dungeon|rpg|pokemon|farm|farming)/i.test(text)) return "top-down";
-  if (/(racing|driving|car)/i.test(text)) return "third-person";
-  if (/(strategy|tactical|isometric)/i.test(text)) return "isometric";
-  return "third-person";
+  if (/(racing|driving|car|strategy|tactical|isometric)/i.test(text)) return "top-down";
+  return "top-down";
 }
 
 function characterFromPrompt(text: string): VisualCharacterSpec {
