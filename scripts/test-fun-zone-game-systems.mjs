@@ -9,6 +9,7 @@ import { buildCharacterAssetPlan } from "../app/fun-zone/engine/characterAssetPi
 import { createAssetProviderRouter } from "../app/fun-zone/engine/assetProviderRouter.ts";
 import { validatePlayableRuntimeContract } from "../app/fun-zone/engine/runtimeContract.ts";
 import { getPhaserGenreAdapter } from "../app/fun-zone/phaser/runtimeAdapters.ts";
+import { buildFarmingGameHtml } from "../app/fun-zone/phaser/farmingRuntime.ts";
 import {
   createModularGameState,
   captureCreature,
@@ -76,6 +77,79 @@ assert.equal(
 );
 assert.ok(getPhaserGenreAdapter("farming"));
 assert.equal(getPhaserGenreAdapter("platformer"), null);
+
+const farmingRuntimeSpec = {
+  version: "ruangkita-game-spec-v1",
+  title: "Farming Runtime Regression",
+  concept: "2D farming game",
+  genre: "farming",
+  objective: "Reach 1000 money",
+  winCondition: "Reach 1000 money",
+  loseCondition: "None",
+  scenes: [{ id: "farm", name: "Farm", role: "world" }],
+  systems: ["movement", "farming", "economy", "npc"],
+  actions: ["till", "plant", "water", "harvest", "sell"],
+  controls: {
+    keyboard: ["WASD", "Arrow keys"],
+    touch: ["4-direction D-pad", "Action buttons"],
+  },
+  visual: {
+    mode: "cozy-farm",
+    palette: {
+      background: "#5c4033",
+      ground: "#8bb174",
+      accent: "#f6bd60",
+      danger: "#d1495b",
+      light: "#fff8e7",
+    },
+  },
+  sourcePrompt: "farming",
+  runtimeId: "rk-phaser-farming-v1",
+  assets: [
+    {
+      id: "protagonist",
+      kind: "character",
+      uri: "data:image/svg+xml,test-player",
+      animationNeeds: ["idle", "walk"],
+      animationMode: "sprite-sheet",
+      frameWidth: 256,
+      frameHeight: 256,
+      frameCount: 40,
+      rowCount: 10,
+      characterDNA: null,
+    },
+    {
+      id: "world-primary",
+      kind: "environment",
+      uri: "data:image/svg+xml,test-environment",
+      animationNeeds: [],
+      animationMode: "single-image",
+    },
+    {
+      id: "npc-primary",
+      kind: "npc",
+      uri: "data:image/svg+xml,test-npc",
+      animationNeeds: ["idle", "talk"],
+      animationMode: "sprite-sheet",
+      frameWidth: 256,
+      frameHeight: 256,
+      frameCount: 40,
+      rowCount: 10,
+      characterDNA: null,
+    },
+  ],
+  player: {
+    assetId: "protagonist",
+    entityKind: "character",
+    requiredAnimations: ["idle", "walk"],
+  },
+};
+
+const farmingRuntimeHtml = buildFarmingGameHtml(farmingRuntimeSpec);
+assert.ok(farmingRuntimeHtml.includes("phaser@4.2.1"));
+assert.ok(farmingRuntimeHtml.includes("Phaser.CANVAS"));
+assert.ok(farmingRuntimeHtml.includes("FARMER_ASSET="));
+assert.ok(!farmingRuntimeHtml.includes("\\${"));
 
 const provider = {
   name: "test-image-provider",
