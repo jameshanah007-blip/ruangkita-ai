@@ -101,7 +101,10 @@ export function buildAutonomousGameHtml(
       tags: asset.metadata.tags || [],
       provider: asset.metadata.provider || undefined,
       animationNeeds: asset.metadata.animationNeeds || [],
-      animationMode: spriteSheet ? ("sprite-sheet" as const) : ("single-image" as const),
+      animationMode:
+        asset.metadata.providerMetadata?.animationMode === "sprite-sheet" || spriteSheet
+          ? ("sprite-sheet" as const)
+          : ("single-image" as const),
       frameWidth: spriteSheet?.frameWidth,
       frameHeight: spriteSheet?.frameHeight,
       frameCount: spriteSheet?.frameCount,
