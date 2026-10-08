@@ -31,7 +31,7 @@ function promptFor(asset: Parameters<AssetProvider["generate"]>[0]): string {
     "High-quality 2D Japanese anime game art.",
     "Centered single subject, front-facing or three-quarter view, clean readable silhouette.",
     ...(isVehicle ? ["Transparent background.", "No scenery, no UI, no text, no logo."] : isRacingTrack ? ["Wide 16:9 game environment composition.", "No characters, no UI, no text, no logo."] : ["Isolated on a completely solid pure magenta background (#ff00ff) for chroma-key removal.", "Do not use magenta or purple in the character itself."]),
-    "No text, no logo, no watermark, no frame, no UI, no scenery.",
+    ...(isRacingTrack ? ["No text, no logo, no watermark, no frame, no UI, no characters, no road-sign text."] : ["No text, no logo, no watermark, no frame, no UI, no scenery."]),
     "Preserve every identity trait in the description.",
     asset.prompt + ".",
     animation,
