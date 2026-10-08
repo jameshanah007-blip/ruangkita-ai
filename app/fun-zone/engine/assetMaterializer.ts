@@ -44,13 +44,24 @@ function isForbiddenRacingFallback(asset: GeneratedAsset): boolean {
   return (asset.entityKind === "vehicle" || isRacingTrack(asset)) &&
     (asset.metadata.provider === "local-fallback" || asset.metadata.provider === "james-native-visual-engine-v2" || asset.metadata.fallback === true);
 }
+function hasRealRacingImageContract(asset: GeneratedAsset): boolean {
+  if (asset.entityKind !== "vehicle" && !isRacingTrack(asset)) return true;
+  const provider = String(asset.metadata.provider || "");
+  if (!provider || /local-fallback|james-native/i.test(provider)) return false;
+  if (asset.metadata.fallback === true) return false;
+  if (asset.metadata.providerMetadata?.imageBacked !== true) return false;
+  if (asset.entityKind === "vehicle") {
+    const mode = asset.metadata.providerMetadata?.animationMode;
+    return mode === "single-image" || hasSpriteSheetMetadata(asset);
+  }
+  return true;
+}
+
 function requiresAnimatedSprite(asset: GeneratedAsset): boolean {
   return (
-    asset.entityKind === "vehicle" ||
-    (
-      ["character", "npc", "enemy", "companion"].includes(asset.kind) &&
-      asset.metadata.animationNeeds.length > 0
-    )
+    asset.entityKind !== "vehicle" &&
+    ["character", "npc", "enemy", "companion"].includes(asset.kind) &&
+    asset.metadata.animationNeeds.length > 0
   );
 }
 
@@ -59,7 +70,14 @@ export function materializeGameAssets(
 ): AssetMaterializationResult {
   const assets = generation.assets.map((asset) => {
     const providerUri = asset.status === "ready" && !asset.uri.startsWith("asset://placeholder/");
+    const racingImageContractMissing = (asset.entityKind === "vehicle" || isRacingTrack(asset)) &&
+      (!providerUri || !hasRealRacingImageContract(asset));
     const animationContractMissing = requiresAnimatedSprite(asset) && !hasSpriteSheetMetadata(asset);
+    if (racingImageContractMissing) {
+      throw new Error(
+        `Racing visual contract rejected asset "${asset.id}". Racing vehicles and tracks must be backed by a verified real image provider and may not fall back to procedural/native visuals.`,
+      );
+    }
     const useNative = !providerUri || animationContractMissing;
 
     if (animationContractMissing) {
