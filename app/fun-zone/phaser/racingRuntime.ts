@@ -31,7 +31,7 @@ export function buildRacingGameHtml(spec: PhaserGameSpec): string {
   if (racing.checkpointAnchors.length !== racing.checkpointCount) {
     throw new Error("Racing Phaser runtime received incomplete checkpoint layout data.");
   }
-  if (!carAsset.frameWidth || !carAsset.frameHeight || !carAsset.frameCount || carAsset.frameCount < 2) {
+  if (!carAsset.frameWidth || !carAsset.frameHeight || !carAsset.frameCount || carAsset.frameCount < 2 || carAsset.animationMode !== "sprite-sheet") {
     throw new Error("Racing Phaser runtime received invalid vehicle sprite-sheet metadata.");
   }
 
@@ -167,8 +167,6 @@ class RacingScene extends Phaser.Scene{
 
   create(){
     this.cameras.main.setBackgroundColor(CFG.palette.background);
-    this.add.rectangle(480,320,960,640,0x101820);
-
     this.add.image(480,320,"track-environment")
       .setDisplaySize(960,640)
       .setDepth(-10);
@@ -202,7 +200,7 @@ class RacingScene extends Phaser.Scene{
       fontStyle:"bold"
     });
 
-    const car=this.add.sprite(480,470,"car").setScale(0.7);
+    const car=this.add.sprite(480,470,"car").setScale(2.35);
     car.setOrigin(0.5);
     this.anims.create({
       key:"car-drive",
@@ -217,14 +215,13 @@ class RacingScene extends Phaser.Scene{
     this.touch={left:false,right:false,accelerate:false,brake:false};
 
     const button=(x,y,label,key)=>{
-      const control=this.add.circle(x,y,25,0x162a3d,0.95)
-        .setInteractive({useHandCursor:true});
-      this.add.text(x,y,label,{
-        fontSize:"17px",
+      const control=this.add.text(x,y,label,{
+        fontSize:"22px",
         fontFamily:"Arial",
         color:CFG.palette.light,
-        fontStyle:"bold"
-      }).setOrigin(0.5);
+        backgroundColor:"#162a3d",
+        padding:{x:12,y:8}
+      }).setOrigin(0.5).setInteractive({useHandCursor:true});
       control.on("pointerdown",()=>{this.touch[key]=true;});
       control.on("pointerup",()=>{this.touch[key]=false;});
       control.on("pointerout",()=>{this.touch[key]=false;});
@@ -235,10 +232,7 @@ class RacingScene extends Phaser.Scene{
     button(110,435,"▲","accelerate");
     button(110,535,"▼","brake");
 
-    this.checkpointSprites=CFG.racing.checkpointAnchors.map((point,index)=>
-      this.add.circle(point.x,point.y,14,index===0 ? 0x00d4ff : 0x263646,0.9)
-        .setStrokeStyle(3,0x00d4ff)
-    );
+    this.checkpointSprites=CFG.racing.checkpointAnchors.map((point)=>({x:point.x,y:point.y}));
 
     this.status=this.add.text(32,575,"",{
       fontSize:"13px",
@@ -301,10 +295,6 @@ class RacingScene extends Phaser.Scene{
       const distance=Phaser.Math.Distance.Between(player.x,player.y,target.x,target.y);
       if(distance<42) passCheckpoint();
     }
-
-    this.checkpointSprites.forEach((marker,index)=>{
-      marker.setFillStyle(index===race.checkpoint ? 0x00d4ff : 0x263646);
-    });
 
     this.updateHud();
   }

@@ -18,16 +18,24 @@ type LocalRealAssetEntry = {
   source: "curated-public";
   license: "CC0";
   animationMode?: "sprite-sheet" | "single-image";
+  frameWidth?: number;
+  frameHeight?: number;
+  frameCount?: number;
+  rowCount?: number;
 };
 
 const LOCAL_REAL_ASSETS: LocalRealAssetEntry[] = [
   {
-    uri: "https://opengameart.org/sites/default/files/rccarspritesheet_0.png",
+    uri: "https://lpc.opengameart.org/sites/default/files/car_frames.png",
     entityKind: "vehicle",
-    tags: ["racing-vehicle", "sprite-asset", "top-down", "racing"],
+    tags: ["racing-vehicle", "sprite-asset", "top-down", "racing", "animated"],
     source: "curated-public",
     license: "CC0",
-    animationMode: "single-image",
+    animationMode: "sprite-sheet",
+    frameWidth: 32,
+    frameHeight: 32,
+    frameCount: 65,
+    rowCount: 65,
   },
   {
     uri: "https://opengameart.org/sites/default/files/trackselectbackground_0.png",
@@ -37,6 +45,29 @@ const LOCAL_REAL_ASSETS: LocalRealAssetEntry[] = [
     animationMode: "single-image",
   },
 ];
+
+async function materializePublicImage(uri: string): Promise<string> {
+  const response = await fetch(uri, {
+    headers: { Accept: "image/png,image/*;q=0.9,*/*;q=0.1" },
+    cache: "force-cache",
+  });
+  if (!response.ok) {
+    throw new Error(`Curated image fetch failed (${response.status}) for ${uri}`);
+  }
+
+  const contentType = response.headers.get("content-type")?.split(";")[0]?.trim() || "image/png";
+  if (!contentType.startsWith("image/")) {
+    throw new Error(`Curated asset did not return an image (${contentType}) for ${uri}`);
+  }
+
+  const bytes = Buffer.from(await response.arrayBuffer());
+  const maxBytes = 3 * 1024 * 1024;
+  if (bytes.byteLength === 0 || bytes.byteLength > maxBytes) {
+    throw new Error(`Curated image size is invalid (${bytes.byteLength} bytes) for ${uri}`);
+  }
+
+  return `data:${contentType};base64,${bytes.toString("base64")}`;
+}
 
 function isRacingAsset(asset: GameAssetSpec): boolean {
   return asset.entityKind === "vehicle" || asset.tags.includes("racing-track");
@@ -60,8 +91,9 @@ export const localRealAssetProvider: AssetProvider = {
     if (!entry) {
       throw new Error("No matching curated real image asset exists for: " + asset.id);
     }
+    const dataUri = await materializePublicImage(entry.uri);
     return {
-      uri: entry.uri,
+      uri: dataUri,
       metadata: {
         provider: "curated-real-asset-library-v1",
         source: entry.source,
@@ -70,6 +102,13 @@ export const localRealAssetProvider: AssetProvider = {
         fallback: false,
         tags: entry.tags,
         animationMode: entry.animationMode,
+        ...(entry.frameWidth ? { spriteSheet: {
+          frameWidth: entry.frameWidth,
+          frameHeight: entry.frameHeight,
+          frameCount: entry.frameCount,
+          rowCount: entry.rowCount,
+        } } : {}),
+        sourceUri: entry.uri,
       },
     };
   },
