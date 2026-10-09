@@ -117,7 +117,7 @@ const stages: {
   },
   {
     id: "debugging",
-    label: "AI Debugging",
+    label: "Diagnostics / Repair",
   },
   {
     id: "retesting",
@@ -178,7 +178,7 @@ function getStageDescription(stage: LabStage): string {
       return "Game sedang dijalankan di isolated sandbox dan diperiksa oleh AI Tester.";
 
     case "debugging":
-      return "AI Debugger sedang menganalisis kegagalan dan memperbaiki Game Artifact.";
+      return "Diagnostik lokal memeriksa bukti kegagalan; perbaikan AI hanya tersedia untuk artefak yang memang memakai jalur AI.";
 
     case "retesting":
       return "Game hasil perbaikan sedang dijalankan kembali untuk verifikasi.";
