@@ -11,32 +11,6 @@ import type {
   TestReport,
 } from "../../../fun-zone/laboratory/types";
 
-function extractHtml(text: string): string {
-  const trimmed = text.trim();
-
-  const fenced = trimmed.match(
-    /```(?:html)?\s*([\s\S]*?)\s*```/i
-  );
-
-  if (fenced?.[1]) {
-    return fenced[1].trim();
-  }
-
-  const doctypeStart = trimmed.search(/<!doctype html/i);
-
-  if (doctypeStart >= 0) {
-    return trimmed.slice(doctypeStart).trim();
-  }
-
-  const htmlStart = trimmed.search(/<html[\s>]/i);
-
-  if (htmlStart >= 0) {
-    return trimmed.slice(htmlStart).trim();
-  }
-
-  return trimmed;
-}
-
 function validateGameHtml(html: string): string[] {
   const errors: string[] = [];
 
