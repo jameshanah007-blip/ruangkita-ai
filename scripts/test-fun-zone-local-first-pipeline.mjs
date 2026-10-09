@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
-const [route, sandbox, runtime, materializer, generator] = await Promise.all([
+const [route, sandbox, runtime, materializer, generator, nativeVisual] = await Promise.all([
   read("../app/api/fun-zone/laboratory/route.ts"),
   read("../app/fun-zone/engine/AIGameSandbox.tsx"),
   read("../app/fun-zone/phaser/platformerRuntime.ts"),
   read("../app/fun-zone/engine/assetMaterializer.ts"),
   read("../app/fun-zone/engine/assetGenerator.ts"),
+  read("../app/fun-zone/engine/jamesNativeVisualEngine.ts"),
 ]);
 
 // Director selection must be explicit. Unsupported prompts cannot silently become platformers.
@@ -38,12 +39,26 @@ assert.doesNotMatch(localFailureBranch, /fetch\(|\/api\/fun-zone\/debug/);
 // Phaser must fail closed when the protagonist is missing or has no actual animation sheet.
 assert.match(runtime, /requires the declared player image asset/);
 assert.match(runtime, /requires a valid animated player sprite sheet/);
-assert.match(runtime, /platform-image/);\nassert.match(runtime, /coin-image/);\nassert.match(runtime, /finish-image/);\nassert.match(runtime, /Geometry fallback is disabled/);\nassert.doesNotMatch(runtime, /add\\.rectangle\\(/);\nassert.doesNotMatch(runtime, /add\\.circle\\(/);
+assert.match(runtime, /platform-image/);
+assert.match(runtime, /coin-image/);
+assert.match(runtime, /finish-image/);
+assert.match(runtime, /Geometry fallback is disabled/);
+assert.equal(runtime.includes("add.rectangle("), false);
+assert.equal(runtime.includes("add.circle("), false);
 assert.match(runtime, /preserveDrawingBuffer:true/);
 assert.match(sandbox, /canvas\\.getContext\\("webgl2"\\)/);
 assert.match(sandbox, /gl\\.readPixels/);
 assert.match(runtime, /window\.__RK_GAME_TEST__/);
 assert.match(runtime, /const touch=/);
+
+// Local platformer art uses dedicated illustrated SVG assets, not the generic prop tile.
+assert.match(nativeVisual, /function platformerArtSvg/);
+assert.match(nativeVisual, /platform-image/);
+assert.match(nativeVisual, /coin-image/);
+assert.match(nativeVisual, /finish-image/);
+assert.match(nativeVisual, /platformerArtSvg\(asset\)/);
+assert.match(runtime, /if\(this\.player\.y>720\)\{state\.dead=true;this\.player\.setVelocity\(0,0\)/);
+assert.doesNotMatch(runtime, /state\.dead=true;this\.scene\.restart\(\)/);
 
 // Materializer and generator remain explicit stages; no implicit placeholder promotion.
 assert.match(materializer, /placeholder assets are not promoted to ready/);
