@@ -486,7 +486,7 @@ export async function POST(
     await persistCloudSession(session, gameHtml);
 
 
-    failureStage = "browser-test";
+    failureStage = "response";
     return NextResponse.json({
       success: true,
 
