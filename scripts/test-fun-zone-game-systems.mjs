@@ -234,7 +234,7 @@ const platformerRuntimeHtml = buildPlatformerGameHtml(platformerRuntimeSpec);
 assert.ok(platformerRuntimeHtml.includes("phaser@4.2.1"));
 assert.ok(platformerRuntimeHtml.includes("const CFG="));
 assert.ok(platformerRuntimeHtml.includes("hero-run"));
-assert.ok(platformerRuntimeHtml.includes("walkStart=framesPerRow"), "platformer run animation must use the walk row, not replay idle frames");
+assert.ok(platformerRuntimeHtml.includes('start:rowFrames'), "platformer run animation must use a separate animation row, not replay idle frames");
 assert.ok(platformerRuntimeHtml.includes("window.__RK_GAME_TEST__"));
 assert.ok(platformerRuntimeHtml.includes("const touch="));
 assert.ok(platformerRuntimeHtml.includes("Coins: "));
