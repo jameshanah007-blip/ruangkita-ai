@@ -89,12 +89,83 @@ export async function generateFunZoneGameBlueprint(userPrompt: string): Promise<
     temperature: 0.8,
     maxOutputTokens: 7000,
   });
-  const blueprint = normalizeBlueprint(extractJson(result.text), userPrompt);
+  let parsedBlueprint: unknown;
+  let finalProvider = result.provider;
+  let finalModel = result.model;
+
+  try {
+    parsedBlueprint = extractJson(result.text);
+  } catch (initialError) {
+    const parseError = initialError instanceof Error
+      ? initialError.message
+      : String(initialError);
+    console.warn("Fun Zone Director returned invalid JSON; requesting one format-only repair.", {
+      provider: result.provider,
+      model: result.model,
+      error: parseError,
+      outputCharacters: result.text.length,
+    });
+
+    // A malformed response must never be normalized into a generic blueprint.
+    // Ask the configured AI router to repair the exact JSON output once, without
+    // changing the game specification or generating game code.
+    const repairResult = await runJamesBrainWithSharedKnowledge({
+      surface: "fun_zone",
+      mode: "game_director",
+      systemInstruction: SYSTEM_INSTRUCTION,
+      prompt: [
+        "JSON FORMAT REPAIR ONLY.",
+        "The previous Game Director output was invalid JSON and failed to parse.",
+        "Repair its syntax only. Preserve the exact game design, genre, mechanics, and intent.",
+        "Return one complete JSON object with all required GameBlueprint fields.",
+        "Do not add markdown fences, comments, explanations, or JavaScript.",
+        "Do not replace missing or malformed content with a different game specification.",
+        "",
+        "Parser error:",
+        parseError,
+        "",
+        "Original user request:",
+        userPrompt,
+        "",
+        "Invalid AI output to repair:",
+        result.text,
+      ].join("\\n"),
+      temperature: 0.1,
+      maxOutputTokens: 7000,
+    });
+
+    try {
+      parsedBlueprint = extractJson(repairResult.text);
+      finalProvider = repairResult.provider;
+      finalModel = repairResult.model;
+      console.info("Fun Zone Director JSON repair succeeded.", {
+        initialProvider: result.provider,
+        repairProvider: repairResult.provider,
+        outputCharacters: repairResult.text.length,
+      });
+    } catch (repairError) {
+      const repairDetail = repairError instanceof Error
+        ? repairError.message
+        : String(repairError);
+      console.error("Fun Zone Director JSON repair failed; no local blueprint fallback was used.", {
+        initialError: parseError,
+        repairError: repairDetail,
+        initialOutputCharacters: result.text.length,
+        repairOutputCharacters: repairResult.text.length,
+      });
+      throw new Error(
+        `AI Director returned invalid JSON, and one syntax-repair attempt also failed. Original parse error: ${parseError}. Repair parse error: ${repairDetail}`,
+        { cause: repairError }
+      );
+    }
+  }
+
+  const blueprint = normalizeBlueprint(parsedBlueprint, userPrompt);
   return {
     success: true,
     stage: "director",
-    provider: result.provider,
-    model: result.model,
+    provider: finalProvider,
+    model: finalModel,
     prompt: userPrompt,
     blueprint,
   };
