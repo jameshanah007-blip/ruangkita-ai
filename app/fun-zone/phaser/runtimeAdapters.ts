@@ -1,6 +1,7 @@
 import type { PhaserGameSpec } from "./types";
 import { buildFarmingGameHtml } from "./farmingRuntime";
 import { buildRacingGameHtml } from "./racingRuntime";
+import { buildPlatformerGameHtml } from "./platformerRuntime";
 
 export type PhaserGenreAdapter = {
   genre: PhaserGameSpec["genre"];
@@ -18,6 +19,11 @@ const ADAPTERS: Partial<Record<PhaserGameSpec["genre"], PhaserGenreAdapter>> = {
     genre: "racing",
     runtimeId: "rk-racing-2d-v1",
     build: buildRacingGameHtml,
+  },
+  platformer: {
+    genre: "platformer",
+    runtimeId: "rk-platformer-2d-v1",
+    build: buildPlatformerGameHtml,
   },
 };
 
