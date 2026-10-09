@@ -83,7 +83,7 @@ export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
       entityKind: undefined,
       role: "world environment",
       prompt: [environment.description, ...environment.props].join(", "),
-      tags: [environment.id, ...(visual.artDirection.genre === "racing" ? ["racing-track", "track", "environment-asset"] : [])],
+      tags: [environment.id, ...(isRacing ? ["racing-track", "track", "environment-asset"] : [])],
       animationNeeds: [],
       source: "generated",
       required: true,
