@@ -2222,6 +2222,30 @@ export default function AIGameSandbox({
       }
     ) => {
 
+        // Local platformer is not an AI-authored artifact. Do not send it through
+        // the legacy patch endpoint or retry the same provider-independent failure.
+        const isLocalPlatformer =
+          blueprint?.genre === "platformer" &&
+          blueprint?.concept.includes("Original 2D side-scrolling platformer using bundled illustrated sprite-sheet assets");
+
+        if (isLocalPlatformer) {
+          setDebugging(false);
+          onDebuggingChange?.(false);
+          setTestRunning(false);
+          const failures = diagnostic?.testReport?.hardFailures?.slice(0, 4) || [];
+          const runtimeErrors = diagnostic?.runtimeErrors?.slice(0, 3).map((item) => item.message) || [];
+          const evidence = [...runtimeErrors, ...failures].filter(Boolean);
+          const detail = evidence.length
+            ? evidence.join(" | ")
+            : message || "Browser Tester belum memberikan bukti kegagalan yang spesifik.";
+          const localMessage =
+            "Template lokal Phaser: debugging AI dilewati. Game belum lulus pengujian; HTML asli dipertahankan. " +
+            "Diagnosis: " + detail;
+          setErrorMessage(localMessage);
+          onError(localMessage);
+          return;
+        }
+
         if (
           debugAttemptRef.current >=
           MAX_DEBUG_ATTEMPTS
