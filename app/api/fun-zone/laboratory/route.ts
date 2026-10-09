@@ -15,6 +15,7 @@ import type {
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
 import { composeGamePlan } from "../../../fun-zone/engine/gameComposer";
 import { generateFunZoneGameBlueprint } from "../../../core/james/funZoneGameDirector";
+import { createLocalPlatformerBlueprint } from "../../../fun-zone/engine/localPlatformerDirector";
 import { createVisualBlueprint } from "../../../fun-zone/engine/visualDirector";
 import { buildAssetRegistry } from "../../../fun-zone/engine/assetRegistry";
 import { generateGameAssets } from "../../../fun-zone/engine/assetGenerator";
@@ -297,23 +298,42 @@ export async function POST(
     let director: DirectorResponse;
     let directorProvider = "ai";
 
-    try {
-      director = await callDirector(prompt);
-    } catch (error) {
-      const detail = describeErrorValue(error);
-      console.error("Fun Zone Director failed; refusing to substitute a local blueprint.", {
-        errorType: error instanceof Error ? error.name : typeof error,
-        message: detail,
-        cause: error instanceof Error && error.cause ? describeErrorValue(error.cause) : undefined,
+    // Supported local templates must not depend on AI quota. This is an
+    // explicit genre route, not a silent fallback after an AI failure.
+    const localPlatformerBlueprint = createLocalPlatformerBlueprint(prompt);
+    if (localPlatformerBlueprint) {
+      directorProvider = "local";
+      director = {
+        success: true,
+        stage: "director",
+        provider: "local",
+        model: "local-platformer-template-v1",
+        prompt,
+        blueprint: localPlatformerBlueprint,
+      };
+      console.info("Fun Zone local Director selected", {
+        template: "platformer-2d",
+        reason: "supported deterministic local template",
       });
-      throw new Error(
-        `Fun Zone Director failed. No local blueprint fallback was used, so the prompt cannot silently produce a different game specification. ${detail}`,
-      );
+    } else {
+      try {
+        director = await callDirector(prompt);
+      } catch (error) {
+        const detail = describeErrorValue(error);
+        console.error("Fun Zone Director failed; no template matched the prompt, so no game specification was substituted.", {
+          errorType: error instanceof Error ? error.name : typeof error,
+          message: detail,
+          cause: error instanceof Error && error.cause ? describeErrorValue(error.cause) : undefined,
+        });
+        throw new Error(
+          `Fun Zone Director failed. No supported local template matched this prompt, and no different game specification was substituted. ${detail}`,
+        );
+      }
     }
 
     if (!director.success || !director.blueprint) {
       throw new Error(
-        "Fun Zone Director returned no valid blueprint. Local blueprint fallback is disabled to keep prompt-to-specification behavior deterministic.",
+        "Fun Zone Director returned no valid blueprint. No unsupported local blueprint fallback was used.",
       );
     }
     if (director.provider) {
