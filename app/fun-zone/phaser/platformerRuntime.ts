@@ -69,9 +69,10 @@ class PlatformerScene extends Phaser.Scene{
   sceneRef=this;this.cameras.main.setBackgroundColor(CFG.palette.background);
   if(ENVIRONMENT_ASSET){this.add.image(480,270,"environment").setDisplaySize(960,540).setDepth(-5);}
   this.physics.world.setBounds(0,0,2200,640);
-  this.add.rectangle(1100,628,2200,24,parseInt(CFG.palette.ground.replace("#",""),16));
   const platform=(x,y,w)=>{const p=this.add.rectangle(x,y,w,18,parseInt(CFG.palette.ground.replace("#",""),16));this.physics.add.existing(p,true);this.platforms.add(p);};
   this.platforms=this.physics.add.staticGroup();
+  // The ground must have a static Arcade body; a decorative rectangle alone cannot stop falling.
+  platform(1100,628,2200);
   // Level layout is environmental geometry, not a substitute for the animated character art.
   platform(270,510,190);platform(520,430,170);platform(790,350,170);platform(1080,450,190);platform(1370,365,190);platform(1640,475,180);platform(1900,390,190);
   this.physics.world.setBounds(0,0,2200,640);
