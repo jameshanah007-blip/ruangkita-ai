@@ -1,5 +1,4 @@
 import type { AssetGenerationResult, GeneratedAsset } from "./assetGenerator";
-import { generateJamesNativeVisual } from "./jamesNativeVisualEngine";
 
 export type MaterializedAsset = GeneratedAsset & {
   status: "ready" | "placeholder";
@@ -10,20 +9,6 @@ export type AssetMaterializationResult = {
   assets: MaterializedAsset[];
   warnings: string[];
 };
-
-function nativeFallback(asset: GeneratedAsset): { uri: string; metadata: Record<string, unknown> } {
-  return generateJamesNativeVisual({
-    id: asset.id,
-    kind: asset.kind,
-    entityKind: asset.entityKind,
-    role: asset.kind,
-    prompt: asset.metadata.prompt,
-    tags: asset.metadata.tags,
-    animationNeeds: asset.metadata.animationNeeds,
-    source: "procedural",
-    required: true,
-  });
-}
 
 function hasSpriteSheetMetadata(asset: GeneratedAsset): boolean {
   const spriteSheet = asset.metadata.providerMetadata?.spriteSheet;
@@ -99,37 +84,28 @@ export function materializeGameAssets(
         `Racing visual contract rejected asset "${asset.id}" (provider=${provider}, status=${asset.status}, uriScheme=${uriScheme}, contentType=${contentType}, imageBacked=${imageBacked}, reason=${reason}). Real image assets are required; procedural/native fallback is disabled.`,
       );
     }
-    const useNative = !providerUri || animationContractMissing;
+    if (!providerUri) {
+      throw new Error(
+        `Asset materialization failed for "${asset.id}" (kind=${asset.kind}, entityKind=${asset.entityKind || "unspecified"}, status=${asset.status}, provider=${asset.metadata.provider || "missing"}). The provider did not return a usable image; placeholder assets are not promoted to ready.`,
+      );
+    }
 
     if (animationContractMissing) {
-      console.warn("Fun Zone asset provider lacks required sprite animation contract; using James Native Visual Engine:", {
-        assetId: asset.id,
-        kind: asset.kind,
-        entityKind: asset.entityKind,
-      });
+      throw new Error(
+        `Asset animation contract failed for "${asset.id}" (kind=${asset.kind}, entityKind=${asset.entityKind || "unspecified"}, provider=${asset.metadata.provider || "missing"}). Required sprite-sheet metadata is missing; materializer fallback is disabled.`,
+      );
     }
 
     if (isForbiddenRacingFallback(asset)) {
       throw new Error(`Racing visual contract rejected fallback asset "${asset.id}". Racing vehicles and tracks must come from a real image asset provider; procedural/native geometry is not accepted.`);
     }
-    const native = useNative ? nativeFallback(asset) : null;
 
     return {
       ...asset,
       status: "ready" as const,
-      uri: native?.uri || asset.uri,
-      metadata: native
-        ? {
-            ...asset.metadata,
-            provider: "james-native-visual-engine-v2",
-            providerMetadata: {
-              ...asset.metadata.providerMetadata,
-              ...native.metadata,
-            },
-            fallback: true,
-          }
-        : asset.metadata,
-      materializer: native ? "james-native-visual-engine" as const : "provider" as const,
+      uri: asset.uri,
+      metadata: asset.metadata,
+      materializer: "provider" as const,
     };
   });
 
@@ -137,7 +113,7 @@ export function materializeGameAssets(
     assets,
     warnings: [
       ...generation.warnings,
-      "Provider assets are preserved when available; unavailable assets use the deterministic James Native Visual Engine instead of the legacy generic placeholder.",
+      "Materializer is fail-closed: unavailable images and missing required sprite-sheet metadata stop the build instead of being replaced with an unverified fallback.",
     ],
   };
 }
