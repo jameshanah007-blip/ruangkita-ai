@@ -374,8 +374,8 @@ function parseRepairPatches(text: string): Array<{ find: string; replace: string
     throw new Error("OUTPUT_FORMAT_INVALID: Respons Debugger harus berisi array patches.");
   }
   const patches = (parsed as { patches: unknown[] }).patches;
-  if (patches.length < 1 || patches.length > 4) {
-    throw new Error("OUTPUT_FORMAT_INVALID: Debugger harus menghasilkan 1 sampai 4 patch kecil.");
+  if (patches.length > 4) {
+    throw new Error("OUTPUT_FORMAT_INVALID: Debugger maksimal menghasilkan 4 patch kecil.");
   }
 
   return patches.map((item, index) => {
@@ -463,11 +463,11 @@ function buildDebuggerPrompt({
     'Keluarkan JSON saja, tanpa markdown atau code fence: {"patches":[{"find":"potongan kode asli yang unik dan persis","replace":"potongan kode pengganti"}]}',
     "",
     "Aturan:",
-    "- 1 sampai 4 patch kecil saja.",
+    "- Jika menemukan perbaikan yang jelas dan aman, keluarkan 1 sampai 4 patch kecil.",
     '- "find" harus berupa potongan persis dari HTML asli yang ditampilkan di atas dan hanya muncul sekali.',
     "- Jangan menambahkan kode yang tidak terkait.",
     "- Jangan gunakan ellipsis sebagai isi find.",
-    '- Jika tidak dapat menentukan patch yang aman, kembalikan {"patches":[]} dan jangan menebak.',
+    '- Gunakan {"patches":[]} hanya jika benar-benar tidak ada perbaikan aman yang dapat ditentukan; server akan mencoba satu kali lagi sebelum mempertahankan HTML asli.',
     "- Jangan mengembalikan seluruh HTML.",
     "- Jangan menyetel flag readiness sebagai pengganti gameplay.",
     "- Jangan gunakan network, fetch, WebSocket, storage, eval, Function, import(), require(), process, atau API eksternal."
@@ -665,11 +665,56 @@ Jika tidak yakin, kembalikan {"patches":[]} tanpa menebak.
           { status: 422 },
         );
       }
-      const patches = parseRepairPatches(result.text);
+      let patches = parseRepairPatches(result.text);
+
+      // A documented empty-patch response is not a repair. Retry once with a
+      // focused instruction instead of treating the model's own safe-abort
+      // response as malformed JSON or silently accepting unchanged HTML.
+      if (patches.length === 0) {
+        const retryResult = await runJamesBrain({
+          surface: "fun_zone",
+          mode: "game_debugger",
+          systemInstruction: `
+Kamu sedang mencoba ulang perbaikan game RuangKita karena respons sebelumnya berisi patches kosong.
+Analisis ulang error dan konteks HTML. Jika ada perbaikan konkret yang didukung bukti, berikan 1 patch minimal (maksimal 4) dengan find yang persis dan unik dari konteks HTML. Jangan menebak atau mengubah genre, aset, gameplay, maupun arsitektur Phaser.
+Keluarkan JSON saja: {"patches":[{"find":"substring asli yang unik","replace":"substring pengganti"}]}.
+Jika tidak ada patch aman yang dapat ditentukan, keluarkan {"patches":[]} saja. Jangan pernah mengembalikan seluruh HTML.
+`,
+          prompt: [
+            prompt,
+            "",
+            "RETRY FOKUS:",
+            "Respons sebelumnya: " + result.text.slice(0, 2000),
+            "Tinjau kembali bukti error dan konteks HTML. Jangan mengarang substring. Prioritaskan satu perubahan kecil yang secara langsung memperbaiki kegagalan yang dilaporkan.",
+          ].join("\n"),
+          temperature: 0.05,
+          maxOutputTokens: 8000,
+        });
+
+        provider = retryResult.provider;
+        model = retryResult.model;
+        if (retryResult.finishReason === "length") {
+          return NextResponse.json(
+            {
+              success: false,
+              code: "OUTPUT_TRUNCATED",
+              error: "Output percobaan ulang Debugger terpotong. HTML asli dipertahankan.",
+              provider,
+              model,
+            },
+            { status: 422 },
+          );
+        }
+        patches = parseRepairPatches(retryResult.text);
+        if (patches.length === 0) {
+          throw new Error("NO_SAFE_PATCH: Debugger tidak menemukan perubahan yang aman berdasarkan error dan konteks HTML. HTML asli tetap dipertahankan.");
+        }
+      }
+
       fixedHtml = applyRepairPatches(gameHtml, patches);
     } catch (providerError) {
       const detail = providerError instanceof Error ? providerError.message : String(providerError);
-      const isPatchFailure = /^(OUTPUT_FORMAT_INVALID|OUTPUT_TRUNCATED_OR_INVALID|PATCH_NOT_FOUND|PATCH_NOT_UNIQUE):/.test(detail);
+      const isPatchFailure = /^(OUTPUT_FORMAT_INVALID|OUTPUT_TRUNCATED_OR_INVALID|PATCH_NOT_FOUND|PATCH_NOT_UNIQUE|NO_SAFE_PATCH):/.test(detail);
       console.error("AI Game Debugger failed; original HTML remains unchanged:", {
         category: isPatchFailure ? "repair-output" : "provider",
         detail,
@@ -679,7 +724,9 @@ Jika tidak yakin, kembalikan {"patches":[]} tanpa menebak.
           success: false,
           code: isPatchFailure ? "REPAIR_OUTPUT_INVALID" : "PROVIDER_FAILURE",
           error: isPatchFailure
-            ? "Hasil perbaikan Debugger tidak dapat diterapkan dengan aman. HTML asli dipertahankan. " + detail
+            ? detail.startsWith("NO_SAFE_PATCH:")
+              ? "Debugger sudah mencoba ulang, tetapi tidak menemukan patch yang cukup aman. HTML asli dipertahankan agar game tidak rusak. " + detail
+              : "Hasil perbaikan Debugger tidak dapat diterapkan dengan aman. HTML asli dipertahankan. " + detail
             : "AI Game Debugger tidak tersedia. HTML asli dipertahankan; coba lagi setelah provider tersedia.",
           detail,
           provider: isPatchFailure ? provider : "james-brain",
