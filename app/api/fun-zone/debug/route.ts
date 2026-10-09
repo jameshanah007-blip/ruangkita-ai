@@ -321,6 +321,66 @@ function selectRelevantHtmlContext(
   errorLine: number | null,
 ): string {
   const lines = html.split(/\r?\n/);
+
+  // Generated HTML is sometimes minified into one very long line. Line-based
+  // selection would then keep only the beginning and end, hiding the actual
+  // Phaser/gameplay code from the debugger. In that case, select exact source
+  // windows around meaningful code anchors instead; every excerpt remains a
+  // literal substring of the original HTML, so proposed patches can be verified.
+  if (lines.length <= 2 && html.length > 6000) {
+    const anchors = [
+      /<script\b/ig,
+      /Phaser\.Game|new Phaser/ig,
+      /addEventListener|\.on\s*\(/ig,
+      /function\s+(?:update|create|init)\b|\bupdate\s*:/ig,
+      /requestAnimationFrame/ig,
+      /__RK_GAME_/ig,
+      /console\.(?:error|warn)/ig,
+      /throw\s+new\s+Error/ig,
+    ];
+    const windows: Array<{ start: number; end: number }> = [
+      { start: 0, end: Math.min(700, html.length) },
+      { start: Math.max(0, html.length - 700), end: html.length },
+    ];
+
+    for (const pattern of anchors) {
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(html)) !== null) {
+        const start = Math.max(0, match.index - 260);
+        const end = Math.min(html.length, match.index + match[0].length + 420);
+        windows.push({ start, end });
+        if (windows.length >= 80) break;
+      }
+      if (windows.length >= 80) break;
+    }
+
+    windows.sort((a, b) => a.start - b.start);
+    const merged: Array<{ start: number; end: number }> = [];
+    for (const window of windows) {
+      const last = merged[merged.length - 1];
+      if (last && window.start <= last.end + 80) {
+        last.end = Math.max(last.end, window.end);
+      } else {
+        merged.push({ ...window });
+      }
+    }
+
+    const excerpts: string[] = [];
+    let used = 0;
+    for (const window of merged) {
+      if (used >= 5600) break;
+      const excerpt = html.slice(window.start, Math.min(window.end, window.start + (5600 - used)));
+      if (!excerpt) continue;
+      excerpts.push(
+        (window.start > 0 ? "… [HTML sebelumnya dilewati] …\n" : "") +
+        excerpt +
+        (window.end < html.length ? "\n… [HTML berikutnya dilewati] …" : ""),
+      );
+      used += excerpt.length;
+    }
+    return excerpts.join("\n");
+  }
+
   const selected = new Set<number>();
   const addRange = (start: number, end: number) => {
     for (let i = Math.max(0, start); i < Math.min(lines.length, end); i += 1) selected.add(i);
