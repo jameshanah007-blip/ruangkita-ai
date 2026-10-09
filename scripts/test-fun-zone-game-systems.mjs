@@ -13,6 +13,7 @@ import { validatePlayableRuntimeContract } from "../app/fun-zone/engine/runtimeC
 import { getPhaserGenreAdapter } from "../app/fun-zone/phaser/runtimeAdapters.ts";
 import { buildFarmingGameHtml } from "../app/fun-zone/phaser/farmingRuntime.ts";
 import { buildPlatformerGameHtml } from "../app/fun-zone/phaser/platformerRuntime.ts";
+import { createLocalPlatformerBlueprint } from "../app/fun-zone/engine/localPlatformerDirector.ts";
 import {
   createModularGameState,
   captureCreature,
@@ -80,6 +81,25 @@ assert.equal(
 );
 assert.ok(getPhaserGenreAdapter("farming"));
 assert.equal(getPhaserGenreAdapter("platformer")?.runtimeId, "rk-platformer-2d-v1");
+
+const localPlatformer = createLocalPlatformerBlueprint("Buat game sederhana 2D yang bisa dimainkan tanpa provider AI.");
+assert.ok(localPlatformer, "a simple 2D request should select the quota-independent platformer template");
+assert.equal(localPlatformer?.genre, "platformer");
+assert.equal(
+  createLocalPlatformerBlueprint("Buat game farming 2D sederhana."),
+  null,
+  "explicitly different genres must not silently become platformers",
+);
+const localPlatformerVisual = buildVisualBlueprint(localPlatformer!);
+const localPlatformerRegistry = buildAssetRegistry(localPlatformerVisual);
+const localPlatformerGenerated = await generateGameAssets(localPlatformerRegistry);
+const localPlatformerMaterialized = materializeGameAssets(localPlatformerGenerated);
+const localPlayer = localPlatformerMaterialized.assets.find((asset) => asset.id === localPlatformerVisual.protagonist.id);
+assert.ok(localPlayer?.uri.startsWith("data:image/svg+xml"), "local character must be an image asset, not geometry");
+assert.equal(localPlayer?.status, "ready");
+assert.ok(Number(localPlayer?.metadata.providerMetadata?.spriteSheet && (localPlayer.metadata.providerMetadata.spriteSheet as { rowCount?: number }).rowCount) >= 2,
+  "local player asset must carry multi-row sprite-sheet animation metadata");
+
 
 assert.throws(
   () => buildAutonomousGameHtml(blueprint({ genre: "farming" })),
