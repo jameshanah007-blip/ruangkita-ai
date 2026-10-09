@@ -41,8 +41,8 @@ export function buildPlatformerGameHtml(spec: PhaserGameSpec): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>${escapeHtmlText(spec.title)}</title>
 <style>html,body,#game{margin:0;width:100%;height:100%;overflow:hidden;background:#101820;touch-action:none}#game{display:flex;align-items:center;justify-content:center}canvas{max-width:100%;max-height:100%;object-fit:contain}#hint{position:fixed;left:12px;bottom:8px;color:#fff;background:#101820cc;padding:7px 10px;border-radius:8px;font:12px Arial,sans-serif;z-index:2}#restartBtn{display:none;position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:5;border:2px solid #fff;border-radius:12px;padding:12px 22px;background:#176b43;color:#fff;font:bold 16px Arial,sans-serif;cursor:pointer;touch-action:manipulation}</style></head>
-<body><div id="game"></div><div id="hint">Move: A/D or ←/→ · Jump: Space/↑ · Touch controls supported · Restart: R</div><button id="restartBtn" type="button">↻ Restart</button>
-<script src="${PHASER_CDN}"></script><script>
+<body><div id="game"></div><div id="hint">Move: A/D or ←/→ · Jump: Space/↑ · Touch controls supported · Restart: R</div><div id="bootError" role="alert" style="display:none;position:fixed;inset:12px 12px auto 12px;z-index:20;padding:12px 16px;border:2px solid #f87171;border-radius:10px;background:#450a0a;color:#fff;font:14px Arial,sans-serif;white-space:pre-wrap"></div><button id="restartBtn" type="button">↻ Restart</button>
+<script src="${PHASER_CDN}" onerror="window.__RK_GAME_BOOT_ERROR__='Phaser CDN failed to load';var e=document.getElementById('bootError');if(e){e.textContent=window.__RK_GAME_BOOT_ERROR__;e.style.display='block';}if(Array.isArray(window.__RK_TEST_ERRORS__))window.__RK_TEST_ERRORS__.push({message:window.__RK_GAME_BOOT_ERROR__});"></script><script>
 "use strict";
 const CFG=${config};
 window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;
@@ -62,10 +62,11 @@ window.__RK_GAME_TEST__={
 class PlatformerScene extends Phaser.Scene{
  constructor(){super({key:"PlatformerScene"});this.move={left:false,right:false};this.touchJump=false;}
  preload(){
+  this.load.on("loaderror",(file)=>{const message="Phaser asset load failed: "+String(file&&file.key||file&&file.src||"unknown asset");window.__RK_GAME_BOOT_ERROR__=message;const panel=document.getElementById("bootError");if(panel){panel.textContent=message;panel.style.display="block";}if(Array.isArray(window.__RK_TEST_ERRORS__)&&!window.__RK_TEST_ERRORS__.some((item)=>item&&item.message===message))window.__RK_TEST_ERRORS__.push({message});});
   Object.entries(CFG.assetUris).forEach(([id,uri])=>{if(id===CFG.playerId)this.load.spritesheet(id,uri,{frameWidth:CFG.frameWidth,frameHeight:CFG.frameHeight});else this.load.image(id,uri);});
  }
  create(){
-  sceneRef=this;this.cameras.main.setBackgroundColor(CFG.palette.background);this.physics.world.setBounds(0,0,2200,640);
+  sceneRef=this;window.__RK_GAME_BOOT_ERROR__="";const bootPanel=document.getElementById("bootError");if(bootPanel)bootPanel.style.display="none";this.cameras.main.setBackgroundColor(CFG.palette.background);this.physics.world.setBounds(0,0,2200,640);
   if(CFG.environmentId)this.add.image(1100,320,CFG.environmentId).setDisplaySize(2200,640).setDepth(-10);
   this.platforms=this.physics.add.staticGroup();
   const placePlatform=(x,y,w)=>{const p=this.platforms.create(x,y,CFG.platformId).setDisplaySize(w,30).refreshBody();};
