@@ -74,8 +74,29 @@ export function materializeGameAssets(
       (!providerUri || !hasRealRacingImageContract(asset));
     const animationContractMissing = requiresAnimatedSprite(asset) && !hasSpriteSheetMetadata(asset);
     if (racingImageContractMissing) {
+      const uriScheme = asset.uri.includes(":") ? asset.uri.slice(0, asset.uri.indexOf(":")) : "unknown";
+      const provider = asset.metadata.provider || "missing";
+      const providerMetadata = asset.metadata.providerMetadata || {};
+      const contentType = typeof providerMetadata.contentType === "string" ? providerMetadata.contentType : "unknown";
+      const imageBacked = asset.metadata.imageBacked === true || providerMetadata.imageBacked === true;
+      const reason = !providerUri ? "asset-not-ready-or-placeholder-uri" :
+        !provider || /local-fallback|james-native/i.test(String(provider)) ? "provider-is-not-a-real-image-provider" :
+        asset.metadata.fallback === true ? "fallback-flag-is-true" :
+        !imageBacked ? "imageBacked-metadata-missing" :
+        asset.entityKind === "vehicle" && providerMetadata.animationMode !== "single-image" && !hasSpriteSheetMetadata(asset) ? "vehicle-animation-metadata-invalid" : "unknown-contract-failure";
+      console.error("Fun Zone racing asset contract rejected", {
+        assetId: asset.id,
+        entityKind: asset.entityKind || "environment",
+        status: asset.status,
+        provider,
+        uriScheme,
+        contentType,
+        imageBacked,
+        fallback: asset.metadata.fallback === true,
+        reason,
+      });
       throw new Error(
-        `Racing visual contract rejected asset "${asset.id}". Racing vehicles and tracks must be backed by a verified real image provider and may not fall back to procedural/native visuals.`,
+        `Racing visual contract rejected asset "${asset.id}" (provider=${provider}, status=${asset.status}, uriScheme=${uriScheme}, contentType=${contentType}, imageBacked=${imageBacked}, reason=${reason}). Real image assets are required; procedural/native fallback is disabled.`,
       );
     }
     const useNative = !providerUri || animationContractMissing;
