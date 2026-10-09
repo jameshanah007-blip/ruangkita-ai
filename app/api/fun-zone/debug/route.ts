@@ -356,7 +356,7 @@ function selectRelevantHtmlContext(
 }
 
 function parseRepairPatches(text: string): Array<{ find: string; replace: string }> {
-  const trimmed = text.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "");
+  const trimmed = text.trim().replace(/^`{3}(?:json)?\s*/i, "").replace(/\s*`{3}$/, "");
   const start = trimmed.indexOf("{");
   const end = trimmed.lastIndexOf("}");
   if (start < 0 || end <= start) {
