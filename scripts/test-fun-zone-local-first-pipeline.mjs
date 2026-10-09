@@ -36,7 +36,7 @@ assert.ok(localFailureBranch.length > 0, "local browser-test failure branch must
 assert.doesNotMatch(localFailureBranch, /fetch\(|\/api\/fun-zone\/debug/);
 
 // Phaser must fail closed when the protagonist is missing or has no actual animation sheet.
-assert.match(runtime, /requires the declared player asset/);
+assert.match(runtime, /requires the declared player image asset/);
 assert.match(runtime, /requires a valid animated player sprite sheet/);
 assert.match(runtime, /platform-image/);\nassert.match(runtime, /coin-image/);\nassert.match(runtime, /finish-image/);\nassert.match(runtime, /Geometry fallback is disabled/);\nassert.doesNotMatch(runtime, /add\\.rectangle\\(/);\nassert.doesNotMatch(runtime, /add\\.circle\\(/);
 assert.match(runtime, /preserveDrawingBuffer:true/);
