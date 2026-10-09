@@ -105,6 +105,15 @@ export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
     });
   });
 
+  if (isPlatformer) {
+    const platformerArt: GameAssetSpec[] = [
+      { id: "platformer-platform-art", kind: "prop", role: "platform artwork", prompt: "Illustrated grass-topped floating earth platform tile for a 2D platform game", tags: ["platform-image", "platformer-art", "image-asset"], animationNeeds: [], source: "generated", required: true },
+      { id: "platformer-coin-art", kind: "prop", role: "collectible artwork", prompt: "Golden collectible coin with a bright rim and engraved star, 2D game sprite", tags: ["coin-image", "platformer-art", "image-asset"], animationNeeds: [], source: "generated", required: true },
+      { id: "platformer-finish-art", kind: "prop", role: "finish goal artwork", prompt: "Red and white finish flag on a pole, illustrated 2D game sprite", tags: ["finish-image", "platformer-art", "image-asset"], animationNeeds: [], source: "generated", required: true },
+    ];
+    assets.push(...platformerArt);
+  }
+
   visual.effects.forEach((effect, index) => {
     assets.push({
       id: `effect-${index + 1}`,
