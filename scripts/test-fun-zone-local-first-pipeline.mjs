@@ -61,6 +61,11 @@ assert.match(runtime, /keydown-R/);
 assert.match(runtime, /restartButton\.style\.display="block"/);
 assert.match(runtime, /restart:\(\)=>restartGame\(\)/);
 assert.match(runtime, /const touch=/);
+// Browser failures must distinguish Phaser CDN boot failure from individual asset preload failure.
+assert.match(runtime, /Phaser CDN failed to load/);
+assert.match(runtime, /this\.load\.on\("loaderror"/);
+assert.match(runtime, /Phaser asset load failed/);
+assert.match(runtime, /id="bootError" role="alert"/);
 
 // Local platformer art uses dedicated illustrated SVG assets, not the generic prop tile.
 assert.match(nativeVisual, /function platformerArtSvg/);
