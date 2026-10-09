@@ -88,7 +88,7 @@ function environmentSvg(asset: GameAssetSpec): string {
   const water = /water|river|lake|laut|sungai/i.test(asset.prompt);
 
   if (farming) {
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 288">
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="288" viewBox="0 0 512 288">
   <defs>
     <linearGradient id="farm-sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="${sky}"/><stop offset="1" stop-color="#dbeafe"/></linearGradient>
     <linearGradient id="farm-ground" x1="0" y1="0" x2="0" y2="1"><stop stop-color="${ground}"/><stop offset="1" stop-color="#3f7d3a"/></linearGradient>
@@ -112,7 +112,7 @@ function environmentSvg(asset: GameAssetSpec): string {
 </svg>`;
   }
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 288">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="288" viewBox="0 0 512 288">
   <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="${sky}"/><stop offset="1" stop-color="${night ? "#312e81" : "#dbeafe"}"/></linearGradient></defs>
   <rect width="512" height="288" fill="url(#sky)"/>
   <circle cx="430" cy="52" r="27" fill="${night ? "#f8fafc" : "#fde68a"}"/>
@@ -139,7 +139,7 @@ function propSvg(asset: GameAssetSpec): string {
 
 function platformerArtSvg(asset: GameAssetSpec): string {
   if (asset.tags.includes("platform-image")) {
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 96">
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="96" viewBox="0 0 256 96">
       <defs><linearGradient id="soil" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#b87942"/><stop offset="1" stop-color="#75411f"/></linearGradient></defs>
       <path d="M0 20 Q28 8 55 18 T110 17 T165 18 T220 15 T256 20 V96 H0Z" fill="url(#soil)" stroke="#57351f" stroke-width="5"/>
       <path d="M0 21 Q28 8 55 18 T110 17 T165 18 T220 15 T256 20 L256 36 Q225 31 198 36 T142 35 T85 36 T0 35Z" fill="#4c9b3c" stroke="#285b2b" stroke-width="4"/>
@@ -148,7 +148,7 @@ function platformerArtSvg(asset: GameAssetSpec): string {
     </svg>`;
   }
   if (asset.tags.includes("coin-image")) {
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
       <defs><radialGradient id="gold"><stop stop-color="#fff5a6"/><stop offset=".7" stop-color="#fbbf24"/><stop offset="1" stop-color="#b45309"/></radialGradient></defs>
       <circle cx="48" cy="48" r="42" fill="#92400e" opacity=".25"/>
       <circle cx="45" cy="43" r="37" fill="url(#gold)" stroke="#92400e" stroke-width="5"/>
@@ -158,7 +158,7 @@ function platformerArtSvg(asset: GameAssetSpec): string {
     </svg>`;
   }
   if (asset.tags.includes("finish-image")) {
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 192">
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="192" viewBox="0 0 128 192">
       <ellipse cx="62" cy="180" rx="42" ry="7" fill="#0f172a" opacity=".2"/>
       <path d="M37 18 V177" stroke="#e5e7eb" stroke-width="8" stroke-linecap="round"/>
       <path d="M41 22 L116 22 L116 91 L41 91Z" fill="#ef4444" stroke="#7f1d1d" stroke-width="4"/>
