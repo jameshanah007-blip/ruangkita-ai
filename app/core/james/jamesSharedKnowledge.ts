@@ -19,7 +19,26 @@ export async function runJamesBrainWithSharedKnowledge(
   const [globalGrowth, decisions] = await Promise.all([
     getGlobalGrowth(8),
     getJamesDecisionMemory(task, 8),
-  ]);
+  ]).catch((error: unknown) => {
+    const detail = error instanceof Error
+      ? error.message
+      : (() => {
+          try {
+            return JSON.stringify(error);
+          } catch {
+            return String(error);
+          }
+        })();
+    console.error("James shared knowledge retrieval failed before AI generation", {
+      task,
+      errorType: error instanceof Error ? error.name : typeof error,
+      message: detail,
+    });
+    throw new Error(
+      `James shared knowledge retrieval failed before AI generation: ${detail}`,
+      { cause: error }
+    );
+  });
 
   const shared = [
     input.context || "",
