@@ -47,6 +47,7 @@ export type AssetRegistry = {
 export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
   const assets: GameAssetSpec[] = [];
   const isRacing = normalizeGameGenre(visual.artDirection.genre) === "racing";
+  const isPlatformer = normalizeGameGenre(visual.artDirection.genre) === "platformer";
 
   // The protagonist is the authoritative player identity. Keep it explicit in the registry even if a refinement/provider omits it from the generic characters array.
   const characterSpecs = [visual.protagonist, ...visual.characters.filter((character) => character.id !== visual.protagonist.id)];
@@ -83,7 +84,7 @@ export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
       entityKind: undefined,
       role: "world environment",
       prompt: [environment.description, ...environment.props].join(", "),
-      tags: [environment.id, ...(isRacing ? ["racing-track", "track", "environment-asset"] : [])],
+      tags: [environment.id, ...(isRacing ? ["racing-track", "track", "environment-asset"] : []), ...(isPlatformer && environment.id === "world-primary" ? ["platformer-environment"] : [])],
       animationNeeds: [],
       source: "generated",
       required: true,
