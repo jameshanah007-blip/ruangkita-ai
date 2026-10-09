@@ -13,7 +13,7 @@ const [route, sandbox, runtime, materializer, generator, nativeVisual] = await P
 
 // Director selection must be explicit. Unsupported prompts cannot silently become platformers.
 assert.match(route, /createLocalPlatformerBlueprint\(prompt\)/);
-assert.match(route, /No supported local template matched the prompt/);
+assert.match(route, /No supported local template matched this prompt/);
 assert.match(route, /const isLocalPlatformer = directorProvider === "local" && normalizedBlueprint\.genre === "platformer"/);
 
 // The local route must bypass all known quota-bound enrichment and image-provider calls.
