@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { buildGameSystemPlan } from "../app/fun-zone/engine/gameSystemFactory.ts";
 import { composeGamePlan } from "../app/fun-zone/engine/gameComposer.ts";
 import { buildVisualBlueprint } from "../app/fun-zone/engine/visualBlueprint.ts";
+import { buildAutonomousGameHtml } from "../app/fun-zone/engine/jamesAutonomousGameEngine.ts";
 import { normalizeGameGenre } from "../app/fun-zone/engine/normalizeGameGenre.ts";
 import { buildAssetRegistry } from "../app/fun-zone/engine/assetRegistry.ts";
 import { generateGameAssets, generateLocalGameAssets } from "../app/fun-zone/engine/assetGenerator.ts";
@@ -78,6 +79,12 @@ assert.equal(
 );
 assert.ok(getPhaserGenreAdapter("farming"));
 assert.equal(getPhaserGenreAdapter("platformer"), null);
+
+assert.throws(
+  () => buildAutonomousGameHtml(blueprint({ genre: "farming" })),
+  /Implicit local\/legacy asset fallback is disabled for every genre/,
+  "runtime must refuse to substitute fallback assets for any genre",
+);
 
 // Genre normalization regression: casing and common aliases must preserve asset identity.
 assert.equal(normalizeGameGenre("Racing"), "racing");
