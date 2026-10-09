@@ -12,7 +12,6 @@ import type {
   LabSession,
   ReferenceImageEvidence,
 } from "../../../fun-zone/laboratory/types";
-import { createLocalGameBlueprint } from "../../../fun-zone/engine/localBlueprint";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
 import { composeGamePlan } from "../../../fun-zone/engine/gameComposer";
 import { createVisualBlueprint } from "../../../fun-zone/engine/visualDirector";
