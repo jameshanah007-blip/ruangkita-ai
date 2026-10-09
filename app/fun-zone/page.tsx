@@ -928,7 +928,7 @@ const handleTestReport =
         );
       }
     },
-    [autonomousRepairAttempts, blueprint, experimentId]
+    [autonomousRepairAttempts, blueprint, experimentId, provider, model]
   );
 
 const handleSandboxGameHtmlChange =
