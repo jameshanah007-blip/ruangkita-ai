@@ -239,8 +239,6 @@ export async function POST(
           source: "user-upload" as const,
         };
 
-    const referenceImageAnalysis: ReferenceImageAnalysis = await analyzeReferenceImage(validReferenceImage, prompt);
-
     const referenceImageMetadata = {
       available: validReferenceImage.available,
       source: validReferenceImage.source,
@@ -301,6 +299,11 @@ export async function POST(
     // Supported local templates must not depend on AI quota. This is an
     // explicit genre route, not a silent fallback after an AI failure.
     const localPlatformerBlueprint = createLocalPlatformerBlueprint(prompt);
+    // Do not call OpenAI Vision for the provider-independent local template. Keep
+    // image metadata for the UI, but omit image bytes from semantic analysis.
+    const referenceImageAnalysis: ReferenceImageAnalysis = localPlatformerBlueprint
+      ? await analyzeReferenceImage({ ...validReferenceImage, dataUrl: undefined }, prompt)
+      : await analyzeReferenceImage(validReferenceImage, prompt);
     if (localPlatformerBlueprint) {
       directorProvider = "local";
       director = {
@@ -417,7 +420,10 @@ export async function POST(
         ].filter((provider): provider is NonNullable<typeof provider> => Boolean(provider))
       : [];
     failureStage = "asset-provider";
-    const generatedAssets = await generateGameAssets(assetRegistry, realAssetProviders);
+    const generatedAssets = await generateGameAssets(
+      assetRegistry,
+      isLocalPlatformer ? [] : realAssetProviders,
+    );
     console.info("Fun Zone pipeline stage completed", {
       stage: "asset-provider",
       output: {
