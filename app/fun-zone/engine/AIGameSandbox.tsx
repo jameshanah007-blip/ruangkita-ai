@@ -1094,6 +1094,18 @@ function readGameTestSnapshot() {
 
   function runTest() {
     try {
+      // Phaser exposes its test protocol before the CDN and image assets finish
+      // loading. Do not consume the one-shot action attempt until the scene and
+      // player are actually ready; retry briefly, bounded by the existing test timeout.
+      var readinessProtocol = window.__RK_GAME_TEST__;
+      if (readinessProtocol && typeof readinessProtocol.isReady === "function" && !readinessProtocol.isReady()) {
+        var readinessElapsed = Date.now() - (window.__RK_TEST_STARTED_AT__ || Date.now());
+        if (readinessElapsed < 6800) {
+          window.setTimeout(runTest, 200);
+          return;
+        }
+      }
+
       var canvas =
         getCanvas();
 
