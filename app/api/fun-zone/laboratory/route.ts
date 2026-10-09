@@ -58,6 +58,8 @@ type BuilderResponse = {
   size?: number;
   validation?: {
     valid?: boolean;
+    scope?: "static-contract";
+    gameplayVerified?: boolean;
     errors?: string[];
     warnings?: string[];
   };
@@ -210,6 +212,7 @@ export async function POST(
   let session:
     | LabSession
     | null = null;
+  let failureStage = "request";
 
   try {
     const userId = await resolveLegacyUserId();
@@ -306,6 +309,7 @@ export async function POST(
      * ==========================================
      */
 
+    failureStage = "director";
     session =
       markDirectorStarted(
         session
@@ -332,6 +336,7 @@ export async function POST(
       directorProvider = director.provider;
     }
 
+    failureStage = "blueprint";
     const blueprint = director.blueprint;
     const normalizedBlueprint = normalizeBlueprintArrays(blueprint);
     const learnedGameLessons = await getJamesGameLessons(8);
@@ -365,6 +370,7 @@ export async function POST(
       refinementPasses = 1;
     }
 
+    failureStage = "asset-registry";
     const characterAssetPlan = buildCharacterAssetPlan(visualBlueprint.characters, visualBlueprint.artDirection.style);
     const assetRegistry = buildAssetRegistry(visualBlueprint);
     const realAssetProviders = process.env.JAMES_ENABLE_REAL_ASSET_GENERATION === "true"
@@ -373,7 +379,9 @@ export async function POST(
           createOpenAIImageProvider(),
         ].filter((provider): provider is NonNullable<typeof provider> => Boolean(provider))
       : [];
+    failureStage = "asset-provider";
     const generatedAssets = await generateGameAssets(assetRegistry, realAssetProviders);
+    failureStage = "asset-materializer";
     const materializedAssets = materializeGameAssets(generatedAssets);
     const protagonistId = visualBlueprint.protagonist.id;
     const runtimeCharacterAsset = materializedAssets.assets.find(
@@ -393,6 +401,7 @@ export async function POST(
       );
     }
 
+    failureStage = "phaser-runtime";
     const composedBlueprint: GameBlueprint = {
       ...effectiveBlueprint,
       mechanics: [...new Set([...effectiveBlueprint.mechanics, ...composedPlan.systems.map((system) => system.id)])],
@@ -426,15 +435,21 @@ export async function POST(
     // but it must never bypass the materialized-asset contract.
     // This guarantees the Phaser runtime receives the same assets that
     // passed through Visual Director -> Registry -> Generator -> Materializer.
+    const compiledHtml = buildAutonomousGameHtml(composedBlueprint, materializedAssets, protagonistId);
     let builder: BuilderResponse = {
       success: true,
       provider: "james-autonomous",
       model: "autonomous-game-compiler-v2-asset-contract",
-      gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets, protagonistId),
+      gameHtml: compiledHtml,
       validation: {
         valid: true,
+        scope: "static-contract",
+        gameplayVerified: false,
         errors: [],
-        warnings: ["Laboratory authoritative builder: materialized assets are mandatory runtime inputs."],
+        warnings: [
+          "Static Phaser compilation and asset contract passed.",
+          "Gameplay has not yet been verified in the browser; the browser tester is authoritative for gameplay readiness.",
+        ],
       },
     };
     let builderProvider = "james-autonomous";
@@ -446,8 +461,10 @@ export async function POST(
         gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets, protagonistId),
         validation: {
           valid: true,
+          scope: "static-contract",
+          gameplayVerified: false,
           errors: [],
-          warnings: ["James autonomous compiler regenerated the artifact."],
+          warnings: ["Static compilation only; browser gameplay verification is still required."],
         },
       };
       builderProvider = "james-autonomous";
@@ -481,6 +498,7 @@ export async function POST(
     await persistCloudSession(session, gameHtml);
 
 
+    failureStage = "browser-test";
     return NextResponse.json({
       success: true,
 
@@ -538,7 +556,7 @@ export async function POST(
 
         status: "failed",
 
-        stage: "final",
+        stage: failureStage,
 
         error: message,
 
@@ -551,7 +569,7 @@ export async function POST(
       {
         success: false,
 
-        stage: "final",
+        stage: failureStage,
 
         session,
 
