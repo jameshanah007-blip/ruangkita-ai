@@ -63,7 +63,7 @@ assert.match(nativeVisual, /platform-image/);
 assert.match(nativeVisual, /coin-image/);
 assert.match(nativeVisual, /finish-image/);
 assert.match(nativeVisual, /platformerArtSvg\(asset\)/);
-assert.match(runtime, /if\(this\.player\.y>720\)\{state\.dead=true;this\.player\.setVelocity\(0,0\)/);
+assert.match(runtime, /if\(this\.player\.y>720&&!state\.dead\)\{state\.dead=true;this\.player\.setVelocity\(0,0\)/);
 assert.doesNotMatch(runtime, /state\.dead=true;this\.scene\.restart\(\)/);
 
 // Materializer and generator remain explicit stages; no implicit placeholder promotion.
