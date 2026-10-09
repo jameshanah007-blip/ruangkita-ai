@@ -60,6 +60,16 @@ assert.match(runtime, /restartButton\.addEventListener\("click",\(\)=>restartGam
 assert.match(runtime, /keydown-R/);
 assert.match(runtime, /restartButton\.style\.display="block"/);
 assert.match(runtime, /restart:\(\)=>restartGame\(\)/);
+assert.match(runtime, /window\.addEventListener\("keydown",this\._windowKeyDown/);
+assert.match(runtime, /window\.addEventListener\("keyup",this\._windowKeyUp/);
+assert.match(runtime, /pressed\.has\("arrowleft"\)/);
+assert.match(runtime, /pressed\.has\("arrowright"\)/);
+assert.match(runtime, /makeTouch\("▲","2","1","up"\)/);
+assert.match(runtime, /makeTouch\("▼","2","2","down"\)/);
+assert.match(runtime, /makeTouch\("◀","1","2","left"\)/);
+assert.match(runtime, /makeTouch\("▶","3","2","right"\)/);
+assert.match(runtime, /pointercancel/);
+assert.match(runtime, /lostpointercapture/);
 assert.match(runtime, /const touch=/);
 // Browser failures must distinguish Phaser CDN boot failure from individual asset preload failure.
 assert.match(runtime, /Phaser CDN failed to load/);
