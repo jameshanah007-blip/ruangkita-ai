@@ -48,12 +48,12 @@ const CFG=${config};
 window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;
 const state={coins:0,won:false,dead:false};let sceneRef=null;
 window.__RK_GAME_TEST__={
- testActions:["move_right","jump","collect","restart"],
+ testActions:["move_right","jump","collect","reach_finish","restart"],
  getState:()=>({coins:state.coins,won:state.won,dead:state.dead}),
  getPlayerState:()=>sceneRef&&sceneRef.player?({x:sceneRef.player.x,y:sceneRef.player.y,velocityX:sceneRef.player.body.velocity.x,velocityY:sceneRef.player.body.velocity.y}):null,
  getObjectiveState:()=>({progress:Math.min(1,state.coins/5),coins:state.coins}),
  getWinState:()=>state.won,getLoseState:()=>state.dead,
- performTestAction:(action)=>{if(!sceneRef||!sceneRef.player)return false;if(action==="move_right"){sceneRef.player.setVelocityX(180);return true;}if(action==="jump"&&sceneRef.player.body.blocked.down){sceneRef.player.setVelocityY(-430);return true;}if(action==="collect"){const item=sceneRef.coins.getChildren().find((c)=>c.active);if(!item)return false;sceneRef.collectCoin(item);return true;}return false;},
+ performTestAction:(action)=>{if(!sceneRef||!sceneRef.player)return false;if(action==="move_right"){sceneRef.player.setVelocityX(180);return true;}if(action==="jump"&&sceneRef.player.body.blocked.down){sceneRef.player.setVelocityY(-430);return true;}if(action==="collect"){const item=sceneRef.coins.getChildren().find((c)=>c.active);if(!item)return false;sceneRef.collectCoin(item);return true;}if(action==="reach_finish"){sceneRef.reachFinish();return true;}return false;},
  restart:()=>{if(!sceneRef)return false;state.coins=0;state.won=false;state.dead=false;sceneRef.scene.restart();return true;}
 };
 class PlatformerScene extends Phaser.Scene{
@@ -74,7 +74,9 @@ class PlatformerScene extends Phaser.Scene{
   this.anims.create({key:"hero-run",frames:this.anims.generateFrameNumbers(CFG.playerId,{start:rowFrames,end:Math.min(rowFrames*2-1,rowFrames*2-1)}),frameRate:10,repeat:-1});this.player.play("hero-idle");
   this.coins=this.physics.add.staticGroup();[[300,465],[550,385],[820,305],[1110,405],[1400,320],[1670,430],[1930,345]].forEach(([x,y])=>{const c=this.coins.create(x,y,CFG.coinId).setDisplaySize(26,26);});
   this.physics.add.overlap(this.player,this.coins,(_,item)=>this.collectCoin(item));
-  this.add.image(2070,330,CFG.finishId).setDisplaySize(58,80);
+  this.finish=this.physics.add.staticImage(2070,330,CFG.finishId).setDisplaySize(58,80).refreshBody();
+  this.finishHintShown=false;
+  this.physics.add.overlap(this.player,this.finish,()=>this.reachFinish());
   this.add.text(18,16,CFG.title,{fontSize:"22px",fontFamily:"Arial",fontStyle:"bold",color:CFG.palette.light}).setScrollFactor(0);
   this.add.text(18,48,CFG.objective,{fontSize:"12px",fontFamily:"Arial",color:CFG.palette.light,wordWrap:{width:680}}).setScrollFactor(0);
   this.hud=this.add.text(18,72,"Coins: 0 / 5",{fontSize:"16px",fontFamily:"Arial",color:CFG.palette.light,backgroundColor:"#00000088",padding:{x:8,y:5}}).setScrollFactor(0);
@@ -84,15 +86,17 @@ class PlatformerScene extends Phaser.Scene{
   touch(54,"◀","left");touch(124,"▶","right");touch(900,"▲","jump");
   window.__RK_GAME_RENDERED__=true;window.__RK_GAME_READY__=true;
  }
- collectCoin(item){if(!item||!item.active)return;item.destroy();state.coins++;this.hud.setText("Coins: "+state.coins+" / 5");if(state.coins>=5)state.won=true;}
+ collectCoin(item){if(!item||!item.active||state.dead||state.won)return;item.destroy();state.coins++;this.hud.setText("Coins: "+state.coins+" / 5"+(state.coins>=5?" — Reach the flag!":""));}
+ reachFinish(){if(state.dead||state.won)return;if(state.coins<5){if(!this.finishHintShown){this.finishHintShown=true;this.add.text(480,260,"Collect five coins before finishing",{fontSize:"22px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100);}return;}state.won=true;this.player.setVelocity(0,0);this.player.body.setEnable(false);this.add.text(480,300,"You win! Restart to play again",{fontSize:"26px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100); }
  update(){
   if(!this.player||!this.player.body)return;window.__RK_GAME_LOOP_STARTED__=true;
+  if(state.won||state.dead){this.player.setVelocity(0,0);return;}
   const left=this.move.left||this.keys.A?.isDown||this.keys.LEFT?.isDown,right=this.move.right||this.keys.D?.isDown||this.keys.RIGHT?.isDown;
   if(left){this.player.setVelocityX(-210);this.player.setFlipX(true);if(this.player.anims.currentAnim?.key!=="hero-run")this.player.play("hero-run",true);}
   else if(right){this.player.setVelocityX(210);this.player.setFlipX(false);if(this.player.anims.currentAnim?.key!=="hero-run")this.player.play("hero-run",true);}
   else{this.player.setVelocityX(0);if(this.player.anims.currentAnim?.key!=="hero-idle")this.player.play("hero-idle",true);}
   if((Phaser.Input.Keyboard.JustDown(this.keys.SPACE)||Phaser.Input.Keyboard.JustDown(this.keys.UP)||Phaser.Input.Keyboard.JustDown(this.keys.W)||this.touchJump)&&this.player.body.blocked.down){this.player.setVelocityY(-430);this.touchJump=false;}
-  if(this.player.y>720){state.dead=true;this.player.setVelocity(0,0);this.add.text(480,300,"You fell! Tap restart to try again",{fontSize:"24px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100);}
+  if(this.player.y>720&&!state.dead){state.dead=true;this.player.setVelocity(0,0);this.player.body.setEnable(false);this.add.text(480,300,"You fell! Restart to try again",{fontSize:"24px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100); }
  }
 }
 new Phaser.Game({type:Phaser.AUTO,parent:"game",width:960,height:640,backgroundColor:CFG.palette.background,preserveDrawingBuffer:true,physics:{default:"arcade",arcade:{gravity:{y:900},debug:false}},scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:[PlatformerScene]});
