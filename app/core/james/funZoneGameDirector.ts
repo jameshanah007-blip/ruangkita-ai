@@ -129,7 +129,7 @@ export async function generateFunZoneGameBlueprint(userPrompt: string): Promise<
         "",
         "Invalid AI output to repair:",
         result.text,
-      ].join("\\n"),
+      ].join("\n"),
       temperature: 0.1,
       maxOutputTokens: 7000,
     });
