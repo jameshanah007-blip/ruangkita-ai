@@ -3,6 +3,10 @@ import type { PhaserGameSpec } from "./types";
 const PHASER_VERSION = "4.2.1";
 const PHASER_CDN = "https://cdn.jsdelivr.net/npm/phaser@" + PHASER_VERSION + "/dist/phaser.min.js";
 
+function escapeHtmlText(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 /**
  * Dedicated asset-backed platformer runtime.
  * The player must be a real materialized sprite sheet; this runtime never draws a
@@ -38,7 +42,7 @@ export function buildPlatformerGameHtml(spec: PhaserGameSpec): string {
   const environmentUri = environment ? JSON.stringify(environment.uri).replace(/</g, "\\u003c") : "null";
 
   return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>${escapeHtml(spec.title)}</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>${escapeHtmlText(spec.title)}</title>
 <style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101820;font-family:Arial,sans-serif;touch-action:none}#game{width:100%;height:100%;display:flex;align-items:center;justify-content:center}canvas{max-width:100%;max-height:100%;object-fit:contain}#hint{position:fixed;left:12px;bottom:8px;color:#fff;background:#101820cc;padding:7px 10px;border-radius:8px;font-size:12px;z-index:2}</style></head>
 <body><div id="game"></div><div id="hint">Move: A/D or ←/→ · Jump: Space/↑ · Touch controls supported</div>
 <script src="${PHASER_CDN}"></script><script>
