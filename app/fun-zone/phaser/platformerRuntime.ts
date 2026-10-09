@@ -40,13 +40,16 @@ export function buildPlatformerGameHtml(spec: PhaserGameSpec): string {
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>${escapeHtmlText(spec.title)}</title>
-<style>html,body,#game{margin:0;width:100%;height:100%;overflow:hidden;background:#101820;touch-action:none}#game{display:flex;align-items:center;justify-content:center}canvas{max-width:100%;max-height:100%;object-fit:contain}#hint{position:fixed;left:12px;bottom:8px;color:#fff;background:#101820cc;padding:7px 10px;border-radius:8px;font:12px Arial,sans-serif;z-index:2}</style></head>
-<body><div id="game"></div><div id="hint">Move: A/D or ←/→ · Jump: Space/↑ · Touch controls supported</div>
+<style>html,body,#game{margin:0;width:100%;height:100%;overflow:hidden;background:#101820;touch-action:none}#game{display:flex;align-items:center;justify-content:center}canvas{max-width:100%;max-height:100%;object-fit:contain}#hint{position:fixed;left:12px;bottom:8px;color:#fff;background:#101820cc;padding:7px 10px;border-radius:8px;font:12px Arial,sans-serif;z-index:2}#restartBtn{display:none;position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:5;border:2px solid #fff;border-radius:12px;padding:12px 22px;background:#176b43;color:#fff;font:bold 16px Arial,sans-serif;cursor:pointer;touch-action:manipulation}</style></head>
+<body><div id="game"></div><div id="hint">Move: A/D or ←/→ · Jump: Space/↑ · Touch controls supported · Restart: R</div><button id="restartBtn" type="button">↻ Restart</button>
 <script src="${PHASER_CDN}"></script><script>
 "use strict";
 const CFG=${config};
 window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;
 const state={coins:0,won:false,dead:false};let sceneRef=null;
+const restartButton=document.getElementById("restartBtn");
+function restartGame(){if(!sceneRef)return false;state.coins=0;state.won=false;state.dead=false;restartButton.style.display="none";sceneRef.scene.restart();return true;}
+restartButton.addEventListener("click",()=>restartGame());
 window.__RK_GAME_TEST__={
  testActions:["move_right","jump","collect","reach_finish","restart"],
  getState:()=>({coins:state.coins,won:state.won,dead:state.dead}),
@@ -54,7 +57,7 @@ window.__RK_GAME_TEST__={
  getObjectiveState:()=>({progress:Math.min(1,state.coins/5),coins:state.coins}),
  getWinState:()=>state.won,getLoseState:()=>state.dead,
  performTestAction:(action)=>{if(!sceneRef||!sceneRef.player)return false;if(action==="move_right"){sceneRef.player.setVelocityX(180);return true;}if(action==="jump"&&sceneRef.player.body.blocked.down){sceneRef.player.setVelocityY(-430);return true;}if(action==="collect"){const item=sceneRef.coins.getChildren().find((c)=>c.active);if(!item)return false;sceneRef.collectCoin(item);return true;}if(action==="reach_finish"){sceneRef.reachFinish();return true;}return false;},
- restart:()=>{if(!sceneRef)return false;state.coins=0;state.won=false;state.dead=false;sceneRef.scene.restart();return true;}
+ restart:()=>restartGame()
 };
 class PlatformerScene extends Phaser.Scene{
  constructor(){super({key:"PlatformerScene"});this.move={left:false,right:false};this.touchJump=false;}
@@ -81,13 +84,13 @@ class PlatformerScene extends Phaser.Scene{
   this.add.text(18,48,CFG.objective,{fontSize:"12px",fontFamily:"Arial",color:CFG.palette.light,wordWrap:{width:680}}).setScrollFactor(0);
   this.hud=this.add.text(18,72,"Coins: 0 / 5",{fontSize:"16px",fontFamily:"Arial",color:CFG.palette.light,backgroundColor:"#00000088",padding:{x:8,y:5}}).setScrollFactor(0);
   this.cameras.main.setBounds(0,0,2200,640);this.cameras.main.startFollow(this.player,true,0.08,0.08);
-  this.keys=this.input.keyboard?this.input.keyboard.addKeys("A,D,LEFT,RIGHT,SPACE,UP,W"):{};
+  this.keys=this.input.keyboard?this.input.keyboard.addKeys("A,D,LEFT,RIGHT,SPACE,UP,W,R"):{};if(this.input.keyboard)this.input.keyboard.on("keydown-R",()=>{if(state.won||state.dead)restartGame();});
   const touch=(x,label,kind)=>{const b=this.add.image(x,560,CFG.platformId).setDisplaySize(58,58).setScrollFactor(0).setInteractive();this.add.text(x,560,label,{fontSize:"22px",color:"#ffffff"}).setOrigin(.5).setScrollFactor(0);b.on("pointerdown",()=>{if(kind==="left")this.move.left=true;else if(kind==="right")this.move.right=true;else this.touchJump=true;});const release=()=>{if(kind==="left")this.move.left=false;else if(kind==="right")this.move.right=false;else this.touchJump=false;};b.on("pointerup",release);b.on("pointerout",release);};
   touch(54,"◀","left");touch(124,"▶","right");touch(900,"▲","jump");
   window.__RK_GAME_RENDERED__=true;window.__RK_GAME_READY__=true;
  }
  collectCoin(item){if(!item||!item.active||state.dead||state.won)return;item.destroy();state.coins++;this.hud.setText("Coins: "+state.coins+" / 5"+(state.coins>=5?" — Reach the flag!":""));}
- reachFinish(){if(state.dead||state.won)return;if(state.coins<5){if(!this.finishHintShown){this.finishHintShown=true;this.add.text(480,260,"Collect five coins before finishing",{fontSize:"22px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100);}return;}state.won=true;this.player.setVelocity(0,0);this.player.body.setEnable(false);this.add.text(480,300,"You win! Restart to play again",{fontSize:"26px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100); }
+ reachFinish(){if(state.dead||state.won)return;if(state.coins<5){if(!this.finishHintShown){this.finishHintShown=true;this.add.text(480,260,"Collect five coins before finishing",{fontSize:"22px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100);}return;}state.won=true;this.player.setVelocity(0,0);this.player.body.setEnable(false);this.add.text(480,300,"You win!",{fontSize:"26px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100);restartButton.style.display="block"; }
  update(){
   if(!this.player||!this.player.body)return;window.__RK_GAME_LOOP_STARTED__=true;
   if(state.won||state.dead){this.player.setVelocity(0,0);return;}
@@ -96,7 +99,7 @@ class PlatformerScene extends Phaser.Scene{
   else if(right){this.player.setVelocityX(210);this.player.setFlipX(false);if(this.player.anims.currentAnim?.key!=="hero-run")this.player.play("hero-run",true);}
   else{this.player.setVelocityX(0);if(this.player.anims.currentAnim?.key!=="hero-idle")this.player.play("hero-idle",true);}
   if((Phaser.Input.Keyboard.JustDown(this.keys.SPACE)||Phaser.Input.Keyboard.JustDown(this.keys.UP)||Phaser.Input.Keyboard.JustDown(this.keys.W)||this.touchJump)&&this.player.body.blocked.down){this.player.setVelocityY(-430);this.touchJump=false;}
-  if(this.player.y>720&&!state.dead){state.dead=true;this.player.setVelocity(0,0);this.player.body.setEnable(false);this.add.text(480,300,"You fell! Restart to try again",{fontSize:"24px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100); }
+  if(this.player.y>720&&!state.dead){state.dead=true;this.player.setVelocity(0,0);this.player.body.setEnable(false);this.add.text(480,300,"You fell! Try again",{fontSize:"24px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100);restartButton.style.display="block"; }
  }
 }
 new Phaser.Game({type:Phaser.AUTO,parent:"game",width:960,height:640,backgroundColor:CFG.palette.background,preserveDrawingBuffer:true,physics:{default:"arcade",arcade:{gravity:{y:900},debug:false}},scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:[PlatformerScene]});
