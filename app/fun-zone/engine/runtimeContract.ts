@@ -1,6 +1,7 @@
 import type { GameBlueprint } from "../laboratory/types";
 import type { AssetMaterializationResult } from "./assetMaterializer";
 import type { PhaserGameSpec } from "../phaser/types";
+import { normalizeGameGenre } from "./normalizeGameGenre";
 
 export type RuntimeContractResult = {
   valid: boolean;
@@ -21,7 +22,7 @@ export function validatePlayableRuntimeContract(
     if (player.status !== "ready") errors.push(`player asset "${playerAssetId}" is not ready`);
     if (!player.uri || !player.uri.startsWith("data:image/")) errors.push(`player asset "${playerAssetId}" is not a materialized image`);
     const racingSingleImage =
-      blueprint.genre === "racing" &&
+      normalizeGameGenre(blueprint.genre) === "racing" &&
       player.entityKind === "vehicle" &&
       player.metadata.providerMetadata?.animationMode === "single-image";
     if (
