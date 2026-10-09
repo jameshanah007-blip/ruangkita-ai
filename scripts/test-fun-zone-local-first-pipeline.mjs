@@ -37,13 +37,13 @@ assert.doesNotMatch(localFailureBranch, /fetch\(|\/api\/fun-zone\/debug/);
 
 // Phaser must fail closed when the protagonist is missing or has no actual animation sheet.
 assert.match(runtime, /requires the declared player asset/);
-assert.match(runtime, /requires an animated sprite-sheet player asset/);
-assert.match(runtime, /at least two animation rows/);
+assert.match(runtime, /requires a valid animated player sprite sheet/);
+assert.match(runtime, /platform-image/);\nassert.match(runtime, /coin-image/);\nassert.match(runtime, /finish-image/);\nassert.match(runtime, /Geometry fallback is disabled/);\nassert.doesNotMatch(runtime, /add\\.rectangle\\(/);\nassert.doesNotMatch(runtime, /add\\.circle\\(/);
 assert.match(runtime, /preserveDrawingBuffer:true/);
 assert.match(sandbox, /canvas\\.getContext\\("webgl2"\\)/);
 assert.match(sandbox, /gl\\.readPixels/);
 assert.match(runtime, /window\.__RK_GAME_TEST__/);
-assert.match(runtime, /touchButton/);
+assert.match(runtime, /const touch=/);
 
 // Materializer and generator remain explicit stages; no implicit placeholder promotion.
 assert.match(materializer, /placeholder assets are not promoted to ready/);
