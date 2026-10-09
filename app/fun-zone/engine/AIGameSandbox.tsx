@@ -2282,6 +2282,7 @@ export default function AIGameSandbox({
 
 body: JSON.stringify({
   gameHtml: currentHtml,
+  localTemplate: blueprint?.genre === "platformer" && blueprint?.concept === "Original 2D side-scrolling platformer using bundled illustrated sprite-sheet assets. The player runs and jumps across platforms, collects five coins, avoids falling, and reaches the goal.",
 
   errorMessage: message,
 
