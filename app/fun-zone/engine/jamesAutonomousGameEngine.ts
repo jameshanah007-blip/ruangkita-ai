@@ -1,8 +1,5 @@
 import type { GameBlueprint } from "../laboratory/types";
-import { buildAssetRegistry } from "./assetRegistry";
-import { generateLocalGameAssets } from "./assetGenerator";
-import { materializeGameAssets, type AssetMaterializationResult } from "./assetMaterializer";
-import { buildVisualBlueprint } from "./visualBlueprint";
+import type { AssetMaterializationResult } from "./assetMaterializer";
 import { buildPhaserGameHtml } from "../phaser/runtime";
 import { compilePhaserGameSpec } from "../phaser/genreDefinitions";
 import { validatePlayableRuntimeContract } from "./runtimeContract";
@@ -66,17 +63,15 @@ export function buildAutonomousGameHtml(
   materializedAssets?: AssetMaterializationResult,
   playerAssetId = "protagonist",
 ): string {
-  // Racing has a strict real-image asset contract. Never silently rebuild it
-  // from the legacy local placeholder pipeline when a caller omits its assets.
-  if (!materializedAssets && inferGenre([blueprint.genre, blueprint.title, blueprint.concept].join(" ")) === "racing") {
+  // All genres must use the same authoritative asset pipeline. Do not silently
+  // replace missing provider assets with locally generated placeholder visuals.
+  if (!materializedAssets) {
     throw new Error(
-      "Racing runtime requires verified materialized vehicle and track images. Implicit legacy/local asset fallback is disabled.",
+      "Phaser runtime requires verified materialized assets from the Laboratory pipeline. Implicit local/legacy asset fallback is disabled for every genre.",
     );
   }
 
-  const runtimeAssets = materializedAssets ?? materializeGameAssets(
-    generateLocalGameAssets(buildAssetRegistry(buildVisualBlueprint(blueprint))),
-  );
+  const runtimeAssets = materializedAssets;
   const runtimeContract = validatePlayableRuntimeContract(
     blueprint,
     runtimeAssets,
