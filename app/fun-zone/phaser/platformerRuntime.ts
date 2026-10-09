@@ -110,7 +110,7 @@ class PlatformerScene extends Phaser.Scene{
   if(this.player.y>720){state.dead=true;this.scene.restart();}
  }
 }
-const game=new Phaser.Game({type:Phaser.AUTO,parent:"game",width:960,height:640,backgroundColor:CFG.palette.background,physics:{default:"arcade",arcade:{gravity:{y:900},debug:false}},scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:[PlatformerScene]});
+const game=new Phaser.Game({type:Phaser.AUTO,parent:"game",width:960,height:640,backgroundColor:CFG.palette.background,preserveDrawingBuffer:true,physics:{default:"arcade",arcade:{gravity:{y:900},debug:false}},scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:[PlatformerScene]});
 window.__RK_GAME__=game;
 function escapeHtml(value){return String(value).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 </script></body></html>`;
