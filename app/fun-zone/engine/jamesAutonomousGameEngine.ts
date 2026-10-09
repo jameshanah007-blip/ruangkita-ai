@@ -66,6 +66,14 @@ export function buildAutonomousGameHtml(
   materializedAssets?: AssetMaterializationResult,
   playerAssetId = "protagonist",
 ): string {
+  // Racing has a strict real-image asset contract. Never silently rebuild it
+  // from the legacy local placeholder pipeline when a caller omits its assets.
+  if (!materializedAssets && inferGenre([blueprint.genre, blueprint.title, blueprint.concept].join(" ")) === "racing") {
+    throw new Error(
+      "Racing runtime requires verified materialized vehicle and track images. Implicit legacy/local asset fallback is disabled.",
+    );
+  }
+
   const runtimeAssets = materializedAssets ?? materializeGameAssets(
     generateLocalGameAssets(buildAssetRegistry(buildVisualBlueprint(blueprint))),
   );

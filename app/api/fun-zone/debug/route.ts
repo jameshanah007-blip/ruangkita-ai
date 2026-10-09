@@ -916,7 +916,23 @@ Output hanya HTML.
         throw providerError;
       }
 
-      fixedHtml = buildAutonomousGameHtml(normalizeBlueprint(blueprint)!);
+      const safeBlueprint = normalizeBlueprint(blueprint)!;
+      const isRacing = /racing|race|balap|mobil|car/i.test(
+        [safeBlueprint.genre, safeBlueprint.title, safeBlueprint.concept].join(" "),
+      );
+      if (isRacing) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Perbaikan racing dihentikan dengan aman karena provider debugger gagal. Asset mobil dan track asli tidak boleh diganti placeholder. Coba ulangi dari Laboratory agar kontrak asset real dipertahankan.",
+            provider: "james-brain",
+            model: "game_debugger",
+          },
+          { status: 503 },
+        );
+      }
+
+      fixedHtml = buildAutonomousGameHtml(safeBlueprint);
       provider = "james-autonomous-fallback";
       model = "phaser-2d-runtime-v1";
     }
@@ -926,10 +942,25 @@ Output hanya HTML.
 
     if (validationErrors.length > 0 && blueprint) {
       console.warn(
-        "AI Game Debugger produced invalid HTML; using deterministic James fallback.",
+        "AI Game Debugger produced invalid HTML; evaluating safe fallback policy.",
         validationErrors
       );
       const safeBlueprint = normalizeBlueprint(blueprint)!;
+      const isRacing = /racing|race|balap|mobil|car/i.test(
+        [safeBlueprint.genre, safeBlueprint.title, safeBlueprint.concept].join(" "),
+      );
+      if (isRacing) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Debugger menghasilkan HTML racing yang tidak valid. Fallback placeholder diblokir agar asset mobil dan track asli tidak hilang. Coba ulangi perbaikan dari Laboratory.",
+            provider,
+            model,
+            errors: validationErrors,
+          },
+          { status: 422 },
+        );
+      }
       fixedHtml = buildAutonomousGameHtml(safeBlueprint);
       provider = "james-autonomous-fallback";
       model = "phaser-2d-runtime-v1";
