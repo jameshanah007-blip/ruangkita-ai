@@ -339,19 +339,19 @@ function selectRelevantHtmlContext(
       /throw\s+new\s+Error/ig,
     ];
     const windows: Array<{ start: number; end: number }> = [
-      { start: 0, end: Math.min(700, html.length) },
-      { start: Math.max(0, html.length - 700), end: html.length },
+      { start: 0, end: Math.min(400, html.length) },
+      { start: Math.max(0, html.length - 400), end: html.length },
     ];
 
     for (const pattern of anchors) {
       let match: RegExpExecArray | null;
       while ((match = pattern.exec(html)) !== null) {
         const start = Math.max(0, match.index - 260);
-        const end = Math.min(html.length, match.index + match[0].length + 420);
+        const end = Math.min(html.length, match.index + match[0].length + 220);
         windows.push({ start, end });
-        if (windows.length >= 80) break;
+        if (windows.length >= 48) break;
       }
-      if (windows.length >= 80) break;
+      if (windows.length >= 48) break;
     }
 
     windows.sort((a, b) => a.start - b.start);
@@ -368,8 +368,8 @@ function selectRelevantHtmlContext(
     const excerpts: string[] = [];
     let used = 0;
     for (const window of merged) {
-      if (used >= 5600) break;
-      const excerpt = html.slice(window.start, Math.min(window.end, window.start + (5600 - used)));
+      if (used >= 2800) break;
+      const excerpt = html.slice(window.start, Math.min(window.end, window.start + (2800 - used)));
       if (!excerpt) continue;
       excerpts.push(
         (window.start > 0 ? "… [HTML sebelumnya dilewati] …\n" : "") +
@@ -703,7 +703,7 @@ Jika tidak yakin, kembalikan {"patches":[]} tanpa menebak.
 `,
         prompt,
         temperature: 0.1,
-        maxOutputTokens: 16000,
+        maxOutputTokens: 1800,
       });
 
       provider = result.provider;
@@ -744,11 +744,11 @@ Jika tidak ada patch aman yang dapat ditentukan, keluarkan {"patches":[]} saja. 
             prompt,
             "",
             "RETRY FOKUS:",
-            "Respons sebelumnya: " + result.text.slice(0, 2000),
+            "Respons sebelumnya: " + result.text.slice(0, 600),
             "Tinjau kembali bukti error dan konteks HTML. Jangan mengarang substring. Prioritaskan satu perubahan kecil yang secara langsung memperbaiki kegagalan yang dilaporkan.",
           ].join("\n"),
           temperature: 0.05,
-          maxOutputTokens: 8000,
+          maxOutputTokens: 900,
         });
 
         provider = retryResult.provider;
