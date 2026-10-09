@@ -133,6 +133,25 @@ async function persistCloudSession(session: LabSession, gameHtml: string) {
 }
 
 
+function describeErrorValue(value: unknown): string {
+  if (value instanceof Error) return value.message;
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["message", "error", "detail", "details", "code"]) {
+      if (typeof record[key] === "string" && record[key].trim()) {
+        return record[key] as string;
+      }
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "Non-serializable error object";
+    }
+  }
+  return value == null ? "Unknown error" : String(value);
+}
+
 function absoluteUrl(
   request: Request,
   path: string
@@ -147,39 +166,57 @@ async function callDirector(
   request: Request,
   prompt: string
 ): Promise<DirectorResponse> {
-  const response =
-    await fetch(
-      absoluteUrl(
-        request,
-        "/api/fun-zone/brain"
-      ),
-      {
-        method: "POST",
+  const response = await fetch(
+    absoluteUrl(request, "/api/fun-zone/brain"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
+      cache: "no-store",
+    }
+  );
 
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
+  const contentType = response.headers.get("content-type") || "unknown";
+  const responseText = await response.text();
+  let data: unknown;
 
-        body: JSON.stringify({
-          prompt,
-        }),
-
-        cache: "no-store",
-      }
-    );
-
-  const data =
-    await response.json();
-
-  if (!response.ok) {
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    console.error("Fun Zone Director returned a non-JSON response", {
+      status: response.status,
+      contentType,
+      responseLength: responseText.length,
+    });
     throw new Error(
-      data?.error ||
-        "AI Director gagal."
+      `Brain endpoint returned invalid JSON (HTTP ${response.status}, content-type ${contentType}).`
     );
   }
 
-  return data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error(
+      `Brain endpoint returned an invalid response shape (HTTP ${response.status}).`
+    );
+  }
+
+  const payload = data as Record<string, unknown>;
+  if (!response.ok) {
+    const upstreamMessage = describeErrorValue(
+      payload.error ?? payload.message ?? response.statusText
+    );
+    console.error("Fun Zone Director endpoint returned an error", {
+      status: response.status,
+      contentType,
+      stage: typeof payload.stage === "string" ? payload.stage : "unknown",
+      provider: typeof payload.provider === "string" ? payload.provider : "unknown",
+      error: upstreamMessage,
+    });
+    throw new Error(
+      `Brain endpoint HTTP ${response.status}: ${upstreamMessage}`
+    );
+  }
+
+  return payload as DirectorResponse;
 }
 
 function createArtifactFromBuilder(
@@ -321,9 +358,14 @@ export async function POST(
     try {
       director = await callDirector(request, prompt);
     } catch (error) {
-      console.error("Fun Zone Director failed; refusing to substitute a local blueprint.", error);
+      const detail = describeErrorValue(error);
+      console.error("Fun Zone Director failed; refusing to substitute a local blueprint.", {
+        errorType: error instanceof Error ? error.name : typeof error,
+        message: detail,
+        cause: error instanceof Error && error.cause ? describeErrorValue(error.cause) : undefined,
+      });
       throw new Error(
-        `Fun Zone Director failed. No local blueprint fallback was used, so the prompt cannot silently produce a different game specification. ${error instanceof Error ? error.message : "Unknown Director error"}`,
+        `Fun Zone Director failed. No local blueprint fallback was used, so the prompt cannot silently produce a different game specification. ${detail}`,
       );
     }
 
@@ -581,7 +623,9 @@ export async function POST(
   } catch (error) {
     console.error("Fun Zone pipeline stage failed", {
       stage: failureStage,
-      error: error instanceof Error ? error.message : String(error),
+      error: describeErrorValue(error),
+      errorType: error instanceof Error ? error.name : typeof error,
+      cause: error instanceof Error && error.cause ? describeErrorValue(error.cause) : undefined,
       sessionId: session?.id || null,
     });
 
