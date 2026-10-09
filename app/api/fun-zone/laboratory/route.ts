@@ -544,7 +544,7 @@ export async function POST(
 
         status: "failed",
 
-        stage: failureStage,
+        stage: "final",
 
         error: message,
 
