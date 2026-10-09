@@ -849,6 +849,18 @@ const handleTestReport =
         return;
       }
 
+      // The local Phaser template has no AI-generated HTML patch contract.
+      // Keep it on the deterministic local path; never call autonomous-repair,
+      // which requires verified materialized assets and must not be invoked here.
+      if (provider === "local" || model === "phaser-local-platformer-v1") {
+        setStage("debugging");
+        setError(
+          (Array.isArray(effectiveReport.hardFailures) ? effectiveReport.hardFailures : []).join(" ") ||
+          "Template lokal Phaser gagal diverifikasi. Perbaikan AI dilewati; artefak asli dipertahankan agar tidak diganti dengan game yang belum tervalidasi."
+        );
+        return;
+      }
+
       const nextRepairAttempt = autonomousRepairAttempts + 1;
 
       setLabSession((previous) => {
