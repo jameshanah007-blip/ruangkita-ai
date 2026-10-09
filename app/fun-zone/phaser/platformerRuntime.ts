@@ -51,6 +51,7 @@ const restartButton=document.getElementById("restartBtn");
 function restartGame(){if(!sceneRef)return false;state.coins=0;state.won=false;state.dead=false;restartButton.style.display="none";sceneRef.scene.restart();return true;}
 restartButton.addEventListener("click",()=>restartGame());
 window.__RK_GAME_TEST__={
+ isReady:()=>Boolean(sceneRef&&sceneRef.player&&sceneRef.player.body&&sceneRef.player.active),
  testActions:["move_right","jump","collect","reach_finish","restart"],
  getState:()=>({coins:state.coins,won:state.won,dead:state.dead}),
  getPlayerState:()=>sceneRef&&sceneRef.player?({x:sceneRef.player.x,y:sceneRef.player.y,velocityX:sceneRef.player.body.velocity.x,velocityY:sceneRef.player.body.velocity.y}):null,
