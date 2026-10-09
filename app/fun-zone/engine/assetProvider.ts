@@ -46,6 +46,10 @@ const LOCAL_REAL_ASSETS: LocalRealAssetEntry[] = [
   },
 ];
 
+function dataUriContentType(uri: string): string {
+  return uri.slice(5, uri.indexOf(";"));
+}
+
 async function materializePublicImage(uri: string): Promise<string> {
   const response = await fetch(uri, {
     headers: { Accept: "image/png,image/*;q=0.9,*/*;q=0.1" },
@@ -55,7 +59,10 @@ async function materializePublicImage(uri: string): Promise<string> {
     throw new Error(`Curated image fetch failed (${response.status}) for ${uri}`);
   }
 
-  const contentType = response.headers.get("content-type")?.split(";")[0]?.trim() || "image/png";
+  const contentType = response.headers.get("content-type")?.split(";")[0]?.trim() || "";
+  if (!contentType) {
+    throw new Error(`Curated image response omitted Content-Type for ${uri}`);
+  }
   if (!contentType.startsWith("image/")) {
     throw new Error(`Curated asset did not return an image (${contentType}) for ${uri}`);
   }
@@ -99,6 +106,8 @@ export const localRealAssetProvider: AssetProvider = {
         source: entry.source,
         license: entry.license,
         imageBacked: true,
+        contentType: dataUriContentType(dataUri),
+        byteLength: Buffer.from(dataUri.slice(dataUri.indexOf(",") + 1), "base64").byteLength,
         fallback: false,
         tags: entry.tags,
         animationMode: entry.animationMode,
