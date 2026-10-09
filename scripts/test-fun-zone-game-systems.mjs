@@ -238,7 +238,9 @@ assert.ok(platformerRuntimeHtml.includes('start:rowFrames'), "platformer run ani
 assert.ok(platformerRuntimeHtml.includes("window.__RK_GAME_TEST__"));
 assert.ok(platformerRuntimeHtml.includes("const touch="));
 assert.ok(platformerRuntimeHtml.includes("Coins: "));
-assert.ok(platformerRuntimeHtml.includes("placePlatform(1100,628,2200)"), "platformer floor must use an image-backed physics collider");\nassert.ok(!platformerRuntimeHtml.includes("add.rectangle("), "platformer runtime must not draw geometric platforms");\nassert.ok(!platformerRuntimeHtml.includes("add.circle("), "platformer runtime must not draw geometric coins");
+assert.ok(platformerRuntimeHtml.includes("placePlatform(1100,628,2200)"), "platformer floor must use an image-backed physics collider");
+assert.ok(!platformerRuntimeHtml.includes("add.rectangle("), "platformer runtime must not draw geometric platforms");
+assert.ok(!platformerRuntimeHtml.includes("add.circle("), "platformer runtime must not draw geometric coins");
 assert.throws(
   () => buildPlatformerGameHtml({
     ...platformerRuntimeSpec,
