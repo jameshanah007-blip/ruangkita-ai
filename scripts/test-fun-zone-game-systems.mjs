@@ -12,6 +12,7 @@ import { createAssetProviderRouter } from "../app/fun-zone/engine/assetProviderR
 import { validatePlayableRuntimeContract } from "../app/fun-zone/engine/runtimeContract.ts";
 import { getPhaserGenreAdapter } from "../app/fun-zone/phaser/runtimeAdapters.ts";
 import { buildFarmingGameHtml } from "../app/fun-zone/phaser/farmingRuntime.ts";
+import { buildPlatformerGameHtml } from "../app/fun-zone/phaser/platformerRuntime.ts";
 import {
   createModularGameState,
   captureCreature,
@@ -78,7 +79,7 @@ assert.equal(
   true,
 );
 assert.ok(getPhaserGenreAdapter("farming"));
-assert.equal(getPhaserGenreAdapter("platformer"), null);
+assert.equal(getPhaserGenreAdapter("platformer")?.runtimeId, "rk-platformer-2d-v1");
 
 assert.throws(
   () => buildAutonomousGameHtml(blueprint({ genre: "farming" })),
@@ -189,7 +190,36 @@ assert.ok(farmingRuntimeHtml.includes("Phaser.CANVAS"));
 assert.ok(farmingRuntimeHtml.includes("FARMER_ASSET="));
 assert.ok(!farmingRuntimeHtml.includes("\\${"));
 assert.ok(!farmingRuntimeHtml.includes("this.this.moveState"));
+
 assert.ok(farmingRuntimeHtml.includes("performTestAction"));
+
+// Platformer has its own asset-backed runtime and requires real sprite-sheet metadata.
+const platformerRuntimeSpec = {
+  ...farmingRuntimeSpec,
+  title: "Platformer Runtime Regression",
+  concept: "2D platformer with running, jumping, and collectible coins",
+  genre: "platformer",
+  runtimeId: "rk-phaser-platformer-v1",
+  systems: ["movement", "platform", "collision", "progression"],
+  actions: ["move", "jump", "collect", "reach_goal"],
+};
+const platformerRuntimeHtml = buildPlatformerGameHtml(platformerRuntimeSpec);
+assert.ok(platformerRuntimeHtml.includes("phaser@4.2.1"));
+assert.ok(platformerRuntimeHtml.includes("PLAYER_ASSET="));
+assert.ok(platformerRuntimeHtml.includes("hero-run"));
+assert.ok(platformerRuntimeHtml.includes("window.__RK_GAME_TEST__"));
+assert.ok(platformerRuntimeHtml.includes("touchButton"));
+assert.ok(platformerRuntimeHtml.includes("Coins: "));
+assert.throws(
+  () => buildPlatformerGameHtml({
+    ...platformerRuntimeSpec,
+    assets: platformerRuntimeSpec.assets.map((asset) =>
+      asset.id === "protagonist" ? { ...asset, animationMode: "single-image" } : asset,
+    ),
+  }),
+  /requires an animated sprite-sheet player asset/,
+  "platformer must not replace missing animation assets with a geometric character",
+);
 
 const provider = {
   name: "test-image-provider",
