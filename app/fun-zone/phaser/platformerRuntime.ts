@@ -20,8 +20,8 @@ export function buildPlatformerGameHtml(spec: PhaserGameSpec): string {
   if (player.animationMode !== "sprite-sheet") {
     throw new Error("Platformer Phaser runtime requires an animated sprite-sheet player asset; single-image characters are not accepted.");
   }
-  if (!player.frameWidth || !player.frameHeight || !player.frameCount || player.frameCount < 2) {
-    throw new Error("Platformer Phaser runtime received invalid player sprite-sheet metadata.");
+  if (!player.frameWidth || !player.frameHeight || !player.frameCount || player.frameCount < 2 || !player.rowCount || player.rowCount < 2) {
+    throw new Error("Platformer Phaser runtime requires valid sprite-sheet metadata with at least two animation rows.");
   }
 
   const environment = spec.assets.find((asset) => asset.kind === "environment");
@@ -79,9 +79,12 @@ class PlatformerScene extends Phaser.Scene{
   this.player=this.physics.add.sprite(80,540,"hero").setScale(Math.min(1,96/Math.max(CFG.frameWidth,CFG.frameHeight)));
   this.player.setCollideWorldBounds(false);this.player.setBounce(0.04);this.player.setMaxVelocity(260,650);
   this.physics.add.collider(this.player,this.platforms);
-  const frames=Math.max(2,Math.min(CFG.frameCount,8));
-  this.anims.create({key:"hero-idle",frames:this.anims.generateFrameNumbers("hero",{start:0,end:Math.min(3,frames-1)}),frameRate:5,repeat:-1});
-  this.anims.create({key:"hero-run",frames:this.anims.generateFrameNumbers("hero",{start:0,end:frames-1}),frameRate:10,repeat:-1});
+  const framesPerRow=Math.max(2,Math.min(CFG.frameCount,8));
+  const idleEnd=Math.min(framesPerRow-1,3);
+  const walkStart=framesPerRow;
+  const walkEnd=Math.min(framesPerRow*2-1,walkStart+framesPerRow-1);
+  this.anims.create({key:"hero-idle",frames:this.anims.generateFrameNumbers("hero",{start:0,end:idleEnd}),frameRate:5,repeat:-1});
+  this.anims.create({key:"hero-run",frames:this.anims.generateFrameNumbers("hero",{start:walkStart,end:walkEnd}),frameRate:10,repeat:-1});
   this.player.play("hero-idle");
   this.coins=this.physics.add.staticGroup();
   [[300,465],[550,385],[820,305],[1110,405],[1400,320],[1670,430],[1930,345]].forEach(([x,y])=>{const c=this.add.circle(x,y,11,parseInt(CFG.palette.accent.replace("#",""),16));this.physics.add.existing(c,true);this.coins.add(c);});
