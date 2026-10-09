@@ -171,7 +171,7 @@ type DebugResponse = {
 
 const MAX_DEBUG_ATTEMPTS = 5;
 
-const GAME_TEST_TIMEOUT_MS = 8000;
+const GAME_TEST_TIMEOUT_MS = 15000;
 
 const TEST_START_DELAY_MS = 900;
 
@@ -1100,7 +1100,7 @@ function readGameTestSnapshot() {
       var readinessProtocol = window.__RK_GAME_TEST__;
       if (readinessProtocol && typeof readinessProtocol.isReady === "function" && !readinessProtocol.isReady()) {
         var readinessElapsed = Date.now() - (window.__RK_TEST_STARTED_AT__ || Date.now());
-        if (readinessElapsed < 6800) {
+        if (readinessElapsed < 11000) {
           window.setTimeout(runTest, 200);
           return;
         }
