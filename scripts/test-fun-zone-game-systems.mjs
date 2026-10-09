@@ -97,7 +97,8 @@ const localPlatformerMaterialized = materializeGameAssets(localPlatformerGenerat
 const localPlayer = localPlatformerMaterialized.assets.find((asset) => asset.id === localPlatformerVisual.protagonist.id);
 assert.ok(localPlayer?.uri.startsWith("data:image/svg+xml"), "local character must be an image asset, not geometry");
 assert.equal(localPlayer?.status, "ready");
-assert.ok(Number(localPlayer?.metadata.providerMetadata?.spriteSheet && (localPlayer.metadata.providerMetadata.spriteSheet as { rowCount?: number }).rowCount) >= 2,
+const localSpriteSheet = localPlayer?.metadata.providerMetadata?.spriteSheet;
+assert.ok(localSpriteSheet && typeof localSpriteSheet === "object" && Number(localSpriteSheet.rowCount) >= 2,
   "local player asset must carry multi-row sprite-sheet animation metadata");
 
 
