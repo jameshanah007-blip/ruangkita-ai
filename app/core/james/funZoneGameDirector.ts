@@ -1,4 +1,5 @@
 import { runJamesBrainWithSharedKnowledge } from "./jamesSharedKnowledge";
+import { runJamesBrain } from "./jamesBrain";
 import type { GameBlueprint } from "../../fun-zone/laboratory/types";
 
 export type FunZoneGameDirectorResult = {
@@ -11,7 +12,7 @@ export type FunZoneGameDirectorResult = {
 };
 
 function extractJson(text: string): unknown {
-  const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+  const cleaned = text.replace(/\`\`\`json/gi, "").replace(/\`\`\`/g, "").trim();
   try {
     return JSON.parse(cleaned);
   } catch {
@@ -69,15 +70,38 @@ function normalizeBlueprint(input: unknown, userPrompt: string): GameBlueprint {
 
 const SYSTEM_INSTRUCTION = `
 Kamu adalah AI GAME DIRECTOR untuk RuangKita AI.
-Ubah prompt pengguna menjadi spesifikasi game terstruktur yang konkret dan dapat dimainkan.
-Tentukan genre, mood, difficulty, theme, world, coreLoop, objective, mechanics, playerActions,
-controls, progression, replayability, winCondition, loseCondition, visualStyle, mobileNotes,
-dan testRequirements. Genre bebas termasuk subgenre dan hybrid. Game harus memiliki player,
-tujuan, gameplay loop, interaksi, progres, tantangan, kondisi menang dan kalah. Jangan membuat
-quiz, dashboard, formulir, landing page, HTML, atau JavaScript. Visual style dan mekanik wajib
-sesuai genre yang diminta; jangan mengganti genre dengan template generik. Untuk game 2D,
-targetkan gameplay browser berbasis Phaser dan kontrol desktop/Android. controls, mechanics,
-playerActions, mobileNotes, dan testRequirements harus berupa array string. Output hanya JSON valid.
+Ubah prompt pengguna menjadi blueprint game yang spesifik dan playable. Jangan menulis kode.
+Output HARUS satu objek JSON valid, tanpa markdown, komentar, atau teks lain.
+Gunakan tepat field berikut dan tipe yang ditentukan:
+{
+  "title": "string",
+  "concept": "string",
+  "genre": "string",
+  "mood": "string",
+  "difficulty": "string",
+  "theme": "string",
+  "world": "string",
+  "coreLoop": "string",
+  "objective": "string",
+  "mechanics": ["string"],
+  "playerActions": ["string"],
+  "controls": ["string"],
+  "progression": "string",
+  "replayability": "string",
+  "winCondition": "string",
+  "loseCondition": "string",
+  "visualStyle": "string",
+  "mobileNotes": ["string"],
+  "testRequirements": ["string"]
+}
+Aturan JSON: gunakan tanda kutip ganda untuk semua key dan string; setiap properti dipisahkan koma;
+jangan gunakan koma setelah properti terakhir; jangan masukkan baris baru mentah di dalam string.
+Batasi setiap string menjadi satu kalimat ringkas dan setiap array menjadi 3-6 item.
+Pertahankan genre dan maksud prompt pengguna. Jangan mengganti game yang diminta menjadi quiz,
+dashboard, formulir, landing page, atau template generik. Untuk game 2D, targetkan Phaser dan
+kontrol desktop serta Android/touch. Pastikan ada tujuan, gameplay loop, tantangan, progres,
+kondisi menang dan kalah. controls, mechanics, playerActions, mobileNotes, testRequirements
+harus berupa array string.
 `;
 
 export async function generateFunZoneGameBlueprint(userPrompt: string): Promise<FunZoneGameDirectorResult> {
@@ -85,10 +109,11 @@ export async function generateFunZoneGameBlueprint(userPrompt: string): Promise<
     surface: "fun_zone",
     mode: "game_director",
     systemInstruction: SYSTEM_INSTRUCTION,
-    prompt: `USER GAME REQUEST:\n\n${userPrompt}\n\nRancang blueprint yang spesifik untuk prompt ini. Jangan sekadar mengulang prompt dan jangan membuat kode. Output JSON saja.`,
-    temperature: 0.8,
-    maxOutputTokens: 7000,
+    prompt: `USER GAME REQUEST:\n\n${userPrompt}\n\nBuat blueprint yang benar-benar sesuai permintaan. Isi semua field schema dengan nilai ringkas. Output satu objek JSON valid saja.`,
+    temperature: 0.2,
+    maxOutputTokens: 4200,
   });
+
   let parsedBlueprint: unknown;
   let finalProvider = result.provider;
   let finalModel = result.model;
@@ -96,9 +121,7 @@ export async function generateFunZoneGameBlueprint(userPrompt: string): Promise<
   try {
     parsedBlueprint = extractJson(result.text);
   } catch (initialError) {
-    const parseError = initialError instanceof Error
-      ? initialError.message
-      : String(initialError);
+    const parseError = initialError instanceof Error ? initialError.message : String(initialError);
     console.warn("Fun Zone Director returned invalid JSON; requesting one format-only repair.", {
       provider: result.provider,
       model: result.model,
@@ -106,32 +129,30 @@ export async function generateFunZoneGameBlueprint(userPrompt: string): Promise<
       outputCharacters: result.text.length,
     });
 
-    // A malformed response must never be normalized into a generic blueprint.
-    // Ask the configured AI router to repair the exact JSON output once, without
-    // changing the game specification or generating game code.
-    const repairResult = await runJamesBrainWithSharedKnowledge({
+    // Repair is syntax-only and deliberately bypasses shared memory retrieval:
+    // memory context can distract a formatting-only task and is not needed here.
+    const repairResult = await runJamesBrain({
       surface: "fun_zone",
       mode: "game_director",
-      systemInstruction: SYSTEM_INSTRUCTION,
+      systemInstruction: `
+You are a strict JSON syntax repair utility. Return exactly one syntactically valid JSON object.
+Do not use markdown fences, comments, explanations, or trailing commas. Preserve the original
+game's meaning and every field/value that can be recovered. Do not invent a new game design.
+Required keys: title, concept, genre, mood, difficulty, theme, world, coreLoop, objective,
+mechanics, playerActions, controls, progression, replayability, winCondition, loseCondition,
+visualStyle, mobileNotes, testRequirements. Array fields must contain strings only.
+`,
       prompt: [
-        "JSON FORMAT REPAIR ONLY.",
-        "The previous Game Director output was invalid JSON and failed to parse.",
-        "Repair its syntax only. Preserve the exact game design, genre, mechanics, and intent.",
-        "Return one complete JSON object with all required GameBlueprint fields.",
-        "Do not add markdown fences, comments, explanations, or JavaScript.",
-        "Do not replace missing or malformed content with a different game specification.",
-        "",
-        "Parser error:",
-        parseError,
-        "",
-        "Original user request:",
+        "Repair JSON syntax only. Do not redesign or summarize the game.",
+        `Parser error: ${parseError}`,
+        "Original user request (for intent only):",
         userPrompt,
-        "",
-        "Invalid AI output to repair:",
+        "Invalid JSON to repair:",
         result.text,
-      ].join("\n"),
-      temperature: 0.1,
-      maxOutputTokens: 7000,
+        "Return only the corrected JSON object.",
+      ].join("\n\n"),
+      temperature: 0,
+      maxOutputTokens: 4200,
     });
 
     try {
@@ -144,9 +165,7 @@ export async function generateFunZoneGameBlueprint(userPrompt: string): Promise<
         outputCharacters: repairResult.text.length,
       });
     } catch (repairError) {
-      const repairDetail = repairError instanceof Error
-        ? repairError.message
-        : String(repairError);
+      const repairDetail = repairError instanceof Error ? repairError.message : String(repairError);
       console.error("Fun Zone Director JSON repair failed; no local blueprint fallback was used.", {
         initialError: parseError,
         repairError: repairDetail,
