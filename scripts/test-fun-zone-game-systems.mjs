@@ -207,6 +207,7 @@ const platformerRuntimeHtml = buildPlatformerGameHtml(platformerRuntimeSpec);
 assert.ok(platformerRuntimeHtml.includes("phaser@4.2.1"));
 assert.ok(platformerRuntimeHtml.includes("PLAYER_ASSET="));
 assert.ok(platformerRuntimeHtml.includes("hero-run"));
+assert.ok(platformerRuntimeHtml.includes("walkStart=framesPerRow"), "platformer run animation must use the walk row, not replay idle frames");
 assert.ok(platformerRuntimeHtml.includes("window.__RK_GAME_TEST__"));
 assert.ok(platformerRuntimeHtml.includes("touchButton"));
 assert.ok(platformerRuntimeHtml.includes("Coins: "));
@@ -220,6 +221,16 @@ assert.throws(
   }),
   /requires an animated sprite-sheet player asset/,
   "platformer must not replace missing animation assets with a geometric character",
+);
+assert.throws(
+  () => buildPlatformerGameHtml({
+    ...platformerRuntimeSpec,
+    assets: platformerRuntimeSpec.assets.map((asset) =>
+      asset.id === "protagonist" ? { ...asset, rowCount: 1 } : asset,
+    ),
+  }),
+  /at least two animation rows/,
+  "platformer must reject sprite sheets that cannot provide distinct idle and walk animations",
 );
 
 const provider = {
