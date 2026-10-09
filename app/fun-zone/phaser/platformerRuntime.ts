@@ -40,7 +40,7 @@ export function buildPlatformerGameHtml(spec: PhaserGameSpec): string {
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>${escapeHtmlText(spec.title)}</title>
-<style>html,body,#game{margin:0;width:100%;height:100%;overflow:hidden;background:#101820;touch-action:none}#game{display:flex;align-items:center;justify-content:center}canvas{max-width:100%;max-height:100%;object-fit:contain}#hint{position:fixed;left:12px;bottom:8px;color:#fff;background:#101820cc;padding:7px 10px;border-radius:8px;font:12px Arial,sans-serif;z-index:2}#restartBtn{display:none;position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:5;border:2px solid #fff;border-radius:12px;padding:12px 22px;background:#176b43;color:#fff;font:bold 16px Arial,sans-serif;cursor:pointer;touch-action:manipulation}</style></head>
+<style>html,body,#game{margin:0;width:100%;height:100%;overflow:hidden;background:#101820;touch-action:none}#game{display:flex;align-items:center;justify-content:center}canvas{max-width:100%;max-height:100%;object-fit:contain}#hint{position:fixed;left:12px;bottom:8px;color:#fff;background:#101820cc;padding:7px 10px;border-radius:8px;font:12px Arial,sans-serif;z-index:2}#restartBtn{display:none;position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:15;border:2px solid #fff;border-radius:12px;padding:12px 22px;background:#176b43;color:#fff;font:bold 16px Arial,sans-serif;cursor:pointer;touch-action:manipulation}@media(min-width:900px){#rkTouchPad{opacity:.72}}</style></head>
 <body><div id="game"></div><div id="hint">Move: A/D or ←/→ · Jump: Space/↑ · Touch controls supported · Restart: R</div><div id="bootError" role="alert" style="display:none;position:fixed;inset:12px 12px auto 12px;z-index:20;padding:12px 16px;border:2px solid #f87171;border-radius:10px;background:#450a0a;color:#fff;font:14px Arial,sans-serif;white-space:pre-wrap"></div><button id="restartBtn" type="button">↻ Restart</button>
 <script src="${PHASER_CDN}" onerror="window.__RK_GAME_BOOT_ERROR__='Phaser CDN failed to load';var e=document.getElementById('bootError');if(e){e.textContent=window.__RK_GAME_BOOT_ERROR__;e.style.display='block';}if(Array.isArray(window.__RK_TEST_ERRORS__))window.__RK_TEST_ERRORS__.push({message:window.__RK_GAME_BOOT_ERROR__});"></script><script>
 "use strict";
@@ -85,9 +85,21 @@ class PlatformerScene extends Phaser.Scene{
   this.add.text(18,48,CFG.objective,{fontSize:"12px",fontFamily:"Arial",color:CFG.palette.light,wordWrap:{width:680}}).setScrollFactor(0);
   this.hud=this.add.text(18,72,"Coins: 0 / 5",{fontSize:"16px",fontFamily:"Arial",color:CFG.palette.light,backgroundColor:"#00000088",padding:{x:8,y:5}}).setScrollFactor(0);
   this.cameras.main.setBounds(0,0,2200,640);this.cameras.main.startFollow(this.player,true,0.08,0.08);
-  this.keys=this.input.keyboard?this.input.keyboard.addKeys("A,D,LEFT,RIGHT,SPACE,UP,W,R"):{};if(this.input.keyboard)this.input.keyboard.on("keydown-R",()=>{if(state.won||state.dead)restartGame();});
-  const touch=(x,label,kind)=>{const b=this.add.image(x,560,CFG.platformId).setDisplaySize(58,58).setScrollFactor(0).setInteractive();this.add.text(x,560,label,{fontSize:"22px",color:"#ffffff"}).setOrigin(.5).setScrollFactor(0);b.on("pointerdown",()=>{if(kind==="left")this.move.left=true;else if(kind==="right")this.move.right=true;else this.touchJump=true;});const release=()=>{if(kind==="left")this.move.left=false;else if(kind==="right")this.move.right=false;else this.touchJump=false;};b.on("pointerup",release);b.on("pointerout",release);};
-  touch(54,"◀","left");touch(124,"▶","right");touch(900,"▲","jump");
+  this.keys=this.input.keyboard?this.input.keyboard.addKeys("A,D,LEFT,RIGHT,SPACE,UP,W,S,DOWN,R"):{};
+  // Window-level keyboard listeners keep controls reliable inside the embedded game.
+  this._pressedKeys=new Set();
+  this._windowKeyDown=(event)=>{const key=String(event.key||"").toLowerCase();if(["arrowleft","arrowright","arrowup","arrowdown"," ","w","a","s","d","r"].includes(key)){event.preventDefault();this._pressedKeys.add(key);}if(key==="r"&&(state.won||state.dead))restartGame();};
+  this._windowKeyUp=(event)=>{this._pressedKeys.delete(String(event.key||"").toLowerCase());};
+  this._windowBlur=()=>{this._pressedKeys.clear();this.move.left=false;this.move.right=false;this.touchJump=false;};
+  window.addEventListener("keydown",this._windowKeyDown,{passive:false});
+  window.addEventListener("keyup",this._windowKeyUp);
+  window.addEventListener("blur",this._windowBlur);
+  if(this.input.keyboard)this.input.keyboard.on("keydown-R",()=>{if(state.won||state.dead)restartGame();});
+  // DOM touch pad sits above the canvas to avoid Phaser hit-testing swallowing taps.
+  let touchPad=document.getElementById("rkTouchPad");
+  if(!touchPad){touchPad=document.createElement("div");touchPad.id="rkTouchPad";touchPad.setAttribute("aria-label","Game touch controls");touchPad.style.cssText="position:fixed;left:14px;bottom:18px;z-index:10;display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:5px;touch-action:none;user-select:none;-webkit-user-select:none";document.body.appendChild(touchPad);}
+  const makeTouch=(label,gridColumn,gridRow,kind)=>{const b=document.createElement("button");b.type="button";b.textContent=label;b.setAttribute("aria-label",kind);b.style.cssText="grid-column:"+gridColumn+";grid-row:"+gridRow+";border:1px solid #ffffffaa;border-radius:10px;background:#142a36dd;color:white;font:bold 22px Arial;touch-action:none;padding:0";const press=(event)=>{event.preventDefault();if(kind==="left")this.move.left=true;else if(kind==="right")this.move.right=true;else if(kind==="up")this.touchJump=true;else this._pressedKeys.add("arrowdown");try{b.setPointerCapture(event.pointerId);}catch{}};const release=(event)=>{event.preventDefault();if(kind==="left")this.move.left=false;else if(kind==="right")this.move.right=false;else if(kind==="up")this.touchJump=false;else this._pressedKeys.delete("arrowdown");};b.addEventListener("pointerdown",press,{passive:false});b.addEventListener("pointerup",release,{passive:false});b.addEventListener("pointercancel",release,{passive:false});b.addEventListener("lostpointercapture",release,{passive:false});touchPad.appendChild(b);};
+  makeTouch("▲","2","1","up");makeTouch("◀","1","2","left");makeTouch("▼","2","2","down");makeTouch("▶","3","2","right");
   window.__RK_GAME_RENDERED__=true;window.__RK_GAME_READY__=true;
  }
  collectCoin(item){if(!item||!item.active||state.dead||state.won)return;item.destroy();state.coins++;this.hud.setText("Coins: "+state.coins+" / 5"+(state.coins>=5?" — Reach the flag!":""));}
@@ -95,11 +107,14 @@ class PlatformerScene extends Phaser.Scene{
  update(){
   if(!this.player||!this.player.body)return;window.__RK_GAME_LOOP_STARTED__=true;
   if(state.won||state.dead){this.player.setVelocity(0,0);return;}
-  const left=this.move.left||this.keys.A?.isDown||this.keys.LEFT?.isDown,right=this.move.right||this.keys.D?.isDown||this.keys.RIGHT?.isDown;
-  if(left){this.player.setVelocityX(-210);this.player.setFlipX(true);if(this.player.anims.currentAnim?.key!=="hero-run")this.player.play("hero-run",true);}
-  else if(right){this.player.setVelocityX(210);this.player.setFlipX(false);if(this.player.anims.currentAnim?.key!=="hero-run")this.player.play("hero-run",true);}
+  const pressed=this._pressedKeys||new Set();
+  const left=this.move.left||pressed.has("a")||pressed.has("arrowleft")||this.keys.A?.isDown||this.keys.LEFT?.isDown;
+  const right=this.move.right||pressed.has("d")||pressed.has("arrowright")||this.keys.D?.isDown||this.keys.RIGHT?.isDown;
+  if(left&&!right){this.player.setVelocityX(-210);this.player.setFlipX(true);if(this.player.anims.currentAnim?.key!=="hero-run")this.player.play("hero-run",true);}
+  else if(right&&!left){this.player.setVelocityX(210);this.player.setFlipX(false);if(this.player.anims.currentAnim?.key!=="hero-run")this.player.play("hero-run",true);}
   else{this.player.setVelocityX(0);if(this.player.anims.currentAnim?.key!=="hero-idle")this.player.play("hero-idle",true);}
-  if((Phaser.Input.Keyboard.JustDown(this.keys.SPACE)||Phaser.Input.Keyboard.JustDown(this.keys.UP)||Phaser.Input.Keyboard.JustDown(this.keys.W)||this.touchJump)&&this.player.body.blocked.down){this.player.setVelocityY(-430);this.touchJump=false;}
+  const jumpPressed=pressed.has("arrowup")||pressed.has(" ")||pressed.has("w")||this.keys.SPACE?.isDown||this.keys.UP?.isDown||this.keys.W?.isDown||this.touchJump;
+  if(jumpPressed&&this.player.body.blocked.down){this.player.setVelocityY(-430);this.touchJump=false;pressed.delete("arrowup");pressed.delete(" ");pressed.delete("w");}
   if(this.player.y>720&&!state.dead){state.dead=true;this.player.setVelocity(0,0);this.player.body.setEnable(false);this.add.text(480,300,"You fell! Try again",{fontSize:"24px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100);restartButton.style.display="block"; }
  }
 }
