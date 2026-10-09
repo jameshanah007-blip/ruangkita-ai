@@ -92,7 +92,7 @@ class PlatformerScene extends Phaser.Scene{
   else if(right){this.player.setVelocityX(210);this.player.setFlipX(false);if(this.player.anims.currentAnim?.key!=="hero-run")this.player.play("hero-run",true);}
   else{this.player.setVelocityX(0);if(this.player.anims.currentAnim?.key!=="hero-idle")this.player.play("hero-idle",true);}
   if((Phaser.Input.Keyboard.JustDown(this.keys.SPACE)||Phaser.Input.Keyboard.JustDown(this.keys.UP)||Phaser.Input.Keyboard.JustDown(this.keys.W)||this.touchJump)&&this.player.body.blocked.down){this.player.setVelocityY(-430);this.touchJump=false;}
-  if(this.player.y>720){state.dead=true;this.scene.restart();}
+  if(this.player.y>720){state.dead=true;this.player.setVelocity(0,0);this.add.text(480,300,"You fell! Tap restart to try again",{fontSize:"24px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100);}
  }
 }
 new Phaser.Game({type:Phaser.AUTO,parent:"game",width:960,height:640,backgroundColor:CFG.palette.background,preserveDrawingBuffer:true,physics:{default:"arcade",arcade:{gravity:{y:900},debug:false}},scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:[PlatformerScene]});
