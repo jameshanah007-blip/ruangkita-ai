@@ -668,6 +668,26 @@ export async function POST(request: Request) {
       );
     }
 
+    // Local platformer builds must not depend on an AI provider just to report why a browser test failed.
+    // This branch deliberately does not claim a repair: without a proven, specific safe patch, preserve the original HTML.
+    if (body?.localTemplate === true) {
+      const hardFailures = Array.isArray(testReport?.hardFailures) ? testReport.hardFailures.slice(0, 5) : [];
+      const runtimeMessages = runtimeErrors.slice(0, 3).map((item) => item.message);
+      const evidence = [...runtimeMessages, ...hardFailures].filter(Boolean);
+      const focus = determineFailureFocus(runtimeErrors, testReport);
+      return NextResponse.json({
+        success: false,
+        code: "LOCAL_TEMPLATE_DIAGNOSTIC",
+        originalPreserved: true,
+        error: [
+          "Template platformer lokal: AI provider tidak dipanggil untuk debugging.",
+          evidence.length ? "Bukti kegagalan: " + evidence.join(" | ") : "Browser test belum memberikan detail error yang cukup.",
+          "Kategori pemeriksaan: " + focus.join(" " ),
+          "Game belum dinyatakan lulus. HTML asli dipertahankan karena belum ada patch deterministik yang terbukti aman."
+        ].join("\\n"),
+      }, { status: 422 });
+    }
+
     const prompt = buildDebuggerPrompt({
       gameHtml,
       errorMessage,
