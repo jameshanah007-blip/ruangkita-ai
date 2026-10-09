@@ -335,6 +335,11 @@ export async function POST(
     if (director.provider) {
       directorProvider = director.provider;
     }
+    console.info("Fun Zone pipeline stage completed", {
+      stage: "director",
+      input: { promptCharacters: prompt.length },
+      output: { provider: directorProvider, genre: director.blueprint.genre, hasObjective: Boolean(director.blueprint.objective?.trim()) },
+    });
 
     failureStage = "blueprint";
     const blueprint = director.blueprint;
@@ -349,6 +354,16 @@ export async function POST(
     const adaptationBlueprint = applyJamesGameAdaptations(masteryBlueprint, learnedGameAdaptations);
     const avoidanceBlueprint = applyJamesFailedStrategyAvoidance(adaptationBlueprint, failedGameStrategies);
     const learnedBlueprint = applyJamesEffectiveStrategies(avoidanceBlueprint, effectiveGameStrategies);
+    console.info("Fun Zone pipeline stage completed", {
+      stage: "blueprint",
+      output: {
+        genre: learnedBlueprint.genre,
+        mechanics: learnedBlueprint.mechanics.length,
+        playerActions: learnedBlueprint.playerActions.length,
+        controls: learnedBlueprint.controls.length,
+        testRequirements: learnedBlueprint.testRequirements.length,
+      },
+    });
 
     // Compose reusable gameplay systems before the existing autonomous builder runs.
     // We enrich the existing blueprint instead of replacing the current architecture.
@@ -373,6 +388,15 @@ export async function POST(
     failureStage = "asset-registry";
     const characterAssetPlan = buildCharacterAssetPlan(visualBlueprint.characters, visualBlueprint.artDirection.style);
     const assetRegistry = buildAssetRegistry(visualBlueprint);
+    console.info("Fun Zone pipeline stage completed", {
+      stage: "asset-registry",
+      output: {
+        genre: visualBlueprint.artDirection.genre,
+        assetCount: assetRegistry.assets.length,
+        requiredAssetCount: assetRegistry.requiredAssetIds.length,
+        requiredAssetIds: assetRegistry.requiredAssetIds,
+      },
+    });
     const realAssetProviders = process.env.JAMES_ENABLE_REAL_ASSET_GENERATION === "true"
       ? [
           createGeminiImageProvider(),
@@ -381,8 +405,25 @@ export async function POST(
       : [];
     failureStage = "asset-provider";
     const generatedAssets = await generateGameAssets(assetRegistry, realAssetProviders);
+    console.info("Fun Zone pipeline stage completed", {
+      stage: "asset-provider",
+      output: {
+        count: generatedAssets.assets.length,
+        providers: [...new Set(generatedAssets.assets.map((asset) => asset.metadata.provider || "missing"))],
+        placeholders: generatedAssets.assets.filter((asset) => asset.status !== "ready" || asset.uri.startsWith("asset://placeholder/")).map((asset) => asset.id),
+      },
+    });
     failureStage = "asset-materializer";
     const materializedAssets = materializeGameAssets(generatedAssets);
+    console.info("Fun Zone pipeline stage completed", {
+      stage: "asset-materializer",
+      output: {
+        count: materializedAssets.assets.length,
+        ready: materializedAssets.assets.filter((asset) => asset.status === "ready").length,
+        fallbackCount: materializedAssets.assets.filter((asset) => asset.metadata.fallback === true).length,
+        warnings: materializedAssets.warnings.length,
+      },
+    });
     const protagonistId = visualBlueprint.protagonist.id;
     const runtimeCharacterAsset = materializedAssets.assets.find(
       (asset) =>
@@ -436,6 +477,16 @@ export async function POST(
     // This guarantees the Phaser runtime receives the same assets that
     // passed through Visual Director -> Registry -> Generator -> Materializer.
     const compiledHtml = buildAutonomousGameHtml(composedBlueprint, materializedAssets, protagonistId);
+    console.info("Fun Zone pipeline stage completed", {
+      stage: "phaser-runtime",
+      output: {
+        runtime: "Phaser 4.2.1",
+        genre: composedBlueprint.genre,
+        htmlBytes: new TextEncoder().encode(compiledHtml).byteLength,
+        staticContractPassed: true,
+        gameplayVerified: false,
+      },
+    });
     const builder: BuilderResponse = {
       success: true,
       provider: "james-autonomous",
@@ -528,10 +579,11 @@ export async function POST(
         builder.model || null,
     });
   } catch (error) {
-    console.error(
-      "Laboratory API error:",
-      error
-    );
+    console.error("Fun Zone pipeline stage failed", {
+      stage: failureStage,
+      error: error instanceof Error ? error.message : String(error),
+      sessionId: session?.id || null,
+    });
 
     const message =
       error instanceof Error
