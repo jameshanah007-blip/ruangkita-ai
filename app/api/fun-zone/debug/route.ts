@@ -775,9 +775,52 @@ Jika tidak ada patch aman yang dapat ditentukan, keluarkan {"patches":[]} saja. 
     } catch (providerError) {
       const detail = providerError instanceof Error ? providerError.message : String(providerError);
       const isPatchFailure = /^(OUTPUT_FORMAT_INVALID|OUTPUT_TRUNCATED_OR_INVALID|PATCH_NOT_FOUND|PATCH_NOT_UNIQUE|NO_SAFE_PATCH):/.test(detail);
+
+      // The shared AI router attaches its provider-by-provider attempts to the
+      // terminal error. Preserve those diagnostics at this API boundary so a
+      // generic 503 can be traced to quota, timeout, cooldown, or configuration.
+      // Never return credentials or authorization values to the browser.
+      const rawAttempts =
+        providerError &&
+        typeof providerError === "object" &&
+        "attempts" in providerError &&
+        Array.isArray((providerError as { attempts?: unknown }).attempts)
+          ? (providerError as { attempts: unknown[] }).attempts
+          : [];
+      const providerDiagnostics = rawAttempts
+        .filter((item): item is string => typeof item === "string")
+        .slice(0, 8)
+        .map((item) => {
+          const safe = item
+            .replace(/(authorization|api[-_ ]?key|token|bearer)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]")
+            .replace(/AIza[0-9A-Za-z_-]{20,}/g, "[redacted-key]")
+            .replace(/sk-[0-9A-Za-z_-]{16,}/g, "[redacted-key]")
+            .slice(0, 400);
+          const providerName = safe.split(":", 1)[0].slice(0, 40);
+          const statusMatch = safe.match(/HTTP\s+(\d{3})/i);
+          const category = /cooldown aktif/i.test(safe)
+            ? "cooldown"
+            : /HTTP\s+429|quota|rate.?limit|resource exhausted/i.test(safe)
+              ? "rate_limit_or_quota"
+              : /timeout|timed out|HTTP\s+408/i.test(safe)
+                ? "timeout"
+                : /API.?KEY|belum dikonfigurasi|unauthorized|HTTP\s+401|HTTP\s+403/i.test(safe)
+                  ? "configuration_or_auth"
+                  : statusMatch && Number(statusMatch[1]) >= 500
+                    ? "provider_server_error"
+                    : "provider_error";
+          return {
+            provider: providerName,
+            category,
+            httpStatus: statusMatch ? Number(statusMatch[1]) : null,
+            message: safe,
+          };
+        });
+
       console.error("AI Game Debugger failed; original HTML remains unchanged:", {
         category: isPatchFailure ? "repair-output" : "provider",
-        detail,
+        detail: isPatchFailure ? detail : "Provider failure; see sanitized provider diagnostics.",
+        providerDiagnostics,
       });
       return NextResponse.json(
         {
@@ -788,9 +831,11 @@ Jika tidak ada patch aman yang dapat ditentukan, keluarkan {"patches":[]} saja. 
               ? "Debugger sudah mencoba ulang, tetapi tidak menemukan patch yang cukup aman. HTML asli dipertahankan agar game tidak rusak. " + detail
               : "Hasil perbaikan Debugger tidak dapat diterapkan dengan aman. HTML asli dipertahankan. " + detail
             : "AI Game Debugger tidak tersedia. HTML asli dipertahankan; coba lagi setelah provider tersedia.",
-          detail,
+          detail: isPatchFailure ? detail : "Semua jalur AI yang tersedia gagal. Periksa providerDiagnostics untuk kategori penyebab.",
+          providerDiagnostics,
           provider: isPatchFailure ? provider : "james-brain",
           model: isPatchFailure ? model : "game_debugger",
+          originalPreserved: true,
         },
         { status: isPatchFailure ? 422 : 503 },
       );
