@@ -372,7 +372,7 @@ function selectRelevantHtmlContext(
   let previous = -2;
   for (const index of ordered) {
     if (index > previous + 1) chunks.push("… [baris HTML dilewati] …");
-    chunks.push(String(index + 1) + ": " + lines[index]);
+    chunks.push(lines[index]);
     previous = index;
   }
   const context = chunks.join("\n");
@@ -482,7 +482,7 @@ function buildDebuggerPrompt({
     "TEST REPORT",
     formatTestReport(testReport),
     "",
-    "HTML ASLI (KONTEKS TERPILIH; nomor di kiri adalah nomor baris asli):",
+    "HTML ASLI (KONTEKS TERPILIH; beberapa bagian mungkin dilewati):",
     htmlContext,
     "",
     "FORMAT OUTPUT WAJIB",
@@ -656,21 +656,16 @@ export async function POST(request: Request) {
         surface: "fun_zone",
         mode: "game_debugger",
         systemInstruction: `
-Kamu adalah AI Game Debugger profesional untuk
-laboratorium game RuangKita AI.
+Kamu adalah AI Game Debugger profesional untuk laboratorium game RuangKita AI.
 
-Kamu menerima source HTML game, blueprint,
-runtime errors, sandbox evidence, dan test report.
+Tugasmu memperbaiki game yang sudah ada melalui patch kecil, bukan menulis ulang seluruh HTML.
+Pertahankan genre, gameplay, aset, kontrol, dan Phaser 4.2.1. Jangan membuat game baru.
 
-Tugasmu adalah melakukan REPAIR terhadap game
-yang sudah ada. Jangan membuat game baru.
-Perbaiki akar masalah dan pertahankan gameplay.
+Keluarkan JSON saja dengan format:
+{"patches":[{"find":"potongan kode asli yang unik dan persis","replace":"potongan kode pengganti"}]}
 
-Output harus satu HTML lengkap yang langsung
-dapat dijalankan browser.
-
-Tidak boleh ada markdown, code fence, atau penjelasan.
-Output hanya HTML.
+Berikan 1 sampai 4 patch kecil. Setiap find harus berupa substring persis dan unik dari HTML yang diberikan. Jangan keluarkan HTML lengkap, markdown, atau penjelasan.
+Jika tidak yakin, kembalikan {"patches":[]} tanpa menebak.
 `,
         prompt,
         temperature: 0.1,
