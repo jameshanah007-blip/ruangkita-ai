@@ -1,0 +1,31 @@
+name: Fun Zone regression tests
+
+on:
+  pull_request:
+    branches:
+      - feat/fun-zone-phaser-asset-contract-fix
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fun-zone-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run Fun Zone regression tests
+        run: npm run test:fun-zone-systems
+      - name: Run real racing asset integration test
+        run: npm run test:fun-zone-racing-integration
+      - name: TypeScript validation
+        run: npx tsc --noEmit
