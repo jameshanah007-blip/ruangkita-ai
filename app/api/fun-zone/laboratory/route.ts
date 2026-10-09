@@ -436,7 +436,7 @@ export async function POST(
     // This guarantees the Phaser runtime receives the same assets that
     // passed through Visual Director -> Registry -> Generator -> Materializer.
     const compiledHtml = buildAutonomousGameHtml(composedBlueprint, materializedAssets, protagonistId);
-    let builder: BuilderResponse = {
+    const builder: BuilderResponse = {
       success: true,
       provider: "james-autonomous",
       model: "autonomous-game-compiler-v2-asset-contract",
@@ -452,23 +452,7 @@ export async function POST(
         ],
       },
     };
-    let builderProvider = "james-autonomous";
-    if (!builder.gameHtml) {
-      builder = {
-        success: true,
-        provider: "james-autonomous",
-        model: "autonomous-game-compiler-v1",
-        gameHtml: buildAutonomousGameHtml(composedBlueprint, materializedAssets, protagonistId),
-        validation: {
-          valid: true,
-          scope: "static-contract",
-          gameplayVerified: false,
-          errors: [],
-          warnings: ["Static compilation only; browser gameplay verification is still required."],
-        },
-      };
-      builderProvider = "james-autonomous";
-    }
+    const builderProvider = "james-autonomous";
 
     const artifact =
       createArtifactFromBuilder(
@@ -494,7 +478,11 @@ export async function POST(
      * ke client bersama session.
      */
 
-    const gameHtml = builder.gameHtml ?? buildAutonomousGameHtml(composedBlueprint, materializedAssets, protagonistId);
+    const gameHtml = builder.gameHtml;
+    if (!gameHtml) {
+      throw new Error("Phaser runtime compilation returned no HTML artifact.");
+    }
+    failureStage = "artifact-persistence";
     await persistCloudSession(session, gameHtml);
 
 
