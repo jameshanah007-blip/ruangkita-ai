@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { buildGameSystemPlan } from "../app/fun-zone/engine/gameSystemFactory.ts";
 import { composeGamePlan } from "../app/fun-zone/engine/gameComposer.ts";
 import { buildVisualBlueprint } from "../app/fun-zone/engine/visualBlueprint.ts";
+import { buildAutonomousGameHtml } from "../app/fun-zone/engine/jamesAutonomousGameEngine.ts";
+import { normalizeGameGenre } from "../app/fun-zone/engine/normalizeGameGenre.ts";
 import { buildAssetRegistry } from "../app/fun-zone/engine/assetRegistry.ts";
 import { generateGameAssets, generateLocalGameAssets } from "../app/fun-zone/engine/assetGenerator.ts";
 import { materializeGameAssets } from "../app/fun-zone/engine/assetMaterializer.ts";
@@ -10,6 +12,7 @@ import { createAssetProviderRouter } from "../app/fun-zone/engine/assetProviderR
 import { validatePlayableRuntimeContract } from "../app/fun-zone/engine/runtimeContract.ts";
 import { getPhaserGenreAdapter } from "../app/fun-zone/phaser/runtimeAdapters.ts";
 import { buildFarmingGameHtml } from "../app/fun-zone/phaser/farmingRuntime.ts";
+import { buildPlatformerGameHtml } from "../app/fun-zone/phaser/platformerRuntime.ts";
 import {
   createModularGameState,
   captureCreature,
@@ -60,7 +63,7 @@ for (const required of ["exploration", "collection", "party", "turnBasedCombat",
 const visual = buildVisualBlueprint(pokemonLike);
 const characterPlan = buildCharacterAssetPlan(visual.characters, visual.artDirection.style);
 const registry = buildAssetRegistry(visual);
-const generated = generateLocalGameAssets(registry);
+const generated = await generateGameAssets(registry);
 const materialized = materializeGameAssets(generated);
 assert.ok(characterPlan.characters.length > 0);
 assert.ok(characterPlan.consistencyRules.length >= 3);
@@ -76,7 +79,43 @@ assert.equal(
   true,
 );
 assert.ok(getPhaserGenreAdapter("farming"));
-assert.equal(getPhaserGenreAdapter("platformer"), null);
+assert.equal(getPhaserGenreAdapter("platformer")?.runtimeId, "rk-platformer-2d-v1");
+
+assert.throws(
+  () => buildAutonomousGameHtml(blueprint({ genre: "farming" })),
+  /Implicit local\/legacy asset fallback is disabled for every genre/,
+  "runtime must refuse to substitute fallback assets for any genre",
+);
+
+// Genre normalization regression: casing and common aliases must preserve asset identity.
+assert.equal(normalizeGameGenre("Racing"), "racing");
+assert.equal(normalizeGameGenre("racing"), "racing");
+assert.equal(normalizeGameGenre("Balap"), "racing");
+const racingBlueprintUpper = buildVisualBlueprint(blueprint({
+  title: "Test Racing", genre: "Racing", concept: "Mobile racing game", mechanics: ["race"],
+}));
+const racingBlueprintLower = buildVisualBlueprint(blueprint({
+  title: "Test Racing", genre: "racing", concept: "Mobile racing game", mechanics: ["race"],
+}));
+assert.equal(racingBlueprintUpper.artDirection.genre, "racing");
+assert.equal(racingBlueprintLower.artDirection.genre, "racing");
+for (const racingVisual of [racingBlueprintUpper, racingBlueprintLower]) {
+  const racingRegistry = buildAssetRegistry(racingVisual);
+  const vehicle = racingRegistry.assets.find((asset) => asset.id === "protagonist");
+  const track = racingRegistry.assets.find((asset) => asset.id === "world-primary");
+  assert.equal(vehicle?.entityKind, "vehicle", "racing protagonist must be classified as a vehicle");
+  assert.ok(vehicle?.tags.includes("racing-vehicle"), "racing vehicle tag must be preserved");
+  assert.ok(track?.tags.includes("racing-track"), "world-primary must be classified as racing track");
+}
+
+const mixedCaseRegistry = buildAssetRegistry({
+  ...racingBlueprintUpper,
+  artDirection: { ...racingBlueprintUpper.artDirection, genre: "Racing" },
+});
+assert.ok(
+  mixedCaseRegistry.assets.find((asset) => asset.id === "world-primary")?.tags.includes("racing-track"),
+  "asset registry must classify racing tracks even when the incoming genre has mixed capitalization",
+);
 
 const farmingRuntimeSpec = {
   version: "ruangkita-game-spec-v1",
@@ -151,7 +190,48 @@ assert.ok(farmingRuntimeHtml.includes("Phaser.CANVAS"));
 assert.ok(farmingRuntimeHtml.includes("FARMER_ASSET="));
 assert.ok(!farmingRuntimeHtml.includes("\\${"));
 assert.ok(!farmingRuntimeHtml.includes("this.this.moveState"));
+
 assert.ok(farmingRuntimeHtml.includes("performTestAction"));
+
+// Platformer has its own asset-backed runtime and requires real sprite-sheet metadata.
+const platformerRuntimeSpec = {
+  ...farmingRuntimeSpec,
+  title: "Platformer Runtime Regression",
+  concept: "2D platformer with running, jumping, and collectible coins",
+  genre: "platformer",
+  runtimeId: "rk-phaser-platformer-v1",
+  systems: ["movement", "platform", "collision", "progression"],
+  actions: ["move", "jump", "collect", "reach_goal"],
+};
+const platformerRuntimeHtml = buildPlatformerGameHtml(platformerRuntimeSpec);
+assert.ok(platformerRuntimeHtml.includes("phaser@4.2.1"));
+assert.ok(platformerRuntimeHtml.includes("PLAYER_ASSET="));
+assert.ok(platformerRuntimeHtml.includes("hero-run"));
+assert.ok(platformerRuntimeHtml.includes("walkStart=framesPerRow"), "platformer run animation must use the walk row, not replay idle frames");
+assert.ok(platformerRuntimeHtml.includes("window.__RK_GAME_TEST__"));
+assert.ok(platformerRuntimeHtml.includes("touchButton"));
+assert.ok(platformerRuntimeHtml.includes("Coins: "));
+assert.ok(platformerRuntimeHtml.includes("platform(1100,628,2200)"), "platformer floor must have a physics collider");
+assert.throws(
+  () => buildPlatformerGameHtml({
+    ...platformerRuntimeSpec,
+    assets: platformerRuntimeSpec.assets.map((asset) =>
+      asset.id === "protagonist" ? { ...asset, animationMode: "single-image" } : asset,
+    ),
+  }),
+  /requires an animated sprite-sheet player asset/,
+  "platformer must not replace missing animation assets with a geometric character",
+);
+assert.throws(
+  () => buildPlatformerGameHtml({
+    ...platformerRuntimeSpec,
+    assets: platformerRuntimeSpec.assets.map((asset) =>
+      asset.id === "protagonist" ? { ...asset, rowCount: 1 } : asset,
+    ),
+  }),
+  /at least two animation rows/,
+  "platformer must reject sprite sheets that cannot provide distinct idle and walk animations",
+);
 
 const provider = {
   name: "test-image-provider",
@@ -221,7 +301,13 @@ assert.ok(
   fallbackGenerated.assets.every(
     (asset) => asset.metadata.provider === "james-native-visual-engine-v2",
   ),
-  "provider outage should fall through to the next viable provider",
+  "James Native Visual Engine may be selected as an explicit provider, but materialization must not silently replace its failed assets",
+);
+const placeholderGenerated = generateLocalGameAssets(registry);
+assert.throws(
+  () => materializeGameAssets(placeholderGenerated),
+  /placeholder assets are not promoted to ready/,
+  "materializer must fail closed instead of converting placeholder assets into ready assets",
 );
 
 const composed = composeGamePlan(pokemonLike);

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:social-memory": "node --experimental-strip-types scripts/test-social-memory.mjs",
-    "test:fun-zone-systems": "node --experimental-strip-types --experimental-loader ./scripts/ts-extension-loader.mjs scripts/test-fun-zone-game-systems.mjs"
+    "test:fun-zone-systems": "node --experimental-strip-types --experimental-loader ./scripts/ts-extension-loader.mjs scripts/test-fun-zone-game-systems.mjs",
+    "test:fun-zone-racing-integration": "node --experimental-strip-types --experimental-loader ./scripts/ts-extension-loader.mjs scripts/test-fun-zone-racing-integration.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

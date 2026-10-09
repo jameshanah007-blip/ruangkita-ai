@@ -24,6 +24,26 @@ function isProceduralProvider(provider: AssetProvider): boolean {
   return /local-fallback|james-native/i.test(provider.name);
 }
 
+function requiresAnimatedSprite(asset: GameAssetSpec): boolean {
+  return (
+    asset.entityKind !== "vehicle" &&
+    ["character", "npc", "enemy", "companion"].includes(asset.kind) &&
+    asset.animationNeeds.length > 0
+  );
+}
+
+function hasValidSpriteSheetContract(result: AssetProviderResult): boolean {
+  const sheet = result.metadata?.spriteSheet;
+  if (!sheet || typeof sheet !== "object") return false;
+  const value = sheet as Record<string, unknown>;
+  return (
+    Number(value.frameWidth) > 0 &&
+    Number(value.frameHeight) > 0 &&
+    Number(value.frameCount) >= 2 &&
+    Number(value.rowCount) >= 1
+  );
+}
+
 function isVerifiedRealImageResult(result: AssetProviderResult): boolean {
   return (
     result.metadata?.imageBacked === true &&
@@ -62,6 +82,17 @@ export function createAssetProviderRouter(providers: AssetProvider[] = []): Asse
         if (strictImageAsset && !isVerifiedRealImageResult(result)) {
           throw new Error("Provider returned an unverified racing image result.");
         }
+
+        // A single generated portrait is not an animation asset. Reject it at
+        // provider routing time so the router can continue to the next provider
+        // (including the identity-preserving sprite-sheet generator) instead
+        // of letting a static image reach Phaser with false animation claims.
+        if (requiresAnimatedSprite(asset) && !hasValidSpriteSheetContract(result)) {
+          throw new Error(
+            "Provider returned a static character image without a valid sprite-sheet contract; animation metadata is required.",
+          );
+        }
+
         console.info("Fun Zone asset generated:", {
           assetId: asset.id,
           kind: asset.kind,

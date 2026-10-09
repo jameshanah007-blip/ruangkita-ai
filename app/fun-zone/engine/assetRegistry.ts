@@ -1,4 +1,5 @@
 import type { VisualBlueprint } from "./visualBlueprint";
+import { normalizeGameGenre } from "./normalizeGameGenre";
 
 export type AssetKind =
   | "character"
@@ -45,6 +46,7 @@ export type AssetRegistry = {
 
 export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
   const assets: GameAssetSpec[] = [];
+  const isRacing = normalizeGameGenre(visual.artDirection.genre) === "racing";
 
   // The protagonist is the authoritative player identity. Keep it explicit in the registry even if a refinement/provider omits it from the generic characters array.
   const characterSpecs = [visual.protagonist, ...visual.characters.filter((character) => character.id !== visual.protagonist.id)];
@@ -52,7 +54,7 @@ export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
   for (const character of characterSpecs) {
     const kind: AssetKind = character.role === "protagonist" ? "character" : character.role;
     const entityKind: AssetEntityKind =
-      character.role === "protagonist" && visual.artDirection.genre === "racing"
+      character.role === "protagonist" && isRacing
         ? "vehicle"
         : "character";
 
@@ -81,7 +83,7 @@ export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
       entityKind: undefined,
       role: "world environment",
       prompt: [environment.description, ...environment.props].join(", "),
-      tags: [environment.id, ...(visual.artDirection.genre === "racing" ? ["racing-track", "track", "environment-asset"] : [])],
+      tags: [environment.id, ...(isRacing ? ["racing-track", "track", "environment-asset"] : [])],
       animationNeeds: [],
       source: "generated",
       required: true,
