@@ -46,8 +46,8 @@ assert.match(runtime, /Geometry fallback is disabled/);
 assert.equal(runtime.includes("add.rectangle("), false);
 assert.equal(runtime.includes("add.circle("), false);
 assert.match(runtime, /preserveDrawingBuffer:true/);
-assert.match(sandbox, /canvas\\.getContext\\("webgl2"\\)/);
-assert.match(sandbox, /gl\\.readPixels/);
+assert.match(sandbox, /canvas\.getContext\("webgl2"\)/);
+assert.match(sandbox, /gl\.readPixels/);
 assert.match(runtime, /window\.__RK_GAME_TEST__/);
 assert.match(runtime, /const touch=/);
 
