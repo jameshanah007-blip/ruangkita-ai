@@ -49,6 +49,12 @@ assert.match(runtime, /preserveDrawingBuffer:true/);
 assert.match(sandbox, /canvas\.getContext\("webgl2"\)/);
 assert.match(sandbox, /gl\.readPixels/);
 assert.match(runtime, /window\.__RK_GAME_TEST__/);
+assert.match(runtime, /action==="reach_finish"/);
+assert.match(runtime, /this\.physics\.add\.staticImage\(2070,330,CFG\.finishId\)/);
+assert.match(runtime, /this\.physics\.add\.overlap\(this\.player,this\.finish,\(\)=>this\.reachFinish\(\)\)/);
+assert.match(runtime, /reachFinish\(\)\{if\(state\.dead\|\|state\.won\)return;if\(state\.coins<5\)/);
+assert.doesNotMatch(runtime, /if\(state\.coins>=5\)state\.won=true/);
+assert.match(runtime, /if\(this\.player\.y>720&&!state\.dead\)/);
 assert.match(runtime, /const touch=/);
 
 // Local platformer art uses dedicated illustrated SVG assets, not the generic prop tile.
