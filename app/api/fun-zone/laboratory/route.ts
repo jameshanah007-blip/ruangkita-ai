@@ -390,7 +390,7 @@ export async function POST(
     // Execute at most one bounded visual refinement before asset generation.
     // This is intentionally additive: the original blueprint remains the base,
     // while QA feedback enriches the next build specification.
-    if (visualQa.refinement.required && visualQa.refinement.maxPasses > 0) {
+    if (!isLocalPlatformer && visualQa.refinement.required && visualQa.refinement.maxPasses > 0) {
       effectiveBlueprint = applyVisualRefinement(effectiveBlueprint, visualQa);
       buildPlan = createGameBuildPlan(effectiveBlueprint);
       visualBlueprint = createVisualBlueprint(effectiveBlueprint);
@@ -502,8 +502,10 @@ export async function POST(
     });
     const builder: BuilderResponse = {
       success: true,
-      provider: "james-autonomous",
-      model: "autonomous-game-compiler-v2-asset-contract",
+      provider: isLocalPlatformer ? "local" : "james-autonomous",
+      model: isLocalPlatformer
+        ? "phaser-local-platformer-v1"
+        : "autonomous-game-compiler-v2-asset-contract",
       gameHtml: compiledHtml,
       validation: {
         valid: true,
@@ -516,7 +518,7 @@ export async function POST(
         ],
       },
     };
-    const builderProvider = "james-autonomous";
+    const builderProvider = isLocalPlatformer ? "local" : "james-autonomous";
 
     const artifact =
       createArtifactFromBuilder(
