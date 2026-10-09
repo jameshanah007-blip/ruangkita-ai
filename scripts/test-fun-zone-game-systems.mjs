@@ -210,6 +210,7 @@ assert.ok(platformerRuntimeHtml.includes("hero-run"));
 assert.ok(platformerRuntimeHtml.includes("window.__RK_GAME_TEST__"));
 assert.ok(platformerRuntimeHtml.includes("touchButton"));
 assert.ok(platformerRuntimeHtml.includes("Coins: "));
+assert.ok(platformerRuntimeHtml.includes("platform(1100,628,2200)"), "platformer floor must have a physics collider");
 assert.throws(
   () => buildPlatformerGameHtml({
     ...platformerRuntimeSpec,
