@@ -1,4 +1,5 @@
 import type { GameBlueprint } from "../laboratory/types";
+import { normalizeGameGenre } from "../engine/normalizeGameGenre";
 import type { PhaserGameSpec, PhaserGenre, PhaserAssetManifestEntry } from "./types";
 
 type GenreDefinition = {
@@ -145,7 +146,7 @@ export function getGenreDefinition(genre: PhaserGenre): GenreDefinition {
 }
 
 export function resolvePhaserGenre(blueprint: GameBlueprint): PhaserGenre | null {
-  const value = String(blueprint.genre || "").toLowerCase();
+  const value = normalizeGameGenre(blueprint.genre);
   const concept = [
     blueprint.title,
     blueprint.concept,
@@ -167,7 +168,7 @@ export function resolvePhaserGenre(blueprint: GameBlueprint): PhaserGenre | null
   if (/rpg|role.?playing|level up|loot/i.test(value + " " + concept)) return "rpg";
   if (/adventure|petualangan|explore|ruins/i.test(value + " " + concept)) return "adventure";
 
-  const normalizedValue = value.replace(/[^a-z_]/g, "_");
+  const normalizedValue = normalizeGameGenre(value).replace(/[^a-z_]/g, "_");
   return (normalizedValue in DEFINITIONS ? normalizedValue : null) as PhaserGenre | null;
 }
 
