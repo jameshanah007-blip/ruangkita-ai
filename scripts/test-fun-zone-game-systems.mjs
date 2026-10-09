@@ -100,6 +100,15 @@ for (const racingVisual of [racingBlueprintUpper, racingBlueprintLower]) {
   assert.ok(track?.tags.includes("racing-track"), "world-primary must be classified as racing track");
 }
 
+const mixedCaseRegistry = buildAssetRegistry({
+  ...racingBlueprintUpper,
+  artDirection: { ...racingBlueprintUpper.artDirection, genre: "Racing" },
+});
+assert.ok(
+  mixedCaseRegistry.assets.find((asset) => asset.id === "world-primary")?.tags.includes("racing-track"),
+  "asset registry must classify racing tracks even when the incoming genre has mixed capitalization",
+);
+
 const farmingRuntimeSpec = {
   version: "ruangkita-game-spec-v1",
   title: "Farming Runtime Regression",
