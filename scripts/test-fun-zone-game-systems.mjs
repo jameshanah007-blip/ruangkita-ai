@@ -90,7 +90,7 @@ assert.equal(
   null,
   "explicitly different genres must not silently become platformers",
 );
-const localPlatformerVisual = buildVisualBlueprint(localPlatformer!);
+const localPlatformerVisual = buildVisualBlueprint(localPlatformer);
 const localPlatformerRegistry = buildAssetRegistry(localPlatformerVisual);
 const localPlatformerGenerated = await generateGameAssets(localPlatformerRegistry);
 const localPlatformerMaterialized = materializeGameAssets(localPlatformerGenerated);
