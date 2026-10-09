@@ -55,7 +55,7 @@ assert.match(runtime, /this\.physics\.add\.overlap\(this\.player,this\.finish,\(
 assert.match(runtime, /reachFinish\(\)\{if\(state\.dead\|\|state\.won\)return;if\(state\.coins<5\)/);
 assert.doesNotMatch(runtime, /if\(state\.coins>=5\)state\.won=true/);
 assert.match(runtime, /if\(this\.player\.y>720&&!state\.dead\)/);
-assert.match(runtime, /const touch=/);
+assert.match(runtime, /id="restartBtn" type="button"/);\nassert.match(runtime, /restartButton\.addEventListener\("click",\(\)=>restartGame\(\)\)/);\nassert.match(runtime, /keydown-R/);\nassert.match(runtime, /restartButton\.style\.display="block"/);\nassert.match(runtime, /restart:=>restartGame\(\)/);\nassert.match(runtime, /const touch=/);
 
 // Local platformer art uses dedicated illustrated SVG assets, not the generic prop tile.
 assert.match(nativeVisual, /function platformerArtSvg/);
