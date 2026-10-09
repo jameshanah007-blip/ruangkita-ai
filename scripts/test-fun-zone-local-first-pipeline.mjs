@@ -39,7 +39,10 @@ assert.doesNotMatch(localFailureBranch, /fetch\(|\/api\/fun-zone\/debug/);
 assert.match(runtime, /requires the declared player asset/);
 assert.match(runtime, /requires an animated sprite-sheet player asset/);
 assert.match(runtime, /at least two animation rows/);
-assert.match(runtime, /preserveDrawingBuffer:true/);\nassert.match(sandbox, /canvas\\.getContext\\("webgl2"\\)/);\nassert.match(sandbox, /gl\\.readPixels/);\nassert.match(runtime, /window\.__RK_GAME_TEST__/);
+assert.match(runtime, /preserveDrawingBuffer:true/);
+assert.match(sandbox, /canvas\\.getContext\\("webgl2"\\)/);
+assert.match(sandbox, /gl\\.readPixels/);
+assert.match(runtime, /window\.__RK_GAME_TEST__/);
 assert.match(runtime, /touchButton/);
 
 // Materializer and generator remain explicit stages; no implicit placeholder promotion.
