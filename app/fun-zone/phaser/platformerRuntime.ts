@@ -71,12 +71,12 @@ class PlatformerScene extends Phaser.Scene{
   this.platforms=this.physics.add.staticGroup();
   const placePlatform=(x,y,w)=>{const p=this.platforms.create(x,y,CFG.platformId).setDisplaySize(w,30).refreshBody();};
   placePlatform(1100,628,2200);[[270,510,190],[520,430,170],[790,350,170],[1080,450,190],[1370,365,190],[1640,475,180],[1900,390,190]].forEach(([x,y,w])=>placePlatform(x,y,w));
-  this.player=this.physics.add.sprite(80,540,CFG.playerId).setScale(Math.min(1,96/Math.max(CFG.frameWidth,CFG.frameHeight)));
+  // Render the authored sprite at a readable gameplay size; frame dimensions are source pixels, not target display size.\n  const playerDisplayHeight=148;\n  this.player=this.physics.add.sprite(80,540,CFG.playerId).setScale(Math.min(1,playerDisplayHeight/CFG.frameHeight));
   this.player.setCollideWorldBounds(false);this.player.setBounce(0.04);this.player.setMaxVelocity(260,650);this.physics.add.collider(this.player,this.platforms);
   const rowFrames=Math.max(2,Math.min(CFG.frameCount,8));
   this.anims.create({key:"hero-idle",frames:this.anims.generateFrameNumbers(CFG.playerId,{start:0,end:Math.min(rowFrames-1,3)}),frameRate:5,repeat:-1});
   this.anims.create({key:"hero-run",frames:this.anims.generateFrameNumbers(CFG.playerId,{start:rowFrames,end:Math.min(rowFrames*2-1,rowFrames*2-1)}),frameRate:10,repeat:-1});this.player.play("hero-idle");
-  this.coins=this.physics.add.staticGroup();[[300,465],[550,385],[820,305],[1110,405],[1400,320],[1670,430],[1930,345]].forEach(([x,y])=>{const c=this.coins.create(x,y,CFG.coinId).setDisplaySize(26,26);});
+  // Exactly five required collectibles: HUD objective, runtime state, and level layout agree.\n  this.coins=this.physics.add.staticGroup();[[300,465],[550,385],[820,305],[1370,320],[1900,345]].forEach(([x,y])=>{this.coins.create(x,y,CFG.coinId).setDisplaySize(30,30);});
   this.physics.add.overlap(this.player,this.coins,(_,item)=>this.collectCoin(item));
   this.finish=this.physics.add.staticImage(2070,330,CFG.finishId).setDisplaySize(58,80).refreshBody();
   this.finishHintShown=false;
