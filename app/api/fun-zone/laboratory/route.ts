@@ -14,6 +14,7 @@ import type {
 } from "../../../fun-zone/laboratory/types";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
 import { composeGamePlan } from "../../../fun-zone/engine/gameComposer";
+import { generateFunZoneGameBlueprint } from "../../../core/james/funZoneGameDirector";
 import { createVisualBlueprint } from "../../../fun-zone/engine/visualDirector";
 import { buildAssetRegistry } from "../../../fun-zone/engine/assetRegistry";
 import { generateGameAssets } from "../../../fun-zone/engine/assetGenerator";
@@ -152,71 +153,12 @@ function describeErrorValue(value: unknown): string {
   return value == null ? "Unknown error" : String(value);
 }
 
-function absoluteUrl(
-  request: Request,
-  path: string
-): string {
-  const url =
-    new URL(request.url);
-
-  return `${url.origin}${path}`;
-}
-
 async function callDirector(
-  request: Request,
   prompt: string
 ): Promise<DirectorResponse> {
-  const response = await fetch(
-    absoluteUrl(request, "/api/fun-zone/brain"),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt }),
-      cache: "no-store",
-    }
-  );
-
-  const contentType = response.headers.get("content-type") || "unknown";
-  const responseText = await response.text();
-  let data: unknown;
-
-  try {
-    data = JSON.parse(responseText);
-  } catch {
-    console.error("Fun Zone Director returned a non-JSON response", {
-      status: response.status,
-      contentType,
-      responseLength: responseText.length,
-    });
-    throw new Error(
-      `Brain endpoint returned invalid JSON (HTTP ${response.status}, content-type ${contentType}).`
-    );
-  }
-
-  if (!data || typeof data !== "object" || Array.isArray(data)) {
-    throw new Error(
-      `Brain endpoint returned an invalid response shape (HTTP ${response.status}).`
-    );
-  }
-
-  const payload = data as Record<string, unknown>;
-  if (!response.ok) {
-    const upstreamMessage = describeErrorValue(
-      payload.error ?? payload.message ?? response.statusText
-    );
-    console.error("Fun Zone Director endpoint returned an error", {
-      status: response.status,
-      contentType,
-      stage: typeof payload.stage === "string" ? payload.stage : "unknown",
-      provider: typeof payload.provider === "string" ? payload.provider : "unknown",
-      error: upstreamMessage,
-    });
-    throw new Error(
-      `Brain endpoint HTTP ${response.status}: ${upstreamMessage}`
-    );
-  }
-
-  return payload as DirectorResponse;
+  // Call the shared Director service in-process. A self-fetch to this Preview
+  // deployment is blocked by Vercel Deployment Protection (HTTP 401).
+  return generateFunZoneGameBlueprint(prompt);
 }
 
 function createArtifactFromBuilder(
@@ -356,7 +298,7 @@ export async function POST(
     let directorProvider = "ai";
 
     try {
-      director = await callDirector(request, prompt);
+      director = await callDirector(prompt);
     } catch (error) {
       const detail = describeErrorValue(error);
       console.error("Fun Zone Director failed; refusing to substitute a local blueprint.", {
