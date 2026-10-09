@@ -5,7 +5,6 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 import { runJamesBrain } from "../../../core/james/jamesBrain";
-import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
 import type {
   GameBlueprint,
   RuntimeError,
@@ -905,66 +904,35 @@ Output hanya HTML.
       model = result.model;
       fixedHtml = extractHtml(result.text);
     } catch (providerError) {
-      console.warn(
-        "AI Game Debugger provider fallback:",
-        providerError instanceof Error
-          ? providerError.message
-          : String(providerError),
+      const detail = providerError instanceof Error ? providerError.message : String(providerError);
+      console.error("AI Game Debugger failed; refusing to replace the existing game with a fallback template:", detail);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "AI Game Debugger tidak tersedia. Game asli dipertahankan; fallback template tidak dijalankan agar genre, gameplay, dan aset tidak berubah diam-diam.",
+          provider: "james-brain",
+          model: "game_debugger",
+        },
+        { status: 503 },
       );
-
-      if (!blueprint) {
-        throw providerError;
-      }
-
-      const safeBlueprint = normalizeBlueprint(blueprint)!;
-      const isRacing = /racing|race|balap|mobil|car/i.test(
-        [safeBlueprint.genre, safeBlueprint.title, safeBlueprint.concept].join(" "),
-      );
-      if (isRacing) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Perbaikan racing dihentikan dengan aman karena provider debugger gagal. Asset mobil dan track asli tidak boleh diganti placeholder. Coba ulangi dari Laboratory agar kontrak asset real dipertahankan.",
-            provider: "james-brain",
-            model: "game_debugger",
-          },
-          { status: 503 },
-        );
-      }
-
-      fixedHtml = buildAutonomousGameHtml(safeBlueprint);
-      provider = "james-autonomous-fallback";
-      model = "phaser-2d-runtime-v1";
     }
 
     let validationErrors =
       validateGameHtml(fixedHtml);
 
-    if (validationErrors.length > 0 && blueprint) {
-      console.warn(
-        "AI Game Debugger produced invalid HTML; evaluating safe fallback policy.",
-        validationErrors
+    if (validationErrors.length > 0) {
+      console.warn("AI Game Debugger returned invalid HTML; refusing to replace the game with another genre template.", validationErrors);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Debugger menghasilkan HTML yang tidak valid. Fallback template dinonaktifkan agar spesifikasi, gameplay, dan aset game tidak diganti.",
+          provider,
+          model,
+          errors: validationErrors,
+          htmlPreview: fixedHtml.slice(0, 1600),
+        },
+        { status: 422 },
       );
-      const safeBlueprint = normalizeBlueprint(blueprint)!;
-      const isRacing = /racing|race|balap|mobil|car/i.test(
-        [safeBlueprint.genre, safeBlueprint.title, safeBlueprint.concept].join(" "),
-      );
-      if (isRacing) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Debugger menghasilkan HTML racing yang tidak valid. Fallback placeholder diblokir agar asset mobil dan track asli tidak hilang. Coba ulangi perbaikan dari Laboratory.",
-            provider,
-            model,
-            errors: validationErrors,
-          },
-          { status: 422 },
-        );
-      }
-      fixedHtml = buildAutonomousGameHtml(safeBlueprint);
-      provider = "james-autonomous-fallback";
-      model = "phaser-2d-runtime-v1";
-      validationErrors = validateGameHtml(fixedHtml);
     }
 
     if (validationErrors.length > 0) {
