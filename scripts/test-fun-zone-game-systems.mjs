@@ -226,13 +226,13 @@ const platformerRuntimeSpec = {
 };
 const platformerRuntimeHtml = buildPlatformerGameHtml(platformerRuntimeSpec);
 assert.ok(platformerRuntimeHtml.includes("phaser@4.2.1"));
-assert.ok(platformerRuntimeHtml.includes("PLAYER_ASSET="));
+assert.ok(platformerRuntimeHtml.includes("const CFG="));
 assert.ok(platformerRuntimeHtml.includes("hero-run"));
 assert.ok(platformerRuntimeHtml.includes("walkStart=framesPerRow"), "platformer run animation must use the walk row, not replay idle frames");
 assert.ok(platformerRuntimeHtml.includes("window.__RK_GAME_TEST__"));
-assert.ok(platformerRuntimeHtml.includes("touchButton"));
+assert.ok(platformerRuntimeHtml.includes("const touch="));
 assert.ok(platformerRuntimeHtml.includes("Coins: "));
-assert.ok(platformerRuntimeHtml.includes("platform(1100,628,2200)"), "platformer floor must have a physics collider");
+assert.ok(platformerRuntimeHtml.includes("placePlatform(1100,628,2200)"), "platformer floor must use an image-backed physics collider");\nassert.ok(!platformerRuntimeHtml.includes("add.rectangle("), "platformer runtime must not draw geometric platforms");\nassert.ok(!platformerRuntimeHtml.includes("add.circle("), "platformer runtime must not draw geometric coins");
 assert.throws(
   () => buildPlatformerGameHtml({
     ...platformerRuntimeSpec,
@@ -240,7 +240,7 @@ assert.throws(
       asset.id === "protagonist" ? { ...asset, animationMode: "single-image" } : asset,
     ),
   }),
-  /requires an animated sprite-sheet player asset/,
+  /requires a valid animated player sprite sheet/,
   "platformer must not replace missing animation assets with a geometric character",
 );
 assert.throws(
@@ -250,7 +250,7 @@ assert.throws(
       asset.id === "protagonist" ? { ...asset, rowCount: 1 } : asset,
     ),
   }),
-  /at least two animation rows/,
+  /requires a valid animated player sprite sheet/,
   "platformer must reject sprite sheets that cannot provide distinct idle and walk animations",
 );
 
