@@ -15,6 +15,7 @@ export type AIGenerateResponse = {
   text: string;
   provider: AIProviderName;
   model: string;
+  finishReason?: string;
 };
 
 export interface AIProvider {
