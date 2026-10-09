@@ -223,6 +223,12 @@ const platformerRuntimeSpec = {
   runtimeId: "rk-phaser-platformer-v1",
   systems: ["movement", "platform", "collision", "progression"],
   actions: ["move", "jump", "collect", "reach_goal"],
+  assets: [
+    ...farmingRuntimeSpec.assets,
+    { id: "platformer-platform-art", kind: "prop", uri: "data:image/svg+xml,platform", tags: ["platform-image"], animationNeeds: [], animationMode: "single-image" },
+    { id: "platformer-coin-art", kind: "prop", uri: "data:image/svg+xml,coin", tags: ["coin-image"], animationNeeds: [], animationMode: "single-image" },
+    { id: "platformer-finish-art", kind: "prop", uri: "data:image/svg+xml,finish", tags: ["finish-image"], animationNeeds: [], animationMode: "single-image" },
+  ],
 };
 const platformerRuntimeHtml = buildPlatformerGameHtml(platformerRuntimeSpec);
 assert.ok(platformerRuntimeHtml.includes("phaser@4.2.1"));
