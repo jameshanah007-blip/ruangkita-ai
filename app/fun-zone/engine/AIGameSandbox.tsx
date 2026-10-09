@@ -690,52 +690,45 @@ function buildDiagnosticHtml(
         };
       }
 
-      var ctx =
-        canvas.getContext(
-          "2d",
-          {
-            willReadFrequently:
-              true
-          }
-        );
-
-      if (!ctx) {
-        return {
-          width: width,
-
-          height: height,
-
-          nonBlankPixels: 0,
-
-          signature:
-            "no-2d-context"
-        };
-      }
-
       /*
-       * Inspect a larger area so rendering
-       * outside the top-left corner is not
-       * incorrectly classified as blank.
+       * Phaser normally renders through WebGL. Calling getContext("2d")
+       * on a WebGL canvas returns null; treating that as zero pixels was
+       * a false failure that rejected valid Phaser games before gameplay
+       * could be verified. Read from whichever context owns the canvas.
        */
-      var sampleWidth =
-        Math.min(
-          width,
-          360
-        );
+      var sampleWidth = Math.min(width, 360);
+      var sampleHeight = Math.min(height, 360);
+      var data;
+      var ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-      var sampleHeight =
-        Math.min(
-          height,
-          360
-        );
+      if (ctx) {
+        data = ctx.getImageData(0, 0, sampleWidth, sampleHeight).data;
+      } else {
+        var gl = canvas.getContext("webgl2") ||
+          canvas.getContext("webgl") ||
+          canvas.getContext("experimental-webgl");
+        if (!gl || typeof gl.readPixels !== "function") {
+          return {
+            width: width,
+            height: height,
+            nonBlankPixels: 0,
+            signature: "no-readable-render-context"
+          };
+        }
 
-      var data =
-        ctx.getImageData(
-          0,
-          0,
-          sampleWidth,
-          sampleHeight
-        ).data;
+        var pixels = new Uint8Array(sampleWidth * sampleHeight * 4);
+        try {
+          gl.readPixels(0, 0, sampleWidth, sampleHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+          data = pixels;
+        } catch (_) {
+          return {
+            width: width,
+            height: height,
+            nonBlankPixels: 0,
+            signature: "webgl-read-failed"
+          };
+        }
+      }
 
       var nonBlank = 0;
       var checksum = 0;
