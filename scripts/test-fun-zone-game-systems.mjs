@@ -63,7 +63,7 @@ for (const required of ["exploration", "collection", "party", "turnBasedCombat",
 const visual = buildVisualBlueprint(pokemonLike);
 const characterPlan = buildCharacterAssetPlan(visual.characters, visual.artDirection.style);
 const registry = buildAssetRegistry(visual);
-const generated = generateLocalGameAssets(registry);
+const generated = await generateGameAssets(registry);
 const materialized = materializeGameAssets(generated);
 assert.ok(characterPlan.characters.length > 0);
 assert.ok(characterPlan.consistencyRules.length >= 3);
@@ -301,7 +301,13 @@ assert.ok(
   fallbackGenerated.assets.every(
     (asset) => asset.metadata.provider === "james-native-visual-engine-v2",
   ),
-  "provider outage should fall through to the next viable provider",
+  "James Native Visual Engine may be selected as an explicit provider, but materialization must not silently replace its failed assets",
+);
+const placeholderGenerated = generateLocalGameAssets(registry);
+assert.throws(
+  () => materializeGameAssets(placeholderGenerated),
+  /placeholder assets are not promoted to ready/,
+  "materializer must fail closed instead of converting placeholder assets into ready assets",
 );
 
 const composed = composeGamePlan(pokemonLike);
