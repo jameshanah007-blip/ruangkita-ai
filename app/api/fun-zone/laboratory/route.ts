@@ -348,16 +348,25 @@ export async function POST(
     failureStage = "blueprint";
     const blueprint = director.blueprint;
     const normalizedBlueprint = normalizeBlueprintArrays(blueprint);
-    const learnedGameLessons = await getJamesGameLessons(8);
-    const learnedGameMastery = await getJamesGameMastery(12);
-    const learnedGameAdaptations = await getJamesGameAdaptations(8);
-    const failedGameStrategies = await getJamesFailedStrategies(8);
-    const effectiveGameStrategies = await getJamesEffectiveStrategies(6);
-    const lessonBlueprint = applyJamesGameLessons(normalizedBlueprint, learnedGameLessons);
-    const masteryBlueprint = applyJamesGameMastery(lessonBlueprint, learnedGameMastery);
-    const adaptationBlueprint = applyJamesGameAdaptations(masteryBlueprint, learnedGameAdaptations);
-    const avoidanceBlueprint = applyJamesFailedStrategyAvoidance(adaptationBlueprint, failedGameStrategies);
-    const learnedBlueprint = applyJamesEffectiveStrategies(avoidanceBlueprint, effectiveGameStrategies);
+    // The supported local template is a deterministic product path, not an AI-assisted path.
+    // Skip learned-strategy enrichment here so unrelated memory/learning services cannot
+    // change or block the minimum playable game. AI genres retain the existing learning path.
+    const isLocalPlatformer = directorProvider === "local" && normalizedBlueprint.genre === "platformer";
+    let learnedBlueprint: GameBlueprint;
+    if (isLocalPlatformer) {
+      learnedBlueprint = normalizedBlueprint;
+    } else {
+      const learnedGameLessons = await getJamesGameLessons(8);
+      const learnedGameMastery = await getJamesGameMastery(12);
+      const learnedGameAdaptations = await getJamesGameAdaptations(8);
+      const failedGameStrategies = await getJamesFailedStrategies(8);
+      const effectiveGameStrategies = await getJamesEffectiveStrategies(6);
+      const lessonBlueprint = applyJamesGameLessons(normalizedBlueprint, learnedGameLessons);
+      const masteryBlueprint = applyJamesGameMastery(lessonBlueprint, learnedGameMastery);
+      const adaptationBlueprint = applyJamesGameAdaptations(masteryBlueprint, learnedGameAdaptations);
+      const avoidanceBlueprint = applyJamesFailedStrategyAvoidance(adaptationBlueprint, failedGameStrategies);
+      learnedBlueprint = applyJamesEffectiveStrategies(avoidanceBlueprint, effectiveGameStrategies);
+    }
     console.info("Fun Zone pipeline stage completed", {
       stage: "blueprint",
       output: {
