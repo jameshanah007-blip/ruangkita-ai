@@ -1,4 +1,5 @@
 import type { GameBlueprint } from "../laboratory/types";
+import { normalizeGameGenre } from "./normalizeGameGenre";
 
 export type VisualCharacterSpec = {
   id: string;
@@ -131,7 +132,8 @@ function racingEnvironment(text: string): VisualEnvironmentSpec {
 
 export function buildVisualBlueprint(b: GameBlueprint): VisualBlueprint {
   const text = sourceText(b);
-  const isRacing = /racing|race|balap|driving|car|mobil/i.test(text);
+  const normalizedGenre = normalizeGameGenre(b.genre);
+  const isRacing = normalizedGenre === "racing" || /racing|race|balap|driving|car|mobil/i.test(text);
   const protagonist = isRacing ? racingProtagonist() : characterFromPrompt(text);
   const isAnime = /anime|manga|isekai|japanese animation/i.test(text);
   const style = isAnime ? ["anime-inspired"] : (Array.isArray(b.visualStyle) ? b.visualStyle.filter(Boolean) : [b.visualStyle || "game-specific visual style"]);
@@ -209,7 +211,7 @@ export function buildVisualBlueprint(b: GameBlueprint): VisualBlueprint {
   return {
     artDirection: {
       style,
-      genre: b.genre,
+      genre: isRacing ? "racing" : normalizedGenre,
       mood: b.mood,
       theme: b.theme,
       camera: pickCamera(text),
