@@ -318,30 +318,22 @@ export async function POST(
     try {
       director = await callDirector(request, prompt);
     } catch (error) {
-      console.warn("Fun Zone Director unavailable; using local blueprint fallback.", error);
-      director = {
-        success: true,
-        provider: "local",
-        model: "local-blueprint-v1",
-        blueprint: createLocalGameBlueprint(prompt),
-      };
-      directorProvider = "local";
+      console.error("Fun Zone Director failed; refusing to substitute a local blueprint.", error);
+      throw new Error(
+        `Fun Zone Director failed. No local blueprint fallback was used, so the prompt cannot silently produce a different game specification. ${error instanceof Error ? error.message : "Unknown Director error"}`,
+      );
     }
 
-    if (!director.blueprint) {
-      console.warn("Fun Zone Director returned no blueprint; using local blueprint fallback.");
-      director = {
-        success: true,
-        provider: "local",
-        model: "local-blueprint-v1",
-        blueprint: createLocalGameBlueprint(prompt),
-      };
-      directorProvider = "local";
-    } else if (director.provider) {
+    if (!director.success || !director.blueprint) {
+      throw new Error(
+        "Fun Zone Director returned no valid blueprint. Local blueprint fallback is disabled to keep prompt-to-specification behavior deterministic.",
+      );
+    }
+    if (director.provider) {
       directorProvider = director.provider;
     }
 
-    const blueprint = director.blueprint ?? createLocalGameBlueprint(prompt);
+    const blueprint = director.blueprint;
     const normalizedBlueprint = normalizeBlueprintArrays(blueprint);
     const learnedGameLessons = await getJamesGameLessons(8);
     const learnedGameMastery = await getJamesGameMastery(12);
