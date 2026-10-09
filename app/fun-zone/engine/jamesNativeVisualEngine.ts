@@ -137,6 +137,39 @@ function propSvg(asset: GameAssetSpec): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><!-- James Native prop --><rect width="256" height="256" rx="28" fill="#0f172a"/>${body}<title>${esc(asset.prompt.slice(0, 160))}</title></svg>`;
 }
 
+function platformerArtSvg(asset: GameAssetSpec): string {
+  if (asset.tags.includes("platform-image")) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 96">
+      <defs><linearGradient id="soil" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#b87942"/><stop offset="1" stop-color="#75411f"/></linearGradient></defs>
+      <path d="M0 20 Q28 8 55 18 T110 17 T165 18 T220 15 T256 20 V96 H0Z" fill="url(#soil)" stroke="#57351f" stroke-width="5"/>
+      <path d="M0 21 Q28 8 55 18 T110 17 T165 18 T220 15 T256 20 L256 36 Q225 31 198 36 T142 35 T85 36 T0 35Z" fill="#4c9b3c" stroke="#285b2b" stroke-width="4"/>
+      <g fill="#a7dc68"><path d="M15 20l4-12 5 12z"/><path d="M66 18l4-10 5 11z"/><path d="M132 18l4-11 5 11z"/><path d="M205 17l4-10 5 11z"/></g>
+      <g fill="#d69a62" opacity=".9"><circle cx="34" cy="55" r="5"/><circle cx="88" cy="74" r="4"/><circle cx="164" cy="53" r="5"/><circle cx="225" cy="73" r="4"/></g>
+    </svg>`;
+  }
+  if (asset.tags.includes("coin-image")) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+      <defs><radialGradient id="gold"><stop stop-color="#fff5a6"/><stop offset=".7" stop-color="#fbbf24"/><stop offset="1" stop-color="#b45309"/></radialGradient></defs>
+      <circle cx="48" cy="48" r="42" fill="#92400e" opacity=".25"/>
+      <circle cx="45" cy="43" r="37" fill="url(#gold)" stroke="#92400e" stroke-width="5"/>
+      <circle cx="45" cy="43" r="28" fill="none" stroke="#fff1a8" stroke-width="3"/>
+      <path d="M45 22 L51 36 L66 37 L55 47 L58 62 L45 54 L32 62 L35 47 L24 37 L39 36Z" fill="#fff8c5" stroke="#d97706" stroke-width="2"/>
+      <path d="M20 26 Q24 17 33 14" fill="none" stroke="#fffde7" stroke-width="4" stroke-linecap="round"/>
+    </svg>`;
+  }
+  if (asset.tags.includes("finish-image")) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 192">
+      <ellipse cx="62" cy="180" rx="42" ry="7" fill="#0f172a" opacity=".2"/>
+      <path d="M37 18 V177" stroke="#e5e7eb" stroke-width="8" stroke-linecap="round"/>
+      <path d="M41 22 L116 22 L116 91 L41 91Z" fill="#ef4444" stroke="#7f1d1d" stroke-width="4"/>
+      <path d="M41 22 H78 V56 H41Z M78 56 H116 V91 H78Z" fill="#fff"/>
+      <path d="M41 91 L54 83 L66 91 L78 83 L91 91 L104 83 L116 91" fill="none" stroke="#7f1d1d" stroke-width="3"/>
+      <path d="M20 177 H83" stroke="#854d0e" stroke-width="7" stroke-linecap="round"/>
+    </svg>`;
+  }
+  return propSvg(asset);
+}
+
 function effectSvg(asset: GameAssetSpec): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><radialGradient id="e"><stop stop-color="#fff7ae"/><stop offset=".35" stop-color="#facc15"/><stop offset="1" stop-color="#ef4444" stop-opacity="0"/></radialGradient></defs><circle cx="128" cy="128" r="112" fill="url(#e)"/><path d="M128 22 L145 94 L220 112 L151 132 L128 224 L106 136 L36 112 L110 94Z" fill="#fff" opacity=".85"/><title>${esc(asset.prompt.slice(0, 160))}</title></svg>`;
 }
@@ -197,9 +230,11 @@ export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; 
   }
   const dna = buildCharacterDNA(asset);
   const isCharacter = ["character", "npc", "enemy", "companion"].includes(asset.kind);
-  const svg = asset.kind === "environment"
-    ? environmentSvg(asset)
-: isCharacter
+  const svg = asset.tags.some((tag) => ["platform-image", "coin-image", "finish-image"].includes(tag))
+    ? platformerArtSvg(asset)
+    : asset.kind === "environment"
+      ? environmentSvg(asset)
+      : isCharacter
         ? characterSpriteSheetSvg(asset)
         : asset.kind === "effect"
           ? effectSvg(asset)
