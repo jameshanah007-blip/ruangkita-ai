@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { buildGameSystemPlan } from "../app/fun-zone/engine/gameSystemFactory.ts";
 import { composeGamePlan } from "../app/fun-zone/engine/gameComposer.ts";
 import { buildVisualBlueprint } from "../app/fun-zone/engine/visualBlueprint.ts";
+import { normalizeGameGenre } from "../app/fun-zone/engine/normalizeGameGenre.ts";
 import { buildAssetRegistry } from "../app/fun-zone/engine/assetRegistry.ts";
 import { generateGameAssets, generateLocalGameAssets } from "../app/fun-zone/engine/assetGenerator.ts";
 import { materializeGameAssets } from "../app/fun-zone/engine/assetMaterializer.ts";
@@ -77,6 +78,27 @@ assert.equal(
 );
 assert.ok(getPhaserGenreAdapter("farming"));
 assert.equal(getPhaserGenreAdapter("platformer"), null);
+
+// Genre normalization regression: casing and common aliases must preserve asset identity.
+assert.equal(normalizeGameGenre("Racing"), "racing");
+assert.equal(normalizeGameGenre("racing"), "racing");
+assert.equal(normalizeGameGenre("Balap"), "racing");
+const racingBlueprintUpper = buildVisualBlueprint(blueprint({
+  title: "Test Racing", genre: "Racing", concept: "Mobile racing game", mechanics: ["race"],
+}));
+const racingBlueprintLower = buildVisualBlueprint(blueprint({
+  title: "Test Racing", genre: "racing", concept: "Mobile racing game", mechanics: ["race"],
+}));
+assert.equal(racingBlueprintUpper.artDirection.genre, "racing");
+assert.equal(racingBlueprintLower.artDirection.genre, "racing");
+for (const racingVisual of [racingBlueprintUpper, racingBlueprintLower]) {
+  const racingRegistry = buildAssetRegistry(racingVisual);
+  const vehicle = racingRegistry.assets.find((asset) => asset.id === "protagonist");
+  const track = racingRegistry.assets.find((asset) => asset.id === "world-primary");
+  assert.equal(vehicle?.entityKind, "vehicle", "racing protagonist must be classified as a vehicle");
+  assert.ok(vehicle?.tags.includes("racing-vehicle"), "racing vehicle tag must be preserved");
+  assert.ok(track?.tags.includes("racing-track"), "world-primary must be classified as racing track");
+}
 
 const farmingRuntimeSpec = {
   version: "ruangkita-game-spec-v1",
