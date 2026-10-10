@@ -46,10 +46,14 @@ for (const portal of GAME_PORTALS) {
 }
 
 const savedExaKey = process.env.EXA_API_KEY;
+const savedBraveKey = process.env.BRAVE_SEARCH_API_KEY;
 delete process.env.EXA_API_KEY;
-const noSearchKey = await searchExternalGames("game 2D petualangan dengan teka-teki");
-assert.equal(noSearchKey.status, "unavailable");
-assert.equal(noSearchKey.games.length, 0);
+delete process.env.BRAVE_SEARCH_API_KEY;
+const noSearchKeys = await searchExternalGames("game 2D petualangan dengan teka-teki");
+assert.equal(noSearchKeys.status, "unavailable");
+assert.equal(noSearchKeys.searchProvider, "none");
+assert.equal(noSearchKeys.games.length, 0);
 if (savedExaKey) process.env.EXA_API_KEY = savedExaKey;
+if (savedBraveKey) process.env.BRAVE_SEARCH_API_KEY = savedBraveKey;
 
 console.log("Fun Zone discovery tests passed.");
