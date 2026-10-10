@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { buildGameSystemPlan } from "../app/fun-zone/engine/gameSystemFactory.ts";
 import { composeGamePlan } from "../app/fun-zone/engine/gameComposer.ts";
 import { buildVisualBlueprint } from "../app/fun-zone/engine/visualBlueprint.ts";
@@ -13,6 +14,7 @@ import { validatePlayableRuntimeContract } from "../app/fun-zone/engine/runtimeC
 import { getPhaserGenreAdapter } from "../app/fun-zone/phaser/runtimeAdapters.ts";
 import { buildFarmingGameHtml } from "../app/fun-zone/phaser/farmingRuntime.ts";
 import { buildPlatformerGameHtml } from "../app/fun-zone/phaser/platformerRuntime.ts";
+import { createLocalPlatformerBlueprint } from "../app/fun-zone/engine/localPlatformerDirector.ts";
 import {
   createModularGameState,
   captureCreature,
@@ -80,6 +82,26 @@ assert.equal(
 );
 assert.ok(getPhaserGenreAdapter("farming"));
 assert.equal(getPhaserGenreAdapter("platformer")?.runtimeId, "rk-platformer-2d-v1");
+
+const localPlatformer = createLocalPlatformerBlueprint("Buat game sederhana 2D yang bisa dimainkan tanpa provider AI.");
+assert.ok(localPlatformer, "a simple 2D request should select the quota-independent platformer template");
+assert.equal(localPlatformer?.genre, "platformer");
+assert.equal(
+  createLocalPlatformerBlueprint("Buat game farming 2D sederhana."),
+  null,
+  "explicitly different genres must not silently become platformers",
+);
+const localPlatformerVisual = buildVisualBlueprint(localPlatformer);
+const localPlatformerRegistry = buildAssetRegistry(localPlatformerVisual);
+const localPlatformerGenerated = await generateGameAssets(localPlatformerRegistry);
+const localPlatformerMaterialized = materializeGameAssets(localPlatformerGenerated);
+const localPlayer = localPlatformerMaterialized.assets.find((asset) => asset.id === localPlatformerVisual.protagonist.id);
+assert.ok(localPlayer?.uri.startsWith("data:image/svg+xml"), "local character must be an image asset, not geometry");
+assert.equal(localPlayer?.status, "ready");
+const localSpriteSheet = localPlayer?.metadata.providerMetadata?.spriteSheet;
+assert.ok(localSpriteSheet && typeof localSpriteSheet === "object" && Number(localSpriteSheet.rowCount) >= 2,
+  "local player asset must carry multi-row sprite-sheet animation metadata");
+
 
 assert.throws(
   () => buildAutonomousGameHtml(blueprint({ genre: "farming" })),
@@ -192,6 +214,9 @@ assert.ok(!farmingRuntimeHtml.includes("\\${"));
 assert.ok(!farmingRuntimeHtml.includes("this.this.moveState"));
 
 assert.ok(farmingRuntimeHtml.includes("performTestAction"));
+assert.ok(farmingRuntimeHtml.includes("window.__RK_KEYBOARD_STATE__"), "farming runtime must consume the shared sandbox keyboard state");
+assert.ok(farmingRuntimeHtml.includes("bridged.arrowleft") && farmingRuntimeHtml.includes("bridged.arrowright"), "farming runtime must support bridged left/right arrows");
+assert.ok(farmingRuntimeHtml.includes("bridged.arrowup") && farmingRuntimeHtml.includes("bridged.arrowdown"), "farming runtime must support bridged up/down arrows");
 
 // Platformer has its own asset-backed runtime and requires real sprite-sheet metadata.
 const platformerRuntimeSpec = {
@@ -202,16 +227,42 @@ const platformerRuntimeSpec = {
   runtimeId: "rk-phaser-platformer-v1",
   systems: ["movement", "platform", "collision", "progression"],
   actions: ["move", "jump", "collect", "reach_goal"],
+  assets: [
+    ...farmingRuntimeSpec.assets,
+    { id: "platformer-platform-art", kind: "prop", uri: "data:image/svg+xml,platform", tags: ["platform-image"], animationNeeds: [], animationMode: "single-image" },
+    { id: "platformer-coin-art", kind: "prop", uri: "data:image/svg+xml,coin", tags: ["coin-image"], animationNeeds: [], animationMode: "single-image" },
+    { id: "platformer-finish-art", kind: "prop", uri: "data:image/svg+xml,finish", tags: ["finish-image"], animationNeeds: [], animationMode: "single-image" },
+  ],
 };
 const platformerRuntimeHtml = buildPlatformerGameHtml(platformerRuntimeSpec);
 assert.ok(platformerRuntimeHtml.includes("phaser@4.2.1"));
-assert.ok(platformerRuntimeHtml.includes("PLAYER_ASSET="));
+assert.ok(platformerRuntimeHtml.includes("const CFG="));
 assert.ok(platformerRuntimeHtml.includes("hero-run"));
-assert.ok(platformerRuntimeHtml.includes("walkStart=framesPerRow"), "platformer run animation must use the walk row, not replay idle frames");
+assert.ok(platformerRuntimeHtml.includes('start:rowFrames'), "platformer run animation must use a separate animation row, not replay idle frames");
 assert.ok(platformerRuntimeHtml.includes("window.__RK_GAME_TEST__"));
-assert.ok(platformerRuntimeHtml.includes("touchButton"));
+assert.ok(platformerRuntimeHtml.includes("window.__RK_KEYBOARD_STATE__"), "platformer runtime must consume the shared sandbox keyboard state");
+assert.ok(platformerRuntimeHtml.includes("bridged.arrowleft") && platformerRuntimeHtml.includes("bridged.arrowright"), "platformer runtime must support bridged left/right arrows");
+assert.ok(platformerRuntimeHtml.includes("bridged.arrowup") && platformerRuntimeHtml.includes("bridged.arrowdown"), "platformer runtime must map up/down arrows to platformer actions");
+assert.ok(platformerRuntimeHtml.includes("const activePointers=new Map()"), "touch input must track individual pointer IDs for multitouch");
+assert.ok(platformerRuntimeHtml.includes("const activeTouches=new Map()"), "touch input must track individual touch identifiers");
+assert.ok(platformerRuntimeHtml.includes("b.setPointerCapture(event.pointerId)"), "on-screen direction controls must capture held pointer input");
+assert.ok(platformerRuntimeHtml.includes('b.addEventListener("pointerup",releasePointer)'), "direction controls must release their own pointer state on pointerup");
+assert.ok(platformerRuntimeHtml.includes('b.addEventListener("pointercancel",releasePointer)'), "direction controls must release their own pointer state on pointercancel");
+assert.ok(platformerRuntimeHtml.includes('activePointers.set(event.pointerId,kind);try{b.setPointerCapture(event.pointerId);}catch(_){}syncDirections();'), "pressing an on-screen direction must update shared direction state immediately");
+assert.ok(platformerRuntimeHtml.includes("this.events.once(Phaser.Scenes.Events.SHUTDOWN,onShutdown)"), "scene shutdown must clean touch DOM and listeners");
+assert.ok(platformerRuntimeHtml.includes('window.removeEventListener("pointerup",onPointerUp)'), "pointer listeners must be removed when a scene shuts down");
+assert.ok(platformerRuntimeHtml.includes('this.input.keyboard.off("keydown-R",this._sceneRestartKeyHandler)'), "scene restart keyboard handler must be removed on shutdown");
+assert.ok(platformerRuntimeHtml.includes('if(oldTouchPad)oldTouchPad.remove()'), "restart must not duplicate the DOM touch pad");
+assert.ok(platformerRuntimeHtml.includes('if(action==="restart")return restartGame()'), "test protocol must expose restart as a supported action");
+assert.ok(platformerRuntimeHtml.includes("window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;restartButton.style.display"), "restart must clear stale readiness evidence before the scene reloads");
+assert.ok(platformerRuntimeHtml.includes('return beforeY!==sceneRef.player.body.velocity.y&&sceneRef.player.body.velocity.y<0'), "jump action only succeeds when vertical velocity actually changes upward");
+assert.ok(platformerRuntimeHtml.includes("this._assetLoadErrors.push(message)"), "asset load errors must be retained");
+assert.ok(platformerRuntimeHtml.includes("Required Phaser textures unavailable"), "runtime readiness must fail when a required texture is missing");
+assert.ok(platformerRuntimeHtml.includes("if((this._assetLoadErrors||[]).length)"), "runtime must not mark READY after asset load failure");
 assert.ok(platformerRuntimeHtml.includes("Coins: "));
-assert.ok(platformerRuntimeHtml.includes("platform(1100,628,2200)"), "platformer floor must have a physics collider");
+assert.ok(platformerRuntimeHtml.includes("placePlatform(1100,628,2200)"), "platformer floor must use an image-backed physics collider");
+assert.ok(!platformerRuntimeHtml.includes("add.rectangle("), "platformer runtime must not draw geometric platforms");
+assert.ok(!platformerRuntimeHtml.includes("add.circle("), "platformer runtime must not draw geometric coins");
 assert.throws(
   () => buildPlatformerGameHtml({
     ...platformerRuntimeSpec,
@@ -219,8 +270,16 @@ assert.throws(
       asset.id === "protagonist" ? { ...asset, animationMode: "single-image" } : asset,
     ),
   }),
-  /requires an animated sprite-sheet player asset/,
+  /requires a valid animated player sprite sheet/,
   "platformer must not replace missing animation assets with a geometric character",
+);
+assert.throws(
+  () => buildPlatformerGameHtml({
+    ...platformerRuntimeSpec,
+    assets: platformerRuntimeSpec.assets.filter((asset) => asset.id !== "platformer-coin-art"),
+  }),
+  /materialized image asset tagged "coin-image"/,
+  "platformer must fail closed when a required collectible image is absent",
 );
 assert.throws(
   () => buildPlatformerGameHtml({
@@ -229,7 +288,7 @@ assert.throws(
       asset.id === "protagonist" ? { ...asset, rowCount: 1 } : asset,
     ),
   }),
-  /at least two animation rows/,
+  /requires a valid animated player sprite sheet/,
   "platformer must reject sprite sheets that cannot provide distinct idle and walk animations",
 );
 
@@ -270,7 +329,19 @@ const routerProvider = {
   async generate(asset) {
     return {
       uri: `data:image/router,${asset.id}`,
-      metadata: { identityKey: asset.id },
+      metadata: {
+        identityKey: asset.id,
+        ...(asset.animationNeeds.length > 0
+          ? {
+              spriteSheet: {
+                frameWidth: 256,
+                frameHeight: 256,
+                frameCount: Math.max(2, asset.animationNeeds.length * 2),
+                rowCount: Math.max(1, asset.animationNeeds.length),
+              },
+            }
+          : {}),
+      },
     };
   },
 };
@@ -390,6 +461,21 @@ state = evolveCreature(state, hero.id, "Testling Ascended");
 const evolved = state.collection.creatures.find((c) => c.id === hero.id);
 assert.equal(evolved?.form, "Testling Ascended");
 assert.ok(state.evolution.evolvedCreatureIds.includes(hero.id));
+
+const sandboxSource = await readFile(new URL("../app/fun-zone/engine/AIGameSandbox.tsx", import.meta.url), "utf8");
+assert.ok(sandboxSource.includes("window.__RK_KEYBOARD_STATE__ = Object.create(null)"), "sandbox must initialize a shared keyboard state map");
+assert.ok(sandboxSource.includes('type === "AI_GAME_KEY_RESET"'), "sandbox must clear stuck keys on parent focus loss");
+assert.ok(sandboxSource.includes("window.addEventListener(\"keydown\", updateKeyboardState, true)"), "sandbox must capture native keydown inside the iframe");
+assert.ok(sandboxSource.includes("window.addEventListener(\"keyup\", updateKeyboardState, true)"), "sandbox must capture native keyup inside the iframe");
+assert.ok(sandboxSource.includes("(!readinessProtocol ||") && sandboxSource.includes("readinessElapsed < 11000"), "sandbox must retry when the generated game protocol has not been installed yet, such as during a slow Phaser CDN load");
+const laboratoryRouteSource = await readFile(new URL("../app/api/fun-zone/laboratory/route.ts", import.meta.url), "utf8");
+assert.ok(laboratoryRouteSource.includes("resolvePhaserGenre(effectiveBlueprint)"), "Laboratory must resolve the runtime from the final blueprint");
+assert.ok(laboratoryRouteSource.includes("No assets were generated and no other genre template was substituted"), "unsupported genres must fail before asset generation without a silent fallback");
+assert.ok(laboratoryRouteSource.indexOf("selectedRuntimeGenre") < laboratoryRouteSource.indexOf('failureStage = "asset-registry"'), "runtime capability preflight must happen before asset-provider work");
+const racingRuntimeSource = await readFile(new URL("../app/fun-zone/phaser/racingRuntime.ts", import.meta.url), "utf8");
+assert.ok(racingRuntimeSource.includes("window.__RK_KEYBOARD_STATE__"), "racing runtime must consume the shared sandbox keyboard state");
+assert.ok(racingRuntimeSource.includes("bridged.arrowleft") && racingRuntimeSource.includes("bridged.arrowright"), "racing runtime must support bridged left/right steering");
+assert.ok(racingRuntimeSource.includes("bridged.arrowup") && racingRuntimeSource.includes("bridged.arrowdown"), "racing runtime must support bridged up/down acceleration and braking");
 
 console.log("Fun Zone Game System Factory stress test: PASS");
 console.log(JSON.stringify({

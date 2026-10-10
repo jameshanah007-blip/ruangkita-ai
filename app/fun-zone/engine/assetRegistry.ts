@@ -47,6 +47,7 @@ export type AssetRegistry = {
 export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
   const assets: GameAssetSpec[] = [];
   const isRacing = normalizeGameGenre(visual.artDirection.genre) === "racing";
+  const isPlatformer = normalizeGameGenre(visual.artDirection.genre) === "platformer";
 
   // The protagonist is the authoritative player identity. Keep it explicit in the registry even if a refinement/provider omits it from the generic characters array.
   const characterSpecs = [visual.protagonist, ...visual.characters.filter((character) => character.id !== visual.protagonist.id)];
@@ -83,7 +84,7 @@ export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
       entityKind: undefined,
       role: "world environment",
       prompt: [environment.description, ...environment.props].join(", "),
-      tags: [environment.id, ...(isRacing ? ["racing-track", "track", "environment-asset"] : [])],
+      tags: [environment.id, ...(isRacing ? ["racing-track", "track", "environment-asset"] : []), ...(isPlatformer && environment.id === "world-primary" ? ["platformer-environment"] : [])],
       animationNeeds: [],
       source: "generated",
       required: true,
@@ -103,6 +104,15 @@ export function buildAssetRegistry(visual: VisualBlueprint): AssetRegistry {
       required: false,
     });
   });
+
+  if (isPlatformer) {
+    const platformerArt: GameAssetSpec[] = [
+      { id: "platformer-platform-art", kind: "prop", role: "platform artwork", prompt: "Illustrated grass-topped floating earth platform tile for a 2D platform game", tags: ["platform-image", "platformer-art", "image-asset"], animationNeeds: [], source: "generated", required: true },
+      { id: "platformer-coin-art", kind: "prop", role: "collectible artwork", prompt: "Golden collectible coin with a bright rim and engraved star, 2D game sprite", tags: ["coin-image", "platformer-art", "image-asset"], animationNeeds: [], source: "generated", required: true },
+      { id: "platformer-finish-art", kind: "prop", role: "finish goal artwork", prompt: "Red and white finish flag on a pole, illustrated 2D game sprite", tags: ["finish-image", "platformer-art", "image-asset"], animationNeeds: [], source: "generated", required: true },
+    ];
+    assets.push(...platformerArt);
+  }
 
   visual.effects.forEach((effect, index) => {
     assets.push({

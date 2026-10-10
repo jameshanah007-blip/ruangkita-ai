@@ -46,5 +46,8 @@ jobs:
       - name: Fun Zone runtime contract tests
         run: npm run test:fun-zone-systems
 
+      - name: Fun Zone local-first pipeline regression
+        run: npm run test:fun-zone-local-first
+
       - name: Production build
         run: npm run build

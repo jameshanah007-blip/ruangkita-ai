@@ -13,8 +13,11 @@ import type {
   ReferenceImageEvidence,
 } from "../../../fun-zone/laboratory/types";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
+import { resolvePhaserGenre } from "../../../fun-zone/phaser/genreDefinitions";
+import { getPhaserGenreAdapter } from "../../../fun-zone/phaser/runtimeAdapters";
 import { composeGamePlan } from "../../../fun-zone/engine/gameComposer";
 import { generateFunZoneGameBlueprint } from "../../../core/james/funZoneGameDirector";
+import { createLocalPlatformerBlueprint } from "../../../fun-zone/engine/localPlatformerDirector";
 import { createVisualBlueprint } from "../../../fun-zone/engine/visualDirector";
 import { buildAssetRegistry } from "../../../fun-zone/engine/assetRegistry";
 import { generateGameAssets } from "../../../fun-zone/engine/assetGenerator";
@@ -238,8 +241,6 @@ export async function POST(
           source: "user-upload" as const,
         };
 
-    const referenceImageAnalysis: ReferenceImageAnalysis = await analyzeReferenceImage(validReferenceImage, prompt);
-
     const referenceImageMetadata = {
       available: validReferenceImage.available,
       source: validReferenceImage.source,
@@ -297,23 +298,47 @@ export async function POST(
     let director: DirectorResponse;
     let directorProvider = "ai";
 
-    try {
-      director = await callDirector(prompt);
-    } catch (error) {
-      const detail = describeErrorValue(error);
-      console.error("Fun Zone Director failed; refusing to substitute a local blueprint.", {
-        errorType: error instanceof Error ? error.name : typeof error,
-        message: detail,
-        cause: error instanceof Error && error.cause ? describeErrorValue(error.cause) : undefined,
+    // Supported local templates must not depend on AI quota. This is an
+    // explicit genre route, not a silent fallback after an AI failure.
+    const localPlatformerBlueprint = createLocalPlatformerBlueprint(prompt);
+    // Do not call OpenAI Vision for the provider-independent local template. Keep
+    // image metadata for the UI, but omit image bytes from semantic analysis.
+    const referenceImageAnalysis: ReferenceImageAnalysis = localPlatformerBlueprint
+      ? await analyzeReferenceImage({ ...validReferenceImage, dataUrl: undefined }, prompt)
+      : await analyzeReferenceImage(validReferenceImage, prompt);
+    if (localPlatformerBlueprint) {
+      directorProvider = "local";
+      director = {
+        success: true,
+        stage: "director",
+        provider: "local",
+        model: "local-platformer-template-v1",
+        prompt,
+        blueprint: localPlatformerBlueprint,
+      };
+      console.info("Fun Zone local Director selected", {
+        template: "platformer-2d",
+        reason: "supported deterministic local template",
       });
-      throw new Error(
-        `Fun Zone Director failed. No local blueprint fallback was used, so the prompt cannot silently produce a different game specification. ${detail}`,
-      );
+    } else {
+      try {
+        director = await callDirector(prompt);
+      } catch (error) {
+        const detail = describeErrorValue(error);
+        console.error("Fun Zone Director failed; no template matched the prompt, so no game specification was substituted.", {
+          errorType: error instanceof Error ? error.name : typeof error,
+          message: detail,
+          cause: error instanceof Error && error.cause ? describeErrorValue(error.cause) : undefined,
+        });
+        throw new Error(
+          `Fun Zone Director failed. No supported local template matched this prompt, and no different game specification was substituted. ${detail}`,
+        );
+      }
     }
 
     if (!director.success || !director.blueprint) {
       throw new Error(
-        "Fun Zone Director returned no valid blueprint. Local blueprint fallback is disabled to keep prompt-to-specification behavior deterministic.",
+        "Fun Zone Director returned no valid blueprint. No unsupported local blueprint fallback was used.",
       );
     }
     if (director.provider) {
@@ -328,16 +353,25 @@ export async function POST(
     failureStage = "blueprint";
     const blueprint = director.blueprint;
     const normalizedBlueprint = normalizeBlueprintArrays(blueprint);
-    const learnedGameLessons = await getJamesGameLessons(8);
-    const learnedGameMastery = await getJamesGameMastery(12);
-    const learnedGameAdaptations = await getJamesGameAdaptations(8);
-    const failedGameStrategies = await getJamesFailedStrategies(8);
-    const effectiveGameStrategies = await getJamesEffectiveStrategies(6);
-    const lessonBlueprint = applyJamesGameLessons(normalizedBlueprint, learnedGameLessons);
-    const masteryBlueprint = applyJamesGameMastery(lessonBlueprint, learnedGameMastery);
-    const adaptationBlueprint = applyJamesGameAdaptations(masteryBlueprint, learnedGameAdaptations);
-    const avoidanceBlueprint = applyJamesFailedStrategyAvoidance(adaptationBlueprint, failedGameStrategies);
-    const learnedBlueprint = applyJamesEffectiveStrategies(avoidanceBlueprint, effectiveGameStrategies);
+    // The supported local template is a deterministic product path, not an AI-assisted path.
+    // Skip learned-strategy enrichment here so unrelated memory/learning services cannot
+    // change or block the minimum playable game. AI genres retain the existing learning path.
+    const isLocalPlatformer = directorProvider === "local" && normalizedBlueprint.genre === "platformer";
+    let learnedBlueprint: GameBlueprint;
+    if (isLocalPlatformer) {
+      learnedBlueprint = normalizedBlueprint;
+    } else {
+      const learnedGameLessons = await getJamesGameLessons(8);
+      const learnedGameMastery = await getJamesGameMastery(12);
+      const learnedGameAdaptations = await getJamesGameAdaptations(8);
+      const failedGameStrategies = await getJamesFailedStrategies(8);
+      const effectiveGameStrategies = await getJamesEffectiveStrategies(6);
+      const lessonBlueprint = applyJamesGameLessons(normalizedBlueprint, learnedGameLessons);
+      const masteryBlueprint = applyJamesGameMastery(lessonBlueprint, learnedGameMastery);
+      const adaptationBlueprint = applyJamesGameAdaptations(masteryBlueprint, learnedGameAdaptations);
+      const avoidanceBlueprint = applyJamesFailedStrategyAvoidance(adaptationBlueprint, failedGameStrategies);
+      learnedBlueprint = applyJamesEffectiveStrategies(avoidanceBlueprint, effectiveGameStrategies);
+    }
     console.info("Fun Zone pipeline stage completed", {
       stage: "blueprint",
       output: {
@@ -352,6 +386,16 @@ export async function POST(
     // Compose reusable gameplay systems before the existing autonomous builder runs.
     // We enrich the existing blueprint instead of replacing the current architecture.
     let effectiveBlueprint = learnedBlueprint;
+
+    // Preflight runtime support before asset generation or provider calls. Genre
+    // definitions describe design vocabulary; only registered adapters are playable.
+    const selectedRuntimeGenre = resolvePhaserGenre(effectiveBlueprint);
+    if (!selectedRuntimeGenre || !getPhaserGenreAdapter(selectedRuntimeGenre)) {
+      throw new Error(
+        `Fun Zone runtime is not implemented for genre "${effectiveBlueprint.genre}". Currently playable Phaser runtimes: farming, platformer, racing. No assets were generated and no other genre template was substituted.`,
+      );
+    }
+
     const composedPlan = composeGamePlan(effectiveBlueprint);
     let buildPlan = createGameBuildPlan(effectiveBlueprint);
     let visualBlueprint = createVisualBlueprint(learnedBlueprint);
@@ -361,7 +405,7 @@ export async function POST(
     // Execute at most one bounded visual refinement before asset generation.
     // This is intentionally additive: the original blueprint remains the base,
     // while QA feedback enriches the next build specification.
-    if (visualQa.refinement.required && visualQa.refinement.maxPasses > 0) {
+    if (!isLocalPlatformer && visualQa.refinement.required && visualQa.refinement.maxPasses > 0) {
       effectiveBlueprint = applyVisualRefinement(effectiveBlueprint, visualQa);
       buildPlan = createGameBuildPlan(effectiveBlueprint);
       visualBlueprint = createVisualBlueprint(effectiveBlueprint);
@@ -388,7 +432,10 @@ export async function POST(
         ].filter((provider): provider is NonNullable<typeof provider> => Boolean(provider))
       : [];
     failureStage = "asset-provider";
-    const generatedAssets = await generateGameAssets(assetRegistry, realAssetProviders);
+    const generatedAssets = await generateGameAssets(
+      assetRegistry,
+      isLocalPlatformer ? [] : realAssetProviders,
+    );
     console.info("Fun Zone pipeline stage completed", {
       stage: "asset-provider",
       output: {
@@ -473,8 +520,10 @@ export async function POST(
     });
     const builder: BuilderResponse = {
       success: true,
-      provider: "james-autonomous",
-      model: "autonomous-game-compiler-v2-asset-contract",
+      provider: isLocalPlatformer ? "local" : "james-autonomous",
+      model: isLocalPlatformer
+        ? "phaser-local-platformer-v1"
+        : "autonomous-game-compiler-v2-asset-contract",
       gameHtml: compiledHtml,
       validation: {
         valid: true,
@@ -487,7 +536,7 @@ export async function POST(
         ],
       },
     };
-    const builderProvider = "james-autonomous";
+    const builderProvider = isLocalPlatformer ? "local" : "james-autonomous";
 
     const artifact =
       createArtifactFromBuilder(

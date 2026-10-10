@@ -8,110 +8,189 @@ function escapeHtmlText(value: string): string {
 }
 
 /**
- * Dedicated asset-backed platformer runtime.
- * The player must be a real materialized sprite sheet; this runtime never draws a
- * geometric substitute for the player character.
+ * Asset-backed platformer runtime. This runtime deliberately fails closed:
+ * platform, collectible, finish, environment, and animated player visuals must
+ * be supplied as image assets. It never paints geometric stand-ins for them.
  */
 export function buildPlatformerGameHtml(spec: PhaserGameSpec): string {
   const player = spec.assets.find((asset) => asset.id === spec.player.assetId);
-  if (!player) {
-    throw new Error("Platformer Phaser runtime requires the declared player asset: " + spec.player.assetId);
-  }
-  if (player.animationMode !== "sprite-sheet") {
-    throw new Error("Platformer Phaser runtime requires an animated sprite-sheet player asset; single-image characters are not accepted.");
-  }
-  if (!player.frameWidth || !player.frameHeight || !player.frameCount || player.frameCount < 2 || !player.rowCount || player.rowCount < 2) {
-    throw new Error("Platformer Phaser runtime requires valid sprite-sheet metadata with at least two animation rows.");
+  if (!player) throw new Error("Platformer runtime requires the declared player image asset.");
+  if (player.animationMode !== "sprite-sheet" || !player.frameWidth || !player.frameHeight || !player.frameCount || player.frameCount < 2 || !player.rowCount || player.rowCount < 2) {
+    throw new Error("Platformer runtime requires a valid animated player sprite sheet with idle and movement rows.");
   }
 
-  const environment = spec.assets.find((asset) => asset.kind === "environment");
+  const findImage = (tag: string, label: string) => {
+    const asset = spec.assets.find((item) => item.tags?.includes(tag) && item.uri.startsWith("data:image/"));
+    if (!asset) throw new Error('Platformer runtime requires a materialized image asset tagged "' + tag + '" for ' + label + '. Geometry fallback is disabled.');
+    return asset;
+  };
+  const platform = findImage("platform-image", "platforms");
+  const coin = findImage("coin-image", "collectibles");
+  const finish = findImage("finish-image", "the finish goal");
+  const environment = spec.assets.find((asset) => asset.kind === "environment" && asset.uri.startsWith("data:image/"));
+  const required = [player, platform, coin, finish, ...(environment ? [environment] : [])];
+  const assetUris = Object.fromEntries(required.map((asset) => [asset.id, asset.uri]));
   const config = JSON.stringify({
-    title: spec.title,
-    objective: spec.objective,
-    winCondition: spec.winCondition,
-    loseCondition: spec.loseCondition,
-    palette: spec.visual.palette,
-    playerAssetId: player.id,
-    playerUri: player.uri,
-    frameWidth: player.frameWidth,
-    frameHeight: player.frameHeight,
-    frameCount: player.frameCount,
-    environmentUri: environment?.uri || null,
+    title: spec.title, objective: spec.objective, palette: spec.visual.palette,
+    playerId: player.id, frameWidth: player.frameWidth, frameHeight: player.frameHeight,
+    frameCount: player.frameCount, rowCount: player.rowCount,
+    platformId: platform.id, coinId: coin.id, finishId: finish.id,
+    environmentId: environment?.id || null, assetUris,
   }).replace(/</g, "\\u003c");
-  const playerUri = JSON.stringify(player.uri).replace(/</g, "\\u003c");
-  const environmentUri = environment ? JSON.stringify(environment.uri).replace(/</g, "\\u003c") : "null";
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>${escapeHtmlText(spec.title)}</title>
-<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101820;font-family:Arial,sans-serif;touch-action:none}#game{width:100%;height:100%;display:flex;align-items:center;justify-content:center}canvas{max-width:100%;max-height:100%;object-fit:contain}#hint{position:fixed;left:12px;bottom:8px;color:#fff;background:#101820cc;padding:7px 10px;border-radius:8px;font-size:12px;z-index:2}</style></head>
-<body><div id="game"></div><div id="hint">Move: A/D or ←/→ · Jump: Space/↑ · Touch controls supported</div>
-<script src="${PHASER_CDN}"></script><script>
+<style>html,body,#game{margin:0;width:100%;height:100%;overflow:hidden;background:#101820;touch-action:none}#game{display:flex;align-items:center;justify-content:center}canvas{max-width:100%;max-height:100%;object-fit:contain}#hint{position:fixed;left:12px;bottom:8px;color:#fff;background:#101820cc;padding:7px 10px;border-radius:8px;font:12px Arial,sans-serif;z-index:2}#restartBtn{display:none;position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:15;border:2px solid #fff;border-radius:12px;padding:12px 22px;background:#176b43;color:#fff;font:bold 16px Arial,sans-serif;cursor:pointer;touch-action:manipulation}@media(min-width:900px){#rkTouchPad{opacity:.72}}</style></head>
+<body><div id="game"></div><div id="hint">Move: A/D or ←/→ · Jump: Space/↑ · Touch controls supported · Restart: R</div><div id="bootError" role="alert" style="display:none;position:fixed;inset:12px 12px auto 12px;z-index:20;padding:12px 16px;border:2px solid #f87171;border-radius:10px;background:#450a0a;color:#fff;font:14px Arial,sans-serif;white-space:pre-wrap"></div><button id="restartBtn" type="button">↻ Restart</button>
+<script src="${PHASER_CDN}" onerror="window.__RK_GAME_BOOT_ERROR__='Phaser CDN failed to load';var e=document.getElementById('bootError');if(e){e.textContent=window.__RK_GAME_BOOT_ERROR__;e.style.display='block';}if(Array.isArray(window.__RK_TEST_ERRORS__))window.__RK_TEST_ERRORS__.push({message:window.__RK_GAME_BOOT_ERROR__});"></script><script>
 "use strict";
 const CFG=${config};
-const PLAYER_ASSET=${playerUri};
-const ENVIRONMENT_ASSET=${environmentUri};
 window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;
-const state={coins:0,won:false,dead:false,startedAt:Date.now()};
-let sceneRef=null;
+const state={coins:0,won:false,dead:false};let sceneRef=null;
+const restartButton=document.getElementById("restartBtn");
+function restartGame(){if(!sceneRef)return false;state.coins=0;state.won=false;state.dead=false;window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;restartButton.style.display="none";sceneRef.scene.restart();return true;}
+restartButton.addEventListener("click",()=>restartGame());
 window.__RK_GAME_TEST__={
- testActions:["move_right","jump","collect","restart"],
+ isReady:()=>Boolean(sceneRef&&sceneRef.player&&sceneRef.player.body&&sceneRef.player.active),
+ testActions:["move_right","jump","collect","reach_finish","restart"],
  getState:()=>({coins:state.coins,won:state.won,dead:state.dead}),
  getPlayerState:()=>sceneRef&&sceneRef.player?({x:sceneRef.player.x,y:sceneRef.player.y,velocityX:sceneRef.player.body.velocity.x,velocityY:sceneRef.player.body.velocity.y}):null,
  getObjectiveState:()=>({progress:Math.min(1,state.coins/5),coins:state.coins}),
  getWinState:()=>state.won,getLoseState:()=>state.dead,
- performTestAction:(action)=>{if(!sceneRef)return false;if(action==="move_right"){sceneRef.player.setVelocityX(180);return true;}if(action==="jump"&&sceneRef.player.body.blocked.down){sceneRef.player.setVelocityY(-430);return true;}if(action==="collect"){const coin=sceneRef.coins.getChildren().find((item)=>item.active);if(!coin)return false;sceneRef.physics.overlap(sceneRef.player,coin,()=>sceneRef.collectCoin(coin));return true;}return false;},
- restart:()=>{if(!sceneRef)return false;state.coins=0;state.won=false;state.dead=false;sceneRef.scene.restart();return true;}
+ performTestAction:(action)=>{if(!sceneRef||!sceneRef.player||!sceneRef.player.body)return false;if(action==="move_right"){sceneRef.player.setVelocityX(180);return sceneRef.player.body.velocity.x>0;}if(action==="jump"){if(!sceneRef.player.body.blocked.down)return false;const beforeY=sceneRef.player.body.velocity.y;sceneRef.player.setVelocityY(-430);return beforeY!==sceneRef.player.body.velocity.y&&sceneRef.player.body.velocity.y<0;}if(action==="collect"){const item=sceneRef.coins.getChildren().find((c)=>c.active);if(!item)return false;const before=state.coins;sceneRef.collectCoin(item);return state.coins===before+1;}if(action==="reach_finish"){const before=state.won;sceneRef.reachFinish();return state.won!==before;}if(action==="restart")return restartGame();return false;},
+ restart:()=>restartGame()
 };
 class PlatformerScene extends Phaser.Scene{
  constructor(){super({key:"PlatformerScene"});this.move={left:false,right:false};this.touchJump=false;}
- preload(){this.load.spritesheet("hero",PLAYER_ASSET,{frameWidth:CFG.frameWidth,frameHeight:CFG.frameHeight});if(ENVIRONMENT_ASSET)this.load.image("environment",ENVIRONMENT_ASSET);}
+ preload(){
+  this._assetLoadErrors=[];
+  this.load.on("loaderror",(file)=>{const message="Phaser asset load failed: "+String(file&&file.key||file&&file.src||"unknown asset");this._assetLoadErrors.push(message);window.__RK_GAME_BOOT_ERROR__=message;const panel=document.getElementById("bootError");if(panel){panel.textContent=this._assetLoadErrors.join("\\n");panel.style.display="block";}if(Array.isArray(window.__RK_TEST_ERRORS__)&&!window.__RK_TEST_ERRORS__.some((item)=>item&&item.message===message))window.__RK_TEST_ERRORS__.push({message});});
+  Object.entries(CFG.assetUris).forEach(([id,uri])=>{if(id===CFG.playerId)this.load.spritesheet(id,uri,{frameWidth:CFG.frameWidth,frameHeight:CFG.frameHeight});else this.load.image(id,uri);});
+ }
  create(){
-  sceneRef=this;this.cameras.main.setBackgroundColor(CFG.palette.background);
-  if(ENVIRONMENT_ASSET){this.add.image(480,270,"environment").setDisplaySize(960,540).setDepth(-5);}
-  this.physics.world.setBounds(0,0,2200,640);
-  const platform=(x,y,w)=>{const p=this.add.rectangle(x,y,w,18,parseInt(CFG.palette.ground.replace("#",""),16));this.physics.add.existing(p,true);this.platforms.add(p);};
+  sceneRef=this;
+  // Never clear an asset failure from preload: a failed required asset must keep READY false.
+  const bootPanel=document.getElementById("bootError");
+  if((this._assetLoadErrors||[]).length){if(bootPanel){bootPanel.textContent=this._assetLoadErrors.join("\\n");bootPanel.style.display="block";}window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;return;}
+  const requiredIds=[CFG.playerId,CFG.platformId,CFG.coinId,CFG.finishId].concat(CFG.environmentId?[CFG.environmentId]:[]);
+  const missingTextures=requiredIds.filter((id)=>!this.textures.exists(id));
+  if(missingTextures.length){const message="Required Phaser textures unavailable: "+missingTextures.join(", ");window.__RK_GAME_BOOT_ERROR__=message;if(bootPanel){bootPanel.textContent=message;bootPanel.style.display="block";}if(Array.isArray(window.__RK_TEST_ERRORS__))window.__RK_TEST_ERRORS__.push({message});window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;return;}
+  if(bootPanel)bootPanel.style.display="none";
+  window.__RK_GAME_BOOT_ERROR__="";
+  this.cameras.main.setBackgroundColor(CFG.palette.background);this.physics.world.setBounds(0,0,2200,640);
+  if(CFG.environmentId)this.add.image(1100,320,CFG.environmentId).setDisplaySize(2200,640).setDepth(-10);
   this.platforms=this.physics.add.staticGroup();
-  // The ground must have a static Arcade body; a decorative rectangle alone cannot stop falling.
-  platform(1100,628,2200);
-  // Level layout is environmental geometry, not a substitute for the animated character art.
-  platform(270,510,190);platform(520,430,170);platform(790,350,170);platform(1080,450,190);platform(1370,365,190);platform(1640,475,180);platform(1900,390,190);
-  this.physics.world.setBounds(0,0,2200,640);
-  this.player=this.physics.add.sprite(80,540,"hero").setScale(Math.min(1,96/Math.max(CFG.frameWidth,CFG.frameHeight)));
-  this.player.setCollideWorldBounds(false);this.player.setBounce(0.04);this.player.setMaxVelocity(260,650);
-  this.physics.add.collider(this.player,this.platforms);
-  const framesPerRow=Math.max(2,Math.min(CFG.frameCount,8));
-  const idleEnd=Math.min(framesPerRow-1,3);
-  const walkStart=framesPerRow;
-  const walkEnd=Math.min(framesPerRow*2-1,walkStart+framesPerRow-1);
-  this.anims.create({key:"hero-idle",frames:this.anims.generateFrameNumbers("hero",{start:0,end:idleEnd}),frameRate:5,repeat:-1});
-  this.anims.create({key:"hero-run",frames:this.anims.generateFrameNumbers("hero",{start:walkStart,end:walkEnd}),frameRate:10,repeat:-1});
-  this.player.play("hero-idle");
-  this.coins=this.physics.add.staticGroup();
-  [[300,465],[550,385],[820,305],[1110,405],[1400,320],[1670,430],[1930,345]].forEach(([x,y])=>{const c=this.add.circle(x,y,11,parseInt(CFG.palette.accent.replace("#",""),16));this.physics.add.existing(c,true);this.coins.add(c);});
-  this.physics.add.overlap(this.player,this.coins,(hero,coin)=>this.collectCoin(coin));
+  const placePlatform=(x,y,w)=>{const p=this.platforms.create(x,y,CFG.platformId).setDisplaySize(w,30).refreshBody();};
+  placePlatform(1100,628,2200);[[270,510,190],[520,430,170],[790,350,170],[1080,450,190],[1370,365,190],[1640,475,180],[1900,390,190]].forEach(([x,y,w])=>placePlatform(x,y,w));
+  // Render the authored sprite at a readable gameplay size; frame dimensions are source pixels, not target display size.
+  const playerDisplayHeight=148;
+  this.player=this.physics.add.sprite(80,540,CFG.playerId).setScale(Math.min(1,playerDisplayHeight/CFG.frameHeight));
+  this.player.setCollideWorldBounds(false);this.player.setBounce(0.04);this.player.setMaxVelocity(260,650);this.physics.add.collider(this.player,this.platforms);
+  const rowFrames=Math.max(2,Math.min(CFG.frameCount,8));
+  this.anims.create({key:"hero-idle",frames:this.anims.generateFrameNumbers(CFG.playerId,{start:0,end:Math.min(rowFrames-1,3)}),frameRate:5,repeat:-1});
+  this.anims.create({key:"hero-run",frames:this.anims.generateFrameNumbers(CFG.playerId,{start:rowFrames,end:Math.min(rowFrames*2-1,rowFrames*2-1)}),frameRate:10,repeat:-1});this.player.play("hero-idle");
+  // Exactly five required collectibles: HUD objective, runtime state, and level layout agree.
+  this.coins=this.physics.add.staticGroup();[[300,465],[550,385],[820,305],[1370,320],[1900,345]].forEach(([x,y])=>{this.coins.create(x,y,CFG.coinId).setDisplaySize(30,30);});
+  this.physics.add.overlap(this.player,this.coins,(_,item)=>this.collectCoin(item));
+  this.finish=this.physics.add.staticImage(2070,330,CFG.finishId).setDisplaySize(58,80).refreshBody();
+  this.finishHintShown=false;
+  this.physics.add.overlap(this.player,this.finish,()=>this.reachFinish());
   this.add.text(18,16,CFG.title,{fontSize:"22px",fontFamily:"Arial",fontStyle:"bold",color:CFG.palette.light}).setScrollFactor(0);
   this.add.text(18,48,CFG.objective,{fontSize:"12px",fontFamily:"Arial",color:CFG.palette.light,wordWrap:{width:680}}).setScrollFactor(0);
   this.hud=this.add.text(18,72,"Coins: 0 / 5",{fontSize:"16px",fontFamily:"Arial",color:CFG.palette.light,backgroundColor:"#00000088",padding:{x:8,y:5}}).setScrollFactor(0);
   this.cameras.main.setBounds(0,0,2200,640);this.cameras.main.startFollow(this.player,true,0.08,0.08);
-  this.keys=this.input.keyboard?this.input.keyboard.addKeys("A,D,LEFT,RIGHT,SPACE,UP,W"):{};
-  const touchButton=(x,label,kind)=>{const b=this.add.circle(x,560,30,0x17212b,0.8).setStrokeStyle(2,0xffffff).setScrollFactor(0).setInteractive();this.add.text(x,560,label,{fontSize:"22px",color:"#ffffff"}).setOrigin(.5).setScrollFactor(0);b.on("pointerdown",()=>{if(kind==="left")this.move.left=true;else if(kind==="right")this.move.right=true;else this.touchJump=true;});const release=()=>{if(kind==="left")this.move.left=false;else if(kind==="right")this.move.right=false;else this.touchJump=false;};b.on("pointerup",release);b.on("pointerout",release);};
-  touchButton(54,"◀","left");touchButton(124,"▶","right");touchButton(900,"▲","jump");
+  this.keys=this.input.keyboard?this.input.keyboard.addKeys("A,D,LEFT,RIGHT,SPACE,UP,W,S,DOWN,R"):{};
+  // Window-level keyboard listeners keep controls reliable inside the embedded game.
+  this._pressedKeys=new Set();
+  this._windowKeyDown=(event)=>{const key=String(event.key||"").toLowerCase();if(["arrowleft","arrowright","arrowup","arrowdown"," ","w","a","s","d","r"].includes(key)){event.preventDefault();this._pressedKeys.add(key);}if(key==="r"&&(state.won||state.dead))restartGame();};
+  this._windowKeyUp=(event)=>{this._pressedKeys.delete(String(event.key||"").toLowerCase());};
+  this._windowBlur=()=>{this._pressedKeys.clear();this.move.left=false;this.move.right=false;this.touchJump=false;window.__RK_KEYBOARD_STATE__=Object.create(null);};
+  window.addEventListener("keydown",this._windowKeyDown,{passive:false});
+  window.addEventListener("keyup",this._windowKeyUp);
+  window.addEventListener("blur",this._windowBlur);
+  this._sceneRestartKeyHandler=()=>{if(state.won||state.dead)restartGame();};
+  if(this.input.keyboard)this.input.keyboard.on("keydown-R",this._sceneRestartKeyHandler);
+  // Recreate one pad per scene; shutdown removes it and every listener to prevent stale scene closures.
+  const oldTouchPad=document.getElementById("rkTouchPad");
+  if(oldTouchPad)oldTouchPad.remove();
+  const touchPad=document.createElement("div");touchPad.id="rkTouchPad";touchPad.setAttribute("aria-label","Game touch controls");touchPad.style.cssText="position:fixed;left:14px;bottom:18px;z-index:10;display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:5px;touch-action:none;user-select:none;-webkit-user-select:none";document.body.appendChild(touchPad);
+  const activePointers=new Map();
+  const activeTouches=new Map();
+  const syncDirections=()=>{
+   const kinds=[...activePointers.values(),...activeTouches.values()];
+   this.move.left=kinds.includes("left");this.move.right=kinds.includes("right");
+   this.touchJump=kinds.includes("up");
+   if(kinds.includes("down"))this._pressedKeys.add("arrowdown");else this._pressedKeys.delete("arrowdown");
+  };
+  const clearInputs=()=>{activePointers.clear();activeTouches.clear();syncDirections();};
+  const onPointerUp=(event)=>{if(activePointers.delete(event.pointerId))syncDirections();};
+  const onPointerCancel=(event)=>{if(activePointers.delete(event.pointerId))syncDirections();};
+  const onTouchEnd=(event)=>{for(const touch of Array.from(event.changedTouches||[]))activeTouches.delete(touch.identifier);syncDirections();};
+  const onBlur=()=>clearInputs();
+  const makeTouch=(label,gridColumn,gridRow,kind)=>{
+   const b=document.createElement("button");b.type="button";b.textContent=label;b.setAttribute("aria-label",kind);b.setAttribute("data-rk-direction",kind);
+   b.style.cssText="grid-column:"+gridColumn+";grid-row:"+gridRow+";border:1px solid #ffffffaa;border-radius:10px;background:#142a36dd;color:white;font:bold 22px Arial;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;padding:0;pointer-events:auto";
+   // Capture each pointer so a held direction remains owned by its button even
+   // if the finger/mouse drifts outside the small control. Release locally as
+   // well as through the window-level fallback handlers.
+   const releasePointer=(event)=>{if(activePointers.delete(event.pointerId))syncDirections();};
+   b.addEventListener("pointerdown",(event)=>{event.preventDefault();event.stopPropagation();activePointers.set(event.pointerId,kind);try{b.setPointerCapture(event.pointerId);}catch(_){}syncDirections();},{passive:false});
+   b.addEventListener("pointerup",releasePointer);
+   b.addEventListener("pointercancel",releasePointer);
+   b.addEventListener("lostpointercapture",releasePointer);
+   b.addEventListener("touchstart",(event)=>{event.preventDefault();event.stopPropagation();for(const touch of Array.from(event.changedTouches||[]))activeTouches.set(touch.identifier,kind);syncDirections();},{passive:false});
+   b.addEventListener("touchend",(event)=>{event.preventDefault();event.stopPropagation();onTouchEnd(event);},{passive:false});
+   b.addEventListener("touchcancel",(event)=>{event.preventDefault();event.stopPropagation();onTouchEnd(event);},{passive:false});
+   b.addEventListener("contextmenu",(event)=>event.preventDefault());
+   b.addEventListener("click",(event)=>{event.preventDefault();if(kind==="up"&&this.player&&this.player.body.blocked.down){this.player.setVelocityY(-430);}});
+   touchPad.appendChild(b);
+  };
+  const onShutdown=()=>{
+   clearInputs();
+   window.removeEventListener("pointerup",onPointerUp);
+   window.removeEventListener("pointercancel",onPointerCancel);
+   window.removeEventListener("lostpointercapture",onPointerCancel);
+   window.removeEventListener("touchend",onTouchEnd);
+   window.removeEventListener("touchcancel",onTouchEnd);
+   window.removeEventListener("blur",onBlur);
+   window.removeEventListener("blur",this._windowBlur);
+   window.removeEventListener("keydown",this._windowKeyDown);
+   window.removeEventListener("keyup",this._windowKeyUp);
+   if(this.input.keyboard&&this._sceneRestartKeyHandler)this.input.keyboard.off("keydown-R",this._sceneRestartKeyHandler);
+   touchPad.remove();
+   if(sceneRef===this)sceneRef=null;
+  };
+  window.addEventListener("pointerup",onPointerUp);
+  window.addEventListener("pointercancel",onPointerCancel);
+  window.addEventListener("lostpointercapture",onPointerCancel);
+  window.addEventListener("touchend",onTouchEnd,{passive:true});
+  window.addEventListener("touchcancel",onTouchEnd,{passive:true});
+  window.addEventListener("blur",onBlur);
+  this.events.once(Phaser.Scenes.Events.SHUTDOWN,onShutdown);
+  this.events.once(Phaser.Scenes.Events.DESTROY,onShutdown);
+  makeTouch("▲","2","1","up");makeTouch("◀","1","2","left");makeTouch("▼","2","2","down");makeTouch("▶","3","2","right");
   window.__RK_GAME_RENDERED__=true;window.__RK_GAME_READY__=true;
  }
- collectCoin(coin){if(!coin||!coin.active)return;coin.destroy();state.coins++;this.hud.setText("Coins: "+state.coins+" / 5");if(state.coins>=5)state.won=true;}
+ collectCoin(item){if(!item||!item.active||state.dead||state.won)return;item.destroy();state.coins++;this.hud.setText("Coins: "+state.coins+" / 5"+(state.coins>=5?" — Reach the flag!":""));}
+ reachFinish(){if(state.dead||state.won)return;if(state.coins<5){if(!this.finishHintShown){this.finishHintShown=true;this.add.text(480,260,"Collect five coins before finishing",{fontSize:"22px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100);}return;}state.won=true;this.player.setVelocity(0,0);this.player.body.setEnable(false);this.add.text(480,300,"You win!",{fontSize:"26px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100);restartButton.style.display="block"; }
  update(){
   if(!this.player||!this.player.body)return;window.__RK_GAME_LOOP_STARTED__=true;
-  const left=this.move.left||this.keys.A?.isDown||this.keys.LEFT?.isDown;
-  const right=this.move.right||this.keys.D?.isDown||this.keys.RIGHT?.isDown;
-  if(left){this.player.setVelocityX(-210);this.player.setFlipX(true);if(this.player.anims.currentAnim?.key!=="hero-run")this.player.play("hero-run",true);}
-  else if(right){this.player.setVelocityX(210);this.player.setFlipX(false);if(this.player.anims.currentAnim?.key!=="hero-run")this.player.play("hero-run",true);}
+  if(state.won||state.dead){this.player.setVelocity(0,0);return;}
+  const pressed=this._pressedKeys||new Set();
+  const bridged=window.__RK_KEYBOARD_STATE__||{};
+  const left=this.move.left||pressed.has("a")||pressed.has("arrowleft")||bridged.a||bridged.arrowleft||this.keys.A?.isDown||this.keys.LEFT?.isDown;
+  const right=this.move.right||pressed.has("d")||pressed.has("arrowright")||bridged.d||bridged.arrowright||this.keys.D?.isDown||this.keys.RIGHT?.isDown;
+  if(left&&!right){this.player.setVelocityX(-210);this.player.setFlipX(true);if(this.player.anims.currentAnim?.key!=="hero-run")this.player.play("hero-run",true);}
+  else if(right&&!left){this.player.setVelocityX(210);this.player.setFlipX(false);if(this.player.anims.currentAnim?.key!=="hero-run")this.player.play("hero-run",true);}
   else{this.player.setVelocityX(0);if(this.player.anims.currentAnim?.key!=="hero-idle")this.player.play("hero-idle",true);}
-  if((Phaser.Input.Keyboard.JustDown(this.keys.SPACE)||Phaser.Input.Keyboard.JustDown(this.keys.UP)||Phaser.Input.Keyboard.JustDown(this.keys.W)||this.touchJump)&&this.player.body.blocked.down){this.player.setVelocityY(-430);this.touchJump=false;}
-  if(this.player.y>720){state.dead=true;this.scene.restart();}
+  const jumpPressed=pressed.has("arrowup")||pressed.has(" ")||pressed.has("w")||bridged.arrowup||bridged[" "]||bridged.w||this.keys.SPACE?.isDown||this.keys.UP?.isDown||this.keys.W?.isDown||this.touchJump;
+  if(jumpPressed&&this.player.body.blocked.down){this.player.setVelocityY(-430);this.touchJump=false;pressed.delete("arrowup");pressed.delete(" ");pressed.delete("w");}
+  // Down is an intentional platformer action: accelerate falling while airborne.
+  const downPressed=pressed.has("arrowdown")||pressed.has("s")||bridged.arrowdown||bridged.s||this.keys.DOWN?.isDown||this.keys.S?.isDown;
+  if(downPressed&&!this.player.body.blocked.down){this.player.setVelocityY(Math.max(this.player.body.velocity.y,300));}
+  if(this.player.y>720&&!state.dead){state.dead=true;this.player.setVelocity(0,0);this.player.body.setEnable(false);this.add.text(480,300,"You fell! Try again",{fontSize:"24px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100);restartButton.style.display="block"; }
  }
 }
-const game=new Phaser.Game({type:Phaser.AUTO,parent:"game",width:960,height:640,backgroundColor:CFG.palette.background,physics:{default:"arcade",arcade:{gravity:{y:900},debug:false}},scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:[PlatformerScene]});
-window.__RK_GAME__=game;
-function escapeHtml(value){return String(value).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+new Phaser.Game({type:Phaser.AUTO,parent:"game",width:960,height:640,backgroundColor:CFG.palette.background,preserveDrawingBuffer:true,physics:{default:"arcade",arcade:{gravity:{y:900},debug:false}},scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:[PlatformerScene]});
 </script></body></html>`;
 }

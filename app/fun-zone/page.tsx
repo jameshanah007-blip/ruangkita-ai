@@ -117,7 +117,7 @@ const stages: {
   },
   {
     id: "debugging",
-    label: "AI Debugging",
+    label: "Diagnostics / Repair",
   },
   {
     id: "retesting",
@@ -178,7 +178,7 @@ function getStageDescription(stage: LabStage): string {
       return "Game sedang dijalankan di isolated sandbox dan diperiksa oleh AI Tester.";
 
     case "debugging":
-      return "AI Debugger sedang menganalisis kegagalan dan memperbaiki Game Artifact.";
+      return "Diagnostik lokal memeriksa bukti kegagalan; perbaikan AI hanya tersedia untuk artefak yang memang memakai jalur AI.";
 
     case "retesting":
       return "Game hasil perbaikan sedang dijalankan kembali untuk verifikasi.";
@@ -849,6 +849,18 @@ const handleTestReport =
         return;
       }
 
+      // The local Phaser template has no AI-generated HTML patch contract.
+      // Keep it on the deterministic local path; never call autonomous-repair,
+      // which requires verified materialized assets and must not be invoked here.
+      if (provider === "local" || model === "phaser-local-platformer-v1") {
+        setStage("debugging");
+        setError(
+          (Array.isArray(effectiveReport.hardFailures) ? effectiveReport.hardFailures : []).join(" ") ||
+          "Template lokal Phaser gagal diverifikasi. Perbaikan AI dilewati; artefak asli dipertahankan agar tidak diganti dengan game yang belum tervalidasi."
+        );
+        return;
+      }
+
       const nextRepairAttempt = autonomousRepairAttempts + 1;
 
       setLabSession((previous) => {
@@ -916,7 +928,7 @@ const handleTestReport =
         );
       }
     },
-    [autonomousRepairAttempts, blueprint, experimentId]
+    [autonomousRepairAttempts, blueprint, experimentId, provider, model]
   );
 
 const handleSandboxGameHtmlChange =
