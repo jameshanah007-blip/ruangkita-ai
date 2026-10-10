@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - feat/fun-zone-local-platformer-director
+      - feat/fun-zone-game-discovery-portal
   pull_request:
     branches:
       - feat/fun-zone-phaser-asset-contract-fix
       - feat/fun-zone-local-platformer-director
+      - feat/fun-zone-game-discovery-portal
   workflow_dispatch:
 
 permissions:
