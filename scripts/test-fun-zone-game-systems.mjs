@@ -245,6 +245,10 @@ assert.ok(platformerRuntimeHtml.includes("bridged.arrowleft") && platformerRunti
 assert.ok(platformerRuntimeHtml.includes("bridged.arrowup") && platformerRuntimeHtml.includes("bridged.arrowdown"), "platformer runtime must map up/down arrows to platformer actions");
 assert.ok(platformerRuntimeHtml.includes("const activePointers=new Map()"), "touch input must track individual pointer IDs for multitouch");
 assert.ok(platformerRuntimeHtml.includes("const activeTouches=new Map()"), "touch input must track individual touch identifiers");
+assert.ok(platformerRuntimeHtml.includes("b.setPointerCapture(event.pointerId)"), "on-screen direction controls must capture held pointer input");
+assert.ok(platformerRuntimeHtml.includes('b.addEventListener("pointerup",releasePointer)'), "direction controls must release their own pointer state on pointerup");
+assert.ok(platformerRuntimeHtml.includes('b.addEventListener("pointercancel",releasePointer)'), "direction controls must release their own pointer state on pointercancel");
+assert.ok(platformerRuntimeHtml.includes('activePointers.set(event.pointerId,kind);try{b.setPointerCapture(event.pointerId);}catch(_){}syncDirections();'), "pressing an on-screen direction must update shared direction state immediately");
 assert.ok(platformerRuntimeHtml.includes("this.events.once(Phaser.Scenes.Events.SHUTDOWN,onShutdown)"), "scene shutdown must clean touch DOM and listeners");
 assert.ok(platformerRuntimeHtml.includes('window.removeEventListener("pointerup",onPointerUp)'), "pointer listeners must be removed when a scene shuts down");
 assert.ok(platformerRuntimeHtml.includes('this.input.keyboard.off("keydown-R",this._sceneRestartKeyHandler)'), "scene restart keyboard handler must be removed on shutdown");
