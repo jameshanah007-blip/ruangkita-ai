@@ -107,10 +107,10 @@ export async function searchExternalGames(prompt: string): Promise<{
         url: key,
         imageUrl: null,
         description: description || `Buka halaman game ini di ${provider?.name ?? url.hostname} untuk melihat detail dan cara bermain.`,
-        source: provider.domain,
+        source: provider?.domain ?? url.hostname.replace(/^www\./, ""),
         relevance: 0,
       });
-      if (candidates.length >= 12) break;
+      if (candidates.length >= 10) break;
     }
 
     const games = await Promise.all(candidates.map(async (game) => ({
