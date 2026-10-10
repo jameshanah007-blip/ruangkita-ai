@@ -144,6 +144,7 @@ class PlatformerScene extends Phaser.Scene{
    window.removeEventListener("touchend",onTouchEnd);
    window.removeEventListener("touchcancel",onTouchEnd);
    window.removeEventListener("blur",onBlur);
+   window.removeEventListener("blur",this._windowBlur);
    window.removeEventListener("keydown",this._windowKeyDown);
    window.removeEventListener("keyup",this._windowKeyUp);
    touchPad.remove();
