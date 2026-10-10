@@ -29,6 +29,8 @@ jobs:
         run: npm ci
       - name: Run Fun Zone regression tests
         run: npm run test:fun-zone-systems
+      - name: Run external game discovery regression tests
+        run: npm run test:fun-zone-discovery
       - name: Run real racing asset integration test
         run: npm run test:fun-zone-racing-integration
       - name: TypeScript validation
