@@ -242,6 +242,7 @@ assert.ok(platformerRuntimeHtml.includes("this.events.once(Phaser.Scenes.Events.
 assert.ok(platformerRuntimeHtml.includes('window.removeEventListener("pointerup",onPointerUp)'), "pointer listeners must be removed when a scene shuts down");
 assert.ok(platformerRuntimeHtml.includes('if(oldTouchPad)oldTouchPad.remove()'), "restart must not duplicate the DOM touch pad");
 assert.ok(platformerRuntimeHtml.includes('if(action==="restart")return restartGame()'), "test protocol must expose restart as a supported action");
+assert.ok(platformerRuntimeHtml.includes("window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;restartButton.style.display"), "restart must clear stale readiness evidence before the scene reloads");
 assert.ok(platformerRuntimeHtml.includes('return beforeY!==sceneRef.player.body.velocity.y&&sceneRef.player.body.velocity.y<0'), "jump action only succeeds when vertical velocity actually changes upward");
 assert.ok(platformerRuntimeHtml.includes("this._assetLoadErrors.push(message)"), "asset load errors must be retained");
 assert.ok(platformerRuntimeHtml.includes("Required Phaser textures unavailable"), "runtime readiness must fail when a required texture is missing");
