@@ -1,9 +1,13 @@
 name: Fun Zone regression tests
 
 on:
+  push:
+    branches:
+      - feat/fun-zone-local-platformer-director
   pull_request:
     branches:
       - feat/fun-zone-phaser-asset-contract-fix
+      - feat/fun-zone-local-platformer-director
   workflow_dispatch:
 
 permissions:
