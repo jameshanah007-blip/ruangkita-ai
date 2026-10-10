@@ -79,12 +79,11 @@ export async function searchExternalGames(prompt: string): Promise<{
   }
 
   const exa = new Exa(apiKey);
-  const query = `Find specific free browser-playable games that best match this user request: ${prompt}. Search across reputable game portals, include individual game pages with playable games, and avoid category pages, news, reviews, and articles.`;
+  const query = `Find specific free browser-playable 2D games that best match this user request: ${prompt}. Search broadly across the web, including reputable game portals such as Poki, CrazyGames, Games.co.id, Playhop, itch.io, Newgrounds, GamePix, Y8 and other relevant sources. Return individual game pages, not category pages, news, reviews, or articles.`;
   try {
     const response = await exa.search(query, {
       type: "auto",
-      numResults: 30,
-      includeDomains: SOURCES.map((source) => source.domain),
+      numResults: 10,
       contents: { highlights: { maxCharacters: 900 } },
     });
     const seen = new Set<string>();
@@ -95,7 +94,7 @@ export async function searchExternalGames(prompt: string): Promise<{
       let url: URL;
       try { url = new URL(item.url); } catch { continue; }
       const provider = providerFor(url.hostname.toLowerCase());
-      if (url.protocol !== "https:" || !provider) continue;
+      if (url.protocol !== "https:") continue;
       if (/\/(?:tag|category|categories|search|2d|2-player|2-pemain)\/?(?:$|\?)/i.test(url.pathname)) continue;
       const key = url.toString().split("#")[0];
       if (seen.has(key)) continue;
@@ -104,10 +103,10 @@ export async function searchExternalGames(prompt: string): Promise<{
       candidates.push({
         id: key,
         name: cleanText(item.title, 100),
-        provider: provider.name,
+        provider: provider?.name ?? url.hostname.replace(/^www\./, ""),
         url: key,
         imageUrl: null,
-        description: description || `Buka halaman game ini di ${provider.name} untuk melihat detail dan cara bermain.`,
+        description: description || `Buka halaman game ini di ${provider?.name ?? url.hostname} untuk melihat detail dan cara bermain.`,
         source: provider.domain,
         relevance: 0,
       });
