@@ -10,6 +10,7 @@ import {
   type GameGenre,
   type GamePortal,
 } from "./discovery/gameCatalog";
+import type { DiscoveredExternalGame } from "./discovery/searchExternalGames";
 
 type DiscoveryResponse = {
   success?: boolean;
@@ -19,6 +20,10 @@ type DiscoveryResponse = {
     label: string;
     explanation: string;
     portals: GamePortal[];
+    games: DiscoveredExternalGame[];
+    searchStatus: "live_search" | "unavailable" | "no_results";
+    sources: string[];
+    message?: string;
   };
 };
 
@@ -76,7 +81,8 @@ export default function FunZonePage() {
   const matchingGames = EXTERNAL_GAMES.filter((game) =>
     !result || result.genre === "all" ? true : game.tags.includes(result.genre),
   );
-  const visibleGames = matchingGames.length > 0 ? matchingGames : EXTERNAL_GAMES;
+  const visibleGames = result?.games?.length ? result.games : matchingGames.length > 0 ? matchingGames : EXTERNAL_GAMES;
+  const isLiveSearch = Boolean(result?.games?.length && result.searchStatus === "live_search");
   const visiblePortals = result?.portals ?? GAME_PORTALS;
 
   return (
@@ -109,7 +115,7 @@ export default function FunZonePage() {
                 id="game-prompt"
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
-                placeholder="Contoh: aku ingin game petualangan 2D atau main berdua..."
+                placeholder="Contoh: game 2D santai tentang mengelola toko sambil bertani..."
                 maxLength={2000}
                 className="min-h-12 min-w-0 flex-1 rounded-xl bg-transparent px-4 text-sm text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-violet-400/50"
               />
@@ -161,7 +167,7 @@ export default function FunZonePage() {
                 {result ? `Game ${result.label}` : "Game pilihan untuk dijelajahi"}
               </h2>
               <p className="mt-2 max-w-2xl text-sm text-slate-400">
-                Kartu game memakai gambar dari penyedia eksternal. Pilih gambar atau tombol untuk membuka halaman game aslinya.
+                Kartu game memakai gambar dari penyedia eksternal. James mencari halaman game individual dari sumber eksternal. Pilih kartu untuk membuka game aslinya.
               </p>
             </div>
             <p className="text-sm text-slate-500">{visibleGames.length} pilihan game</p>
@@ -193,7 +199,7 @@ export default function FunZonePage() {
             ))}
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-500">
-            Gambar dan game berasal dari platform masing-masing. Pilihan saat ini adalah katalog awal yang akan diperluas per genre setelah setiap halaman dan gambar diverifikasi.
+            Hasil berasal dari pencarian eksternal langsung bila tersedia. Gambar ditampilkan jika metadata halaman sumber tersedia; katalog lokal menjadi fallback bila pencarian tidak tersedia.
           </p>
         </section>
 
