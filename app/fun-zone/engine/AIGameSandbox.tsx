@@ -274,6 +274,18 @@ function buildDiagnosticHtml(
    * then the sandbox dispatches a real KeyboardEvent to the game document.
    */
   try {
+    window.__RK_KEYBOARD_STATE__ = Object.create(null);
+    var updateKeyboardState = function (event) {
+      var key = String(event && event.key || "").toLowerCase();
+      if (!key) return;
+      if (event.type === "keydown") window.__RK_KEYBOARD_STATE__[key] = true;
+      if (event.type === "keyup") delete window.__RK_KEYBOARD_STATE__[key];
+    };
+    window.addEventListener("keydown", updateKeyboardState, true);
+    window.addEventListener("keyup", updateKeyboardState, true);
+    window.addEventListener("blur", function () {
+      window.__RK_KEYBOARD_STATE__ = Object.create(null);
+    });
     window.addEventListener("message", function (event) {
       try {
         var data = event && event.data;
