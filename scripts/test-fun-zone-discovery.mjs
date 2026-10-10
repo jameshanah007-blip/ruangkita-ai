@@ -13,14 +13,17 @@ assert.ok(adventureGames.some((game) => game.id === "apple-knight-mini-dungeons"
 const twoPlayer = resolveGameDiscovery("Cari game untuk main berdua dengan teman");
 assert.equal(twoPlayer.genre, "multiplayer");
 assert.ok(twoPlayer.portals.some((portal) => portal.id === "poki"));
+assert.ok(EXTERNAL_GAMES.some((game) => game.tags.includes("multiplayer")), "multiplayer intent should return a specific game card");
 
 const racing = resolveGameDiscovery("Aku mau game balapan mobil");
 assert.equal(racing.genre, "racing");
 assert.ok(racing.portals.length > 0);
+assert.ok(EXTERNAL_GAMES.some((game) => game.tags.includes("racing")), "racing intent should return a specific game card");
 
 const farming = resolveGameDiscovery("Aku ingin game farming 2D");
 assert.equal(farming.genre, "farming");
 assert.ok(farming.portals.some((portal) => portal.id === "crazygames"));
+assert.ok(EXTERNAL_GAMES.some((game) => game.tags.includes("farming")), "farming intent should return a specific simulation/farming card");
 
 const adventureWithFriends = resolveGameDiscovery("Aku ingin game petualangan 2D untuk main berdua dengan teman");
 assert.equal(adventureWithFriends.genre, "multiplayer");
