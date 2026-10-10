@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { buildGameSystemPlan } from "../app/fun-zone/engine/gameSystemFactory.ts";
 import { composeGamePlan } from "../app/fun-zone/engine/gameComposer.ts";
 import { buildVisualBlueprint } from "../app/fun-zone/engine/visualBlueprint.ts";
@@ -213,6 +214,9 @@ assert.ok(!farmingRuntimeHtml.includes("\\${"));
 assert.ok(!farmingRuntimeHtml.includes("this.this.moveState"));
 
 assert.ok(farmingRuntimeHtml.includes("performTestAction"));
+assert.ok(farmingRuntimeHtml.includes("window.__RK_KEYBOARD_STATE__"), "farming runtime must consume the shared sandbox keyboard state");
+assert.ok(farmingRuntimeHtml.includes("bridged.arrowleft") && farmingRuntimeHtml.includes("bridged.arrowright"), "farming runtime must support bridged left/right arrows");
+assert.ok(farmingRuntimeHtml.includes("bridged.arrowup") && farmingRuntimeHtml.includes("bridged.arrowdown"), "farming runtime must support bridged up/down arrows");
 
 // Platformer has its own asset-backed runtime and requires real sprite-sheet metadata.
 const platformerRuntimeSpec = {
@@ -236,6 +240,9 @@ assert.ok(platformerRuntimeHtml.includes("const CFG="));
 assert.ok(platformerRuntimeHtml.includes("hero-run"));
 assert.ok(platformerRuntimeHtml.includes('start:rowFrames'), "platformer run animation must use a separate animation row, not replay idle frames");
 assert.ok(platformerRuntimeHtml.includes("window.__RK_GAME_TEST__"));
+assert.ok(platformerRuntimeHtml.includes("window.__RK_KEYBOARD_STATE__"), "platformer runtime must consume the shared sandbox keyboard state");
+assert.ok(platformerRuntimeHtml.includes("bridged.arrowleft") && platformerRuntimeHtml.includes("bridged.arrowright"), "platformer runtime must support bridged left/right arrows");
+assert.ok(platformerRuntimeHtml.includes("bridged.arrowup") && platformerRuntimeHtml.includes("bridged.arrowdown"), "platformer runtime must map up/down arrows to platformer actions");
 assert.ok(platformerRuntimeHtml.includes("const activePointers=new Map()"), "touch input must track individual pointer IDs for multitouch");
 assert.ok(platformerRuntimeHtml.includes("const activeTouches=new Map()"), "touch input must track individual touch identifiers");
 assert.ok(platformerRuntimeHtml.includes("this.events.once(Phaser.Scenes.Events.SHUTDOWN,onShutdown)"), "scene shutdown must clean touch DOM and listeners");
@@ -450,6 +457,12 @@ state = evolveCreature(state, hero.id, "Testling Ascended");
 const evolved = state.collection.creatures.find((c) => c.id === hero.id);
 assert.equal(evolved?.form, "Testling Ascended");
 assert.ok(state.evolution.evolvedCreatureIds.includes(hero.id));
+
+const sandboxSource = await readFile(new URL("../app/fun-zone/engine/AIGameSandbox.tsx", import.meta.url), "utf8");
+assert.ok(sandboxSource.includes("window.__RK_KEYBOARD_STATE__ = Object.create(null)"), "sandbox must initialize a shared keyboard state map");
+assert.ok(sandboxSource.includes('type === "AI_GAME_KEY_RESET"'), "sandbox must clear stuck keys on parent focus loss");
+assert.ok(sandboxSource.includes("window.addEventListener(\"keydown\", updateKeyboardState, true)"), "sandbox must capture native keydown inside the iframe");
+assert.ok(sandboxSource.includes("window.addEventListener(\"keyup\", updateKeyboardState, true)"), "sandbox must capture native keyup inside the iframe");
 
 console.log("Fun Zone Game System Factory stress test: PASS");
 console.log(JSON.stringify({
