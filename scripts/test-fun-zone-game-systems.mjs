@@ -240,6 +240,7 @@ assert.ok(platformerRuntimeHtml.includes("const activePointers=new Map()"), "tou
 assert.ok(platformerRuntimeHtml.includes("const activeTouches=new Map()"), "touch input must track individual touch identifiers");
 assert.ok(platformerRuntimeHtml.includes("this.events.once(Phaser.Scenes.Events.SHUTDOWN,onShutdown)"), "scene shutdown must clean touch DOM and listeners");
 assert.ok(platformerRuntimeHtml.includes('window.removeEventListener("pointerup",onPointerUp)'), "pointer listeners must be removed when a scene shuts down");
+assert.ok(platformerRuntimeHtml.includes('this.input.keyboard.off("keydown-R",this._sceneRestartKeyHandler)'), "scene restart keyboard handler must be removed on shutdown");
 assert.ok(platformerRuntimeHtml.includes('if(oldTouchPad)oldTouchPad.remove()'), "restart must not duplicate the DOM touch pad");
 assert.ok(platformerRuntimeHtml.includes('if(action==="restart")return restartGame()'), "test protocol must expose restart as a supported action");
 assert.ok(platformerRuntimeHtml.includes("window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;restartButton.style.display"), "restart must clear stale readiness evidence before the scene reloads");
