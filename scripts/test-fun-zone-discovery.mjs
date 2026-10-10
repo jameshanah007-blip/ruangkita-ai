@@ -14,6 +14,14 @@ const racing = resolveGameDiscovery("Aku mau game balapan mobil");
 assert.equal(racing.genre, "racing");
 assert.ok(racing.portals.length > 0);
 
+const farming = resolveGameDiscovery("Aku ingin game farming 2D");
+assert.equal(farming.genre, "farming");
+assert.ok(farming.portals.some((portal) => portal.id === "crazygames"));
+
+const adventureWithFriends = resolveGameDiscovery("Aku ingin game petualangan 2D untuk main berdua dengan teman");
+assert.equal(adventureWithFriends.genre, "multiplayer");
+assert.ok(adventureWithFriends.portals.some((portal) => portal.id === "poki"));
+
 const unknown = resolveGameDiscovery("carikan permainan yang seru");
 assert.equal(unknown.genre, "all");
 assert.equal(unknown.portals.length, GAME_PORTALS.length);
