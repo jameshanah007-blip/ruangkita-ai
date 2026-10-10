@@ -130,7 +130,14 @@ class PlatformerScene extends Phaser.Scene{
   const makeTouch=(label,gridColumn,gridRow,kind)=>{
    const b=document.createElement("button");b.type="button";b.textContent=label;b.setAttribute("aria-label",kind);b.setAttribute("data-rk-direction",kind);
    b.style.cssText="grid-column:"+gridColumn+";grid-row:"+gridRow+";border:1px solid #ffffffaa;border-radius:10px;background:#142a36dd;color:white;font:bold 22px Arial;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;padding:0;pointer-events:auto";
-   b.addEventListener("pointerdown",(event)=>{event.preventDefault();event.stopPropagation();activePointers.set(event.pointerId,kind);syncDirections();},{passive:false});
+   // Capture each pointer so a held direction remains owned by its button even
+   // if the finger/mouse drifts outside the small control. Release locally as
+   // well as through the window-level fallback handlers.
+   const releasePointer=(event)=>{if(activePointers.delete(event.pointerId))syncDirections();};
+   b.addEventListener("pointerdown",(event)=>{event.preventDefault();event.stopPropagation();activePointers.set(event.pointerId,kind);try{b.setPointerCapture(event.pointerId);}catch(_){}syncDirections();},{passive:false});
+   b.addEventListener("pointerup",releasePointer);
+   b.addEventListener("pointercancel",releasePointer);
+   b.addEventListener("lostpointercapture",releasePointer);
    b.addEventListener("touchstart",(event)=>{event.preventDefault();event.stopPropagation();for(const touch of Array.from(event.changedTouches||[]))activeTouches.set(touch.identifier,kind);syncDirections();},{passive:false});
    b.addEventListener("touchend",(event)=>{event.preventDefault();event.stopPropagation();onTouchEnd(event);},{passive:false});
    b.addEventListener("touchcancel",(event)=>{event.preventDefault();event.stopPropagation();onTouchEnd(event);},{passive:false});
