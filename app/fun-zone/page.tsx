@@ -3,7 +3,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import SiteNav from "../components/SiteNav";
-import { useAuth } from "../components/AuthProvider";
 import {
   GAME_PORTALS,
   GENRE_LABELS,
@@ -33,7 +32,6 @@ const GENRE_BUTTONS: { id: GameGenre; emoji: string }[] = [
 ];
 
 export default function FunZonePage() {
-  const { loading: authLoading, authenticated } = useAuth();
   const [prompt, setPrompt] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState("");
@@ -112,25 +110,20 @@ export default function FunZonePage() {
               />
               <button
                 type="submit"
-                disabled={isSearching || authLoading || !authenticated}
+                disabled={isSearching}
                 className="min-h-12 rounded-xl bg-violet-300 px-6 py-3 text-sm font-bold text-slate-950 transition hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSearching ? "Mencari game..." : "Cari game"}
               </button>
             </form>
             {error && <p role="alert" className="mt-3 text-sm text-rose-300">{error}</p>}
-            {!authLoading && !authenticated && (
-              <p className="mt-3 text-sm text-amber-200">
-                Silakan masuk ke RuangKita untuk menggunakan pencarian game.
-              </p>
-            )}
             <div className="mt-4 flex flex-wrap gap-2">
               {["Petualangan 2D", "Puzzle santai", "Balapan", "Main berdua"].map((example) => (
                 <button
                   key={example}
                   type="button"
                   onClick={() => void discoverGames(example)}
-                  disabled={authLoading || !authenticated || isSearching}
+                  disabled={isSearching}
                   className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 transition hover:border-violet-300/40 hover:bg-violet-300/10 disabled:opacity-50"
                 >
                   {example}
@@ -215,7 +208,7 @@ export default function FunZonePage() {
                 key={genre.id}
                 type="button"
                 onClick={() => void discoverGames(GENRE_LABELS[genre.id])}
-                disabled={authLoading || !authenticated || isSearching}
+                disabled={isSearching}
                 className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-fuchsia-300/30 hover:bg-fuchsia-300/[0.06] disabled:opacity-50"
               >
                 <span className="text-2xl" aria-hidden="true">{genre.emoji}</span>
