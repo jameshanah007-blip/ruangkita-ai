@@ -23,7 +23,7 @@ export const GAME_PORTALS: GamePortal[] = [
     name: "CrazyGames",
     url: "https://www.crazygames.com/id/t/2d",
     description: "Petualangan, platformer, arcade, puzzle, dan banyak genre 2D.",
-    tags: ["adventure", "platformer", "puzzle", "racing", "casual", "all"],
+    tags: ["adventure", "platformer", "puzzle", "racing", "farming", "casual", "all"],
     accent: "from-violet-500/25 to-indigo-500/10",
   },
   {
@@ -96,7 +96,12 @@ export function resolveGameDiscovery(prompt: string): {
     }))
     .sort((a, b) => b.score - a.score);
 
-  const winner = scores[0];
+  // Multiplayer is a strong intent modifier: if the user explicitly asks to play
+  // together, prioritize portals with two-player/multiplayer collections.
+  const multiplayerIntent = /\\b(2 pemain|dua pemain|berdua|multiplayer|co-op|co op|main bersama|main bareng|dengan teman)\\b/.test(normalized);
+  const winner = multiplayerIntent
+    ? scores.find((entry) => entry.genre === "multiplayer")
+    : scores[0];
   const genre: GameGenre = winner && winner.score > 0 ? winner.genre : "all";
   const portals = GAME_PORTALS.filter((portal) => portal.tags.includes(genre));
 
