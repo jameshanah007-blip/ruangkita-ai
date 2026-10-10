@@ -131,96 +131,200 @@ async function readExternalThumbnail(pageUrl: string): Promise<string | null> {
   }
 }
 
-export async function searchExternalGames(prompt: string): Promise<{
-  status: "live_search" | "unavailable" | "no_results";
-  games: DiscoveredExternalGame[];
-  sources: string[];
-  message?: string;
-}> {
-  const apiKey = process.env.EXA_API_KEY;
-  if (!apiKey) {
-    return {
-      status: "unavailable",
-      games: [],
-      sources: [],
-      message: "Pencarian eksternal langsung belum tersedia karena EXA_API_KEY belum dikonfigurasi.",
-    };
-  }
+type RawSearchResult = { title?: string; url?: string; description?: string; highlights?: string[] };
+type SearchAttempt = { provider: "Exa" | "Brave"; results: RawSearchResult[]; error?: string };
 
-  const exa = new Exa(apiKey);
-  const query = `Find specific free browser-playable 2D games that best match this user request: ${prompt}. Search broadly across the web, including reputable game portals such as Poki, CrazyGames, Games.co.id, Playhop, itch.io, Newgrounds, GamePix, Y8 and other relevant sources. Return individual game pages, not category pages, news, reviews, or articles.`;
+async function searchWithExa(prompt: string): Promise<SearchAttempt> {
+  const apiKey = process.env.EXA_API_KEY;
+  if (!apiKey) return { provider: "Exa", results: [], error: "EXA_API_KEY is not configured" };
   try {
+    const exa = new Exa(apiKey);
+    const query = \`Find specific free browser-playable 2D games that best match this user request: \${prompt}. Search broadly across the web, including reputable game portals such as Poki, CrazyGames, Games.co.id, Playhop, itch.io, Newgrounds, GamePix, Y8 and other relevant sources. Return individual game pages, not category pages, news, reviews, or articles.\`;
     const response = await exa.search(query, {
       type: "auto",
       numResults: 20,
       systemPrompt: "Prefer established game portals and official developer game pages. Return playable browser games, not articles or download mirrors. Exclude gambling, adult content, malware, and suspicious download sites.",
       contents: { highlights: { maxCharacters: 900 } },
     });
-    const seen = new Set<string>();
-    const candidates: DiscoveredExternalGame[] = [];
-
-    for (const item of response.results) {
-      if (!item.url || !item.title) continue;
-      let url: URL;
-      try { url = new URL(item.url); } catch { continue; }
-      const provider = providerFor(url.hostname.toLowerCase());
-      if (url.protocol !== "https:") continue;
-      if (/\/(?:tag|category|categories|search|2d|2-player|2-pemain)\/?(?:$|\?)/i.test(url.pathname)) continue;
-      const key = url.toString().split("#")[0];
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const description = cleanText((item.highlights || []).join(" "));
-      candidates.push({
-        id: key,
-        name: cleanText(item.title, 100),
-        provider: provider?.name ?? url.hostname.replace(/^www\./, ""),
-        url: key,
-        imageUrl: null,
-        description: description || `Buka halaman game ini di ${provider?.name ?? url.hostname} untuk melihat detail dan cara bermain.`,
-        source: provider?.domain ?? url.hostname.replace(/^www\./, ""),
-      });
-      if (candidates.length >= 20) break;
-    }
-
-    // A search result is not proof that a game is playable. Verify each candidate
-    // before it can become a card; unreachable pages and pages without game evidence
-    // are excluded rather than silently presented as playable.
-    const verifiedCandidates = await Promise.all(
-      candidates.map(async (game) => (await verifyPlayableGamePage(game.url) ? game : null)),
-    );
-    const playableCandidates = verifiedCandidates.filter(
-      (game): game is DiscoveredExternalGame => game !== null,
-    );
-
-    // Balance the final list across providers so one portal cannot dominate the
-    // whole Laboratory. Keep search relevance within each provider's result order.
-    const byProvider = new Map<string, DiscoveredExternalGame[]>();
-    for (const game of playableCandidates) {
-      const group = byProvider.get(game.provider) ?? [];
-      group.push(game);
-      byProvider.set(game.provider, group);
-    }
-    const diversified: DiscoveredExternalGame[] = [];
-    const providerQueues = [...byProvider.values()];
-    while (diversified.length < 10 && providerQueues.some((queue) => queue.length > 0)) {
-      for (const queue of providerQueues) {
-        if (queue.length && diversified.length < 10) diversified.push(queue.shift()!);
-      }
-    }
-    // Rotate a balanced set between searches to reduce repetitive ordering.
-    if (diversified.length > 1) {
-      const rotation = Math.floor(Math.random() * diversified.length);
-      diversified.push(...diversified.splice(0, rotation));
-    }
-    const games = await Promise.all(diversified.map(async (game) => ({
-      ...game,
-      imageUrl: await readExternalThumbnail(game.url),
-    })));
-    return games.length
-      ? { status: "live_search", games, sources: [...new Set(games.map((game) => game.source))] }
-      : { status: "no_results", games: [], sources: [], message: "Belum ditemukan halaman game yang dapat diverifikasi dari sumber yang diizinkan. Coba lagi atau ubah prompt; hasil yang tidak lolos pemeriksaan tidak ditampilkan." };
+    return {
+      provider: "Exa",
+      results: response.results.map((item) => ({
+        title: item.title,
+        url: item.url,
+        highlights: item.highlights || [],
+      })),
+    };
   } catch (error) {
-    console.error("External game search failed:", error instanceof Error ? error.message : error);
-    return { status: "unavailable", games: [], sources: [], message: "Pencarian eksternal sementara tidak tersedia. Coba lagi nanti." };
+    console.error("Exa game search failed:", error instanceof Error ? error.message : error);
+    return { provider: "Exa", results: [], error: "Exa search failed" };
   }
+}
+
+async function searchWithBrave(prompt: string): Promise<SearchAttempt> {
+  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
+  if (!apiKey) return { provider: "Brave", results: [], error: "BRAVE_SEARCH_API_KEY is not configured" };
+  try {
+    const query = \`free browser game \${prompt} playable online 2D game site:poki.com OR site:crazygames.com OR site:games.co.id OR site:playhop.com OR site:itch.io OR site:newgrounds.com OR site:gamepix.com OR site:y8.com OR site:lagged.com\`;
+    const url = new URL("https://api.search.brave.com/res/v1/web/search");
+    url.searchParams.set("q", query.slice(0, 600));
+    url.searchParams.set("count", "20");
+    url.searchParams.set("country", "ID");
+    url.searchParams.set("search_lang", "en");
+    const response = await fetch(url, {
+      headers: {
+        accept: "application/json",
+        "x-subscription-token": apiKey,
+      },
+      signal: AbortSignal.timeout(4500),
+    });
+    if (!response.ok) {
+      console.error("Brave game search returned HTTP", response.status);
+      return { provider: "Brave", results: [], error: \`Brave search returned HTTP \${response.status}\` };
+    }
+    const data: unknown = await response.json();
+    if (!data || typeof data !== "object" || !("web" in data)) {
+      return { provider: "Brave", results: [], error: "Brave response had no web results" };
+    }
+    const web = (data as { web?: { results?: unknown } }).web;
+    const rows = Array.isArray(web?.results) ? web.results : [];
+    return {
+      provider: "Brave",
+      results: rows.flatMap((row): RawSearchResult[] => {
+        if (!row || typeof row !== "object") return [];
+        const item = row as { title?: unknown; url?: unknown; description?: unknown };
+        if (typeof item.title !== "string" || typeof item.url !== "string") return [];
+        return [{
+          title: item.title,
+          url: item.url,
+          description: typeof item.description === "string" ? item.description : "",
+        }];
+      }),
+    };
+  } catch (error) {
+    console.error("Brave game search failed:", error instanceof Error ? error.message : error);
+    return { provider: "Brave", results: [], error: "Brave search failed" };
+  }
+}
+
+function toCandidates(results: RawSearchResult[]): DiscoveredExternalGame[] {
+  const seen = new Set<string>();
+  const candidates: DiscoveredExternalGame[] = [];
+  for (const item of results) {
+    if (!item.url || !item.title) continue;
+    let url: URL;
+    try { url = new URL(item.url); } catch { continue; }
+    const provider = providerFor(url.hostname.toLowerCase());
+    // Only accepted portals can be verified or shown. This also prevents arbitrary
+    // search results from consuming candidate slots or being fetched server-side.
+    if (url.protocol !== "https:" || !provider) continue;
+    if (/\/(?:tag|category|categories|search|2d|2-player|2-pemain)\/?(?:$|\?)/i.test(url.pathname)) continue;
+    const key = url.toString().split("#")[0];
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const description = cleanText([...(item.highlights || []), item.description || ""].join(" "));
+    candidates.push({
+      id: key,
+      name: cleanText(item.title, 100),
+      provider: provider.name,
+      url: key,
+      imageUrl: null,
+      description: description || \`Buka halaman game ini di \${provider.name} untuk melihat detail dan cara bermain.\`,
+      source: provider.domain,
+    });
+    if (candidates.length >= 20) break;
+  }
+  return candidates;
+}
+
+async function verifyAndDiversify(candidates: DiscoveredExternalGame[]): Promise<DiscoveredExternalGame[]> {
+  const verified = await Promise.all(
+    candidates.map(async (game) => (await verifyPlayableGamePage(game.url) ? game : null)),
+  );
+  const playable = verified.filter((game): game is DiscoveredExternalGame => game !== null);
+  const byProvider = new Map<string, DiscoveredExternalGame[]>();
+  for (const game of playable) {
+    const group = byProvider.get(game.provider) ?? [];
+    group.push(game);
+    byProvider.set(game.provider, group);
+  }
+  const diversified: DiscoveredExternalGame[] = [];
+  const providerQueues = [...byProvider.values()];
+  while (diversified.length < 10 && providerQueues.some((queue) => queue.length > 0)) {
+    for (const queue of providerQueues) {
+      if (queue.length && diversified.length < 10) diversified.push(queue.shift()!);
+    }
+  }
+  if (diversified.length > 1) {
+    const rotation = Math.floor(Math.random() * diversified.length);
+    diversified.push(...diversified.splice(0, rotation));
+  }
+  return diversified;
+}
+
+export async function searchExternalGames(prompt: string): Promise<{
+  status: "live_search" | "unavailable" | "no_results";
+  games: DiscoveredExternalGame[];
+  sources: string[];
+  message?: string;
+  searchProvider?: "Exa" | "Brave" | "none";
+}> {
+  // Primary search uses Exa; independent Brave Search API is attempted when Exa
+  // is unconfigured, errors, returns no candidates, or candidates fail page checks.
+  const primary = await searchWithExa(prompt);
+  let providerUsed: "Exa" | "Brave" | "none" = "none";
+  let diversified: DiscoveredExternalGame[] = [];
+
+  if (primary.results.length) {
+    diversified = await verifyAndDiversify(toCandidates(primary.results));
+    if (diversified.length) providerUsed = "Exa";
+  }
+
+  let fallback: SearchAttempt | null = null;
+  if (!diversified.length) {
+    fallback = await searchWithBrave(prompt);
+    if (fallback.results.length) {
+      diversified = await verifyAndDiversify(toCandidates(fallback.results));
+      if (diversified.length) providerUsed = "Brave";
+    }
+  }
+
+  if (!diversified.length) {
+    const hasAnyConfiguredProvider = Boolean(process.env.EXA_API_KEY || process.env.BRAVE_SEARCH_API_KEY);
+    if (!hasAnyConfiguredProvider) {
+      return {
+        status: "unavailable",
+        games: [],
+        sources: [],
+        searchProvider: "none",
+        message: "Pencarian langsung belum dikonfigurasi. Tambahkan EXA_API_KEY (utama) dan BRAVE_SEARCH_API_KEY (fallback) di environment Preview.",
+      };
+    }
+    if (primary.error && fallback?.error) {
+      return {
+        status: "unavailable",
+        games: [],
+        sources: [],
+        searchProvider: "none",
+        message: "Pencarian eksternal utama dan cadangan sedang tidak tersedia. Katalog lokal dapat digunakan sementara; hasilnya bukan pencarian langsung.",
+      };
+    }
+    return {
+      status: "no_results",
+      games: [],
+      sources: [],
+      searchProvider: providerUsed,
+      message: "Kedua pencarian tidak menemukan halaman game dari portal yang diizinkan dan lolos pemeriksaan. Coba prompt lain; hasil yang tidak terverifikasi tidak ditampilkan.",
+    };
+  }
+
+  const games = await Promise.all(diversified.map(async (game) => ({
+    ...game,
+    imageUrl: await readExternalThumbnail(game.url),
+  })));
+  return {
+    status: "live_search",
+    games,
+    sources: [...new Set(games.map((game) => game.source))],
+    searchProvider: providerUsed,
+  };
 }
