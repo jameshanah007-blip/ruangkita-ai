@@ -22,7 +22,7 @@ type DiscoveryResponse = {
     explanation: string;
     portals: GamePortal[];
     games: DiscoveredExternalGame[];
-    searchStatus: "live_search" | "unavailable" | "no_results";
+    searchStatus: "live_search" | "unavailable" | "no_results" | "local_catalog_fallback" | "live_search_with_catalog";
     sources: string[];
     message?: string;
   };
@@ -90,7 +90,7 @@ export default function FunZonePage() {
     !result || result.genre === "all" ? true : game.tags.includes(result.genre),
   );
   const visibleGames = result?.games?.length ? result.games : matchingGames.length > 0 ? matchingGames : EXTERNAL_GAMES;
-  const isLiveSearch = Boolean(result?.games?.length && result.searchStatus === "live_search");
+  const isLiveSearch = Boolean(result?.games?.length && (result.searchStatus === "live_search" || result.searchStatus === "live_search_with_catalog"));
   const visiblePortals = result?.portals ?? GAME_PORTALS;
 
   return (
@@ -127,7 +127,7 @@ export default function FunZonePage() {
           </div>
         </section>
 
-        {result && result.searchStatus !== "live_search" && (
+        {result && !isLiveSearch && (
           <section role="status" aria-live="polite" className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-4 sm:p-5">
             <p className="text-sm font-semibold text-amber-100">
               {result.searchStatus === "unavailable" ? "Pencarian langsung sedang tidak tersedia" : "Belum ada hasil game yang cocok"}
