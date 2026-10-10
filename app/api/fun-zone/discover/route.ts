@@ -44,19 +44,32 @@ export async function POST(request: Request) {
         source: new URL(game.url).hostname.replace(/^www\\./, ""),
       }));
 
-    // Local catalog is used only if no verified live results are available.
+    // Search order: Exa -> Firecrawl -> curated external-game catalog.
+    // Supplement small live result sets; failed James-generated games are never used.
+    const seenUrls = new Set(liveSearch.games.map((game) => game.url));
+    const catalogAdditions = localGames.filter((game) => {
+      if (seenUrls.has(game.url)) return false;
+      seenUrls.add(game.url);
+      return true;
+    });
     const useLocalCatalog = liveSearch.games.length === 0;
-    const games = useLocalCatalog ? localGames : liveSearch.games;
-    const searchStatus = useLocalCatalog ? "local_catalog_fallback" : liveSearch.status;
-    const sources = useLocalCatalog
-      ? [...new Set(localGames.map((game) => game.source))]
-      : liveSearch.sources;
+    const useCatalogSupplement = liveSearch.games.length > 0 && liveSearch.games.length < 6;
+    const games = useLocalCatalog
+      ? localGames
+      : useCatalogSupplement
+        ? [...liveSearch.games, ...catalogAdditions].slice(0, 10)
+        : liveSearch.games;
+    const usedCatalog = useLocalCatalog || games.length > liveSearch.games.length;
+    const searchStatus = useLocalCatalog
+      ? "local_catalog_fallback"
+      : usedCatalog ? "live_search_with_catalog" : liveSearch.status;
+    const sources = [...new Set(games.map((game) => game.source))];
 
     return NextResponse.json({
       success: true,
       discovery: {
         genre: catalogDiscovery.genre,
-        label: useLocalCatalog ? "Pilihan dari katalog game lokal" : "Hasil pencarian game",
+        label: useLocalCatalog ? "Pilihan dari katalog game lokal" : usedCatalog ? "Hasil pencarian dan katalog game" : "Hasil pencarian game",
         explanation: useLocalCatalog
           ? "Pencarian langsung tidak menghasilkan game terverifikasi. James menampilkan game dari katalog lokal yang telah dikurasi sebagai cadangan."
           : "James mencari game berdasarkan maksud prompt dan menampilkan halaman game eksternal yang lolos pemeriksaan.",
@@ -69,7 +82,7 @@ export async function POST(request: Request) {
           ? `Menampilkan ${localGames.length} game dari katalog lokal. Game ini berasal dari platform eksternal, bukan game buatan James.`
           : liveSearch.message,
       },
-      mode: useLocalCatalog ? "local-catalog-fallback" : "dynamic-external-search",
+      mode: useLocalCatalog ? "local-catalog-fallback" : usedCatalog ? "external-search-with-catalog" : "dynamic-external-search",
       note: "Kartu katalog lokal merujuk ke game eksternal yang dikurasi. Tidak ada game buatan James yang gagal dijalankan dalam daftar fallback.",
     });
   } catch {
