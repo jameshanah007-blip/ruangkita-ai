@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { resolveGameDiscovery } from "../../../fun-zone/discovery/gameCatalog";
+import { GAME_PORTALS } from "../../../fun-zone/discovery/gameCatalog";
 import { searchExternalGames } from "../../../fun-zone/discovery/searchExternalGames";
 
 export const runtime = "nodejs";
@@ -31,15 +31,15 @@ export async function POST(request: Request) {
     // The local catalog is only a fallback/portal hint. Live results are retrieved
     // from approved external game platforms for each prompt, not selected solely
     // from a fixed genre list.
-    const [catalogHint, liveSearch] = await Promise.all([
-      Promise.resolve(resolveGameDiscovery(prompt)),
-      searchExternalGames(prompt),
-    ]);
+    const liveSearch = await searchExternalGames(prompt);
 
     return NextResponse.json({
       success: true,
       discovery: {
-        ...catalogHint,
+        genre: "all",
+        label: "Hasil pencarian game",
+        explanation: "James mencari game berdasarkan keseluruhan maksud prompt. Genre tidak dibatasi pada daftar kategori tetap; hasil ditentukan oleh relevansi halaman game eksternal.",
+        portals: GAME_PORTALS,
         games: liveSearch.games,
         searchStatus: liveSearch.status,
         sources: liveSearch.sources,
