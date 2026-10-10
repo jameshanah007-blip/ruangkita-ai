@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import SiteNav from "../components/SiteNav";
+import { useAuth } from "../components/AuthProvider";
 import {
   EXTERNAL_GAMES,
   GAME_PORTALS,
@@ -38,6 +39,7 @@ const GENRE_BUTTONS: { id: GameGenre; emoji: string }[] = [
 ];
 
 export default function FunZonePage() {
+  const { user } = useAuth();
   const [prompt, setPrompt] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState("");
@@ -91,11 +93,11 @@ export default function FunZonePage() {
       <div className="mx-auto w-full max-w-7xl px-4 pb-16 pt-8 sm:px-6 lg:px-8">
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#080b14] px-5 py-8 sm:px-8 sm:py-10">
           <div className="relative mx-auto max-w-3xl text-center">
-            <h1 className="text-4xl font-black tracking-tight text-violet-300 sm:text-5xl lg:text-6xl">
+            <h1 className="text-4xl font-black tracking-tight text-[#00D3F1] sm:text-5xl lg:text-6xl">
               Laboratory Game
             </h1>
-            <p className="mt-4 text-base text-violet-200 sm:text-lg">
-              Tulis game yang kamu inginkan, aku akan membuatkan untukmu.
+            <p className="mt-4 text-base text-[#00D3F1] sm:text-lg">
+              Hai {user?.name?.trim() || "kamu"}, tulis game yang kamu inginkan, aku akan membuatkannya untukmu.
             </p>
             <form onSubmit={handleSubmit} className="mt-7 flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/30 p-2 sm:flex-row">
               <label htmlFor="game-prompt" className="sr-only">Game yang ingin dimainkan</label>
@@ -103,9 +105,9 @@ export default function FunZonePage() {
                 id="game-prompt"
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
-                placeholder="Tulis game yang kamu inginkan..."
+                placeholder=""
                 maxLength={500}
-                className="min-h-12 min-w-0 flex-1 rounded-xl bg-transparent px-4 text-sm text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-violet-400/50"
+                className="min-h-12 min-w-0 flex-1 rounded-xl bg-transparent px-4 text-sm text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-[#00D3F1]/50"
               />
               <button
                 type="submit"
