@@ -41,7 +41,7 @@ export async function POST(request: Request) {
         url: game.url,
         imageUrl: game.imageUrl,
         description: game.description,
-        source: new URL(game.url).hostname.replace(/^www\\./, ""),
+        source: new URL(game.url).hostname.replace(/^www\./, ""),
       }));
 
     // Search order: Exa -> Firecrawl -> curated external-game catalog.
