@@ -132,7 +132,7 @@ async function readExternalThumbnail(pageUrl: string): Promise<string | null> {
 }
 
 type RawSearchResult = { title?: string; url?: string; description?: string; highlights?: string[] };
-type SearchAttempt = { provider: "Exa" | "Brave"; results: RawSearchResult[]; error?: string };
+type SearchAttempt = { provider: "Exa" | "Firecrawl"; results: RawSearchResult[]; error?: string };
 
 async function searchWithExa(prompt: string): Promise<SearchAttempt> {
   const apiKey = process.env.EXA_API_KEY;
@@ -160,49 +160,68 @@ async function searchWithExa(prompt: string): Promise<SearchAttempt> {
   }
 }
 
-async function searchWithBrave(prompt: string): Promise<SearchAttempt> {
-  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
-  if (!apiKey) return { provider: "Brave", results: [], error: "BRAVE_SEARCH_API_KEY is not configured" };
+async function searchWithFirecrawl(prompt: string): Promise<SearchAttempt> {
+  const apiKey = process.env.FIRECRAWL_API_KEY;
+  if (!apiKey) return { provider: "Firecrawl", results: [], error: "FIRECRAWL_API_KEY is not configured" };
   try {
-    const query = `free browser game ${prompt} playable online 2D game site:poki.com OR site:crazygames.com OR site:games.co.id OR site:playhop.com OR site:itch.io OR site:newgrounds.com OR site:gamepix.com OR site:y8.com OR site:lagged.com`;
-    const url = new URL("https://api.search.brave.com/res/v1/web/search");
-    url.searchParams.set("q", query.slice(0, 600));
-    url.searchParams.set("count", "20");
-    url.searchParams.set("country", "ID");
-    url.searchParams.set("search_lang", "en");
-    const response = await fetch(url, {
+    const query = `free browser-playable game ${prompt} online 2D game`;
+    const response = await fetch("https://api.firecrawl.dev/v2/search", {
+      method: "POST",
       headers: {
         accept: "application/json",
-        "x-subscription-token": apiKey,
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
       },
-      signal: AbortSignal.timeout(4500),
+      body: JSON.stringify({
+        query: query.slice(0, 500),
+        limit: 20,
+        includeDomains: SOURCES.map(({ domain }) => domain),
+      }),
+      signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) {
-      console.error("Brave game search returned HTTP", response.status);
-      return { provider: "Brave", results: [], error: `Brave search returned HTTP ${response.status}` };
+      console.error("Firecrawl game search returned HTTP", response.status);
+      return { provider: "Firecrawl", results: [], error: `Firecrawl search returned HTTP ${response.status}` };
     }
     const data: unknown = await response.json();
-    if (!data || typeof data !== "object" || !("web" in data)) {
-      return { provider: "Brave", results: [], error: "Brave response had no web results" };
+    if (!data || typeof data !== "object") {
+      return { provider: "Firecrawl", results: [], error: "Firecrawl response was invalid" };
     }
-    const web = (data as { web?: { results?: unknown } }).web;
-    const rows = Array.isArray(web?.results) ? web.results : [];
+    const payload = data as {
+      success?: unknown;
+      data?: unknown;
+      error?: unknown;
+    };
+    if (payload.success === false) {
+      return { provider: "Firecrawl", results: [], error: "Firecrawl search was unsuccessful" };
+    }
+    // Firecrawl's v2 response has appeared as either a flat data array or
+    // a grouped data.web array; accept both documented response shapes.
+    const rawData = payload.data;
+    const rows = Array.isArray(rawData)
+      ? rawData
+      : rawData && typeof rawData === "object" && "web" in rawData &&
+          Array.isArray((rawData as { web?: unknown }).web)
+        ? (rawData as { web: unknown[] }).web
+        : [];
     return {
-      provider: "Brave",
+      provider: "Firecrawl",
       results: rows.flatMap((row): RawSearchResult[] => {
         if (!row || typeof row !== "object") return [];
-        const item = row as { title?: unknown; url?: unknown; description?: unknown };
+        const item = row as { title?: unknown; url?: unknown; description?: unknown; markdown?: unknown };
         if (typeof item.title !== "string" || typeof item.url !== "string") return [];
         return [{
           title: item.title,
           url: item.url,
-          description: typeof item.description === "string" ? item.description : "",
+          description: typeof item.description === "string"
+            ? item.description
+            : typeof item.markdown === "string" ? item.markdown.slice(0, 900) : "",
         }];
       }),
     };
   } catch (error) {
-    console.error("Brave game search failed:", error instanceof Error ? error.message : error);
-    return { provider: "Brave", results: [], error: "Brave search failed" };
+    console.error("Firecrawl game search failed:", error instanceof Error ? error.message : error);
+    return { provider: "Firecrawl", results: [], error: "Firecrawl search failed" };
   }
 }
 
@@ -266,12 +285,12 @@ export async function searchExternalGames(prompt: string): Promise<{
   games: DiscoveredExternalGame[];
   sources: string[];
   message?: string;
-  searchProvider?: "Exa" | "Brave" | "none";
+  searchProvider?: "Exa" | "Firecrawl" | "none";
 }> {
-  // Primary search uses Exa; independent Brave Search API is attempted when Exa
+  // Primary search uses Exa; independent Firecrawl Search API is attempted when Exa
   // is unconfigured, errors, returns no candidates, or candidates fail page checks.
   const primary = await searchWithExa(prompt);
-  let providerUsed: "Exa" | "Brave" | "none" = "none";
+  let providerUsed: "Exa" | "Firecrawl" | "none" = "none";
   let diversified: DiscoveredExternalGame[] = [];
 
   if (primary.results.length) {
@@ -281,22 +300,22 @@ export async function searchExternalGames(prompt: string): Promise<{
 
   let fallback: SearchAttempt | null = null;
   if (!diversified.length) {
-    fallback = await searchWithBrave(prompt);
+    fallback = await searchWithFirecrawl(prompt);
     if (fallback.results.length) {
       diversified = await verifyAndDiversify(toCandidates(fallback.results));
-      if (diversified.length) providerUsed = "Brave";
+      if (diversified.length) providerUsed = "Firecrawl";
     }
   }
 
   if (!diversified.length) {
-    const hasAnyConfiguredProvider = Boolean(process.env.EXA_API_KEY || process.env.BRAVE_SEARCH_API_KEY);
+    const hasAnyConfiguredProvider = Boolean(process.env.EXA_API_KEY || process.env.FIRECRAWL_API_KEY);
     if (!hasAnyConfiguredProvider) {
       return {
         status: "unavailable",
         games: [],
         sources: [],
         searchProvider: "none",
-        message: "Pencarian langsung belum dikonfigurasi. Tambahkan EXA_API_KEY (utama) dan BRAVE_SEARCH_API_KEY (fallback) di environment Preview.",
+        message: "Pencarian langsung belum dikonfigurasi. Tambahkan EXA_API_KEY (utama) dan FIRECRAWL_API_KEY (fallback) di environment Preview.",
       };
     }
     if (primary.error && fallback?.error) {
@@ -313,7 +332,7 @@ export async function searchExternalGames(prompt: string): Promise<{
       games: [],
       sources: [],
       searchProvider: providerUsed,
-      message: "Kedua pencarian tidak menemukan halaman game dari portal yang diizinkan dan lolos pemeriksaan. Coba prompt lain; hasil yang tidak terverifikasi tidak ditampilkan.",
+      message: "Pencarian eksternal tidak menemukan halaman game dari portal yang diizinkan dan lolos pemeriksaan. Coba prompt lain; hasil yang tidak terverifikasi tidak ditampilkan.",
     };
   }
 
