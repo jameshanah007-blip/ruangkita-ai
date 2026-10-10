@@ -179,7 +179,7 @@ export default function FunZonePage() {
                 <a href={game.url} target="_blank" rel="noopener noreferrer" className="block" aria-label={`Mainkan ${game.name} di ${game.provider}`}>
                   <div className="relative aspect-square overflow-hidden bg-slate-900">
                     <img
-                      src={game.imageUrl || "https://www.poki.com/favicon.ico"}
+                      src={game.imageUrl || `https://www.google.com/s2/favicons?domain=${new URL(game.url).hostname}&sz=128`}
                       alt={`Ikon game ${game.name}`}
                       loading="lazy"
                       referrerPolicy="no-referrer"
