@@ -102,12 +102,23 @@ class PlatformerScene extends Phaser.Scene{
   // DOM touch pad sits above the canvas to avoid Phaser hit-testing swallowing taps.
   let touchPad=document.getElementById("rkTouchPad");
   if(!touchPad){touchPad=document.createElement("div");touchPad.id="rkTouchPad";touchPad.setAttribute("aria-label","Game touch controls");touchPad.style.cssText="position:fixed;left:14px;bottom:18px;z-index:10;display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:5px;touch-action:none;user-select:none;-webkit-user-select:none";document.body.appendChild(touchPad);}
-  const makeTouch=(label,gridColumn,gridRow,kind)=>{const b=document.createElement("button");b.type="button";b.textContent=label;b.setAttribute("aria-label",kind);b.style.cssText="grid-column:"+gridColumn+";grid-row:"+gridRow+";border:1px solid #ffffffaa;border-radius:10px;background:#142a36dd;color:white;font:bold 22px Arial;touch-action:none;padding:0";const press=(event)=>{event.preventDefault();if(kind==="left")this.move.left=true;else if(kind==="right")this.move.right=true;else if(kind==="up")this.touchJump=true;else this._pressedKeys.add("arrowdown");try{b.setPointerCapture(event.pointerId);}catch{}};const release=(event)=>{event.preventDefault();if(kind==="left")this.move.left=false;else if(kind==="right")this.move.right=false;else if(kind==="up")this.touchJump=false;else this._pressedKeys.delete("arrowdown");};b.addEventListener("pointerdown",press,{passive:false});b.addEventListener("pointerup",release,{passive:false});b.addEventListener("pointercancel",release,{passive:false});b.addEventListener("lostpointercapture",release,{passive:false});
-  // Older mobile webviews may expose touch events without reliable Pointer Events.
-  const touchPress=(event)=>{event.preventDefault();if(kind==="left")this.move.left=true;else if(kind==="right")this.move.right=true;else if(kind==="up")this.touchJump=true;else this._pressedKeys.add("arrowdown");};
-  const touchRelease=(event)=>{event.preventDefault();if(kind==="left")this.move.left=false;else if(kind==="right")this.move.right=false;else if(kind==="up")this.touchJump=false;else this._pressedKeys.delete("arrowdown");};
-  b.addEventListener("touchstart",touchPress,{passive:false});b.addEventListener("touchend",touchRelease,{passive:false});b.addEventListener("touchcancel",touchRelease,{passive:false});
-  b.addEventListener("contextmenu",(event)=>event.preventDefault());touchPad.appendChild(b);};
+  const activeTouchDirections=new Set();
+  const applyTouchDirection=(kind,down)=>{
+   if(down)activeTouchDirections.add(kind);else activeTouchDirections.delete(kind);
+   this.move.left=activeTouchDirections.has("left");
+   this.move.right=activeTouchDirections.has("right");
+   this.touchJump=activeTouchDirections.has("up");
+   if(activeTouchDirections.has("down"))this._pressedKeys.add("arrowdown");else this._pressedKeys.delete("arrowdown");
+  };
+  const releaseAllTouchDirections=()=>{activeTouchDirections.clear();this.move.left=false;this.move.right=false;this.touchJump=false;this._pressedKeys.delete("arrowdown");};
+  window.addEventListener("pointerup",releaseAllTouchDirections);
+  window.addEventListener("pointercancel",releaseAllTouchDirections);
+  window.addEventListener("touchend",releaseAllTouchDirections,{passive:true});
+  window.addEventListener("touchcancel",releaseAllTouchDirections,{passive:true});
+  const makeTouch=(label,gridColumn,gridRow,kind)=>{const b=document.createElement("button");b.type="button";b.textContent=label;b.setAttribute("aria-label",kind);b.setAttribute("data-rk-direction",kind);b.style.cssText="grid-column:"+gridColumn+";grid-row:"+gridRow+";border:1px solid #ffffffaa;border-radius:10px;background:#142a36dd;color:white;font:bold 22px Arial;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;padding:0;pointer-events:auto";const press=(event)=>{event.preventDefault();event.stopPropagation();applyTouchDirection(kind,true);};const release=(event)=>{event.preventDefault();event.stopPropagation();applyTouchDirection(kind,false);};b.addEventListener("pointerdown",press,{passive:false});b.addEventListener("pointerup",release,{passive:false});b.addEventListener("pointercancel",release,{passive:false});b.addEventListener("lostpointercapture",release,{passive:false});
+  // Fallback for mobile webviews where Pointer Events are missing or inconsistent.
+  b.addEventListener("touchstart",press,{passive:false});b.addEventListener("touchend",release,{passive:false});b.addEventListener("touchcancel",release,{passive:false});
+  b.addEventListener("contextmenu",(event)=>event.preventDefault());b.addEventListener("click",(event)=>{event.preventDefault();if(kind==="up"){this.touchJump=true;}else if(kind==="left"||kind==="right"){applyTouchDirection(kind,true);window.setTimeout(()=>applyTouchDirection(kind,false),120);}});touchPad.appendChild(b);};
   makeTouch("▲","2","1","up");makeTouch("◀","1","2","left");makeTouch("▼","2","2","down");makeTouch("▶","3","2","right");
   window.__RK_GAME_RENDERED__=true;window.__RK_GAME_READY__=true;
  }
