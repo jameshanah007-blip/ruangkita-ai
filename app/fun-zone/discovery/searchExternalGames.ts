@@ -297,9 +297,9 @@ export async function searchExternalGames(prompt: string): Promise<{
     fallback = await searchWithFirecrawl(prompt);
     if (fallback.results.length) {
       const additional = await verifyAndDiversify(toCandidates(fallback.results));
-      const seen = new Set(verified.map((game) => game.url.replace(/\\/$/, "")));
+      const seen = new Set(verified.map((game) => game.url.replace(/\/$/, "")));
       for (const game of additional) {
-        const key = game.url.replace(/\\/$/, "");
+        const key = game.url.replace(/\/$/, "");
         if (!seen.has(key)) { verified.push(game); seen.add(key); }
       }
       if (additional.length) providerUsed = primary.results.length && verified.length ? "Exa+Firecrawl" : "Firecrawl";
@@ -326,4 +326,4 @@ export async function searchExternalGames(prompt: string): Promise<{
     searchProvider: providerUsed,
     message: games.length < 6 ? "Hasil pencarian sedikit; katalog lokal dapat menambah pilihan." : undefined,
   };
-}> {
+}
