@@ -48,8 +48,29 @@ async function readExternalThumbnail(pageUrl: string): Promise<string | null> {
     });
     if (!response.ok || !response.headers.get("content-type")?.includes("text/html")) return null;
     const length = Number(response.headers.get("content-length") || 0);
-    if (length > 1_000_000) return null;
-    const html = (await response.text()).slice(0, 1_000_000);
+    if (length > 1_000_000 || !response.body) return null;
+
+    // Do not trust Content-Length alone: some hosts omit it or stream more bytes
+    // than advertised. Read at most 1 MB so metadata lookup cannot buffer an
+    // arbitrarily large external page into the serverless function.
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let html = "";
+    let bytesRead = 0;
+    try {
+      while (bytesRead < 1_000_000) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const remaining = 1_000_000 - bytesRead;
+        const chunk = value.byteLength > remaining ? value.subarray(0, remaining) : value;
+        bytesRead += chunk.byteLength;
+        html += decoder.decode(chunk, { stream: true });
+        if (chunk.byteLength < value.byteLength) break;
+      }
+    } finally {
+      await reader.cancel().catch(() => undefined);
+    }
+    html += decoder.decode();
     const match = html.match(/<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)["'][^>]+content=["']([^"']+)["']/i)
       ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:image|twitter:image)["']/i);
     if (!match?.[1]) return null;
