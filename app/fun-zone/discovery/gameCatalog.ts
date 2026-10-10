@@ -17,6 +17,53 @@ export type GamePortal = {
   accent: string;
 };
 
+
+export type ExternalGame = {
+  id: string;
+  name: string;
+  provider: string;
+  url: string;
+  imageUrl: string;
+  description: string;
+  tags: GameGenre[];
+  badge: string;
+};
+
+// Curated examples use game pages and thumbnails served by Poki's own CDN.
+// Add entries only after verifying the game page and its thumbnail URL.
+export const EXTERNAL_GAMES: ExternalGame[] = [
+  {
+    id: "dadish",
+    name: "Dadish",
+    provider: "Poki",
+    url: "https://poki.com/en/g/dadish",
+    imageUrl: "https://img.poki-cdn.com/cdn-cgi/image/q%3D78%2Cscq%3D50%2Cwidth%3D94%2Cheight%3D94%2Cfit%3Dcover%2Cf%3Dauto/6bb56bc01338e59c549454759281f4bf/dadish-logo.jpeg",
+    description: "Jelajahi level platformer dan selamatkan anak-anak Dadish.",
+    tags: ["adventure", "platformer"],
+    badge: "Petualangan",
+  },
+  {
+    id: "apple-knight",
+    name: "Apple Knight",
+    provider: "Poki",
+    url: "https://poki.com/en/g/apple-knight",
+    imageUrl: "https://img.poki-cdn.com/cdn-cgi/image/q%3D78%2Cscq%3D50%2Cwidth%3D94%2Cheight%3D94%2Cfit%3Dcover%2Cf%3Dauto/1020810bf8c434cad79d1d35888b8a7d/apple-knight-logo.png",
+    description: "Petualangan fantasi dengan platform, musuh, dan rahasia.",
+    tags: ["adventure", "platformer"],
+    badge: "Action adventure",
+  },
+  {
+    id: "duo-survival",
+    name: "Duo Survival",
+    provider: "Poki",
+    url: "https://poki.com/en/g/duo-survival",
+    imageUrl: "https://img.poki-cdn.com/cdn-cgi/image/q%3D78%2Cscq%3D50%2Cwidth%3D94%2Cheight%3D94%2Cfit%3Dcover%2Cf%3Dauto/874d68cb26daf46ff1ad69e3467edf33/duo-survival-logo.png",
+    description: "Kerja sama dua pemain untuk memecahkan puzzle dan kabur dari zombie.",
+    tags: ["adventure", "platformer", "puzzle", "multiplayer"],
+    badge: "Co-op 2 pemain",
+  },
+];
+
 export const GAME_PORTALS: GamePortal[] = [
   {
     id: "crazygames",
