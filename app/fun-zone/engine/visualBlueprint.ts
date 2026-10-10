@@ -1,4 +1,5 @@
 import type { GameBlueprint } from "../laboratory/types";
+import { normalizeGameGenre } from "./normalizeGameGenre";
 
 export type VisualCharacterSpec = {
   id: string;
@@ -25,7 +26,7 @@ export type VisualBlueprint = {
     genre: string;
     mood: string;
     theme: string;
-    camera: "top-down" | "side-view" | "third-person" | "isometric" | "2d-ui";
+    camera: "top-down" | "side-view" | "2d-ui";
   };
   protagonist: VisualCharacterSpec;
   characters: VisualCharacterSpec[];
@@ -52,9 +53,8 @@ function sourceText(b: GameBlueprint): string {
 function pickCamera(text: string): VisualBlueprint["artDirection"]["camera"] {
   if (/(platformer|side.?scroll|2d)/i.test(text)) return "side-view";
   if (/(top.?down|dungeon|rpg|pokemon|farm|farming)/i.test(text)) return "top-down";
-  if (/(racing|driving|car)/i.test(text)) return "third-person";
-  if (/(strategy|tactical|isometric)/i.test(text)) return "isometric";
-  return "third-person";
+  if (/(racing|driving|car|strategy|tactical|isometric)/i.test(text)) return "top-down";
+  return "top-down";
 }
 
 function characterFromPrompt(text: string): VisualCharacterSpec {
@@ -103,9 +103,38 @@ function characterFromPrompt(text: string): VisualCharacterSpec {
   };
 }
 
+function racingProtagonist(): VisualCharacterSpec {
+  return {
+    id: "protagonist",
+    role: "protagonist",
+    archetype: "racing vehicle",
+    appearance: [
+      "2D playable racing vehicle",
+      "top-down readable vehicle silhouette",
+      "vehicle body derived from the user's racing description",
+    ],
+    outfit: ["vehicle paint and body styling derived from the prompt"],
+    equipment: ["four wheels", "headlights", "racing body"],
+    expression: "dynamic racing stance",
+    animationNeeds: ["idle", "drive", "steer", "finish"],
+  };
+}
+
+function racingEnvironment(text: string): VisualEnvironmentSpec {
+  const features = ["prompt-derived racing circuit", "road layout derived from the requested race style", "start/finish area", "checkpoint landmarks", "barriers and track-side scenery"];
+  if (/city|kota|urban/i.test(text)) features.push("urban buildings and city lights");
+  if (/forest|hutan|jungle/i.test(text)) features.push("forest scenery and natural obstacles");
+  if (/desert|gurun/i.test(text)) features.push("desert terrain and dust atmosphere");
+  if (/snow|salju|ice|es/i.test(text)) features.push("snow or ice scenery");
+  if (/night|malam/i.test(text)) features.push("night lighting and illuminated track markers");
+  return { id: "world-primary", role: "world", description: features.join(", "), props: ["track barriers", "checkpoint gates", "start/finish marker", "prompt-derived scenery"], atmosphere: ["racing energy", "clear driving line", "prompt-derived environment"] };
+}
+
 export function buildVisualBlueprint(b: GameBlueprint): VisualBlueprint {
   const text = sourceText(b);
-  const protagonist = characterFromPrompt(text);
+  const normalizedGenre = normalizeGameGenre(b.genre);
+  const isRacing = normalizedGenre === "racing" || /racing|race|balap|driving|car|mobil/i.test(text);
+  const protagonist = isRacing ? racingProtagonist() : characterFromPrompt(text);
   const isAnime = /anime|manga|isekai|japanese animation/i.test(text);
   const style = isAnime ? ["anime-inspired"] : (Array.isArray(b.visualStyle) ? b.visualStyle.filter(Boolean) : [b.visualStyle || "game-specific visual style"]);
 
@@ -137,7 +166,7 @@ export function buildVisualBlueprint(b: GameBlueprint): VisualBlueprint {
     });
   }
 
-  const environments: VisualEnvironmentSpec[] = [{
+  const environments: VisualEnvironmentSpec[] = isRacing ? [racingEnvironment(text)] : [{
     id: "world-primary",
     role: "world",
     description: b.world || "Environment derived from the game world.",
@@ -182,7 +211,7 @@ export function buildVisualBlueprint(b: GameBlueprint): VisualBlueprint {
   return {
     artDirection: {
       style,
-      genre: b.genre,
+      genre: isRacing ? "racing" : normalizedGenre,
       mood: b.mood,
       theme: b.theme,
       camera: pickCamera(text),

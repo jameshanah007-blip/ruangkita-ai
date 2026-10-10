@@ -1,20 +1,14 @@
 import type { GameBlueprint } from "../laboratory/types";
 
-export type GameBuildDimension = "2d" | "2.5d" | "3d" | "voxel-3d";
-
-export type GameCameraModel =
-  | "top-down"
-  | "side-scroller"
-  | "isometric"
-  | "third-person"
-  | "first-person";
+export type GameBuildDimension = "2d";
+export type GameCameraModel = "top-down" | "side-scroller";
 
 export type GameBuildPlan = {
-  version: 1;
-  dimension: GameBuildDimension;
+  version: 2;
+  dimension: "2d";
   camera: GameCameraModel;
-  worldArchitecture: "tilemap" | "scene" | "voxel";
-  renderArchitecture: "sprite-runtime" | "hybrid-runtime" | "3d-runtime" | "voxel-runtime";
+  worldArchitecture: "tilemap" | "scene";
+  renderArchitecture: "phaser-2d";
   systems: string[];
   actors: string[];
   assets: {
@@ -28,17 +22,11 @@ export type GameBuildPlan = {
     touch: string[];
     gamepad: string[];
   };
-  audio: {
-    required: boolean;
-    events: string[];
-  };
+  audio: { required: boolean; events: string[] };
   buildStages: string[];
   testStages: string[];
   repairLoop: string[];
-  runtimeEvidence: {
-    required: boolean;
-    capture: string[];
-  };
+  runtimeEvidence: { required: boolean; capture: string[] };
 };
 
 function textOf(b: GameBlueprint): string {
@@ -51,143 +39,67 @@ function textOf(b: GameBlueprint): string {
 
 export function createGameBuildPlan(b: GameBlueprint): GameBuildPlan {
   const text = textOf(b);
-  const explicit3D = /(?:\b3d\b|three.?dimensional|3d game)/.test(text);
-  const topDown = !explicit3D && /(pokemon|pokémon|top.?down|monster tamer|creature collection|pixel art|pixel-art|2d rpg|\b2d\b|farming|farm|bertani)/.test(text);
-  const sideScroller = /(platformer|side.?scroll|metroidvania|platform game|mario-like)/.test(text);
-  const voxel = /(minecraft|voxel|block world|block-based|sandbox building)/.test(text);
-  const thirdPerson = /(?:third.?person|open world|3d adventure|3d rpg|racing|race|balap)/.test(text);
-  const firstPerson = /(first.?person|fps|shooter 3d)/.test(text);
-
-  let dimension: GameBuildDimension = "2d";
-  let camera: GameCameraModel = "top-down";
-  let worldArchitecture: GameBuildPlan["worldArchitecture"] = "tilemap";
-  let renderArchitecture: GameBuildPlan["renderArchitecture"] = "sprite-runtime";
-
-  if (voxel) {
-    dimension = "voxel-3d";
-    camera = "third-person";
-    worldArchitecture = "voxel";
-    renderArchitecture = "voxel-runtime";
-  } else if (thirdPerson || firstPerson || (explicit3D && /(racing|race|balap|mobil|kendaraan|driving)/.test(text))) {
-    dimension = "3d";
-    camera = firstPerson ? "first-person" : "third-person";
-    worldArchitecture = "scene";
-    renderArchitecture = "3d-runtime";
-  } else if (sideScroller) {
-    dimension = "2d";
-    camera = "side-scroller";
-    worldArchitecture = "scene";
-    renderArchitecture = "sprite-runtime";
-  } else if (topDown) {
-    dimension = "2d";
-    camera = "top-down";
-    worldArchitecture = "tilemap";
-    renderArchitecture = "sprite-runtime";
-  } else if (/(isometric|diagonal map)/.test(text)) {
-    dimension = "2.5d";
-    camera = "isometric";
-    worldArchitecture = "tilemap";
-    renderArchitecture = "hybrid-runtime";
-  }
-
-  const systems = [...new Set([
-    "game-loop",
-    "input",
-    "collision",
-    ...b.mechanics,
-    ...(topDown ? ["tilemap", "camera-follow", "directional-sprites", "npc", "world-interaction"] : []),
-    ...(sideScroller ? ["platform-physics", "camera-scroll", "level-flow"] : []),
-    ...(voxel ? ["voxel-world", "chunk-streaming", "block-interaction", "inventory", "crafting"] : []),
-    ...(thirdPerson || firstPerson || (explicit3D && /(racing|race|balap|mobil|kendaraan|driving)/.test(text)) ? ["scene-graph", "3d-camera", "3d-collision", "lighting"] : []),
-  ])];
-
-  const actors = [...new Set([
-    "player",
-    ...(b.mechanics.includes("dialogue") ? ["npc"] : []),
-    ...(b.mechanics.includes("combat") || /monster|enemy|creature|zombie|boss/.test(text) ? ["enemy"] : []),
-    ...(topDown ? ["npc", "creature", "companion"] : []),
-  ])];
-
-  const requiredAssets = [...new Set([
-    "player",
-    ...(actors.includes("npc") ? ["npc"] : []),
-    ...(actors.includes("enemy") || actors.includes("creature") ? ["enemy"] : []),
-    ...(topDown ? ["tileset", "environment-props", "effects", "ui"] : []),
-  ])];
-
-  const animated = [...new Set([
-    "player",
-    ...(topDown ? ["npc", "creature", "effects"] : []),
-    ...(b.mechanics.includes("combat") ? ["attack", "hit"] : []),
-  ])];
-
-  const directional = topDown ? ["player", "npc", "creature"] : [];
-  const referenceDriven = /reference|screenshot|image|gambar|seperti|contoh/i.test(text);
-
-  if (referenceDriven) {
-    systems.push("reference-visual-qa");
-  }
+  const sideScroller = /platformer|platform|side.?scroll|metroidvania|mario-like/.test(text);
+  const camera: GameCameraModel = sideScroller ? "side-scroller" : "top-down";
 
   return {
-    version: 1,
-    dimension,
+    version: 2,
+    dimension: "2d",
     camera,
-    worldArchitecture,
-    renderArchitecture,
-    systems,
-    actors,
+    worldArchitecture: sideScroller ? "scene" : "tilemap",
+    renderArchitecture: "phaser-2d",
+    systems: [...new Set(["phaser-2d", "game-loop", "input", "collision", ...b.mechanics])],
+    actors: ["player"],
     assets: {
-      required: requiredAssets,
-      animated,
-      directional,
+      required: ["player", "environment", "ui"],
+      animated: ["player"],
+      directional: camera === "top-down" ? ["player"] : [],
       originalOnly: true,
     },
     controls: {
-      keyboard: ["WASD", "Arrow keys", "Space", "Enter", "E"],
+      keyboard: ["WASD", "Arrow keys", "Space", "E"],
       touch: ["virtual directional pad", "action buttons"],
       gamepad: ["d-pad", "action buttons"],
     },
     audio: {
       required: true,
-      events: ["movement", "interaction", "combat", "collect", "objective", "victory", "defeat"],
+      events: ["movement", "interaction", "objective", "victory", "defeat"],
     },
     buildStages: [
       "parse-intent",
       "create-game-specification",
-      "select-runtime",
-      "compose-systems",
+      "resolve-2d-genre",
+      "select-phaser-2d-adapter",
       "plan-assets",
-      "build-runtime",
+      "materialize-assets",
+      "validate-runtime-contract",
+      "build-phaser-runtime",
       "run-in-sandbox",
       "collect-runtime-evidence",
-      "analyze-runtime-evidence",
-      ...(referenceDriven ? ["analyze-reference-visual-target"] : []),
       "repair",
       "retest",
       "finalize",
     ],
     testStages: [
+      "phaser-boot",
       "rendering",
-      "animation",
+      "sprite-animation",
       "keyboard-input",
       "touch-input",
-      "audio",
       "collision",
       "gameplay-state",
       "objective",
       "restart",
       "mobile-layout",
       "runtime-stability",
-      ...(referenceDriven ? ["reference-visual-comparison"] : []),
     ],
     runtimeEvidence: {
       required: true,
       capture: [
         "canvas-size",
-        "visible-pixels",
-        "animation-frames",
+        "visible-player",
+        "animation-frame",
         "input-events",
-        "audio-events",
         "runtime-errors",
         "screenshot",
       ],

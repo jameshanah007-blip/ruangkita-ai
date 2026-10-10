@@ -47,6 +47,7 @@ type GameTestProtocol = {
   getObjectiveState?: () => unknown;
   getWinState?: () => boolean;
   getLoseState?: () => boolean;
+  testActions?: string[];
   performTestAction?: (
     action: string
   ) => unknown;
@@ -114,6 +115,13 @@ gameTestError?: string;
 
   elapsedMs: number;
 
+  protocolActions: string[];
+  protocolActionResults: Array<{
+    action: string;
+    executed: boolean;
+    result?: unknown;
+  }>;
+
   runtimeVisualAnalysis?: {
     version: 1;
     passed: boolean;
@@ -163,7 +171,7 @@ type DebugResponse = {
 
 const MAX_DEBUG_ATTEMPTS = 5;
 
-const GAME_TEST_TIMEOUT_MS = 8000;
+const GAME_TEST_TIMEOUT_MS = 15000;
 
 const TEST_START_DELAY_MS = 900;
 
@@ -266,24 +274,45 @@ function buildDiagnosticHtml(
    * then the sandbox dispatches a real KeyboardEvent to the game document.
    */
   try {
+    window.__RK_KEYBOARD_STATE__ = Object.create(null);
+    var updateKeyboardState = function (event) {
+      var key = String(event && event.key || "").toLowerCase();
+      if (!key) return;
+      if (event.type === "keydown") window.__RK_KEYBOARD_STATE__[key] = true;
+      if (event.type === "keyup") delete window.__RK_KEYBOARD_STATE__[key];
+    };
+    window.addEventListener("keydown", updateKeyboardState, true);
+    window.addEventListener("keyup", updateKeyboardState, true);
+    window.addEventListener("blur", function () {
+      window.__RK_KEYBOARD_STATE__ = Object.create(null);
+    });
     window.addEventListener("message", function (event) {
       try {
         var data = event && event.data;
-        if (!data || data.type !== "AI_GAME_KEY_EVENT") return;
+        if (!data) return;
+        if (data.type === "AI_GAME_KEY_RESET") {
+          window.__RK_KEYBOARD_STATE__ = Object.create(null);
+          return;
+        }
+        if (data.type !== "AI_GAME_KEY_EVENT") return;
 
-        var target = document;
-        var keyEvent = new KeyboardEvent(
-          String(data.eventType || "keydown"),
-          {
-            bubbles: true,
-            cancelable: true,
-            key: String(data.key || ""),
-            code: String(data.code || ""),
-            repeat: data.repeat === true
-          }
-        );
+        // Keep a deterministic key-state channel alongside DOM events. Synthetic
+        // KeyboardEvents are useful for Phaser plugins, but gameplay must not
+        // depend on focus or on a browser's synthetic-event propagation details.
+        var key = String(data.key || "").toLowerCase();
+        var eventType = String(data.eventType || "keydown");
+        window.__RK_KEYBOARD_STATE__ = window.__RK_KEYBOARD_STATE__ || Object.create(null);
+        if (eventType === "keydown") window.__RK_KEYBOARD_STATE__[key] = true;
+        if (eventType === "keyup") delete window.__RK_KEYBOARD_STATE__[key];
 
-        target.dispatchEvent(keyEvent);
+        var keyEvent = new KeyboardEvent(eventType, {
+          bubbles: true,
+          cancelable: true,
+          key: String(data.key || ""),
+          code: String(data.code || ""),
+          repeat: data.repeat === true
+        });
+        document.dispatchEvent(keyEvent);
       } catch (_) {}
     });
   } catch (_) {}
@@ -682,52 +711,45 @@ function buildDiagnosticHtml(
         };
       }
 
-      var ctx =
-        canvas.getContext(
-          "2d",
-          {
-            willReadFrequently:
-              true
-          }
-        );
-
-      if (!ctx) {
-        return {
-          width: width,
-
-          height: height,
-
-          nonBlankPixels: 0,
-
-          signature:
-            "no-2d-context"
-        };
-      }
-
       /*
-       * Inspect a larger area so rendering
-       * outside the top-left corner is not
-       * incorrectly classified as blank.
+       * Phaser normally renders through WebGL. Calling getContext("2d")
+       * on a WebGL canvas returns null; treating that as zero pixels was
+       * a false failure that rejected valid Phaser games before gameplay
+       * could be verified. Read from whichever context owns the canvas.
        */
-      var sampleWidth =
-        Math.min(
-          width,
-          360
-        );
+      var sampleWidth = Math.min(width, 360);
+      var sampleHeight = Math.min(height, 360);
+      var data;
+      var ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-      var sampleHeight =
-        Math.min(
-          height,
-          360
-        );
+      if (ctx) {
+        data = ctx.getImageData(0, 0, sampleWidth, sampleHeight).data;
+      } else {
+        var gl = canvas.getContext("webgl2") ||
+          canvas.getContext("webgl") ||
+          canvas.getContext("experimental-webgl");
+        if (!gl || typeof gl.readPixels !== "function") {
+          return {
+            width: width,
+            height: height,
+            nonBlankPixels: 0,
+            signature: "no-readable-render-context"
+          };
+        }
 
-      var data =
-        ctx.getImageData(
-          0,
-          0,
-          sampleWidth,
-          sampleHeight
-        ).data;
+        var pixels = new Uint8Array(sampleWidth * sampleHeight * 4);
+        try {
+          gl.readPixels(0, 0, sampleWidth, sampleHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+          data = pixels;
+        } catch (_) {
+          return {
+            width: width,
+            height: height,
+            nonBlankPixels: 0,
+            signature: "webgl-read-failed"
+          };
+        }
+      }
 
       var nonBlank = 0;
       var checksum = 0;
@@ -1093,6 +1115,25 @@ function readGameTestSnapshot() {
 
   function runTest() {
     try {
+      // Phaser exposes its test protocol before the CDN and image assets finish
+      // loading. Do not consume the one-shot action attempt until the scene and
+      // player are actually ready; retry briefly, bounded by the existing test timeout.
+      var readinessProtocol = window.__RK_GAME_TEST__;
+      var readinessElapsed = Date.now() - (window.__RK_TEST_STARTED_AT__ || Date.now());
+      // The diagnostic script is injected before the generated game's scripts.
+      // A slow Phaser CDN can therefore leave the protocol undefined at first.
+      // Retry both "not installed yet" and "installed but not ready" states;
+      // otherwise the one-shot test incorrectly reports a missing protocol.
+      if (
+        (!readinessProtocol ||
+          typeof readinessProtocol.isReady !== "function" ||
+          !readinessProtocol.isReady()) &&
+        readinessElapsed < 11000
+      ) {
+        window.setTimeout(runTest, 200);
+        return;
+      }
+
       var canvas =
         getCanvas();
 
@@ -1169,6 +1210,28 @@ var beforeLost =
           } else {
             var actionCandidates = [];
 
+            var protocolDeclaredActions =
+              Array.isArray(protocol.testActions)
+                ? protocol.testActions
+                : [];
+
+            for (
+              var protocolIndex = 0;
+              protocolIndex < protocolDeclaredActions.length;
+              protocolIndex++
+            ) {
+              var protocolDeclaredAction =
+                String(protocolDeclaredActions[protocolIndex] || "").trim();
+
+              if (
+                protocolDeclaredAction &&
+                protocolDeclaredAction.toLowerCase() !== "restart" &&
+                actionCandidates.indexOf(protocolDeclaredAction) === -1
+              ) {
+                actionCandidates.push(protocolDeclaredAction);
+              }
+            }
+
             for (
               var declaredIndex = 0;
               declaredIndex < declaredTestActions.length;
@@ -1199,6 +1262,7 @@ var beforeLost =
             }
 
             var executedActions = [];
+            var actionResults = [];
 
             for (
               var actionIndex = 0;
@@ -1209,9 +1273,19 @@ var beforeLost =
               var action = actionCandidates[actionIndex];
 
               try {
-                protocol.performTestAction(action);
-                protocolActionExecuted = true;
-                executedActions.push(action);
+                var actionResult =
+                  protocol.performTestAction(action);
+
+                actionResults.push({
+                  action: action,
+                  executed: actionResult !== false,
+                  result: actionResult
+                });
+
+                if (actionResult !== false) {
+                  protocolActionExecuted = true;
+                  executedActions.push(action);
+                }
 
                 if (!protocolAction) {
                   protocolAction = action;
@@ -1679,6 +1753,12 @@ var beforeLost =
                       gameTestError ||
                       undefined,
 
+                    protocolActions:
+                      executedActions,
+
+                    protocolActionResults:
+                      actionResults,
+
                     performanceTest:
                       performanceTest,
 
@@ -2116,7 +2196,7 @@ export default function AIGameSandbox({
           currentHtml,
           blueprint?.playerActions ?? []
         ),
-      [currentHtml]
+      [currentHtml, blueprint?.playerActions]
     );
 
   const startTest =
@@ -2174,6 +2254,30 @@ export default function AIGameSandbox({
         testReport?: TestReport | null;
       }
     ) => {
+
+        // Local platformer is not an AI-authored artifact. Do not send it through
+        // the legacy patch endpoint or retry the same provider-independent failure.
+        const isLocalPlatformer =
+          blueprint?.genre === "platformer" &&
+          blueprint?.concept.includes("Original 2D side-scrolling platformer using bundled illustrated sprite-sheet assets");
+
+        if (isLocalPlatformer) {
+          setDebugging(false);
+          onDebuggingChange?.(false);
+          setTestRunning(false);
+          const failures = diagnostic?.testReport?.hardFailures?.slice(0, 4) || [];
+          const runtimeErrors = diagnostic?.runtimeErrors?.slice(0, 3).map((item) => item.message) || [];
+          const evidence = [...runtimeErrors, ...failures].filter(Boolean);
+          const detail = evidence.length
+            ? evidence.join(" | ")
+            : message || "Browser Tester belum memberikan bukti kegagalan yang spesifik.";
+          const localMessage =
+            "Template lokal Phaser: debugging AI dilewati. Game belum lulus pengujian; HTML asli dipertahankan. " +
+            "Diagnosis: " + detail;
+          setErrorMessage(localMessage);
+          onError(localMessage);
+          return;
+        }
 
         if (
           debugAttemptRef.current >=
@@ -2235,6 +2339,7 @@ export default function AIGameSandbox({
 
 body: JSON.stringify({
   gameHtml: currentHtml,
+  localTemplate: blueprint?.genre === "platformer" && blueprint?.concept === "Original 2D side-scrolling platformer using bundled illustrated sprite-sheet assets. The player runs and jumps across platforms, collects five coins, avoids falling, and reaches the goal.",
 
   errorMessage: message,
 
@@ -2637,6 +2742,12 @@ evidence: {
 
   gameTestError:
     result.gameTestError,
+
+  protocolActions:
+    result.protocolActions,
+
+  protocolActionResults:
+    result.protocolActionResults,
  },
       });
 
@@ -2887,8 +2998,13 @@ void runDebugger(
       );
     };
 
+    const resetForwardedKeys = () => {
+      iframeRef.current?.contentWindow?.postMessage({ type: "AI_GAME_KEY_RESET" }, "*");
+    };
+
     window.addEventListener("keydown", forwardKeyboardEvent, { passive: false });
     window.addEventListener("keyup", forwardKeyboardEvent, { passive: false });
+    window.addEventListener("blur", resetForwardedKeys);
 
     return () => {
       window.removeEventListener(
@@ -2897,6 +3013,7 @@ void runDebugger(
       );
       window.removeEventListener("keydown", forwardKeyboardEvent);
       window.removeEventListener("keyup", forwardKeyboardEvent);
+      window.removeEventListener("blur", resetForwardedKeys);
 
       if (
         testTimerRef.current

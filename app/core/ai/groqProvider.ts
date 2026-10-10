@@ -194,6 +194,7 @@ class GroqProvider implements AIProvider {
         typeof data?.model === "string"
           ? data.model
           : GROQ_MODEL,
+      finishReason,
     };
   }
 

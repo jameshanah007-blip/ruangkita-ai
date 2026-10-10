@@ -8,6 +8,25 @@ import { runJamesBrainGameDirector } from "../../../core/james/jamesBrain";
 import { runJamesBrainWithSharedKnowledge } from "../../../core/james/jamesSharedKnowledge";
 import type { GameBlueprint } from "../../../fun-zone/laboratory/types";
 
+function describeErrorValue(value: unknown): string {
+  if (value instanceof Error) return value.message;
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["message", "error", "detail", "details", "code"]) {
+      if (typeof record[key] === "string" && record[key].trim()) {
+        return record[key] as string;
+      }
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "Non-serializable error object";
+    }
+  }
+  return value == null ? "Unknown error" : String(value);
+}
+
 function extractJson(text: string): unknown {
   const cleaned = text
     .replace(/```json/gi, "")
@@ -600,25 +619,20 @@ Output JSON saja.
         game,
     });
   } catch (error) {
-    console.error(
-      "AI Game Director error:",
-      error
-    );
+    const message = describeErrorValue(error);
+    console.error("AI Game Director error", {
+      errorType: error instanceof Error ? error.name : typeof error,
+      message,
+      cause: error instanceof Error && error.cause ? describeErrorValue(error.cause) : undefined,
+    });
 
     return NextResponse.json(
       {
         success: false,
-
         stage: "director",
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "AI Game Director gagal.",
+        error: message,
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }

@@ -5,39 +5,11 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 import { runJamesBrain } from "../../../core/james/jamesBrain";
-import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
-import { buildTopDown2DGameHtml, isTopDown2DTemplateRequest } from "../../../fun-zone/engine/james2DTopDownTemplate";
 import type {
   GameBlueprint,
   RuntimeError,
   TestReport,
 } from "../../../fun-zone/laboratory/types";
-
-function extractHtml(text: string): string {
-  const trimmed = text.trim();
-
-  const fenced = trimmed.match(
-    /```(?:html)?\s*([\s\S]*?)\s*```/i
-  );
-
-  if (fenced?.[1]) {
-    return fenced[1].trim();
-  }
-
-  const doctypeStart = trimmed.search(/<!doctype html/i);
-
-  if (doctypeStart >= 0) {
-    return trimmed.slice(doctypeStart).trim();
-  }
-
-  const htmlStart = trimmed.search(/<html[\s>]/i);
-
-  if (htmlStart >= 0) {
-    return trimmed.slice(htmlStart).trim();
-  }
-
-  return trimmed;
-}
 
 function validateGameHtml(html: string): string[] {
   const errors: string[] = [];
@@ -69,29 +41,32 @@ function validateGameHtml(html: string): string[] {
     errors.push("Game tidak memiliki JavaScript.");
   }
 
-  if (!/<canvas[\s>]/i.test(html)) {
-    errors.push("Game tidak menggunakan Canvas.");
+  const isPhaserRuntime =
+    /phaser@4\.2\.1/i.test(html) ||
+    /Phaser\.Game\s*\(/i.test(html);
+
+  if (!isPhaserRuntime && !/<canvas[\s>]/i.test(html)) {
+    errors.push("Game tidak memiliki Canvas/Phaser runtime.");
   }
 
-  if (!/getContext\s*\(\s*["']2d["']\s*\)/i.test(html)) {
-    errors.push(
-      "Game tidak terlihat menggunakan Canvas 2D."
-    );
+  if (!isPhaserRuntime && !/getContext\s*\(\s*["']2d["']\s*\)/i.test(html)) {
+    errors.push("Game tidak terlihat menggunakan Canvas 2D.");
   }
 
-  if (!/requestAnimationFrame\s*\(/i.test(html)) {
-    errors.push(
-      "Game tidak memiliki game loop requestAnimationFrame."
-    );
+  if (!isPhaserRuntime && !/requestAnimationFrame\s*\(/i.test(html)) {
+    errors.push("Game tidak memiliki game loop.");
   }
 
-  if (
-    !/addEventListener\s*\(\s*["'](?:pointer|touch|mousedown|keydown|click)/i.test(
-      html
-    )
-  ) {
+  const hasPhaserInput =
+    isPhaserRuntime &&
+    /\.on\(\s*["'](?:pointer|pointerdown|pointerup|pointermove|pointerover|pointerout)/i.test(html);
+
+  const hasDomInput =
+    /addEventListener\s*\(\s*["'](?:pointer|touch|mousedown|keydown|click)/i.test(html);
+
+  if (!hasPhaserInput && !hasDomInput) {
     errors.push(
-      "Game tidak terlihat memiliki input interaction."
+      "Game tidak terlihat memiliki input interaction Phaser/DOM."
     );
   }
 
@@ -341,6 +316,154 @@ function normalizeBlueprint(blueprint: GameBlueprint | null): GameBlueprint | nu
   };
 }
 
+function selectRelevantHtmlContext(
+  html: string,
+  errorLine: number | null,
+): string {
+  const lines = html.split(/\r?\n/);
+
+  // Generated HTML is sometimes minified into one very long line. Line-based
+  // selection would then keep only the beginning and end, hiding the actual
+  // Phaser/gameplay code from the debugger. In that case, select exact source
+  // windows around meaningful code anchors instead; every excerpt remains a
+  // literal substring of the original HTML, so proposed patches can be verified.
+  if (lines.length <= 2 && html.length > 6000) {
+    const anchors = [
+      /<script\b/ig,
+      /Phaser\.Game|new Phaser/ig,
+      /addEventListener|\.on\s*\(/ig,
+      /function\s+(?:update|create|init)\b|\bupdate\s*:/ig,
+      /requestAnimationFrame/ig,
+      /__RK_GAME_/ig,
+      /console\.(?:error|warn)/ig,
+      /throw\s+new\s+Error/ig,
+    ];
+    const windows: Array<{ start: number; end: number }> = [
+      { start: 0, end: Math.min(400, html.length) },
+      { start: Math.max(0, html.length - 400), end: html.length },
+    ];
+
+    for (const pattern of anchors) {
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(html)) !== null) {
+        const start = Math.max(0, match.index - 260);
+        const end = Math.min(html.length, match.index + match[0].length + 220);
+        windows.push({ start, end });
+        if (windows.length >= 48) break;
+      }
+      if (windows.length >= 48) break;
+    }
+
+    windows.sort((a, b) => a.start - b.start);
+    const merged: Array<{ start: number; end: number }> = [];
+    for (const window of windows) {
+      const last = merged[merged.length - 1];
+      if (last && window.start <= last.end + 80) {
+        last.end = Math.max(last.end, window.end);
+      } else {
+        merged.push({ ...window });
+      }
+    }
+
+    const excerpts: string[] = [];
+    let used = 0;
+    for (const window of merged) {
+      if (used >= 2800) break;
+      const excerpt = html.slice(window.start, Math.min(window.end, window.start + (2800 - used)));
+      if (!excerpt) continue;
+      excerpts.push(
+        (window.start > 0 ? "… [HTML sebelumnya dilewati] …\n" : "") +
+        excerpt +
+        (window.end < html.length ? "\n… [HTML berikutnya dilewati] …" : ""),
+      );
+      used += excerpt.length;
+    }
+    return excerpts.join("\n");
+  }
+
+  const selected = new Set<number>();
+  const addRange = (start: number, end: number) => {
+    for (let i = Math.max(0, start); i < Math.min(lines.length, end); i += 1) selected.add(i);
+  };
+
+  if (errorLine != null && Number.isFinite(errorLine)) addRange(errorLine - 14, errorLine + 15);
+  addRange(0, Math.min(lines.length, 8));
+  addRange(Math.max(0, lines.length - 8), lines.length);
+
+  const markers = [
+    /<script\b/i,
+    /Phaser\.Game|new Phaser/i,
+    /addEventListener|\.on\(\s*["'](?:pointer|keyboard)/i,
+    /function\s+(?:update|create|init)\b|update\s*:/i,
+    /__RK_GAME_/i,
+  ];
+  for (let i = 0; i < lines.length; i += 1) {
+    if (markers.some((pattern) => pattern.test(lines[i]))) addRange(i - 2, i + 3);
+  }
+
+  const ordered = [...selected].sort((a, b) => a - b);
+  const chunks: string[] = [];
+  let previous = -2;
+  for (const index of ordered) {
+    if (index > previous + 1) chunks.push("… [baris HTML dilewati] …");
+    chunks.push(lines[index]);
+    previous = index;
+  }
+  const context = chunks.join("\n");
+  return context.length > 6000
+    ? context.slice(0, 3000) + "\n… [konteks dipangkas] …\n" + context.slice(-2500)
+    : context;
+}
+
+function parseRepairPatches(text: string): Array<{ find: string; replace: string }> {
+  const trimmed = text.trim().replace(/^`{3}(?:json)?\s*/i, "").replace(/\s*`{3}$/, "");
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start < 0 || end <= start) {
+    throw new Error("OUTPUT_FORMAT_INVALID: Debugger tidak mengembalikan JSON patch yang lengkap.");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed.slice(start, end + 1));
+  } catch {
+    throw new Error("OUTPUT_TRUNCATED_OR_INVALID: JSON patch Debugger terpotong atau tidak valid.");
+  }
+
+  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as { patches?: unknown }).patches)) {
+    throw new Error("OUTPUT_FORMAT_INVALID: Respons Debugger harus berisi array patches.");
+  }
+  const patches = (parsed as { patches: unknown[] }).patches;
+  if (patches.length > 4) {
+    throw new Error("OUTPUT_FORMAT_INVALID: Debugger maksimal menghasilkan 4 patch kecil.");
+  }
+
+  return patches.map((item, index) => {
+    if (!item || typeof item !== "object") throw new Error("OUTPUT_FORMAT_INVALID: Patch " + (index + 1) + " tidak valid.");
+    const patch = item as { find?: unknown; replace?: unknown };
+    if (typeof patch.find !== "string" || !patch.find.trim() || typeof patch.replace !== "string") {
+      throw new Error("OUTPUT_FORMAT_INVALID: Patch " + (index + 1) + " harus memiliki find dan replace berbentuk string.");
+    }
+    return { find: patch.find, replace: patch.replace };
+  });
+}
+
+function applyRepairPatches(
+  originalHtml: string,
+  patches: Array<{ find: string; replace: string }>,
+): string {
+  let repaired = originalHtml;
+  for (const [index, patch] of patches.entries()) {
+    const first = repaired.indexOf(patch.find);
+    if (first < 0) throw new Error("PATCH_NOT_FOUND: Potongan target patch " + (index + 1) + " tidak ditemukan di HTML asli.");
+    if (repaired.indexOf(patch.find, first + patch.find.length) >= 0) {
+      throw new Error("PATCH_NOT_UNIQUE: Potongan target patch " + (index + 1) + " muncul lebih dari sekali; perubahan dibatalkan.");
+    }
+    repaired = repaired.slice(0, first) + patch.replace + repaired.slice(first + patch.find.length);
+  }
+  return repaired;
+}
+
 function buildDebuggerPrompt({
   gameHtml,
   errorMessage,
@@ -364,364 +487,52 @@ function buildDebuggerPrompt({
   blueprint: GameBlueprint | null;
   attempt: number;
 }) {
-  const failureFocus =
-    determineFailureFocus(
-      runtimeErrors,
-      testReport
-    );
-
-  return `
-RUANGKITA AI — GAME DEBUGGER / REPAIR ENGINE
-
-Kamu adalah AI Game Debugger profesional.
-
-Game berikut SUDAH dibuat oleh AI Game Builder.
-
-Game tersebut kemudian dijalankan di isolated browser
-sandbox dan mengalami kegagalan pada tahap testing.
-
-Tugasmu adalah memperbaiki GAME YANG SUDAH ADA.
-
-JANGAN membuat game baru.
-
-JANGAN mengganti konsep game.
-
-JANGAN melakukan redesign besar.
-
-JANGAN menghapus gameplay hanya agar tester menjadi PASS.
-
-Pertahankan sebanyak mungkin:
-
-- visual
-- mekanik
-- objective
-- progression
-- score
-- player
-- enemy
-- world
-- win condition
-- lose condition
-- restart
-- mobile controls
-- desktop controls
-- identitas game
-
-Jika error hanya berada pada satu bagian kode,
-perbaiki bagian tersebut dan pertahankan bagian lainnya.
-
-==================================================
-REPAIR ATTEMPT
-==================================================
-
-Attempt:
-${attempt}
-
-==================================================
-GAME IDENTITY
-==================================================
-
-Genre:
-${genre || blueprint?.genre || "unknown"}
-
-Blueprint:
-${formatBlueprint(blueprint)}
-
-==================================================
-FAILURE FOCUS
-==================================================
-
-${failureFocus.map((item) => `- ${item}`).join("\n")}
-
-==================================================
-RUNTIME ERRORS
-==================================================
-
-${formatRuntimeErrors(runtimeErrors)}
-
-==================================================
-PRIMARY ERROR
-==================================================
-
-Message:
-${errorMessage || "none"}
-
-Source:
-${errorSource || "unknown"}
-
-Line:
-${errorLine ?? "unknown"}
-
-Column:
-${errorColumn ?? "unknown"}
-
-==================================================
-TEST REPORT
-==================================================
-
-${formatTestReport(testReport)}
-
-==================================================
-DEBUGGING STRATEGY
-==================================================
-
-Prioritas debugging:
-
-1. Perbaiki SyntaxError terlebih dahulu.
-2. Perbaiki ReferenceError / TypeError.
-3. Perbaiki initialization error.
-4. Pastikan Canvas dibuat dan context 2D tersedia.
-5. Pastikan game loop benar-benar berjalan.
-6. Pastikan update state berjalan.
-7. Pastikan render berjalan.
-8. Pastikan input game terpasang.
-9. Pastikan objective/gameplay tetap ada.
-10. Pastikan win condition tetap ada.
-11. Pastikan lose condition tetap ada.
-12. Pastikan restart tetap berfungsi.
-13. Pastikan mobile touch input tetap berfungsi.
-14. Pastikan desktop keyboard/mouse tetap berfungsi.
-
-Jika tester mengatakan:
-
-CANVAS FAIL
-----------------
-Cari penyebab canvas/context tidak tersedia.
-Jangan sekadar membuat flag menjadi true.
-
-RENDER FAIL
-----------------
-Pastikan draw/render function benar-benar
-menggambar sesuatu ke canvas.
-
-LOOP FAIL
-----------------
-Pastikan requestAnimationFrame menjalankan
-update + render secara terus-menerus.
-
-FRAME FAIL
-----------------
-Pastikan loop tidak langsung berhenti karena
-exception atau kondisi game yang salah.
-
-INPUT FAIL
-----------------
-Pastikan listener input benar-benar terpasang
-pada window/document/canvas dan mengubah state game.
-
-GAMEPLAY FAIL
-----------------
-Pastikan ada player state, interaction,
-objective, dan perubahan state yang nyata.
-
-RUNTIME ERROR
-----------------
-Perbaiki penyebab error yang sebenarnya.
-Jangan menutupi error dengan try/catch kosong.
-
-==================================================
-SYNTAX REPAIR
-==================================================
-
-Jika ditemukan:
-
-SyntaxError
-Unexpected token
-Unexpected identifier
-Unexpected string
-Unexpected end of input
-missing )
-missing }
-missing ]
-missing ;
-unterminated string
-unterminated template literal
-
-periksa secara teliti:
-
-- ()
-- {}
-- []
-- quotes
-- template literals
-- commas
-- semicolons
-- function declaration
-- arrow function
-- object literal
-- array literal
-- callbacks
-- if/else
-- nested functions
-
-Pastikan JavaScript dapat diparse browser.
-
-==================================================
-SELF DIAGNOSTIC FLAGS
-==================================================
-
-Jika game memiliki flag:
-
-window.__RK_GAME_READY__
-window.__RK_GAME_RENDERED__
-window.__RK_GAME_LOOP_STARTED__
-
-pertahankan dan perbaiki jika rusak.
-
-Flag bukan pengganti gameplay.
-
-JANGAN membuat:
-
-window.__RK_GAME_READY__ = true;
-
-sebagai satu-satunya solusi.
-
-Flag harus mencerminkan kondisi game
-yang benar-benar sudah initialized/rendered/running.
-
-==================================================
-GAME REQUIREMENTS
-==================================================
-
-Game harus:
-
-- standalone HTML
-- HTML + CSS + vanilla JavaScript
-- Canvas 2D
-- playable
-- responsive
-- mobile friendly
-- touch friendly
-- mouse friendly
-- keyboard friendly jika relevan
-- memiliki game loop
-- memiliki update
-- memiliki render
-- memiliki objective
-- memiliki win condition
-- memiliki lose condition
-- memiliki restart
-- tidak menggunakan external library
-- tidak menggunakan external asset
-- tidak menggunakan network
-- tidak menggunakan API eksternal
-
-DILARANG:
-
-fetch
-XMLHttpRequest
-WebSocket
-EventSource
-localStorage
-sessionStorage
-document.cookie
-window.parent
-window.top
-eval
-Function constructor
-import()
-require()
-process
-filesystem
-Node.js
-server
-database
-Supabase
-API key
-
-==================================================
-MOBILE REQUIREMENTS
-==================================================
-
-Pastikan:
-
-- viewport tersedia
-- canvas menyesuaikan layar
-- tidak membutuhkan hover
-- touch/pointer input nyaman
-- tombol tidak terlalu kecil
-- game tidak bergantung pada keyboard saja
-- tidak menggunakan layout yang rusak pada portrait mobile
-
-==================================================
-IMPORTANT
-==================================================
-
-Jangan mengubah game menjadi sekadar demo canvas.
-
-Game harus tetap merupakan GAME.
-
-Jika game memiliki:
-
-player
-enemy
-items
-keys
-score
-timer
-health
-stamina
-levels
-rooms
-doors
-weapons
-puzzles
-objectives
-
-pertahankan elemen-elemen tersebut jika tidak
-berhubungan langsung dengan error.
-
-==================================================
-CURRENT GAME HTML
-==================================================
-
-${gameHtml}
-
-==================================================
-FINAL VALIDATION
-==================================================
-
-Sebelum output:
-
-1. HTML lengkap.
-2. JavaScript valid.
-3. Semua (), {}, [] tertutup.
-4. Semua string tertutup.
-5. Semua template literal tertutup.
-6. Canvas tetap ada.
-7. Canvas 2D tetap ada.
-8. requestAnimationFrame tetap ada.
-9. update loop tetap ada.
-10. render loop tetap ada.
-11. input tetap ada.
-12. gameplay tetap ada.
-13. objective tetap ada.
-14. win condition tetap ada.
-15. lose condition tetap ada.
-16. restart tetap ada.
-17. mobile controls tetap ada.
-18. tidak ada network request.
-19. tidak ada external dependency.
-20. tidak ada kode yang terpotong.
-21. tidak membuat game baru.
-22. tidak menghapus gameplay untuk mengakali tester.
-
-OUTPUT HANYA HTML.
-
-Mulai:
-
-<!DOCTYPE html>
-
-dan akhiri:
-
-</html>
-
-Tanpa markdown.
-Tanpa code fence.
-Tanpa penjelasan.
-`;
+  const failureFocus = determineFailureFocus(runtimeErrors, testReport);
+  const htmlContext = selectRelevantHtmlContext(gameHtml, errorLine);
+
+  return [
+    "RUANGKITA AI — SURGICAL GAME DEBUGGER",
+    "",
+    "Perbaiki game yang sudah ada dengan PATCH KECIL. DILARANG menulis ulang seluruh HTML.",
+    "Jangan membuat game baru, mengganti genre, menghapus gameplay, atau mengganti aset.",
+    "Runtime otoritatif tetap Phaser 4.2.1. Pertahankan semua kode yang tidak terkait langsung dengan error.",
+    "",
+    "IDENTITAS",
+    "Attempt: " + attempt,
+    "Genre: " + (genre || blueprint?.genre || "unknown"),
+    "Blueprint:",
+    formatBlueprint(blueprint),
+    "",
+    "KEGAGALAN",
+    ...failureFocus.map((item) => "- " + item),
+    "Error: " + (errorMessage || "none"),
+    "Source: " + (errorSource || "unknown"),
+    "Line: " + (errorLine ?? "unknown"),
+    "Column: " + (errorColumn ?? "unknown"),
+    "",
+    "RUNTIME ERRORS",
+    formatRuntimeErrors(runtimeErrors),
+    "",
+    "TEST REPORT",
+    formatTestReport(testReport),
+    "",
+    "HTML ASLI (KONTEKS TERPILIH; beberapa bagian mungkin dilewati):",
+    htmlContext,
+    "",
+    "FORMAT OUTPUT WAJIB",
+    'Keluarkan JSON saja, tanpa markdown atau code fence: {"patches":[{"find":"potongan kode asli yang unik dan persis","replace":"potongan kode pengganti"}]}',
+    "",
+    "Aturan:",
+    "- Jika menemukan perbaikan yang jelas dan aman, keluarkan 1 sampai 4 patch kecil.",
+    '- "find" harus berupa potongan persis dari HTML asli yang ditampilkan di atas dan hanya muncul sekali.',
+    "- Jangan menambahkan kode yang tidak terkait.",
+    "- Jangan gunakan ellipsis sebagai isi find.",
+    '- Gunakan {"patches":[]} hanya jika benar-benar tidak ada perbaikan aman yang dapat ditentukan; server akan mencoba satu kali lagi sebelum mempertahankan HTML asli.',
+    "- Jangan mengembalikan seluruh HTML.",
+    "- Jangan menyetel flag readiness sebagai pengganti gameplay.",
+    "- Jangan gunakan network, fetch, WebSocket, storage, eval, Function, import(), require(), process, atau API eksternal."
+  ].join("\n");
 }
-
 export async function POST(request: Request) {
   try {
     const userId = await resolveLegacyUserId();
@@ -857,6 +668,26 @@ export async function POST(request: Request) {
       );
     }
 
+    // Local platformer builds must not depend on an AI provider just to report why a browser test failed.
+    // This branch deliberately does not claim a repair: without a proven, specific safe patch, preserve the original HTML.
+    if (body?.localTemplate === true) {
+      const hardFailures = Array.isArray(testReport?.hardFailures) ? testReport.hardFailures.slice(0, 5) : [];
+      const runtimeMessages = runtimeErrors.slice(0, 3).map((item) => item.message);
+      const evidence = [...runtimeMessages, ...hardFailures].filter(Boolean);
+      const focus = determineFailureFocus(runtimeErrors, testReport);
+      return NextResponse.json({
+        success: false,
+        code: "LOCAL_TEMPLATE_DIAGNOSTIC",
+        originalPreserved: true,
+        error: [
+          "Template platformer lokal: AI provider tidak dipanggil untuk debugging.",
+          evidence.length ? "Bukti kegagalan: " + evidence.join(" | ") : "Browser test belum memberikan detail error yang cukup.",
+          "Kategori pemeriksaan: " + focus.join(" " ),
+          "Game belum dinyatakan lulus. HTML asli dipertahankan karena belum ada patch deterministik yang terbukti aman."
+        ].join("\\n"),
+      }, { status: 422 });
+    }
+
     const prompt = buildDebuggerPrompt({
       gameHtml,
       errorMessage,
@@ -874,101 +705,135 @@ export async function POST(request: Request) {
     let model = "provider";
     let fixedHtml = "";
 
-    /*
-     * First-class 2D top-down games use James' deterministic runtime as the
-     * repair authority. Provider output is intentionally not allowed to
-     * rewrite this foundation after a test failure: low-output/partial AI
-     * responses were previously replacing a healthy game with truncated HTML,
-     * which then triggered the five-attempt loop and could remove movement.
-     */
-    const normalizedDebugBlueprint = blueprint ? normalizeBlueprint(blueprint)! : null;
-    const isTopDownFoundation = Boolean(
-      normalizedDebugBlueprint &&
-      isTopDown2DTemplateRequest(normalizedDebugBlueprint)
-    );
+    try {
+      const result = await runJamesBrain({
+        surface: "fun_zone",
+        mode: "game_debugger",
+        systemInstruction: `
+Kamu adalah AI Game Debugger profesional untuk laboratorium game RuangKita AI.
 
-    if (isTopDownFoundation) {
-      fixedHtml = buildTopDown2DGameHtml(normalizedDebugBlueprint!);
-      provider = "james-autonomous-topdown-repair";
-      model = "james-2d-topdown-runtime-v2";
-    } else {
-      try {
-        const result =
-          await runJamesBrain({
-          surface: "fun_zone",
-          mode: "game_debugger",
-          systemInstruction: `
-Kamu adalah AI Game Debugger profesional untuk
-laboratorium game RuangKita AI.
+Tugasmu memperbaiki game yang sudah ada melalui patch kecil, bukan menulis ulang seluruh HTML.
+Pertahankan genre, gameplay, aset, kontrol, dan Phaser 4.2.1. Jangan membuat game baru.
 
-Kamu menerima source HTML game, blueprint,
-runtime errors, sandbox evidence, dan test report.
+Keluarkan JSON saja dengan format:
+{"patches":[{"find":"potongan kode asli yang unik dan persis","replace":"potongan kode pengganti"}]}
 
-Tugasmu adalah melakukan REPAIR terhadap game
-yang sudah ada. Jangan membuat game baru.
-Perbaiki akar masalah dan pertahankan gameplay.
-
-Output harus satu HTML lengkap yang langsung
-dapat dijalankan browser.
-
-Tidak boleh ada markdown, code fence, atau penjelasan.
-Output hanya HTML.
+Berikan 1 sampai 4 patch kecil. Setiap find harus berupa substring persis dan unik dari HTML yang diberikan. Jangan keluarkan HTML lengkap, markdown, atau penjelasan.
+Jika tidak yakin, kembalikan {"patches":[]} tanpa menebak.
 `,
-          prompt,
-          temperature: 0.1,
-          maxOutputTokens: 16000,
-        });
+        prompt,
+        temperature: 0.1,
+        maxOutputTokens: 1800,
+      });
 
       provider = result.provider;
       model = result.model;
-        fixedHtml = extractHtml(result.text);
-      } catch (providerError) {
-      /*
-       * Provider AI tidak boleh membuat Laboratory berhenti
-       * setelah seluruh fallback provider habis.
-       *
-       * Gunakan repair engine deterministik James sebagai
-       * safety net. Ini tetap membangun game dari blueprint
-       * yang sama dan tidak memalsukan TestReport.
-       */
-      console.warn(
-        "AI Game Debugger provider fallback:",
-        providerError instanceof Error
-          ? providerError.message
-          : String(providerError)
-      );
-
-      if (blueprint) {
-        fixedHtml = buildAutonomousGameHtml(
-          normalizeBlueprint(blueprint)!
+      if (result.finishReason === "length") {
+        console.warn("AI Game Debugger output truncated by provider token limit.", {
+          provider,
+          model,
+          outputLength: result.text.length,
+        });
+        return NextResponse.json(
+          {
+            success: false,
+            code: "OUTPUT_TRUNCATED",
+            error: "Output Debugger terpotong oleh batas token provider. HTML asli dipertahankan dan tidak diganti.",
+            provider,
+            model,
+          },
+          { status: 422 },
         );
-        provider = "james-autonomous-fallback";
-        model = "autonomous-evolution-engine-v1";
-      } else {
-        throw providerError;
       }
+      let patches = parseRepairPatches(result.text);
+
+      // A documented empty-patch response is not a repair. Retry once with a
+      // focused instruction instead of treating the model's own safe-abort
+      // response as malformed JSON or silently accepting unchanged HTML.
+      if (patches.length === 0) {
+        const retryResult = await runJamesBrain({
+          surface: "fun_zone",
+          mode: "game_debugger",
+          systemInstruction: `
+Kamu sedang mencoba ulang perbaikan game RuangKita karena respons sebelumnya berisi patches kosong.
+Analisis ulang error dan konteks HTML. Jika ada perbaikan konkret yang didukung bukti, berikan 1 patch minimal (maksimal 4) dengan find yang persis dan unik dari konteks HTML. Jangan menebak atau mengubah genre, aset, gameplay, maupun arsitektur Phaser.
+Keluarkan JSON saja: {"patches":[{"find":"substring asli yang unik","replace":"substring pengganti"}]}.
+Jika tidak ada patch aman yang dapat ditentukan, keluarkan {"patches":[]} saja. Jangan pernah mengembalikan seluruh HTML.
+`,
+          prompt: [
+            prompt,
+            "",
+            "RETRY FOKUS:",
+            "Respons sebelumnya: " + result.text.slice(0, 600),
+            "Tinjau kembali bukti error dan konteks HTML. Jangan mengarang substring. Prioritaskan satu perubahan kecil yang secara langsung memperbaiki kegagalan yang dilaporkan.",
+          ].join("\n"),
+          temperature: 0.05,
+          maxOutputTokens: 900,
+        });
+
+        provider = retryResult.provider;
+        model = retryResult.model;
+        if (retryResult.finishReason === "length") {
+          return NextResponse.json(
+            {
+              success: false,
+              code: "OUTPUT_TRUNCATED",
+              error: "Output percobaan ulang Debugger terpotong. HTML asli dipertahankan.",
+              provider,
+              model,
+            },
+            { status: 422 },
+          );
+        }
+        patches = parseRepairPatches(retryResult.text);
+        if (patches.length === 0) {
+          throw new Error("NO_SAFE_PATCH: Debugger tidak menemukan perubahan yang aman berdasarkan error dan konteks HTML. HTML asli tetap dipertahankan.");
+        }
       }
+
+      fixedHtml = applyRepairPatches(gameHtml, patches);
+    } catch (providerError) {
+      const detail = providerError instanceof Error ? providerError.message : String(providerError);
+      const isPatchFailure = /^(OUTPUT_FORMAT_INVALID|OUTPUT_TRUNCATED_OR_INVALID|PATCH_NOT_FOUND|PATCH_NOT_UNIQUE|NO_SAFE_PATCH):/.test(detail);
+      console.error("AI Game Debugger failed; original HTML remains unchanged:", {
+        category: isPatchFailure ? "repair-output" : "provider",
+        detail,
+      });
+      return NextResponse.json(
+        {
+          success: false,
+          code: isPatchFailure ? "REPAIR_OUTPUT_INVALID" : "PROVIDER_FAILURE",
+          error: isPatchFailure
+            ? detail.startsWith("NO_SAFE_PATCH:")
+              ? "Debugger sudah mencoba ulang, tetapi tidak menemukan patch yang cukup aman. HTML asli dipertahankan agar game tidak rusak. " + detail
+              : "Hasil perbaikan Debugger tidak dapat diterapkan dengan aman. HTML asli dipertahankan. " + detail
+            : "AI Game Debugger tidak tersedia. HTML asli dipertahankan; coba lagi setelah provider tersedia.",
+          detail,
+          provider: isPatchFailure ? provider : "james-brain",
+          model: isPatchFailure ? model : "game_debugger",
+        },
+        { status: isPatchFailure ? 422 : 503 },
+      );
     }
 
     let validationErrors =
       validateGameHtml(fixedHtml);
 
-    if (validationErrors.length > 0 && blueprint) {
-      console.warn(
-        "AI Game Debugger produced invalid HTML; using deterministic James fallback.",
-        validationErrors
+    if (validationErrors.length > 0) {
+      console.warn("AI Game Debugger returned invalid HTML; refusing to replace the game with another genre template.", validationErrors);
+      return NextResponse.json(
+        {
+          success: false,
+          code: "REPAIRED_HTML_INVALID",
+          error: "Patch Debugger menghasilkan HTML yang tidak valid. HTML game asli dipertahankan; tidak ada template pengganti yang dijalankan.",
+          provider,
+          model,
+          errors: validationErrors,
+          htmlPreview: fixedHtml.slice(0, 1600),
+          originalPreserved: true,
+        },
+        { status: 422 },
       );
-      const safeBlueprint = normalizeBlueprint(blueprint)!;
-      fixedHtml = isTopDown2DTemplateRequest(safeBlueprint)
-        ? buildTopDown2DGameHtml(safeBlueprint)
-        : buildAutonomousGameHtml(safeBlueprint);
-      provider = isTopDown2DTemplateRequest(safeBlueprint)
-        ? "james-autonomous-topdown-repair"
-        : "james-autonomous-fallback";
-      model = isTopDown2DTemplateRequest(safeBlueprint)
-        ? "james-2d-topdown-runtime-v2"
-        : "autonomous-evolution-engine-v1";
-      validationErrors = validateGameHtml(fixedHtml);
     }
 
     if (validationErrors.length > 0) {

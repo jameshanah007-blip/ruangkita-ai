@@ -33,7 +33,7 @@ const catalog: Record<GameSystemId, Omit<GameSystemModule, "id">> = {
   dialogue:{role:"support",responsibilities:["Present branching or sequential dialogue"],state:["dialogueNode","dialogueChoice"],actions:["nextDialogue","chooseDialogue"],testGoals:["dialogue node changes"]},
   quest:{role:"support",responsibilities:["Track objectives and completion"],state:["questState","objectiveProgress"],actions:["acceptQuest","completeQuest"],testGoals:["objective progress changes"]},
   relationship:{role:"support",responsibilities:["Track bonds with characters"],state:["relationshipScore"],actions:["gift","talk"],testGoals:["relationship score changes"]},
-  farming:{role:"core",responsibilities:["Plant and harvest resources"],state:["plots","crops"],actions:["plant","harvest"],testGoals:["crop state changes"]},
+  farming:{role:"core",responsibilities:["Prepare soil","Plant seeds","Water crops","Harvest resources"],state:["plots","crops"],actions:["till","plant","water","harvest"],testGoals:["farming cycle changes crop state from empty to harvested"]},
   crafting:{role:"support",responsibilities:["Combine resources into items"],state:["recipes","craftedItems"],actions:["craft"],testGoals:["crafted item appears"]},
   economy:{role:"support",responsibilities:["Buy and sell through currency"],state:["currency","shopInventory"],actions:["buy","sell"],testGoals:["currency changes after transaction"]},
   racing:{role:"core",responsibilities:["Drive toward checkpoints and finish"],state:["vehiclePosition","lap","checkpoint"],actions:["accelerate","brake","steer"],testGoals:["vehicle position changes","checkpoint or lap progresses"]},

@@ -20,13 +20,14 @@ export const metadata: Metadata = {
     template: "%s | RuangKita AI",
   },
   description:
-    "RuangKita AI adalah ruang digital untuk bertanya, mencari informasi, dan bermain bersama game yang dibuat dengan bantuan AI.",
+    "RuangKita AI adalah ruang digital untuk bertanya, mencari informasi, dan menemukan game 2D gratis dari berbagai portal.",
   applicationName: "RuangKita AI",
   keywords: [
     "RuangKita AI",
     "Tanya Saya",
     "Fun Zone",
-    "AI Game Laboratory",
+    "Game 2D Gratis",
+    "Game Discovery",
   ],
 };
 

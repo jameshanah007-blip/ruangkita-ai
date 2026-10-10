@@ -82,10 +82,37 @@ function characterSvg(asset: GameAssetSpec): string {
 function environmentSvg(asset: GameAssetSpec): string {
   const seed = hash(asset.prompt);
   const night = /night|malam|dark/i.test(asset.prompt) || seed % 2 === 0;
-  const sky = night ? "#10172a" : "#87ceeb";
-  const ground = night ? "#164e3b" : "#4d9b45";
+  const farming = /farm|farming|tanam|bertani|panen|crop|kebun|petani/i.test(asset.prompt);
+  const sky = night ? "#10172a" : farming ? "#8fd3ff" : "#87ceeb";
+  const ground = night ? "#164e3b" : farming ? "#69a84f" : "#4d9b45";
   const water = /water|river|lake|laut|sungai/i.test(asset.prompt);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 288">
+
+  if (farming) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="288" viewBox="0 0 512 288">
+  <defs>
+    <linearGradient id="farm-sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="${sky}"/><stop offset="1" stop-color="#dbeafe"/></linearGradient>
+    <linearGradient id="farm-ground" x1="0" y1="0" x2="0" y2="1"><stop stop-color="${ground}"/><stop offset="1" stop-color="#3f7d3a"/></linearGradient>
+  </defs>
+  <rect width="512" height="288" fill="url(#farm-sky)"/>
+  <circle cx="430" cy="48" r="25" fill="${night ? "#f8fafc" : "#fde68a"}"/>
+  <rect y="118" width="512" height="170" fill="url(#farm-ground)"/>
+  <path d="M0 137 Q92 105 182 138 T356 136 T512 140" fill="none" stroke="#2f6f38" stroke-width="16" opacity=".7"/>
+  <path d="M0 225 H512" stroke="#b7793e" stroke-width="46" opacity=".9"/>
+  <path d="M24 207 H488 M24 241 H488" stroke="#8b5a2b" stroke-width="9" stroke-dasharray="18 10"/>
+  <g fill="#65a30d"><circle cx="62" cy="199" r="7"/><circle cx="91" cy="199" r="7"/><circle cx="120" cy="199" r="7"/><circle cx="366" cy="199" r="7"/><circle cx="395" cy="199" r="7"/><circle cx="424" cy="199" r="7"/></g>
+  <g stroke="#78350f" stroke-width="6"><path d="M18 259 H494"/><path d="M30 248 V271 M78 248 V271 M126 248 V271 M174 248 V271 M222 248 V271 M270 248 V271 M318 248 V271 M366 248 V271 M414 248 V271 M462 248 V271"/></g>
+  <path d="M62 111 H153 V170 H62Z" fill="#f4a261" stroke="#78350f" stroke-width="5"/>
+  <path d="M52 112 L107 76 L163 112Z" fill="#b23a48" stroke="#78350f" stroke-width="5"/>
+  <rect x="97" y="137" width="22" height="33" fill="#7c2d12"/><rect x="72" y="129" width="16" height="16" fill="#bfdbfe"/>
+  <g fill="#166534"><circle cx="201" cy="100" r="29"/><circle cx="232" cy="92" r="34"/><circle cx="260" cy="104" r="27"/></g>
+  <g stroke="#78350f" stroke-width="10"><path d="M232 112 V160"/><path d="M201 117 V157"/><path d="M260 119 V161"/></g>
+  <path d="M310 156 H470" stroke="#d6d3d1" stroke-width="8" opacity=".85"/>
+  ${water ? '<path d="M0 268 Q90 248 180 270 T360 268 T512 272 V288 H0Z" fill="#2563a8"/>' : ""}
+  <title>Farming environment: ${esc(asset.prompt.slice(0, 180))}</title>
+</svg>`;
+  }
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="288" viewBox="0 0 512 288">
   <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="${sky}"/><stop offset="1" stop-color="${night ? "#312e81" : "#dbeafe"}"/></linearGradient></defs>
   <rect width="512" height="288" fill="url(#sky)"/>
   <circle cx="430" cy="52" r="27" fill="${night ? "#f8fafc" : "#fde68a"}"/>
@@ -98,7 +125,6 @@ function environmentSvg(asset: GameAssetSpec): string {
   <title>${esc(asset.prompt.slice(0, 180))}</title>
 </svg>`;
 }
-
 function propSvg(asset: GameAssetSpec): string {
   const seed = hash(asset.prompt);
   const body = /chest|treasure|peti/i.test(asset.prompt)
@@ -109,6 +135,39 @@ function propSvg(asset: GameAssetSpec): string {
         ? '<path d="M128 36 L152 91 L212 98 L166 136 L181 199 L128 164 L75 199 L90 136 L44 98 L104 91Z" fill="#facc15" stroke="#854d0e" stroke-width="7"/>'
         : '<path d="M74 83 Q128 40 182 83 V184 H74Z" fill="#2563eb" stroke="#172554" stroke-width="8"/><path d="M96 112 H160 M96 143 H160" stroke="#bfdbfe" stroke-width="9"/>';
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><!-- James Native prop --><rect width="256" height="256" rx="28" fill="#0f172a"/>${body}<title>${esc(asset.prompt.slice(0, 160))}</title></svg>`;
+}
+
+function platformerArtSvg(asset: GameAssetSpec): string {
+  if (asset.tags.includes("platform-image")) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="96" viewBox="0 0 256 96">
+      <defs><linearGradient id="soil" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#b87942"/><stop offset="1" stop-color="#75411f"/></linearGradient></defs>
+      <path d="M0 20 Q28 8 55 18 T110 17 T165 18 T220 15 T256 20 V96 H0Z" fill="url(#soil)" stroke="#57351f" stroke-width="5"/>
+      <path d="M0 21 Q28 8 55 18 T110 17 T165 18 T220 15 T256 20 L256 36 Q225 31 198 36 T142 35 T85 36 T0 35Z" fill="#4c9b3c" stroke="#285b2b" stroke-width="4"/>
+      <g fill="#a7dc68"><path d="M15 20l4-12 5 12z"/><path d="M66 18l4-10 5 11z"/><path d="M132 18l4-11 5 11z"/><path d="M205 17l4-10 5 11z"/></g>
+      <g fill="#d69a62" opacity=".9"><circle cx="34" cy="55" r="5"/><circle cx="88" cy="74" r="4"/><circle cx="164" cy="53" r="5"/><circle cx="225" cy="73" r="4"/></g>
+    </svg>`;
+  }
+  if (asset.tags.includes("coin-image")) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+      <defs><radialGradient id="gold"><stop stop-color="#fff5a6"/><stop offset=".7" stop-color="#fbbf24"/><stop offset="1" stop-color="#b45309"/></radialGradient></defs>
+      <circle cx="48" cy="48" r="42" fill="#92400e" opacity=".25"/>
+      <circle cx="45" cy="43" r="37" fill="url(#gold)" stroke="#92400e" stroke-width="5"/>
+      <circle cx="45" cy="43" r="28" fill="none" stroke="#fff1a8" stroke-width="3"/>
+      <path d="M45 22 L51 36 L66 37 L55 47 L58 62 L45 54 L32 62 L35 47 L24 37 L39 36Z" fill="#fff8c5" stroke="#d97706" stroke-width="2"/>
+      <path d="M20 26 Q24 17 33 14" fill="none" stroke="#fffde7" stroke-width="4" stroke-linecap="round"/>
+    </svg>`;
+  }
+  if (asset.tags.includes("finish-image")) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="192" viewBox="0 0 128 192">
+      <ellipse cx="62" cy="180" rx="42" ry="7" fill="#0f172a" opacity=".2"/>
+      <path d="M37 18 V177" stroke="#e5e7eb" stroke-width="8" stroke-linecap="round"/>
+      <path d="M41 22 L116 22 L116 91 L41 91Z" fill="#ef4444" stroke="#7f1d1d" stroke-width="4"/>
+      <path d="M41 22 H78 V56 H41Z M78 56 H116 V91 H78Z" fill="#fff"/>
+      <path d="M41 91 L54 83 L66 91 L78 83 L91 91 L104 83 L116 91" fill="none" stroke="#7f1d1d" stroke-width="3"/>
+      <path d="M20 177 H83" stroke="#854d0e" stroke-width="7" stroke-linecap="round"/>
+    </svg>`;
+  }
+  return propSvg(asset);
 }
 
 function effectSvg(asset: GameAssetSpec): string {
@@ -166,15 +225,20 @@ function characterSpriteSheetSvg(asset: GameAssetSpec): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="2560" viewBox="0 0 1024 2560"><defs><g id="character-body">${body}</g></defs>${frameGroups}</svg>`;
 }
 export function generateJamesNativeVisual(asset: GameAssetSpec): { uri: string; metadata: Record<string, unknown> } {
+  if (asset.entityKind === "vehicle" || asset.tags.includes("racing-track")) {
+    throw new Error(`James Native Visual Engine cannot materialize racing asset "${asset.id}". Racing visuals require a real image asset provider.`);
+  }
   const dna = buildCharacterDNA(asset);
   const isCharacter = ["character", "npc", "enemy", "companion"].includes(asset.kind);
-  const svg = asset.kind === "environment"
-    ? environmentSvg(asset)
-    : isCharacter
-      ? characterSpriteSheetSvg(asset)
-      : asset.kind === "effect"
-        ? effectSvg(asset)
-        : propSvg(asset);
+  const svg = asset.tags.some((tag) => ["platform-image", "coin-image", "finish-image"].includes(tag))
+    ? platformerArtSvg(asset)
+    : asset.kind === "environment"
+      ? environmentSvg(asset)
+      : isCharacter
+        ? characterSpriteSheetSvg(asset)
+        : asset.kind === "effect"
+          ? effectSvg(asset)
+          : propSvg(asset);
 
   return {
     uri: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,

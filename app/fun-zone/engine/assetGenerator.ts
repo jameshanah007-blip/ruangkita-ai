@@ -1,5 +1,5 @@
 import type { AssetRegistry, GameAssetSpec } from "./assetRegistry";
-import { localAssetProvider, type AssetProvider } from "./assetProvider";
+import { localAssetProvider, localRealAssetProvider, type AssetProvider } from "./assetProvider";
 import { createAssetProviderRouter } from "./assetProviderRouter";
 import { generateJamesNativeVisual } from "./jamesNativeVisualEngine";
 import { buildCharacterDNA } from "./characterDNA";
@@ -16,6 +16,7 @@ const jamesNativeProvider: AssetProvider = {
 export type GeneratedAsset = {
   id: string;
   kind: GameAssetSpec["kind"];
+  entityKind?: GameAssetSpec["entityKind"];
   status: "ready" | "placeholder";
   uri: string;
   metadata: {
@@ -25,6 +26,7 @@ export type GeneratedAsset = {
     provider?: string;
     providerMetadata?: Record<string, unknown>;
     fallback?: boolean;
+    imageBacked?: boolean;
   };
 };
 
@@ -66,7 +68,10 @@ export async function generateGameAssets(
     : provider
       ? [provider]
       : [];
-  const providers = [...externalProviders, jamesNativeProvider];
+
+  // Local real assets are the quota-independent baseline. AI providers remain
+  // available for assets that need prompt-specific generation.
+  const providers = [localRealAssetProvider, ...externalProviders, jamesNativeProvider];
   const router = createAssetProviderRouter(providers);
   const warnings: string[] = [];
   const assets: GeneratedAsset[] = [];
@@ -79,9 +84,18 @@ export async function generateGameAssets(
       warnings.push(`Asset "${asset.id}" used emergency placeholder fallback.`);
     }
 
+    const characterDNA =
+      asset.entityKind === "vehicle"
+        ? null
+        : (() => {
+            const dna = buildCharacterDNA(asset);
+            return dna ? { ...dna, poseSet: buildCharacterPoseSet(dna) } : null;
+          })();
+
     assets.push({
       id: asset.id,
       kind: asset.kind,
+      entityKind: asset.entityKind,
       status: isPlaceholder ? "placeholder" : "ready",
       uri: routed.result.uri,
       metadata: {
@@ -91,9 +105,10 @@ export async function generateGameAssets(
         provider: routed.provider,
         providerMetadata: {
           ...routed.result.metadata,
-          characterDNA: (() => { const dna = buildCharacterDNA(asset); return dna ? { ...dna, poseSet: buildCharacterPoseSet(dna) } : null; })(),
+          characterDNA,
         },
         fallback: routed.fallback,
+        imageBacked: routed.result.metadata?.imageBacked === true,
       },
     });
   }

@@ -1,5 +1,6 @@
 import type { GameBlueprint } from "../laboratory/types";
-import type { PhaserGameSpec, PhaserGenre } from "./types";
+import { normalizeGameGenre } from "../engine/normalizeGameGenre";
+import type { PhaserGameSpec, PhaserGenre, PhaserAssetManifestEntry } from "./types";
 
 type GenreDefinition = {
   genre: PhaserGenre;
@@ -145,7 +146,7 @@ export function getGenreDefinition(genre: PhaserGenre): GenreDefinition {
 }
 
 export function resolvePhaserGenre(blueprint: GameBlueprint): PhaserGenre | null {
-  const value = String(blueprint.genre || "").toLowerCase();
+  const value = normalizeGameGenre(blueprint.genre);
   const concept = [
     blueprint.title,
     blueprint.concept,
@@ -167,17 +168,61 @@ export function resolvePhaserGenre(blueprint: GameBlueprint): PhaserGenre | null
   if (/rpg|role.?playing|level up|loot/i.test(value + " " + concept)) return "rpg";
   if (/adventure|petualangan|explore|ruins/i.test(value + " " + concept)) return "adventure";
 
-  const normalizedValue = value.replace(/[^a-z_]/g, "_");
+  const normalizedValue = normalizeGameGenre(value).replace(/[^a-z_]/g, "_");
   return (normalizedValue in DEFINITIONS ? normalizedValue : null) as PhaserGenre | null;
 }
 
 export function compilePhaserGameSpec(
   blueprint: GameBlueprint,
   prompt: string,
+  assets: PhaserAssetManifestEntry[] = [],
+  playerAssetId = "protagonist",
 ): PhaserGameSpec | null {
   const genre = resolvePhaserGenre(blueprint);
   if (!genre) return null;
   const definition = getGenreDefinition(genre);
+  const playerAsset = assets.find((asset) => asset.id === playerAssetId);
+  const racingTrackAsset = assets.find((asset) => asset.kind === "environment" && (asset.tags || []).includes("racing-track"));
+  const conceptText = [
+    blueprint.title, blueprint.concept, blueprint.coreLoop, blueprint.objective,
+    blueprint.progression, blueprint.replayability,
+    ...(blueprint.mechanics || []), ...(blueprint.playerActions || []),
+  ].join(" ");
+  const parseCount = (patterns: RegExp[], fallback: number) => {
+    for (const pattern of patterns) {
+      const match = conceptText.match(pattern);
+      const value = match ? Number(match[1]) : NaN;
+      if (Number.isFinite(value) && value > 0) return Math.min(20, Math.floor(value));
+    }
+    return fallback;
+  };
+  const buildCheckpointAnchors = (count: number, trackLayout?: PhaserAssetManifestEntry["racingTrackLayout"]) => {
+    if (trackLayout === "square-loop") {
+      // Anchors follow the verified 540px square-loop crop rendered at (480,330).
+      // Keep them on the road centerline rather than on the green infield.
+      const loop = [
+        { x: 480, y: 186 },
+        { x: 670, y: 266 },
+        { x: 670, y: 430 },
+        { x: 480, y: 494 },
+        { x: 290, y: 330 },
+      ];
+      return Array.from({ length: count }, (_, index) => loop[index % loop.length]);
+    }
+    const anchors: Array<{ x: number; y: number }> = [];
+    const radiusX = /street|city|urban/i.test(conceptText) ? 350 : 300;
+    const radiusY = /street|city|urban/i.test(conceptText) ? 210 : 230;
+    for (let index = 0; index < count; index += 1) {
+      const angle = -Math.PI / 2 + (index / count) * Math.PI * 2;
+      anchors.push({ x: Math.round(480 + Math.cos(angle) * radiusX), y: Math.round(330 + Math.sin(angle) * radiusY) });
+    }
+    return anchors;
+  };
+  if (!playerAsset) {
+    throw new Error(
+      `Phaser player contract failed: declared player asset "${playerAssetId}" is missing from the asset manifest.`,
+    );
+  }
 
   return {
     version: "ruangkita-game-spec-v1",
@@ -203,5 +248,31 @@ export function compilePhaserGameSpec(
     },
     sourcePrompt: prompt,
     runtimeId: "rk-phaser-" + genre + "-v1",
+    assets,
+    player: {
+      assetId: playerAssetId,
+      entityKind: genre === "racing" ? "vehicle" : "character",
+      requiredAnimations: playerAsset?.animationNeeds?.length
+        ? playerAsset.animationNeeds
+        : ["idle", "walk"],
+    },
+    ...(genre === "racing"
+      ? {
+          racing: {
+            laps: parseCount([/(\d+)\s*(?:lap|laps)/i, /(?:lap|laps)\s*(?:sebanyak|total|of)?\s*(\d+)/i], 3),
+            checkpointCount: parseCount([/(\d+)\s*checkpoint/i, /checkpoint(?:s)?\s*(?:sebanyak|total|of)?\s*(\d+)/i], 4),
+            trackAssetId: racingTrackAsset?.id || assets.find((asset) => asset.kind === "environment")?.id || "",
+            trackDescription: blueprint.world,
+            vehicleDescription: blueprint.concept,
+            maxSpeed: /fast|cepat|turbo|high speed|ngebut/i.test(conceptText) ? 8 : 6,
+            upgradeEnabled: /upgrade|upgrades|upgrade kendaraan|modif|tuning|garage/i.test(conceptText),
+            trackStyle: /street|city|urban/i.test(conceptText) ? "urban street circuit" : /forest|hutan|jungle/i.test(conceptText) ? "forest rally circuit" : /desert|gurun/i.test(conceptText) ? "desert rally circuit" : /snow|salju|ice|es/i.test(conceptText) ? "ice circuit" : /oval/i.test(conceptText) ? "oval circuit" : "prompt-derived circuit",
+            checkpointAnchors: buildCheckpointAnchors(
+              parseCount([/(\d+)\s*checkpoint/i, /checkpoint(?:s)?\s*(?:sebanyak|total|of)?\s*(\d+)/i], 4),
+              racingTrackAsset?.racingTrackLayout,
+            ),
+          },
+        }
+      : {}),
   };
 }

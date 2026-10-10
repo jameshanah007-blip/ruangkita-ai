@@ -12,20 +12,25 @@ function promptFor(asset: Parameters<AssetProvider["generate"]>[0]): string {
     ? ` Animation needs: ${asset.animationNeeds.join(", ")}.`
     : "";
 
-  const kindInstruction =
-    asset.kind === "character"
-      ? "Create a full-body original anime-inspired game protagonist, centered, isolated, transparent background."
-      : asset.kind === "enemy"
-        ? "Create a full-body original anime-inspired game enemy, centered, isolated, transparent background."
-        : asset.kind === "npc"
-          ? "Create a full-body original anime-inspired game NPC, centered, isolated, transparent background."
-          : "Create a full-body original anime-inspired game companion, centered, isolated, transparent background.";
+  const isVehicle = asset.entityKind === "vehicle";
+  const isRacingTrack = asset.tags.includes("racing-track");
+  const kindInstruction = isVehicle
+    ? "Create an original 2D racing vehicle for a mobile game, isolated and centered, readable from a top-down view, with a distinctive silhouette derived from the prompt."
+    : isRacingTrack
+      ? "Create a complete 2D top-down racing circuit environment for a mobile game, with road surface, turns, start/finish area, barriers, scenery and landmarks derived from the prompt."
+      : asset.kind === "character"
+        ? "Create a full-body original anime-inspired game protagonist, centered, isolated, transparent background."
+        : asset.kind === "enemy"
+          ? "Create a full-body original anime-inspired game enemy, centered, isolated, transparent background."
+          : asset.kind === "npc"
+            ? "Create a full-body original anime-inspired game NPC, centered, isolated, transparent background."
+            : "Create a full-body original anime-inspired game companion, centered, isolated, transparent background.";
 
   return [
     kindInstruction,
     "High-quality 2D Japanese anime game art.",
     "Preserve every identity trait in the description.",
-    "Clean silhouette suitable for a mobile game character sprite.",
+    ...(isVehicle ? ["Clean vehicle silhouette suitable for a mobile game sprite.", "No scenery or UI."] : isRacingTrack ? ["Wide 16:9 environment composition.", "No characters or UI."] : ["Clean silhouette suitable for a mobile game character sprite."]),
     "No text, no logo, no watermark, no frame, no UI.",
     asset.prompt + ".",
     animation,
@@ -41,7 +46,7 @@ export function createOpenAIImageProvider(): AssetProvider | null {
 
   return {
     name: "openai-gpt-image-2",
-    supports: ["character", "npc", "enemy", "companion"],
+    supports: ["character", "npc", "enemy", "companion", "environment"],
     async generate(asset) {
       const prompt = promptFor(asset);
 
@@ -56,7 +61,7 @@ export function createOpenAIImageProvider(): AssetProvider | null {
           prompt,
           size: "1024x1024",
           quality: "low",
-          background: "transparent",
+          background: asset.tags.includes("racing-track") ? "opaque" : "transparent",
           output_format: "png",
         }),
         cache: "no-store",
@@ -82,6 +87,8 @@ export function createOpenAIImageProvider(): AssetProvider | null {
           provider: "openai-gpt-image-2",
           model: "gpt-image-2",
           identityPreserved: true,
+          imageBacked: true,
+          fallback: false,
           prompt,
           revisedPrompt: data.data?.[0]?.revised_prompt || null,
         },

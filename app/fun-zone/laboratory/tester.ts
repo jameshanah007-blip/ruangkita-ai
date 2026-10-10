@@ -584,6 +584,9 @@ export function testGame({
     gameplayTest:
       evidence.gameplayTest,
 
+    gameTestProtocol:
+      evidence.gameTestProtocol,
+
     performanceTest:
       evidence.performanceTest,
 
@@ -596,8 +599,23 @@ export function testGame({
     playerChanged:
       evidence.playerChanged,
 
+    winStateDetected:
+      evidence.winStateDetected,
+
+    loseStateDetected:
+      evidence.loseStateDetected,
+
     restartVerified:
       evidence.restartVerified,
+
+    gameTestError:
+      evidence.gameTestError,
+
+    protocolActions:
+      evidence.protocolActions,
+
+    protocolActionResults:
+      evidence.protocolActionResults,
 
     frameCount:
       evidence.frameCount,
@@ -668,6 +686,45 @@ export function createDebugContext(
   lines.push(
     `Passed: ${report.passed}`
   );
+
+  lines.push(
+    `Game Test Protocol: ${report.gameTestProtocol}`
+  );
+  lines.push(
+    `State changed: ${report.stateChanged}`
+  );
+  lines.push(
+    `Player changed: ${report.playerChanged}`
+  );
+  lines.push(
+    `Objective changed: ${report.objectiveChanged}`
+  );
+  lines.push(
+    `Win detected: ${report.winStateDetected}`
+  );
+  lines.push(
+    `Lose detected: ${report.loseStateDetected}`
+  );
+  lines.push(
+    `Restart verified: ${report.restartVerified}`
+  );
+
+  lines.push(
+    `Protocol actions: ${report.protocolActions.join(", ") || "none"}`
+  );
+
+  if (report.protocolActionResults.length > 0) {
+    lines.push("Protocol action results:");
+    for (const item of report.protocolActionResults) {
+      lines.push(
+        `- ${item.action}: ${item.executed ? "executed" : "rejected"}`
+      );
+    }
+  }
+
+  if (report.gameTestError) {
+    lines.push(`Game Test Error: ${report.gameTestError}`);
+  }
 
   if (report.hardFailures.length > 0) {
     lines.push(

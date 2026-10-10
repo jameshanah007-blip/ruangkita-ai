@@ -166,6 +166,13 @@ export type SandboxTestEvidence = {
   restartVerified: boolean;
 
   gameTestError?: string;
+
+  protocolActions: string[];
+  protocolActionResults: Array<{
+    action: string;
+    executed: boolean;
+    result?: unknown;
+  }>;
 };
 
 export type TestCheckStatus =
@@ -198,10 +205,21 @@ export type TestReport = {
   gameplayTest: boolean;
   performanceTest: boolean;
 
+  gameTestProtocol: boolean;
   stateChanged: boolean;
   objectiveChanged: boolean;
   playerChanged: boolean;
+  winStateDetected: boolean;
+  loseStateDetected: boolean;
   restartVerified: boolean;
+  gameTestError?: string;
+
+  protocolActions: string[];
+  protocolActionResults: Array<{
+    action: string;
+    executed: boolean;
+    result?: unknown;
+  }>;
 
   frameCount: number;
   gameAnimationFrames: number;

@@ -4,22 +4,68 @@ const PHASER_VERSION = "4.2.1";
 const PHASER_CDN = "https://cdn.jsdelivr.net/npm/phaser@" + PHASER_VERSION + "/dist/phaser.min.js";
 
 export function buildFarmingGameHtml(spec: PhaserGameSpec): string {
+  const farmerAsset = spec.assets.find((asset) => asset.id === spec.player.assetId);
+  if (!farmerAsset) {
+    throw new Error(
+      "Farming Phaser runtime requires the declared player asset: " + spec.player.assetId,
+    );
+  }
+  if (farmerAsset.animationMode !== "sprite-sheet") {
+    throw new Error(
+      "Farming Phaser runtime requires a sprite-sheet player asset; single-image characters are not accepted.",
+    );
+  }
+  if (
+    !farmerAsset.frameWidth ||
+    !farmerAsset.frameHeight ||
+    !farmerAsset.frameCount ||
+    farmerAsset.frameCount < 2
+  ) {
+    throw new Error(
+      "Farming Phaser runtime received invalid player sprite-sheet metadata.",
+    );
+  }
   const config = JSON.stringify({
     title: spec.title,
     objective: spec.objective,
     winCondition: spec.winCondition,
     loseCondition: spec.loseCondition,
     palette: spec.visual.palette,
+    playerAssetUri: farmerAsset.uri,
+    playerAssetId: spec.player.assetId,
+    playerAnimationMode: farmerAsset.animationMode || "single-image",
+    playerFrameWidth: farmerAsset.frameWidth || 256,
+    playerFrameHeight: farmerAsset.frameHeight || 256,
   }).replace(/</g, "\\u003c");
 
-  const farmerSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="32"><g stroke="#ffffff" stroke-width="2" fill="#f6bd60"><rect x="4" y="6" width="22" height="22" rx="8"/><circle cx="15" cy="13" r="2" fill="#365314"/><rect x="36" y="4" width="22" height="24" rx="8"/><circle cx="47" cy="12" r="2" fill="#365314"/><rect x="68" y="7" width="22" height="21" rx="8"/><circle cx="79" cy="13" r="2" fill="#365314"/><rect x="100" y="4" width="22" height="24" rx="8"/><circle cx="111" cy="12" r="2" fill="#365314"/></g></svg>';
-  const farmerSvgLiteral = JSON.stringify(farmerSvg);
+  const farmerAssetLiteral = JSON.stringify(farmerAsset.uri).replace(/</g, "\\u003c");
+  const environmentAsset = spec.assets.find((asset) => asset.kind === "environment");
+  const environmentAssetLiteral = environmentAsset
+    ? JSON.stringify(environmentAsset.uri).replace(/</g, "\\u003c")
+    : null;
+  const npcAsset = spec.assets.find((asset) => asset.kind === "npc");
+  const npcAssetLiteral = npcAsset
+    ? JSON.stringify(npcAsset.uri).replace(/</g, "\\u003c")
+    : null;
 
   const script = `
 "use strict";
-const CFG=\${config};
-const FARMER_SVG=\${farmerSvgLiteral};
+const CFG=${config};
+const FARMER_ASSET=${farmerAssetLiteral};
+const FARM_ENVIRONMENT_ASSET=${environmentAssetLiteral || "null"};
+const FARM_NPC_ASSET=${npcAssetLiteral || "null"};
 let farm={money:50,wheat:0,tool:"till",harvested:0,day:1,plots:Array.from({length:12},()=>({state:"empty"}))};
+
+function targetMoney(){
+  const text=String(CFG.objective||"")+" "+String(CFG.winCondition||"");
+  const match=text.match(/\\b(\\d{2,})\\s*(?:uang|money|coins?|gold|dollars?|rupiah|rp)\\b/i);
+  return match ? Number(match[1]) : null;
+}
+
+function objectiveProgress(){
+  const target=targetMoney();
+  return target && target>0 ? Math.min(1,farm.money/target) : Math.min(1,farm.harvested/3);
+}
 
 window.__RK_GAME_READY__=false;
 window.__RK_GAME_RENDERED__=false;
@@ -65,10 +111,11 @@ function testAction(action){
 }
 
 window.__RK_GAME_TEST__={
+  testActions:["till","plant","water","harvest","sell"],
   getState:()=>JSON.parse(JSON.stringify(farm)),
-  getPlayerState:()=>({x:window.__RK_FARM_PLAYER__?.x||0,y:window.__RK_FARM_PLAYER__?.y||0}),
-  getObjectiveState:()=>({progress:Math.min(1,farm.harvested/3),harvested:farm.harvested}),
-  getWinState:()=>farm.harvested>=3,
+  getPlayerState:()=>({x:window.__RK_FARM_PLAYER__ ? window.__RK_FARM_PLAYER__.x : 0,y:window.__RK_FARM_PLAYER__ ? window.__RK_FARM_PLAYER__.y : 0}),
+  getObjectiveState:()=>({progress:objectiveProgress(),harvested:farm.harvested,money:farm.money,targetMoney:targetMoney()}),
+  getWinState:()=>{const target=targetMoney();return target && target>0 ? farm.money>=target : farm.harvested>=3;},
   getLoseState:()=>false,
   performTestAction:(action)=>testAction(action),
   restart:()=>{resetFarm();return true;},
@@ -78,23 +125,22 @@ class FarmScene extends Phaser.Scene {
   constructor(){super({key:"FarmScene"});}
 
   preload(){
-    this.load.spritesheet(
-      "farmer",
-      "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(FARMER_SVG),
-      {frameWidth:32,frameHeight:32}
-    );
+    if(CFG.playerAnimationMode==="sprite-sheet"){this.load.spritesheet("farmer",FARMER_ASSET,{frameWidth:CFG.playerFrameWidth,frameHeight:CFG.playerFrameHeight});}else{this.load.image("farmer",FARMER_ASSET);}
+    if(FARM_ENVIRONMENT_ASSET){this.load.image("farm-environment",FARM_ENVIRONMENT_ASSET);}
+    if(FARM_NPC_ASSET){this.load.spritesheet("farm-npc",FARM_NPC_ASSET,{frameWidth:256,frameHeight:256});}
   }
 
   create(){
-    this.anims.create({
-      key:"farmer-idle",
-      frames:this.anims.generateFrameNumbers("farmer",{start:0,end:3}),
-      frameRate:5,
-      repeat:-1
-    });
+    if(CFG.playerAnimationMode==="sprite-sheet"){this.anims.create({key:"farmer-idle",frames:this.anims.generateFrameNumbers("farmer",{start:0,end:3}),frameRate:5,repeat:-1}); this.anims.create({key:"farmer-walk",frames:this.anims.generateFrameNumbers("farmer",{start:4,end:7}),frameRate:8,repeat:-1});}
 
     this.cameras.main.setBackgroundColor("#9bcf7b");
     this.add.rectangle(480,320,960,640,0x9bcf7b);
+    if(FARM_ENVIRONMENT_ASSET){this.add.image(480,270,"farm-environment").setDisplaySize(960,540).setDepth(-10);}
+    if(FARM_NPC_ASSET){
+      this.anims.create({key:"npc-idle",frames:this.anims.generateFrameNumbers("farm-npc",{start:0,end:3}),frameRate:5,repeat:-1});
+      const npc=this.add.sprite(820,420,"farm-npc").setScale(.42);
+      npc.play("npc-idle");
+    }
     this.add.rectangle(120,150,190,105,0xd6b06e).setStrokeStyle(4,0x8b5a2b);
     this.add.rectangle(820,180,170,135,0xe8d9b5).setStrokeStyle(5,0x7a5534);
 
@@ -126,8 +172,22 @@ class FarmScene extends Phaser.Scene {
       {fontSize:"13px",fontFamily:"Arial",color:"#365314"}
     );
 
-    const player=this.add.sprite(120,470,"farmer").setScale(2.2);
-    player.play("farmer-idle");
+    const player=this.add.sprite(180,430,"farmer").setScale(CFG.playerAnimationMode==="sprite-sheet" ? 0.75 : 0.42);
+    if(CFG.playerAnimationMode==="sprite-sheet") player.play("farmer-idle");
+    this.farmKeys=this.input.keyboard ? this.input.keyboard.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") : null;
+    this.moveState={left:false,right:false,up:false,down:false};
+    const moveButton=(x,y,label,direction)=>{
+      const control=this.add.circle(x,y,24,0x365314,0.9).setInteractive({useHandCursor:true});
+      this.add.text(x,y,label,{fontSize:"18px",fontFamily:"Arial",color:"#fff8e7",fontStyle:"bold"}).setOrigin(.5);
+      control.on("pointerdown",()=>{this.moveState[direction]=true;});
+      control.on("pointerup",()=>{this.moveState[direction]=false;});
+      control.on("pointerout",()=>{this.moveState[direction]=false;});
+      return control;
+    };
+    moveButton(82,468,"▲","up");
+    moveButton(82,532,"▼","down");
+    moveButton(42,500,"◀","left");
+    moveButton(122,500,"▶","right");
     window.__RK_FARM_PLAYER__=player;
 
     ["till","plant","water","harvest","sell"].forEach((tool,index)=>{
@@ -192,11 +252,28 @@ class FarmScene extends Phaser.Scene {
 
   update(){
     window.__RK_GAME_LOOP_STARTED__=true;
+    const player=window.__RK_FARM_PLAYER__;
+    if(!player) return;
+    const speed=2.4;
+    const bridged=window.__RK_KEYBOARD_STATE__||{};
+    const left=this.moveState.left || bridged.a || bridged.arrowleft || (this.farmKeys && (this.farmKeys.A.isDown || this.farmKeys.LEFT.isDown));
+    const right=this.moveState.right || bridged.d || bridged.arrowright || (this.farmKeys && (this.farmKeys.D.isDown || this.farmKeys.RIGHT.isDown));
+    const up=this.moveState.up || bridged.w || bridged.arrowup || (this.farmKeys && (this.farmKeys.W.isDown || this.farmKeys.UP.isDown));
+    const down=this.moveState.down || bridged.s || bridged.arrowdown || (this.farmKeys && (this.farmKeys.S.isDown || this.farmKeys.DOWN.isDown));
+    if(left) player.x=Math.max(48,player.x-speed);
+    if(right) player.x=Math.min(912,player.x+speed);
+    if(up) player.y=Math.max(150,player.y-speed);
+    if(down) player.y=Math.min(510,player.y+speed);
+    if(CFG.playerAnimationMode==="sprite-sheet"){
+      const moving=left||right||up||down;
+      if(moving && player.anims.currentAnim && player.anims.currentAnim.key!=="farmer-walk") player.play("farmer-walk",true);
+      if(!moving && player.anims.currentAnim && player.anims.currentAnim.key!=="farmer-idle") player.play("farmer-idle",true);
+    }
   }
 }
 
 new Phaser.Game({
-  type:Phaser.AUTO,
+  type:Phaser.CANVAS,
   width:960,
   height:640,
   parent:"game",
@@ -210,6 +287,15 @@ new Phaser.Game({
   scene:[FarmScene]
 });
 `;
+
+  try {
+    new Function(script);
+  } catch (error) {
+    throw new Error(
+      "Farming Phaser runtime generated invalid JavaScript: " +
+      (error instanceof Error ? error.message : String(error)),
+    );
+  }
 
   return "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no\"><title>" +
     spec.title.replace(/</g, "&lt;") +
