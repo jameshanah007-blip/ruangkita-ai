@@ -32,6 +32,55 @@ function providerFor(hostname: string) {
   return SOURCES.find(({ domain }) => hostname === domain || hostname.endsWith(`.${domain}`));
 }
 
+async function verifyPlayableGamePage(pageUrl: string): Promise<boolean> {
+  try {
+    const url = new URL(pageUrl);
+    // Only inspect pages on known game platforms; do not fetch arbitrary URLs
+    // returned by search, which could expose internal network resources.
+    if (url.protocol !== "https:" || !providerFor(url.hostname.toLowerCase())) return false;
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: { "user-agent": "RuangKitaGameDiscovery/1.0" },
+      redirect: "manual",
+      signal: AbortSignal.timeout(2500),
+    });
+    if (response.status < 200 || response.status >= 300) return false;
+    if (!response.headers.get("content-type")?.toLowerCase().includes("text/html")) return false;
+    const declaredLength = Number(response.headers.get("content-length") || 0);
+    if (declaredLength > 256_000 || !response.body) return false;
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let html = "";
+    let bytesRead = 0;
+    try {
+      while (bytesRead < 256_000) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const remaining = 256_000 - bytesRead;
+        const chunk = value.byteLength > remaining ? value.subarray(0, remaining) : value;
+        bytesRead += chunk.byteLength;
+        html += decoder.decode(chunk, { stream: true });
+        if (chunk.byteLength < value.byteLength) break;
+      }
+    } finally {
+      await reader.cancel().catch(() => undefined);
+    }
+    html += decoder.decode();
+
+    // Require individual-game evidence, not just a reachable category/article page.
+    const hasGameEvidence =
+      /<meta[^>]+(?:property|name)=["']og:type["'][^>]+content=["'](?:game|product)["']/i.test(html) ||
+      /<(?:canvas|iframe)\b/i.test(html) ||
+      /\b(play game|play now|play online|mainkan sekarang|start game|launch game)\b/i.test(html) ||
+      /(?:game[_-]?id|game[_-]?url|game[_-]?embed|playable[_-]?game)/i.test(html);
+    const looksLikeNonGamePage = /\b(category|categories|tag|search results|game reviews|gaming news)\b/i.test(url.pathname);
+    return hasGameEvidence && !looksLikeNonGamePage;
+  } catch {
+    return false;
+  }
+}
+
 function cleanText(value: string, max = 320) {
   return value.replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim().slice(0, max);
 }
@@ -133,13 +182,22 @@ export async function searchExternalGames(prompt: string): Promise<{
       if (candidates.length >= 10) break;
     }
 
-    const games = await Promise.all(candidates.map(async (game) => ({
+    // A search result is not proof that a game is playable. Verify each candidate
+    // before it can become a card; unreachable pages and pages without game evidence
+    // are excluded rather than silently presented as playable.
+    const verifiedCandidates = await Promise.all(
+      candidates.map(async (game) => (await verifyPlayableGamePage(game.url) ? game : null)),
+    );
+    const playableCandidates = verifiedCandidates.filter(
+      (game): game is DiscoveredExternalGame => game !== null,
+    );
+    const games = await Promise.all(playableCandidates.map(async (game) => ({
       ...game,
       imageUrl: await readExternalThumbnail(game.url),
     })));
     return games.length
       ? { status: "live_search", games, sources: [...new Set(games.map((game) => game.source))] }
-      : { status: "no_results", games: [], sources: [], message: "Belum ada halaman game individual yang cocok dari sumber yang diizinkan. Coba jelaskan genre atau gaya game lebih spesifik." };
+      : { status: "no_results", games: [], sources: [], message: "Belum ditemukan halaman game yang dapat diverifikasi dari sumber yang diizinkan. Coba lagi atau ubah prompt; hasil yang tidak lolos pemeriksaan tidak ditampilkan." };
   } catch (error) {
     console.error("External game search failed:", error instanceof Error ? error.message : error);
     return { status: "unavailable", games: [], sources: [], message: "Pencarian eksternal sementara tidak tersedia. Coba lagi nanti." };
