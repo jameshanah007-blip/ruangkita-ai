@@ -8,7 +8,6 @@ export type DiscoveredExternalGame = {
   imageUrl: string | null;
   description: string;
   source: string;
-  relevance: number;
 };
 
 const SOURCES = [
@@ -84,6 +83,7 @@ export async function searchExternalGames(prompt: string): Promise<{
     const response = await exa.search(query, {
       type: "auto",
       numResults: 10,
+      systemPrompt: "Prefer established game portals and official developer game pages. Return playable browser games, not articles or download mirrors. Exclude gambling, adult content, malware, and suspicious download sites.",
       contents: { highlights: { maxCharacters: 900 } },
     });
     const seen = new Set<string>();
@@ -108,7 +108,6 @@ export async function searchExternalGames(prompt: string): Promise<{
         imageUrl: null,
         description: description || `Buka halaman game ini di ${provider?.name ?? url.hostname} untuk melihat detail dan cara bermain.`,
         source: provider?.domain ?? url.hostname.replace(/^www\./, ""),
-        relevance: 0,
       });
       if (candidates.length >= 10) break;
     }
@@ -116,7 +115,6 @@ export async function searchExternalGames(prompt: string): Promise<{
     const games = await Promise.all(candidates.map(async (game) => ({
       ...game,
       imageUrl: await readExternalThumbnail(game.url),
-      relevance: 1,
     })));
     return games.length
       ? { status: "live_search", games, sources: [...new Set(games.map((game) => game.source))] }
