@@ -15,9 +15,9 @@ Fun Zone is a free game-discovery portal, not a game-generation laboratory. Jame
 
 ## Search and source policy
 
-The search is dynamic: the prompt is sent to a semantic search engine on each request, so recommendations are not limited to a hardcoded genre enum or the small starter catalog. The current safety boundary allows results from these game platforms: Poki, CrazyGames, Games.co.id, Playhop, itch.io, Newgrounds, GamePix, Y8, Lagged, Armor Games, Kongregate, SilverGames, Gameflare, Game Jolt, and Miniclip.
+The search is dynamic: the prompt is sent to a semantic search engine on each request, so recommendations are not limited to a hardcoded genre enum or the small starter catalog. Search results are discovered broadly across the web and must use HTTPS. The provider label is derived from the result hostname. Thumbnail retrieval is more restrictive: only known game platforms (Poki, CrazyGames, Games.co.id, Playhop, itch.io, Newgrounds, GamePix, Y8, Lagged, Armor Games, Kongregate, SilverGames, Gameflare, Game Jolt, and Miniclip) are fetched for Open Graph images. Other HTTPS results can still be surfaced as search results but use a provider-icon fallback instead of fetching their page server-side.
 
-This source allowlist is an intentional safety/quality boundary, not a genre list. Add a source only after checking its legitimacy and that its pages are suitable for browser-playable games. Never fetch thumbnails from arbitrary hosts or allow non-HTTPS game URLs. Search results are not a guarantee that every page is available, playable in every region, or safe for every age.
+This source allowlist is an intentional safety/quality boundary, not a genre list. Add a source only after checking its legitimacy and that its pages are suitable for browser-playable games. Never fetch thumbnails from arbitrary hosts or allow non-HTTPS game URLs. Because results can originate outside the thumbnail allowlist, show their hostname clearly and do not claim an unreviewed result is endorsed by RuangKita. Search results are not a guarantee that every page is available, playable in every region, or safe for every age.
 
 ## AI/search role
 
