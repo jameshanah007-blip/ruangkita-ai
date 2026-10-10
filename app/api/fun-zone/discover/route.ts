@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     }
 
     // The local catalog is only a fallback/portal hint. Live results are retrieved
-    // from approved external game platforms for each prompt, not selected solely
+    // from broad web search for each prompt, not selected solely
     // from a fixed genre list.
     const liveSearch = await searchExternalGames(prompt);
 
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
         message: liveSearch.message,
       },
       mode: liveSearch.status === "live_search" ? "dynamic-external-search" : "safe-fallback",
-      note: "Game dan gambar tetap disediakan oleh platform eksternal. Hanya halaman HTTPS dari sumber game yang diizinkan yang ditampilkan.",
+      note: "Game dan gambar tetap disediakan oleh platform eksternal. Hasil pencarian harus memakai HTTPS; metadata gambar server-side hanya diambil dari platform yang sudah diizinkan.",
     });
   } catch {
     return NextResponse.json(
