@@ -141,7 +141,7 @@ export default function FunZonePage() {
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#00D3F1]">Game di Laboratory</p>
               <h2 className="mt-2 text-2xl font-bold sm:text-3xl">
-                {result ? `Hasil untuk: ${result.label}` : "Pilih game untuk mulai bermain"}
+                {result ? "Game yang cocok dengan permintaanmu" : "Pilih game untuk mulai bermain"}
               </h2>
               
             </div>
