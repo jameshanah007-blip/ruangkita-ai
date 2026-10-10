@@ -255,10 +255,11 @@ class FarmScene extends Phaser.Scene {
     const player=window.__RK_FARM_PLAYER__;
     if(!player) return;
     const speed=2.4;
-    const left=this.moveState.left || (this.farmKeys && (this.farmKeys.A.isDown || this.farmKeys.LEFT.isDown));
-    const right=this.moveState.right || (this.farmKeys && (this.farmKeys.D.isDown || this.farmKeys.RIGHT.isDown));
-    const up=this.moveState.up || (this.farmKeys && (this.farmKeys.W.isDown || this.farmKeys.UP.isDown));
-    const down=this.moveState.down || (this.farmKeys && (this.farmKeys.S.isDown || this.farmKeys.DOWN.isDown));
+    const bridged=window.__RK_KEYBOARD_STATE__||{};
+    const left=this.moveState.left || bridged.a || bridged.arrowleft || (this.farmKeys && (this.farmKeys.A.isDown || this.farmKeys.LEFT.isDown));
+    const right=this.moveState.right || bridged.d || bridged.arrowright || (this.farmKeys && (this.farmKeys.D.isDown || this.farmKeys.RIGHT.isDown));
+    const up=this.moveState.up || bridged.w || bridged.arrowup || (this.farmKeys && (this.farmKeys.W.isDown || this.farmKeys.UP.isDown));
+    const down=this.moveState.down || bridged.s || bridged.arrowdown || (this.farmKeys && (this.farmKeys.S.isDown || this.farmKeys.DOWN.isDown));
     if(left) player.x=Math.max(48,player.x-speed);
     if(right) player.x=Math.min(912,player.x+speed);
     if(up) player.y=Math.max(150,player.y-speed);
