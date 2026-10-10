@@ -152,7 +152,7 @@ export async function searchExternalGames(prompt: string): Promise<{
   try {
     const response = await exa.search(query, {
       type: "auto",
-      numResults: 10,
+      numResults: 20,
       systemPrompt: "Prefer established game portals and official developer game pages. Return playable browser games, not articles or download mirrors. Exclude gambling, adult content, malware, and suspicious download sites.",
       contents: { highlights: { maxCharacters: 900 } },
     });
@@ -179,7 +179,7 @@ export async function searchExternalGames(prompt: string): Promise<{
         description: description || `Buka halaman game ini di ${provider?.name ?? url.hostname} untuk melihat detail dan cara bermain.`,
         source: provider?.domain ?? url.hostname.replace(/^www\./, ""),
       });
-      if (candidates.length >= 10) break;
+      if (candidates.length >= 20) break;
     }
 
     // A search result is not proof that a game is playable. Verify each candidate
@@ -191,7 +191,28 @@ export async function searchExternalGames(prompt: string): Promise<{
     const playableCandidates = verifiedCandidates.filter(
       (game): game is DiscoveredExternalGame => game !== null,
     );
-    const games = await Promise.all(playableCandidates.map(async (game) => ({
+
+    // Balance the final list across providers so one portal cannot dominate the
+    // whole Laboratory. Keep search relevance within each provider's result order.
+    const byProvider = new Map<string, DiscoveredExternalGame[]>();
+    for (const game of playableCandidates) {
+      const group = byProvider.get(game.provider) ?? [];
+      group.push(game);
+      byProvider.set(game.provider, group);
+    }
+    const diversified: DiscoveredExternalGame[] = [];
+    const providerQueues = [...byProvider.values()];
+    while (diversified.length < 10 && providerQueues.some((queue) => queue.length > 0)) {
+      for (const queue of providerQueues) {
+        if (queue.length && diversified.length < 10) diversified.push(queue.shift()!);
+      }
+    }
+    // Rotate a balanced set between searches to reduce repetitive ordering.
+    if (diversified.length > 1) {
+      const rotation = Math.floor(Math.random() * diversified.length);
+      diversified.push(...diversified.splice(0, rotation));
+    }
+    const games = await Promise.all(diversified.map(async (game) => ({
       ...game,
       imageUrl: await readExternalThumbnail(game.url),
     })));
