@@ -139,7 +139,7 @@ async function searchWithExa(prompt: string): Promise<SearchAttempt> {
   if (!apiKey) return { provider: "Exa", results: [], error: "EXA_API_KEY is not configured" };
   try {
     const exa = new Exa(apiKey);
-    const query = \`Find specific free browser-playable 2D games that best match this user request: \${prompt}. Search broadly across the web, including reputable game portals such as Poki, CrazyGames, Games.co.id, Playhop, itch.io, Newgrounds, GamePix, Y8 and other relevant sources. Return individual game pages, not category pages, news, reviews, or articles.\`;
+    const query = `Find specific free browser-playable 2D games that best match this user request: ${prompt}. Search broadly across the web, including reputable game portals such as Poki, CrazyGames, Games.co.id, Playhop, itch.io, Newgrounds, GamePix, Y8 and other relevant sources. Return individual game pages, not category pages, news, reviews, or articles.`;
     const response = await exa.search(query, {
       type: "auto",
       numResults: 20,
@@ -164,7 +164,7 @@ async function searchWithBrave(prompt: string): Promise<SearchAttempt> {
   const apiKey = process.env.BRAVE_SEARCH_API_KEY;
   if (!apiKey) return { provider: "Brave", results: [], error: "BRAVE_SEARCH_API_KEY is not configured" };
   try {
-    const query = \`free browser game \${prompt} playable online 2D game site:poki.com OR site:crazygames.com OR site:games.co.id OR site:playhop.com OR site:itch.io OR site:newgrounds.com OR site:gamepix.com OR site:y8.com OR site:lagged.com\`;
+    const query = `free browser game ${prompt} playable online 2D game site:poki.com OR site:crazygames.com OR site:games.co.id OR site:playhop.com OR site:itch.io OR site:newgrounds.com OR site:gamepix.com OR site:y8.com OR site:lagged.com`;
     const url = new URL("https://api.search.brave.com/res/v1/web/search");
     url.searchParams.set("q", query.slice(0, 600));
     url.searchParams.set("count", "20");
@@ -179,7 +179,7 @@ async function searchWithBrave(prompt: string): Promise<SearchAttempt> {
     });
     if (!response.ok) {
       console.error("Brave game search returned HTTP", response.status);
-      return { provider: "Brave", results: [], error: \`Brave search returned HTTP \${response.status}\` };
+      return { provider: "Brave", results: [], error: `Brave search returned HTTP ${response.status}` };
     }
     const data: unknown = await response.json();
     if (!data || typeof data !== "object" || !("web" in data)) {
@@ -228,7 +228,7 @@ function toCandidates(results: RawSearchResult[]): DiscoveredExternalGame[] {
       provider: provider.name,
       url: key,
       imageUrl: null,
-      description: description || \`Buka halaman game ini di \${provider.name} untuk melihat detail dan cara bermain.\`,
+      description: description || `Buka halaman game ini di ${provider.name} untuk melihat detail dan cara bermain.`,
       source: provider.domain,
     });
     if (candidates.length >= 20) break;
