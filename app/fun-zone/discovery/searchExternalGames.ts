@@ -16,6 +16,17 @@ const SOURCES = [
   { domain: "crazygames.com", name: "CrazyGames" },
   { domain: "games.co.id", name: "Games.co.id" },
   { domain: "playhop.com", name: "Playhop" },
+  { domain: "itch.io", name: "itch.io" },
+  { domain: "newgrounds.com", name: "Newgrounds" },
+  { domain: "gamepix.com", name: "GamePix" },
+  { domain: "y8.com", name: "Y8" },
+  { domain: "lagged.com", name: "Lagged" },
+  { domain: "armorgames.com", name: "Armor Games" },
+  { domain: "kongregate.com", name: "Kongregate" },
+  { domain: "silvergames.com", name: "SilverGames" },
+  { domain: "gameflare.com", name: "Gameflare" },
+  { domain: "gamejolt.com", name: "Game Jolt" },
+  { domain: "miniclip.com", name: "Miniclip" },
 ] as const;
 
 function providerFor(hostname: string) {
@@ -68,11 +79,11 @@ export async function searchExternalGames(prompt: string): Promise<{
   }
 
   const exa = new Exa(apiKey);
-  const query = `free browser 2D games matching this player request: ${prompt}. Return individual game pages, not category pages or articles.`;
+  const query = `Find specific free browser-playable games that best match this user request: ${prompt}. Search across reputable game portals, include individual game pages with playable games, and avoid category pages, news, reviews, and articles.`;
   try {
     const response = await exa.search(query, {
       type: "auto",
-      numResults: 18,
+      numResults: 30,
       includeDomains: SOURCES.map((source) => source.domain),
       contents: { highlights: { maxCharacters: 900 } },
     });
@@ -100,7 +111,7 @@ export async function searchExternalGames(prompt: string): Promise<{
         source: provider.domain,
         relevance: 0,
       });
-      if (candidates.length >= 8) break;
+      if (candidates.length >= 12) break;
     }
 
     const games = await Promise.all(candidates.map(async (game) => ({
