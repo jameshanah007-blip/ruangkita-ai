@@ -149,7 +149,7 @@ async function searchWithExa(prompt: string): Promise<SearchAttempt> {
     return {
       provider: "Exa",
       results: response.results.map((item) => ({
-        title: item.title,
+        title: item.title ?? undefined,
         url: item.url,
         highlights: item.highlights || [],
       })),
