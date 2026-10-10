@@ -42,6 +42,7 @@ export async function POST(request: Request) {
         portals: GAME_PORTALS,
         games: liveSearch.games,
         searchStatus: liveSearch.status,
+        searchProvider: liveSearch.searchProvider ?? "none",
         sources: liveSearch.sources,
         message: liveSearch.message,
       },
