@@ -142,7 +142,7 @@ async function searchWithExa(prompt: string): Promise<SearchAttempt> {
     const query = `Find specific free browser-playable 2D games that best match this user request: ${prompt}. Search broadly across the web, including reputable game portals such as Poki, CrazyGames, Games.co.id, Playhop, itch.io, Newgrounds, GamePix, Y8 and other relevant sources. Return individual game pages, not category pages, news, reviews, or articles.`;
     const response = await exa.search(query, {
       type: "auto",
-      numResults: 20,
+      numResults: 30,
       systemPrompt: "Prefer established game portals and official developer game pages. Return playable browser games, not articles or download mirrors. Exclude gambling, adult content, malware, and suspicious download sites.",
       contents: { highlights: { maxCharacters: 900 } },
     });
@@ -164,7 +164,7 @@ async function searchWithFirecrawl(prompt: string): Promise<SearchAttempt> {
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) return { provider: "Firecrawl", results: [], error: "FIRECRAWL_API_KEY is not configured" };
   try {
-    const query = `free browser-playable game ${prompt} online 2D game`;
+    const query = `free browser game playable online ${prompt} direct game page`;
     const response = await fetch("https://api.firecrawl.dev/v2/search", {
       method: "POST",
       headers: {
@@ -174,7 +174,7 @@ async function searchWithFirecrawl(prompt: string): Promise<SearchAttempt> {
       },
       body: JSON.stringify({
         query: query.slice(0, 500),
-        limit: 20,
+        limit: 30,
         includeDomains: SOURCES.map(({ domain }) => domain),
       }),
       signal: AbortSignal.timeout(5000),
@@ -285,7 +285,47 @@ export async function searchExternalGames(prompt: string): Promise<{
   games: DiscoveredExternalGame[];
   sources: string[];
   message?: string;
-  searchProvider?: "Exa" | "Firecrawl" | "none";
+  searchProvider?: "Exa" | "Firecrawl" | "Exa+Firecrawl" | "none";
+}> {
+  // Exa is primary. If it yields fewer than 8 verified games, Firecrawl adds alternatives.
+  const primary = await searchWithExa(prompt);
+  let verified = primary.results.length ? await verifyAndDiversify(toCandidates(primary.results)) : [];
+  let providerUsed: "Exa" | "Firecrawl" | "Exa+Firecrawl" | "none" = verified.length ? "Exa" : "none";
+  let fallback: SearchAttempt | null = null;
+
+  if (verified.length < 8) {
+    fallback = await searchWithFirecrawl(prompt);
+    if (fallback.results.length) {
+      const additional = await verifyAndDiversify(toCandidates(fallback.results));
+      const seen = new Set(verified.map((game) => game.url.replace(/\\/$/, "")));
+      for (const game of additional) {
+        const key = game.url.replace(/\\/$/, "");
+        if (!seen.has(key)) { verified.push(game); seen.add(key); }
+      }
+      if (additional.length) providerUsed = primary.results.length && verified.length ? "Exa+Firecrawl" : "Firecrawl";
+    }
+  }
+
+  if (!verified.length) {
+    const configured = Boolean(process.env.EXA_API_KEY || process.env.FIRECRAWL_API_KEY);
+    return {
+      status: configured ? "no_results" : "unavailable",
+      games: [], sources: [], searchProvider: "none",
+      message: configured
+        ? "Exa dan Firecrawl belum menemukan halaman game yang lolos pemeriksaan. Katalog lokal digunakan sebagai cadangan."
+        : "EXA_API_KEY dan FIRECRAWL_API_KEY belum dikonfigurasi. Katalog lokal digunakan sebagai cadangan.",
+    };
+  }
+
+  const games = await Promise.all(verified.slice(0, 10).map(async (game) => ({
+    ...game, imageUrl: await readExternalThumbnail(game.url),
+  })));
+  return {
+    status: "live_search", games,
+    sources: [...new Set(games.map((game) => game.source))],
+    searchProvider: providerUsed,
+    message: games.length < 6 ? "Hasil pencarian sedikit; katalog lokal dapat menambah pilihan." : undefined,
+  };
 }> {
   // Primary search uses Exa; independent Firecrawl Search API is attempted when Exa
   // is unconfigured, errors, returns no candidates, or candidates fail page checks.
