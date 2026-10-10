@@ -58,7 +58,7 @@ export default function FunZonePage() {
       return;
     }
 
-    setPrompt(request);
+    setPrompt("");
     setError("");
     setIsSearching(true);
 
