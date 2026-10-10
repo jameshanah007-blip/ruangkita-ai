@@ -13,6 +13,8 @@ import type {
   ReferenceImageEvidence,
 } from "../../../fun-zone/laboratory/types";
 import { buildAutonomousGameHtml } from "../../../fun-zone/engine/jamesAutonomousGameEngine";
+import { resolvePhaserGenre } from "../../../fun-zone/phaser/genreDefinitions";
+import { getPhaserGenreAdapter } from "../../../fun-zone/phaser/runtimeAdapters";
 import { composeGamePlan } from "../../../fun-zone/engine/gameComposer";
 import { generateFunZoneGameBlueprint } from "../../../core/james/funZoneGameDirector";
 import { createLocalPlatformerBlueprint } from "../../../fun-zone/engine/localPlatformerDirector";
@@ -384,6 +386,16 @@ export async function POST(
     // Compose reusable gameplay systems before the existing autonomous builder runs.
     // We enrich the existing blueprint instead of replacing the current architecture.
     let effectiveBlueprint = learnedBlueprint;
+
+    // Preflight runtime support before asset generation or provider calls. Genre
+    // definitions describe design vocabulary; only registered adapters are playable.
+    const selectedRuntimeGenre = resolvePhaserGenre(effectiveBlueprint);
+    if (!selectedRuntimeGenre || !getPhaserGenreAdapter(selectedRuntimeGenre)) {
+      throw new Error(
+        `Fun Zone runtime is not implemented for genre "${effectiveBlueprint.genre}". Currently playable Phaser runtimes: farming, platformer, racing. No assets were generated and no other genre template was substituted.`,
+      );
+    }
+
     const composedPlan = composeGamePlan(effectiveBlueprint);
     let buildPlan = createGameBuildPlan(effectiveBlueprint);
     let visualBlueprint = createVisualBlueprint(learnedBlueprint);
