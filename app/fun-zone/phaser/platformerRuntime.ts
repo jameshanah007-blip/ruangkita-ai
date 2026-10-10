@@ -142,6 +142,7 @@ class PlatformerScene extends Phaser.Scene{
    clearInputs();
    window.removeEventListener("pointerup",onPointerUp);
    window.removeEventListener("pointercancel",onPointerCancel);
+   window.removeEventListener("lostpointercapture",onPointerCancel);
    window.removeEventListener("touchend",onTouchEnd);
    window.removeEventListener("touchcancel",onTouchEnd);
    window.removeEventListener("blur",onBlur);
@@ -154,6 +155,7 @@ class PlatformerScene extends Phaser.Scene{
   };
   window.addEventListener("pointerup",onPointerUp);
   window.addEventListener("pointercancel",onPointerCancel);
+  window.addEventListener("lostpointercapture",onPointerCancel);
   window.addEventListener("touchend",onTouchEnd,{passive:true});
   window.addEventListener("touchcancel",onTouchEnd,{passive:true});
   window.addEventListener("blur",onBlur);
