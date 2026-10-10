@@ -116,7 +116,7 @@ export default function FunZonePage() {
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 placeholder="Contoh: game 2D santai tentang mengelola toko sambil bertani..."
-                maxLength={2000}
+                maxLength={500}
                 className="min-h-12 min-w-0 flex-1 rounded-xl bg-transparent px-4 text-sm text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-violet-400/50"
               />
               <button
@@ -186,7 +186,7 @@ export default function FunZonePage() {
                       className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                     />
                     <span className="absolute left-2 top-2 rounded-full border border-white/15 bg-black/70 px-2 py-1 text-[10px] font-semibold text-white">
-                      {game.badge}
+                      {("badge" in game && game.badge) ? game.badge : "Hasil pencarian"}
                     </span>
                   </div>
                   <div className="p-3 sm:p-4">
