@@ -104,7 +104,7 @@ class PlatformerScene extends Phaser.Scene{
   this._pressedKeys=new Set();
   this._windowKeyDown=(event)=>{const key=String(event.key||"").toLowerCase();if(["arrowleft","arrowright","arrowup","arrowdown"," ","w","a","s","d","r"].includes(key)){event.preventDefault();this._pressedKeys.add(key);}if(key==="r"&&(state.won||state.dead))restartGame();};
   this._windowKeyUp=(event)=>{this._pressedKeys.delete(String(event.key||"").toLowerCase());};
-  this._windowBlur=()=>{this._pressedKeys.clear();this.move.left=false;this.move.right=false;this.touchJump=false;};
+  this._windowBlur=()=>{this._pressedKeys.clear();this.move.left=false;this.move.right=false;this.touchJump=false;window.__RK_KEYBOARD_STATE__=Object.create(null);};
   window.addEventListener("keydown",this._windowKeyDown,{passive:false});
   window.addEventListener("keyup",this._windowKeyUp);
   window.addEventListener("blur",this._windowBlur);
@@ -168,15 +168,16 @@ class PlatformerScene extends Phaser.Scene{
   if(!this.player||!this.player.body)return;window.__RK_GAME_LOOP_STARTED__=true;
   if(state.won||state.dead){this.player.setVelocity(0,0);return;}
   const pressed=this._pressedKeys||new Set();
-  const left=this.move.left||pressed.has("a")||pressed.has("arrowleft")||this.keys.A?.isDown||this.keys.LEFT?.isDown;
-  const right=this.move.right||pressed.has("d")||pressed.has("arrowright")||this.keys.D?.isDown||this.keys.RIGHT?.isDown;
+  const bridged=window.__RK_KEYBOARD_STATE__||{};
+  const left=this.move.left||pressed.has("a")||pressed.has("arrowleft")||bridged.a||bridged.arrowleft||this.keys.A?.isDown||this.keys.LEFT?.isDown;
+  const right=this.move.right||pressed.has("d")||pressed.has("arrowright")||bridged.d||bridged.arrowright||this.keys.D?.isDown||this.keys.RIGHT?.isDown;
   if(left&&!right){this.player.setVelocityX(-210);this.player.setFlipX(true);if(this.player.anims.currentAnim?.key!=="hero-run")this.player.play("hero-run",true);}
   else if(right&&!left){this.player.setVelocityX(210);this.player.setFlipX(false);if(this.player.anims.currentAnim?.key!=="hero-run")this.player.play("hero-run",true);}
   else{this.player.setVelocityX(0);if(this.player.anims.currentAnim?.key!=="hero-idle")this.player.play("hero-idle",true);}
-  const jumpPressed=pressed.has("arrowup")||pressed.has(" ")||pressed.has("w")||this.keys.SPACE?.isDown||this.keys.UP?.isDown||this.keys.W?.isDown||this.touchJump;
+  const jumpPressed=pressed.has("arrowup")||pressed.has(" ")||pressed.has("w")||bridged.arrowup||bridged[" "]||bridged.w||this.keys.SPACE?.isDown||this.keys.UP?.isDown||this.keys.W?.isDown||this.touchJump;
   if(jumpPressed&&this.player.body.blocked.down){this.player.setVelocityY(-430);this.touchJump=false;pressed.delete("arrowup");pressed.delete(" ");pressed.delete("w");}
   // Down is an intentional platformer action: accelerate falling while airborne.
-  const downPressed=pressed.has("arrowdown")||pressed.has("s")||this.keys.DOWN?.isDown||this.keys.S?.isDown;
+  const downPressed=pressed.has("arrowdown")||pressed.has("s")||bridged.arrowdown||bridged.s||this.keys.DOWN?.isDown||this.keys.S?.isDown;
   if(downPressed&&!this.player.body.blocked.down){this.player.setVelocityY(Math.max(this.player.body.velocity.y,300));}
   if(this.player.y>720&&!state.dead){state.dead=true;this.player.setVelocity(0,0);this.player.body.setEnable(false);this.add.text(480,300,"You fell! Try again",{fontSize:"24px",fontFamily:"Arial",color:"#ffffff",backgroundColor:"#000000bb",padding:{x:14,y:10}}).setOrigin(.5).setScrollFactor(0).setDepth(100);restartButton.style.display="block"; }
  }
