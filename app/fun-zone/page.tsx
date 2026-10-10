@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import SiteNav from "../components/SiteNav";
 import {
+  EXTERNAL_GAMES,
   GAME_PORTALS,
   GENRE_LABELS,
   type GameGenre,
@@ -72,6 +73,10 @@ export default function FunZonePage() {
     void discoverGames(prompt);
   }
 
+  const matchingGames = EXTERNAL_GAMES.filter((game) =>
+    !result || result.genre === "all" ? true : game.tags.includes(result.genre),
+  );
+  const visibleGames = matchingGames.length > 0 ? matchingGames : EXTERNAL_GAMES;
   const visiblePortals = result?.portals ?? GAME_PORTALS;
 
   return (
@@ -93,9 +98,9 @@ export default function FunZonePage() {
               </span>
             </h1>
             <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-              Ceritakan game yang kamu cari. James akan mencocokkan permintaanmu
-              dengan portal game 2D gratis, lalu mengarahkanmu ke tempat bermainnya.
-              Tidak perlu menunggu game dibuat di laboratory.
+              Ceritakan game yang ingin kamu mainkan. James akan memilihkan beberapa
+              game dari katalog eksternal dan menampilkan gambar game yang bisa kamu
+              pilih langsung. Game dimainkan di situs penyedia aslinya.
             </p>
 
             <form onSubmit={handleSubmit} className="mt-7 flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/25 p-2 sm:flex-row">
@@ -139,7 +144,7 @@ export default function FunZonePage() {
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-200">Rekomendasi James</p>
                 <h2 className="mt-2 text-2xl font-bold">{result.label}</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{result.explanation}</p>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{result.explanation} Saya menampilkan pilihan game bergambar di bawah.</p>
               </div>
               <button type="button" onClick={() => setResult(null)} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5">
                 Lihat semua portal
@@ -148,15 +153,59 @@ export default function FunZonePage() {
           </section>
         )}
 
+        <section aria-label="Pilihan game" className="mt-10">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-fuchsia-300">Pilih game dan langsung main</p>
+              <h2 className="mt-2 text-2xl font-bold sm:text-3xl">
+                {result ? `Game ${result.label}` : "Game pilihan untuk dijelajahi"}
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm text-slate-400">
+                Kartu game memakai gambar dari penyedia eksternal. Pilih gambar atau tombol untuk membuka halaman game aslinya.
+              </p>
+            </div>
+            <p className="text-sm text-slate-500">{visibleGames.length} pilihan game</p>
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {visibleGames.map((game) => (
+              <article key={game.id} className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] transition hover:-translate-y-1 hover:border-violet-300/40 hover:bg-white/[0.06]">
+                <a href={game.url} target="_blank" rel="noopener noreferrer" className="block" aria-label={`Mainkan ${game.name} di ${game.provider}`}>
+                  <div className="relative aspect-square overflow-hidden bg-slate-900">
+                    <img
+                      src={game.imageUrl}
+                      alt={`Ikon game ${game.name}`}
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                    />
+                    <span className="absolute left-2 top-2 rounded-full border border-white/15 bg-black/70 px-2 py-1 text-[10px] font-semibold text-white">
+                      {game.badge}
+                    </span>
+                  </div>
+                  <div className="p-3 sm:p-4">
+                    <h3 className="font-bold text-white">{game.name}</h3>
+                    <p className="mt-1 line-clamp-2 min-h-10 text-xs leading-5 text-slate-400">{game.description}</p>
+                    <p className="mt-3 text-xs font-semibold text-violet-200">Mainkan di {game.provider} ↗</p>
+                  </div>
+                </a>
+              </article>
+            ))}
+          </div>
+          <p className="mt-3 text-xs leading-5 text-slate-500">
+            Gambar dan game berasal dari platform masing-masing. Pilihan saat ini adalah katalog awal yang akan diperluas per genre setelah setiap halaman dan gambar diverifikasi.
+          </p>
+        </section>
+
         <section className="mt-10">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">Mulai menjelajah</p>
               <h2 className="mt-2 text-2xl font-bold sm:text-3xl">
-                {result ? "Portal yang cocok untukmu" : "Kumpulan game 2D gratis"}
+                {result ? "Portal tambahan untukmu" : "Jelajahi lebih banyak portal"}
               </h2>
             </div>
-            <p className="text-sm text-slate-500">{visiblePortals.length} portal pilihan</p>
+            <p className="text-sm text-slate-500">{visiblePortals.length} portal</p>
           </div>
 
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -219,7 +268,7 @@ export default function FunZonePage() {
         </section>
 
         <footer className="mt-12 border-t border-white/10 pt-5 text-xs leading-5 text-slate-600">
-          Fun Zone adalah direktori penemuan game. RuangKita mengarahkan pengguna ke tautan publik dan tidak menyalin atau meng-host game dari portal pihak ketiga.
+          Fun Zone adalah katalog penemuan game. Gambar dan game tetap dimiliki serta di-host oleh platform eksternal; RuangKita menampilkan kartu pilihan dan membuka halaman game sumber.
         </footer>
       </div>
     </main>
