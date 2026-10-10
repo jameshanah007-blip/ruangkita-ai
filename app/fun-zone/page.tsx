@@ -40,6 +40,12 @@ const GENRE_BUTTONS: { id: GameGenre; emoji: string }[] = [
 
 export default function FunZonePage() {
   const { user } = useAuth();
+  const rawDisplayName = user?.name?.trim() || "";
+  const cleanedDisplayName = rawDisplayName.replace(/\uFFFD/g, "").trim();
+  const displayName =
+    /\uFFFD/.test(rawDisplayName) && /^nor$/i.test(cleanedDisplayName)
+      ? "Nora"
+      : cleanedDisplayName || "kamu";
   const [prompt, setPrompt] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState("");
@@ -97,7 +103,7 @@ export default function FunZonePage() {
               Laboratory Game
             </h1>
             <p className="mt-4 text-base text-[#00D3F1] sm:text-lg">
-              Hai {user?.name?.trim() || "kamu"}, tulis game yang kamu inginkan, aku akan membuatkannya untukmu.
+              Hai {displayName}, tulis game yang kamu inginkan, aku akan membuatkannya untukmu.
             </p>
             <form onSubmit={handleSubmit} className="mt-7 flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/30 p-2 sm:flex-row">
               <label htmlFor="game-prompt" className="sr-only">Game yang ingin dimainkan</label>
@@ -112,7 +118,7 @@ export default function FunZonePage() {
               <button
                 type="submit"
                 disabled={isSearching}
-                className="min-h-12 rounded-xl bg-violet-300 px-6 py-3 text-sm font-bold text-slate-950 transition hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-12 rounded-xl bg-[#00D3F1] px-6 py-3 text-sm font-bold text-slate-950 transition hover:bg-[#32DDF5] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSearching ? "Mencari game..." : "Cari game"}
               </button>
@@ -133,7 +139,7 @@ export default function FunZonePage() {
         <section aria-label="Pilihan game" className="mt-10">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-fuchsia-300">Game di Laboratory</p>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#00D3F1]">Game di Laboratory</p>
               <h2 className="mt-2 text-2xl font-bold sm:text-3xl">
                 {result ? `Hasil untuk: ${result.label}` : "Pilih game untuk mulai bermain"}
               </h2>
@@ -154,14 +160,11 @@ export default function FunZonePage() {
                       referrerPolicy="no-referrer"
                       className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                     />
-                    <span className="absolute left-2 top-2 rounded-full border border-white/15 bg-black/70 px-2 py-1 text-[10px] font-semibold text-white">
-                      {("badge" in game && game.badge) ? game.badge : "Hasil pencarian"}
-                    </span>
                   </div>
                   <div className="p-3 sm:p-4">
                     <h3 className="font-bold text-white">{game.name}</h3>
                     <p className="mt-1 line-clamp-2 min-h-10 text-xs leading-5 text-slate-400">{game.description}</p>
-                    <p className="mt-3 text-xs font-semibold text-violet-200">Mainkan di {game.provider} ↗</p>
+                    <p className="mt-3 text-xs font-semibold text-[#00D3F1]">Mainkan di {game.provider} ↗</p>
                   </div>
                 </a>
               </article>
