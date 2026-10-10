@@ -104,8 +104,8 @@ export default function FunZonePage() {
               </span>
             </h1>
             <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-              Ceritakan game yang ingin kamu mainkan. James akan memilihkan beberapa
-              game dari katalog eksternal dan menampilkan gambar game yang bisa kamu
+              Jelaskan game yang kamu inginkan. James mencari game berdasarkan maksud prompt
+              di berbagai portal eksternal, bukan hanya dari daftar genre tetap, dan menampilkan kartu game yang bisa kamu
               pilih langsung. Game dimainkan di situs penyedia aslinya.
             </p>
 
@@ -179,7 +179,7 @@ export default function FunZonePage() {
                 <a href={game.url} target="_blank" rel="noopener noreferrer" className="block" aria-label={`Mainkan ${game.name} di ${game.provider}`}>
                   <div className="relative aspect-square overflow-hidden bg-slate-900">
                     <img
-                      src={game.imageUrl}
+                      src={game.imageUrl || "https://www.poki.com/favicon.ico"}
                       alt={`Ikon game ${game.name}`}
                       loading="lazy"
                       referrerPolicy="no-referrer"
