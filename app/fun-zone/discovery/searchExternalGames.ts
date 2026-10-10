@@ -68,14 +68,34 @@ async function verifyPlayableGamePage(pageUrl: string): Promise<boolean> {
     }
     html += decoder.decode();
 
-    // Require individual-game evidence, not just a reachable category/article page.
+    // Reject editorial/category routes before accepting generic "play" text.
+    const pathSegments = url.pathname.toLowerCase().split("/").filter(Boolean);
+    const blockedSegments = new Set([
+      "blog", "blogs", "news", "article", "articles", "review", "reviews",
+      "category", "categories", "tag", "tags", "search", "collections",
+      "topics", "genre", "genres", "developers", "publishers",
+    ]);
+    const hasBlockedRoute = pathSegments.some((segment) => blockedSegments.has(segment));
+    const pageTitle = cleanText(
+      html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ??
+      html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1] ??
+      "",
+      180,
+    ).toLowerCase();
+    const looksEditorial = /\b(news|review|reviews|walkthrough|top \d+ games|best games of|how to play|guide)\b/i.test(pageTitle);
+    if (hasBlockedRoute || looksEditorial) return false;
+
+    // Require playable-game evidence, not merely a reachable URL.
     const hasGameEvidence =
       /<meta[^>]+(?:property|name)=["']og:type["'][^>]+content=["'](?:game|product)["']/i.test(html) ||
       /<(?:canvas|iframe)\b/i.test(html) ||
       /\b(play game|play now|play online|mainkan sekarang|start game|launch game)\b/i.test(html) ||
       /(?:game[_-]?id|game[_-]?url|game[_-]?embed|playable[_-]?game)/i.test(html);
-    const looksLikeNonGamePage = /\b(category|categories|tag|search results|game reviews|gaming news)\b/i.test(url.pathname);
-    return hasGameEvidence && !looksLikeNonGamePage;
+    const hasIndividualGamePath =
+      /\/(?:en\/|id\/)?g\/[^/]+\/?$/i.test(url.pathname) ||
+      /\/(?:game|games|play)\/[^/]+\/?$/i.test(url.pathname);
+    const looksLikeGenericLandingPage = /\/(?:2d|games|permainan)\/?$/i.test(url.pathname);
+    return hasGameEvidence && !looksLikeGenericLandingPage && (hasIndividualGamePath || pathSegments.length >= 2);
   } catch {
     return false;
   }
@@ -236,7 +256,15 @@ function toCandidates(results: RawSearchResult[]): DiscoveredExternalGame[] {
     // Only accepted portals can be verified or shown. This also prevents arbitrary
     // search results from consuming candidate slots or being fetched server-side.
     if (url.protocol !== "https:" || !provider) continue;
-    if (/\/(?:tag|category|categories|search|2d|2-player|2-pemain)\/?(?:$|\?)/i.test(url.pathname)) continue;
+    const segments = url.pathname.toLowerCase().split("/").filter(Boolean);
+    const nonGameRoutes = new Set([
+      "blog", "blogs", "news", "article", "articles", "review", "reviews",
+      "tag", "tags", "category", "categories", "search", "collections",
+      "topics", "genre", "genres", "developers", "publishers", "2d",
+      "2-player", "2-pemain",
+    ]);
+    if (segments.some((segment) => nonGameRoutes.has(segment))) continue;
+    if (/\/(?:en\/|id\/)?(?:t|tag|category|search)\/[^/]+\/?$/i.test(url.pathname)) continue;
     const key = url.toString().split("#")[0];
     if (seen.has(key)) continue;
     seen.add(key);
