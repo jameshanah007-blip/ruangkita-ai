@@ -48,7 +48,7 @@ const CFG=${config};
 window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;
 const state={coins:0,won:false,dead:false};let sceneRef=null;
 const restartButton=document.getElementById("restartBtn");
-function restartGame(){if(!sceneRef)return false;state.coins=0;state.won=false;state.dead=false;restartButton.style.display="none";sceneRef.scene.restart();return true;}
+function restartGame(){if(!sceneRef)return false;state.coins=0;state.won=false;state.dead=false;window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;window.__RK_GAME_LOOP_STARTED__=false;restartButton.style.display="none";sceneRef.scene.restart();return true;}
 restartButton.addEventListener("click",()=>restartGame());
 window.__RK_GAME_TEST__={
  isReady:()=>Boolean(sceneRef&&sceneRef.player&&sceneRef.player.body&&sceneRef.player.active),
