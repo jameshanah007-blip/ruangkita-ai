@@ -108,7 +108,8 @@ class PlatformerScene extends Phaser.Scene{
   window.addEventListener("keydown",this._windowKeyDown,{passive:false});
   window.addEventListener("keyup",this._windowKeyUp);
   window.addEventListener("blur",this._windowBlur);
-  if(this.input.keyboard)this.input.keyboard.on("keydown-R",()=>{if(state.won||state.dead)restartGame();});
+  this._sceneRestartKeyHandler=()=>{if(state.won||state.dead)restartGame();};
+  if(this.input.keyboard)this.input.keyboard.on("keydown-R",this._sceneRestartKeyHandler);
   // Recreate one pad per scene; shutdown removes it and every listener to prevent stale scene closures.
   const oldTouchPad=document.getElementById("rkTouchPad");
   if(oldTouchPad)oldTouchPad.remove();
@@ -147,6 +148,7 @@ class PlatformerScene extends Phaser.Scene{
    window.removeEventListener("blur",this._windowBlur);
    window.removeEventListener("keydown",this._windowKeyDown);
    window.removeEventListener("keyup",this._windowKeyUp);
+   if(this.input.keyboard&&this._sceneRestartKeyHandler)this.input.keyboard.off("keydown-R",this._sceneRestartKeyHandler);
    touchPad.remove();
    if(sceneRef===this)sceneRef=null;
   };
