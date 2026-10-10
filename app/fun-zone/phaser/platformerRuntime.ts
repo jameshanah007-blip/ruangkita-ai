@@ -57,17 +57,27 @@ window.__RK_GAME_TEST__={
  getPlayerState:()=>sceneRef&&sceneRef.player?({x:sceneRef.player.x,y:sceneRef.player.y,velocityX:sceneRef.player.body.velocity.x,velocityY:sceneRef.player.body.velocity.y}):null,
  getObjectiveState:()=>({progress:Math.min(1,state.coins/5),coins:state.coins}),
  getWinState:()=>state.won,getLoseState:()=>state.dead,
- performTestAction:(action)=>{if(!sceneRef||!sceneRef.player)return false;if(action==="move_right"){sceneRef.player.setVelocityX(180);return true;}if(action==="jump"&&sceneRef.player.body.blocked.down){sceneRef.player.setVelocityY(-430);return true;}if(action==="collect"){const item=sceneRef.coins.getChildren().find((c)=>c.active);if(!item)return false;sceneRef.collectCoin(item);return true;}if(action==="reach_finish"){sceneRef.reachFinish();return true;}return false;},
+ performTestAction:(action)=>{if(!sceneRef||!sceneRef.player||!sceneRef.player.body)return false;if(action==="move_right"){sceneRef.player.setVelocityX(180);return sceneRef.player.body.velocity.x>0;}if(action==="jump"){if(!sceneRef.player.body.blocked.down)return false;const beforeY=sceneRef.player.body.velocity.y;sceneRef.player.setVelocityY(-430);return beforeY!==sceneRef.player.body.velocity.y&&sceneRef.player.body.velocity.y<0;}if(action==="collect"){const item=sceneRef.coins.getChildren().find((c)=>c.active);if(!item)return false;const before=state.coins;sceneRef.collectCoin(item);return state.coins===before+1;}if(action==="reach_finish"){const before=state.won;sceneRef.reachFinish();return state.won!==before;}if(action==="restart")return restartGame();return false;},
  restart:()=>restartGame()
 };
 class PlatformerScene extends Phaser.Scene{
  constructor(){super({key:"PlatformerScene"});this.move={left:false,right:false};this.touchJump=false;}
  preload(){
-  this.load.on("loaderror",(file)=>{const message="Phaser asset load failed: "+String(file&&file.key||file&&file.src||"unknown asset");window.__RK_GAME_BOOT_ERROR__=message;const panel=document.getElementById("bootError");if(panel){panel.textContent=message;panel.style.display="block";}if(Array.isArray(window.__RK_TEST_ERRORS__)&&!window.__RK_TEST_ERRORS__.some((item)=>item&&item.message===message))window.__RK_TEST_ERRORS__.push({message});});
+  this._assetLoadErrors=[];
+  this.load.on("loaderror",(file)=>{const message="Phaser asset load failed: "+String(file&&file.key||file&&file.src||"unknown asset");this._assetLoadErrors.push(message);window.__RK_GAME_BOOT_ERROR__=message;const panel=document.getElementById("bootError");if(panel){panel.textContent=this._assetLoadErrors.join("\\n");panel.style.display="block";}if(Array.isArray(window.__RK_TEST_ERRORS__)&&!window.__RK_TEST_ERRORS__.some((item)=>item&&item.message===message))window.__RK_TEST_ERRORS__.push({message});});
   Object.entries(CFG.assetUris).forEach(([id,uri])=>{if(id===CFG.playerId)this.load.spritesheet(id,uri,{frameWidth:CFG.frameWidth,frameHeight:CFG.frameHeight});else this.load.image(id,uri);});
  }
  create(){
-  sceneRef=this;window.__RK_GAME_BOOT_ERROR__="";const bootPanel=document.getElementById("bootError");if(bootPanel)bootPanel.style.display="none";this.cameras.main.setBackgroundColor(CFG.palette.background);this.physics.world.setBounds(0,0,2200,640);
+  sceneRef=this;
+  // Never clear an asset failure from preload: a failed required asset must keep READY false.
+  const bootPanel=document.getElementById("bootError");
+  if((this._assetLoadErrors||[]).length){if(bootPanel){bootPanel.textContent=this._assetLoadErrors.join("\\n");bootPanel.style.display="block";}window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;return;}
+  const requiredIds=[CFG.playerId,CFG.platformId,CFG.coinId,CFG.finishId].concat(CFG.environmentId?[CFG.environmentId]:[]);
+  const missingTextures=requiredIds.filter((id)=>!this.textures.exists(id));
+  if(missingTextures.length){const message="Required Phaser textures unavailable: "+missingTextures.join(", ");window.__RK_GAME_BOOT_ERROR__=message;if(bootPanel){bootPanel.textContent=message;bootPanel.style.display="block";}if(Array.isArray(window.__RK_TEST_ERRORS__))window.__RK_TEST_ERRORS__.push({message});window.__RK_GAME_READY__=false;window.__RK_GAME_RENDERED__=false;return;}
+  if(bootPanel)bootPanel.style.display="none";
+  window.__RK_GAME_BOOT_ERROR__="";
+  this.cameras.main.setBackgroundColor(CFG.palette.background);this.physics.world.setBounds(0,0,2200,640);
   if(CFG.environmentId)this.add.image(1100,320,CFG.environmentId).setDisplaySize(2200,640).setDepth(-10);
   this.platforms=this.physics.add.staticGroup();
   const placePlatform=(x,y,w)=>{const p=this.platforms.create(x,y,CFG.platformId).setDisplaySize(w,30).refreshBody();};
@@ -99,26 +109,53 @@ class PlatformerScene extends Phaser.Scene{
   window.addEventListener("keyup",this._windowKeyUp);
   window.addEventListener("blur",this._windowBlur);
   if(this.input.keyboard)this.input.keyboard.on("keydown-R",()=>{if(state.won||state.dead)restartGame();});
-  // DOM touch pad sits above the canvas to avoid Phaser hit-testing swallowing taps.
-  let touchPad=document.getElementById("rkTouchPad");
-  if(!touchPad){touchPad=document.createElement("div");touchPad.id="rkTouchPad";touchPad.setAttribute("aria-label","Game touch controls");touchPad.style.cssText="position:fixed;left:14px;bottom:18px;z-index:10;display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:5px;touch-action:none;user-select:none;-webkit-user-select:none";document.body.appendChild(touchPad);}
-  const activeTouchDirections=new Set();
-  const applyTouchDirection=(kind,down)=>{
-   if(down)activeTouchDirections.add(kind);else activeTouchDirections.delete(kind);
-   this.move.left=activeTouchDirections.has("left");
-   this.move.right=activeTouchDirections.has("right");
-   this.touchJump=activeTouchDirections.has("up");
-   if(activeTouchDirections.has("down"))this._pressedKeys.add("arrowdown");else this._pressedKeys.delete("arrowdown");
+  // Recreate one pad per scene; shutdown removes it and every listener to prevent stale scene closures.
+  const oldTouchPad=document.getElementById("rkTouchPad");
+  if(oldTouchPad)oldTouchPad.remove();
+  const touchPad=document.createElement("div");touchPad.id="rkTouchPad";touchPad.setAttribute("aria-label","Game touch controls");touchPad.style.cssText="position:fixed;left:14px;bottom:18px;z-index:10;display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:48px 48px 48px;gap:5px;touch-action:none;user-select:none;-webkit-user-select:none";document.body.appendChild(touchPad);
+  const activePointers=new Map();
+  const activeTouches=new Map();
+  const syncDirections=()=>{
+   const kinds=[...activePointers.values(),...activeTouches.values()];
+   this.move.left=kinds.includes("left");this.move.right=kinds.includes("right");
+   this.touchJump=kinds.includes("up");
+   if(kinds.includes("down"))this._pressedKeys.add("arrowdown");else this._pressedKeys.delete("arrowdown");
   };
-  const releaseAllTouchDirections=()=>{activeTouchDirections.clear();this.move.left=false;this.move.right=false;this.touchJump=false;this._pressedKeys.delete("arrowdown");};
-  window.addEventListener("pointerup",releaseAllTouchDirections);
-  window.addEventListener("pointercancel",releaseAllTouchDirections);
-  window.addEventListener("touchend",releaseAllTouchDirections,{passive:true});
-  window.addEventListener("touchcancel",releaseAllTouchDirections,{passive:true});
-  const makeTouch=(label,gridColumn,gridRow,kind)=>{const b=document.createElement("button");b.type="button";b.textContent=label;b.setAttribute("aria-label",kind);b.setAttribute("data-rk-direction",kind);b.style.cssText="grid-column:"+gridColumn+";grid-row:"+gridRow+";border:1px solid #ffffffaa;border-radius:10px;background:#142a36dd;color:white;font:bold 22px Arial;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;padding:0;pointer-events:auto";const press=(event)=>{event.preventDefault();event.stopPropagation();applyTouchDirection(kind,true);};const release=(event)=>{event.preventDefault();event.stopPropagation();applyTouchDirection(kind,false);};b.addEventListener("pointerdown",press,{passive:false});b.addEventListener("pointerup",release,{passive:false});b.addEventListener("pointercancel",release,{passive:false});b.addEventListener("lostpointercapture",release,{passive:false});
-  // Fallback for mobile webviews where Pointer Events are missing or inconsistent.
-  b.addEventListener("touchstart",press,{passive:false});b.addEventListener("touchend",release,{passive:false});b.addEventListener("touchcancel",release,{passive:false});
-  b.addEventListener("contextmenu",(event)=>event.preventDefault());b.addEventListener("click",(event)=>{event.preventDefault();if(kind==="up"){this.touchJump=true;}else if(kind==="left"||kind==="right"){applyTouchDirection(kind,true);window.setTimeout(()=>applyTouchDirection(kind,false),120);}});touchPad.appendChild(b);};
+  const clearInputs=()=>{activePointers.clear();activeTouches.clear();syncDirections();};
+  const onPointerUp=(event)=>{if(activePointers.delete(event.pointerId))syncDirections();};
+  const onPointerCancel=(event)=>{if(activePointers.delete(event.pointerId))syncDirections();};
+  const onTouchEnd=(event)=>{for(const touch of Array.from(event.changedTouches||[]))activeTouches.delete(touch.identifier);syncDirections();};
+  const onBlur=()=>clearInputs();
+  const makeTouch=(label,gridColumn,gridRow,kind)=>{
+   const b=document.createElement("button");b.type="button";b.textContent=label;b.setAttribute("aria-label",kind);b.setAttribute("data-rk-direction",kind);
+   b.style.cssText="grid-column:"+gridColumn+";grid-row:"+gridRow+";border:1px solid #ffffffaa;border-radius:10px;background:#142a36dd;color:white;font:bold 22px Arial;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;padding:0;pointer-events:auto";
+   b.addEventListener("pointerdown",(event)=>{event.preventDefault();event.stopPropagation();activePointers.set(event.pointerId,kind);syncDirections();},{passive:false});
+   b.addEventListener("touchstart",(event)=>{event.preventDefault();event.stopPropagation();for(const touch of Array.from(event.changedTouches||[]))activeTouches.set(touch.identifier,kind);syncDirections();},{passive:false});
+   b.addEventListener("touchend",(event)=>{event.preventDefault();event.stopPropagation();onTouchEnd(event);},{passive:false});
+   b.addEventListener("touchcancel",(event)=>{event.preventDefault();event.stopPropagation();onTouchEnd(event);},{passive:false});
+   b.addEventListener("contextmenu",(event)=>event.preventDefault());
+   b.addEventListener("click",(event)=>{event.preventDefault();if(kind==="up"&&this.player&&this.player.body.blocked.down){this.player.setVelocityY(-430);}});
+   touchPad.appendChild(b);
+  };
+  const onShutdown=()=>{
+   clearInputs();
+   window.removeEventListener("pointerup",onPointerUp);
+   window.removeEventListener("pointercancel",onPointerCancel);
+   window.removeEventListener("touchend",onTouchEnd);
+   window.removeEventListener("touchcancel",onTouchEnd);
+   window.removeEventListener("blur",onBlur);
+   window.removeEventListener("keydown",this._windowKeyDown);
+   window.removeEventListener("keyup",this._windowKeyUp);
+   touchPad.remove();
+   if(sceneRef===this)sceneRef=null;
+  };
+  window.addEventListener("pointerup",onPointerUp);
+  window.addEventListener("pointercancel",onPointerCancel);
+  window.addEventListener("touchend",onTouchEnd,{passive:true});
+  window.addEventListener("touchcancel",onTouchEnd,{passive:true});
+  window.addEventListener("blur",onBlur);
+  this.events.once(Phaser.Scenes.Events.SHUTDOWN,onShutdown);
+  this.events.once(Phaser.Scenes.Events.DESTROY,onShutdown);
   makeTouch("▲","2","1","up");makeTouch("◀","1","2","left");makeTouch("▼","2","2","down");makeTouch("▶","3","2","right");
   window.__RK_GAME_RENDERED__=true;window.__RK_GAME_READY__=true;
  }
