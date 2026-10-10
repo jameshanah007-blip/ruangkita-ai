@@ -1119,12 +1119,19 @@ function readGameTestSnapshot() {
       // loading. Do not consume the one-shot action attempt until the scene and
       // player are actually ready; retry briefly, bounded by the existing test timeout.
       var readinessProtocol = window.__RK_GAME_TEST__;
-      if (readinessProtocol && typeof readinessProtocol.isReady === "function" && !readinessProtocol.isReady()) {
-        var readinessElapsed = Date.now() - (window.__RK_TEST_STARTED_AT__ || Date.now());
-        if (readinessElapsed < 11000) {
-          window.setTimeout(runTest, 200);
-          return;
-        }
+      var readinessElapsed = Date.now() - (window.__RK_TEST_STARTED_AT__ || Date.now());
+      // The diagnostic script is injected before the generated game's scripts.
+      // A slow Phaser CDN can therefore leave the protocol undefined at first.
+      // Retry both "not installed yet" and "installed but not ready" states;
+      // otherwise the one-shot test incorrectly reports a missing protocol.
+      if (
+        (!readinessProtocol ||
+          typeof readinessProtocol.isReady !== "function" ||
+          !readinessProtocol.isReady()) &&
+        readinessElapsed < 11000
+      ) {
+        window.setTimeout(runTest, 200);
+        return;
       }
 
       var canvas =
