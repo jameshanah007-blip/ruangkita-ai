@@ -109,6 +109,8 @@ export default function FunZonePage() {
               <label htmlFor="game-prompt" className="sr-only">Game yang ingin dimainkan</label>
               <input
                 id="game-prompt"
+                name="game-request"
+                autoComplete="off"
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 placeholder=""
