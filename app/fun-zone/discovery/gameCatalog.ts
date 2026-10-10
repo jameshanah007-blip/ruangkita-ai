@@ -165,7 +165,7 @@ export function resolveGameDiscovery(prompt: string): {
 
   // Multiplayer is a strong intent modifier: if the user explicitly asks to play
   // together, prioritize portals with two-player/multiplayer collections.
-  const multiplayerIntent = /\\b(2 pemain|dua pemain|berdua|multiplayer|co-op|co op|main bersama|main bareng|dengan teman)\\b/.test(normalized);
+  const multiplayerIntent = /\b(2 pemain|dua pemain|berdua|multiplayer|co-op|co op|main bersama|main bareng|dengan teman)\b/.test(normalized);
   const winner = multiplayerIntent
     ? scores.find((entry) => entry.genre === "multiplayer")
     : scores[0];
