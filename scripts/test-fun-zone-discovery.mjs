@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { EXTERNAL_GAMES, GAME_PORTALS, resolveGameDiscovery } from "../app/fun-zone/discovery/gameCatalog.ts";
+import { searchExternalGames } from "../app/fun-zone/discovery/searchExternalGames.ts";
 
 const adventure = resolveGameDiscovery("Aku ingin game petualangan 2D dengan eksplorasi dan misi");
 assert.equal(adventure.genre, "adventure");
@@ -43,5 +44,12 @@ for (const portal of GAME_PORTALS) {
   assert.ok(portal.url.startsWith("https://"), "portal links must use HTTPS");
   assert.ok(["crazygames", "gamescoid", "playhop", "poki"].includes(portal.id));
 }
+
+const savedExaKey = process.env.EXA_API_KEY;
+delete process.env.EXA_API_KEY;
+const noSearchKey = await searchExternalGames("game 2D petualangan dengan teka-teki");
+assert.equal(noSearchKey.status, "unavailable");
+assert.equal(noSearchKey.games.length, 0);
+if (savedExaKey) process.env.EXA_API_KEY = savedExaKey;
 
 console.log("Fun Zone discovery tests passed.");
