@@ -463,6 +463,10 @@ assert.ok(sandboxSource.includes("window.__RK_KEYBOARD_STATE__ = Object.create(n
 assert.ok(sandboxSource.includes('type === "AI_GAME_KEY_RESET"'), "sandbox must clear stuck keys on parent focus loss");
 assert.ok(sandboxSource.includes("window.addEventListener(\"keydown\", updateKeyboardState, true)"), "sandbox must capture native keydown inside the iframe");
 assert.ok(sandboxSource.includes("window.addEventListener(\"keyup\", updateKeyboardState, true)"), "sandbox must capture native keyup inside the iframe");
+const racingRuntimeSource = await readFile(new URL("../app/fun-zone/phaser/racingRuntime.ts", import.meta.url), "utf8");
+assert.ok(racingRuntimeSource.includes("window.__RK_KEYBOARD_STATE__"), "racing runtime must consume the shared sandbox keyboard state");
+assert.ok(racingRuntimeSource.includes("bridged.arrowleft") && racingRuntimeSource.includes("bridged.arrowright"), "racing runtime must support bridged left/right steering");
+assert.ok(racingRuntimeSource.includes("bridged.arrowup") && racingRuntimeSource.includes("bridged.arrowdown"), "racing runtime must support bridged up/down acceleration and braking");
 
 console.log("Fun Zone Game System Factory stress test: PASS");
 console.log(JSON.stringify({
