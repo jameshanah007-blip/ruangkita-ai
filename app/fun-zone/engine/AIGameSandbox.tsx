@@ -277,21 +277,30 @@ function buildDiagnosticHtml(
     window.addEventListener("message", function (event) {
       try {
         var data = event && event.data;
-        if (!data || data.type !== "AI_GAME_KEY_EVENT") return;
+        if (!data) return;
+        if (data.type === "AI_GAME_KEY_RESET") {
+          window.__RK_KEYBOARD_STATE__ = Object.create(null);
+          return;
+        }
+        if (data.type !== "AI_GAME_KEY_EVENT") return;
 
-        var target = document;
-        var keyEvent = new KeyboardEvent(
-          String(data.eventType || "keydown"),
-          {
-            bubbles: true,
-            cancelable: true,
-            key: String(data.key || ""),
-            code: String(data.code || ""),
-            repeat: data.repeat === true
-          }
-        );
+        // Keep a deterministic key-state channel alongside DOM events. Synthetic
+        // KeyboardEvents are useful for Phaser plugins, but gameplay must not
+        // depend on focus or on a browser's synthetic-event propagation details.
+        var key = String(data.key || "").toLowerCase();
+        var eventType = String(data.eventType || "keydown");
+        window.__RK_KEYBOARD_STATE__ = window.__RK_KEYBOARD_STATE__ || Object.create(null);
+        if (eventType === "keydown") window.__RK_KEYBOARD_STATE__[key] = true;
+        if (eventType === "keyup") delete window.__RK_KEYBOARD_STATE__[key];
 
-        target.dispatchEvent(keyEvent);
+        var keyEvent = new KeyboardEvent(eventType, {
+          bubbles: true,
+          cancelable: true,
+          key: String(data.key || ""),
+          code: String(data.code || ""),
+          repeat: data.repeat === true
+        });
+        document.dispatchEvent(keyEvent);
       } catch (_) {}
     });
   } catch (_) {}
@@ -2970,8 +2979,13 @@ void runDebugger(
       );
     };
 
+    const resetForwardedKeys = () => {
+      iframeRef.current?.contentWindow?.postMessage({ type: "AI_GAME_KEY_RESET" }, "*");
+    };
+
     window.addEventListener("keydown", forwardKeyboardEvent, { passive: false });
     window.addEventListener("keyup", forwardKeyboardEvent, { passive: false });
+    window.addEventListener("blur", resetForwardedKeys);
 
     return () => {
       window.removeEventListener(
@@ -2980,6 +2994,7 @@ void runDebugger(
       );
       window.removeEventListener("keydown", forwardKeyboardEvent);
       window.removeEventListener("keyup", forwardKeyboardEvent);
+      window.removeEventListener("blur", resetForwardedKeys);
 
       if (
         testTimerRef.current
