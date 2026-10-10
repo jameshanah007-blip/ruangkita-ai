@@ -263,6 +263,14 @@ assert.throws(
 assert.throws(
   () => buildPlatformerGameHtml({
     ...platformerRuntimeSpec,
+    assets: platformerRuntimeSpec.assets.filter((asset) => asset.id !== "platformer-coin-art"),
+  }),
+  /materialized image asset tagged "coin-image"/,
+  "platformer must fail closed when a required collectible image is absent",
+);
+assert.throws(
+  () => buildPlatformerGameHtml({
+    ...platformerRuntimeSpec,
     assets: platformerRuntimeSpec.assets.map((asset) =>
       asset.id === "protagonist" ? { ...asset, rowCount: 1 } : asset,
     ),
