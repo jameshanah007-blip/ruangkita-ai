@@ -144,6 +144,18 @@ export default function FunZonePage() {
           </div>
         </section>
 
+        {result && result.searchStatus !== "live_search" && (
+          <section role="status" aria-live="polite" className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-4 sm:p-5">
+            <p className="text-sm font-semibold text-amber-100">
+              {result.searchStatus === "unavailable" ? "Pencarian langsung sedang tidak tersedia" : "Belum ada hasil game yang cocok"}
+            </p>
+            <p className="mt-1 text-sm leading-6 text-slate-300">
+              {result.message || "Kartu di bawah berasal dari katalog pilihan sebagai alternatif, bukan hasil pencarian langsung."}
+              {" "}Kartu katalog ditampilkan sebagai alternatif; kartu ini bukan hasil pencarian langsung.
+            </p>
+          </section>
+        )}
+
         {result && (
           <section aria-live="polite" className="mt-8 rounded-2xl border border-violet-300/20 bg-violet-300/[0.06] p-5 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
