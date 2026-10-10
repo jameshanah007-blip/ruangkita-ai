@@ -463,6 +463,7 @@ assert.ok(sandboxSource.includes("window.__RK_KEYBOARD_STATE__ = Object.create(n
 assert.ok(sandboxSource.includes('type === "AI_GAME_KEY_RESET"'), "sandbox must clear stuck keys on parent focus loss");
 assert.ok(sandboxSource.includes("window.addEventListener(\"keydown\", updateKeyboardState, true)"), "sandbox must capture native keydown inside the iframe");
 assert.ok(sandboxSource.includes("window.addEventListener(\"keyup\", updateKeyboardState, true)"), "sandbox must capture native keyup inside the iframe");
+assert.ok(sandboxSource.includes("(!readinessProtocol ||") && sandboxSource.includes("readinessElapsed < 11000"), "sandbox must retry when the generated game protocol has not been installed yet, such as during a slow Phaser CDN load");
 const laboratoryRouteSource = await readFile(new URL("../app/api/fun-zone/laboratory/route.ts", import.meta.url), "utf8");
 assert.ok(laboratoryRouteSource.includes("resolvePhaserGenre(effectiveBlueprint)"), "Laboratory must resolve the runtime from the final blueprint");
 assert.ok(laboratoryRouteSource.includes("No assets were generated and no other genre template was substituted"), "unsupported genres must fail before asset generation without a silent fallback");
