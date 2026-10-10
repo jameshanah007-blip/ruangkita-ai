@@ -314,10 +314,11 @@ class RacingScene extends Phaser.Scene{
     if(!player || race.finished) return;
 
     const keys=this.keys;
-    const accelerate=this.touch.accelerate || (keys && (keys.W.isDown || keys.UP.isDown));
-    const brake=this.touch.brake || (keys && (keys.S.isDown || keys.DOWN.isDown));
-    const left=this.touch.left || (keys && (keys.A.isDown || keys.LEFT.isDown));
-    const right=this.touch.right || (keys && (keys.D.isDown || keys.RIGHT.isDown));
+    const bridged=window.__RK_KEYBOARD_STATE__||{};
+    const accelerate=this.touch.accelerate || bridged.w || bridged.arrowup || (keys && (keys.W.isDown || keys.UP.isDown));
+    const brake=this.touch.brake || bridged.s || bridged.arrowdown || (keys && (keys.S.isDown || keys.DOWN.isDown));
+    const left=this.touch.left || bridged.a || bridged.arrowleft || (keys && (keys.A.isDown || keys.LEFT.isDown));
+    const right=this.touch.right || bridged.d || bridged.arrowright || (keys && (keys.D.isDown || keys.RIGHT.isDown));
 
     if(accelerate) race.speed=Math.min(race.maxSpeed,race.speed+0.08);
     else race.speed=Math.max(0,race.speed-0.025);
